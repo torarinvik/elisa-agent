@@ -37,3 +37,30 @@ def paired_difference(first: Sequence[bool], second: Sequence[bool],
 
 def format_interval(value: float, low: float, high: float) -> str:
     return f"{value:.4f} [{low:.4f}, {high:.4f}]"
+
+
+def binomial_cdf(k: int, n: int, r: float) -> float:
+    """``P(Binomial(n, r) <= k)``."""
+    if r <= 0.0:
+        return 1.0
+    if r >= 1.0:
+        return float(k >= n)
+    return sum(math.exp(math.lgamma(n + 1) - math.lgamma(i + 1) - math.lgamma(n - i + 1)
+                        + i * math.log(r) + (n - i) * math.log1p(-r))
+               for i in range(k + 1))
+
+
+def clopper_pearson_upper(k: int, n: int, alpha: float) -> float:
+    """Exact one-sided upper confidence bound on a binomial rate: the largest
+    ``r`` with ``P(Binomial(n, r) <= k) >= alpha``, so that the true rate
+    exceeds it with probability at most ``alpha``."""
+    if n == 0 or k >= n:
+        return 1.0
+    low, high = k / n, 1.0
+    for _ in range(60):
+        mid = (low + high) / 2
+        if binomial_cdf(k, n, mid) >= alpha:
+            low = mid
+        else:
+            high = mid
+    return low

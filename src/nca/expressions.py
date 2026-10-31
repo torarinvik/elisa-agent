@@ -24,6 +24,10 @@ follow the split's pair policy and the rest are uniform.
 
 ``hard`` renders a shifted style for robustness tests: operators with three
 times the usual jitter, and digits randomly thickened or thinned.
+
+``part=(k, m)`` keeps only the split's images whose MNIST index is ``k`` modulo
+``m``, so one split can be divided into disjoint parts, such as an audit drawn
+from the deployment distribution and the evaluation set.
 """
 
 from __future__ import annotations
@@ -158,7 +162,8 @@ class ExpressionDataset:
 
     def __init__(self, split: str, size: int, data_dir: Path = Path("data"),
                  seed: int = 0, operators: tuple[str, ...] = OPERATORS,
-                 mixed: bool = False, hard: bool = False, operands: int = 2) -> None:
+                 mixed: bool = False, hard: bool = False, operands: int = 2,
+                 part: tuple[int, int] | None = None) -> None:
         from torchvision import datasets
 
         if split not in SPLITS:
@@ -171,6 +176,9 @@ class ExpressionDataset:
             pool = pool[:MNIST_TEST_HALF]
         elif split != "train":
             pool = pool[MNIST_TEST_HALF:]
+        if part is not None:
+            index, parts = part
+            pool = pool[pool % parts == index]
         self.by_digit = [pool[labels[pool] == d] for d in range(10)]
         self.pairs = [(a, b) for a in range(10) for b in range(10)
                       if is_held_out(a, b) == (split == "test_unseen")]

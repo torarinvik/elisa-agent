@@ -1030,15 +1030,27 @@ satisfies `P(R(λ) > U(k_λ, n_λ; α)) ≤ α`. Declare `λ` safe when
 requires `U < R(λ)`, which has probability at most `α`: each test is valid
 at level `α`.
 
-**Fixed sequence.** Order the candidates from most to least cautious,
-`λ₀ > λ₁ > … > λ_K = 1`, test them in that order, and stop at the first one
-not declared safe. Deploy the last candidate declared safe, or abstain on
-everything if even `λ₀` fails. By `fixed_sequence_le`:
+**Fixed sequence.** Fix an order of the candidates, test them in that
+order, and stop at the first one not declared safe. By `fixed_sequence_le`:
 
-> `P(the deployed policy is unsafe) ≤ α`,
+> `P(some accepted candidate is unsafe) ≤ α`,
 
 with no correction for the number of candidates and no monotonicity
-assumption. The proof is two lines. Any acceptance of an unsafe candidate
+assumption. Since the event covers *every* accepted candidate at once, any
+accepted candidate may be deployed, and in particular the one answering the
+most audit expressions. If none is accepted, the system abstains on
+everything.
+
+**Choosing the order.** The guarantee requires only that the order not
+depend on the data the tests are run on. The natural order, from most to
+least cautious, is a poor one. Cautious candidates answer few audit
+expressions, so their upper bounds are wide, they fail, and testing stops
+before reaching anything useful (§17.8). The audit is therefore split: one
+part runs every candidate and orders them by their Clopper–Pearson bound
+there, most certifiable first; the other part runs the tests. Candidates
+with `λ < 1` (answering above the bound) are admissible too. The test, not
+the bound, decides their safety, and they pay off where the bound is
+conservative. The proof is two lines: any acceptance of an unsafe candidate
 passes through the *first* unsafe candidate `k*` in the order (a fixed index,
 since safety is a property of `Q`, not of the audit). Reaching past `k*`
 requires its test to have wrongly declared it safe, an event of probability
@@ -1096,3 +1108,65 @@ The theory makes falsifiable predictions for the experiment.
 4. **Labels.** Certification fails at strict targets when too few answered
    audit expressions remain (§17.6), and the controller then abstains on
    everything. This is the honest answer when evidence is insufficient.
+
+### 17.8 Results
+
+`nca.certify`, with the base ladder (cheap, expensive and second-look
+digit readers; operator reader and its second look). Calibration uses 2000
+reference glyphs. The `test` half of the MNIST test set is divided by image
+index into an audit part and an evaluation part (300 expressions). Each audit
+draw holds 200 + 200 expressions: the first half recalibrates the rungs (for
+the *audit* calibration) and orders the candidates, the second half tests
+them. Inflations are `λ ∈ {4, 2, 1.5, 1.25, 1, 0.75, 0.5}` with `α = 0.1`,
+over three independent audit draws.
+
+| glyphs | δ | calibration | uncontrolled: coverage, error answered | risk control: λ per draw | coverage | error answered |
+|---:|---:|---|---|---|---|---|
+| 15 | 0.2 | reference | 0.917, 0.102 | 0.5, 0.5, 0.5 | 0.980 | 0.112 |
+| 15 | 0.2 | audit | 0.87–0.95, 0.07–0.11 | 0.5, 0.5, 0.5 | 0.97–0.99 | 0.110–0.125 |
+| 15 | 0.05 | reference | 0.793, 0.046 | 1, 1.5, 0.5 | 0.79, 0.71, 0.86 | 0.046, 0.038, **0.070** |
+| 15 | 0.05 | audit | 0.57–0.87, 0.029–**0.065** | 0.75, 4, 0.5 | 0.66, 0.55, 0.90 | 0.030, 0.036, **0.071** |
+| 63 | 0.2 | reference | 0.480, 0.139 | –, 1, 1 | 0, 0.48, 0.48 | –, 0.139, 0.139 |
+| 63 | 0.2 | audit | 0.25–0.51, 0.08–0.15 | –, 0.75, 0.75 | 0, 0.47, 0.38 | –, 0.141, 0.106 |
+| 63 | 0.05 | reference | 0.143, **0.070** | –, –, – | 0 | – |
+| 63 | 0.05 | audit | 0.01–0.17, 0–**0.080** | –, –, – | 0 | – |
+
+Bold marks error above `δ` on the evaluation set; "–" means no candidate was
+certified, so the system abstained on everything. The reference-calibrated
+uncontrolled policy does not depend on the audit.
+
+Against the predictions of §17.7:
+
+1. **Validity: confirmed.** Uncontrolled, reference calibration violates the
+   target at 63 glyphs and `δ = 0.05` (0.070), as §16 suggested. Under risk
+   control 22 of 24 configurations meet the target. Both misses come from one
+   audit draw (draw 2, 15 glyphs, `δ = 0.05`: 0.070 and 0.071), and their
+   intervals (`[0.044, 0.107]`, `[0.046, 0.108]`) include the target. Each
+   draw may fail with probability up to `α = 0.1`, and a draw's failures are
+   correlated because all its tests share one audit.
+2. **Price: confirmed, and it depends on the order.** With the
+   most-cautious-first order, risk control at 63 glyphs abstained on
+   everything in 4 of 6 configurations at `δ = 0.2`. Cautious candidates
+   answered too few audit expressions to be certified, and testing stopped
+   there. Ordering on the first audit half certifies a policy in 4 of 6, at
+   the uncontrolled coverage. At 15 glyphs and `δ = 0.2` it certifies
+   `λ = 0.5` in every draw and *raises* coverage from 0.92 to 0.98, because
+   the bound is conservative there.
+3. **Recovery: refuted.** Recalibrating on 200 audit expressions did not
+   reliably help. Its coverage varied widely between draws (0.25–0.51 at
+   63 glyphs, `δ = 0.2`). Uncontrolled, it *caused* violations at 15 glyphs
+   and `δ = 0.05` (0.061, 0.065) where reference calibration had none. This
+   is the distinction §17.4 drew: refitting temperatures moves calibration
+   on average over `Q`, which is not the pointwise validity that the
+   selected, answered inputs need. Only the test-based guarantee is robust.
+4. **Labels: confirmed.** At 63 glyphs and `δ = 0.05` no candidate is ever
+   certified. A pass needs about 59 answered audit expressions with no errors
+   (§17.6), and at that strictness candidates answer 15–30 of the 200.
+   Abstaining is the correct outcome: the evidence does not support the
+   claim.
+
+**Conclusion.** The guarantee on deployment comes from testing, not from
+calibration. Calibration (reference or recalibrated) determines only how
+much is certified. A label-efficient path to strict targets on long inputs
+needs larger audits, or better calibrated risks so that fewer candidates
+answer near the boundary.

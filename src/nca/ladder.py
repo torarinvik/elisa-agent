@@ -160,3 +160,50 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         climb(i)
     bound = sum(risks)
     return Refinement(readings, cost, bound, bound > delta)
+
+
+def recalibrated(rungs: Sequence[Rung], values: Sequence[Any], labels: torch.Tensor,
+                 ) -> list[Rung]:
+    """Copies of ``rungs`` calibrated on other held-out data, such as a
+    teacher-labeled audit from the deployment distribution."""
+    copies = [Rung(r.module) for r in rungs]
+    for rung in copies:
+        rung.calibrate(values, labels)
+    return copies
+
+
+def certify(candidates: Sequence[tuple[int, int]], delta: float, alpha: float,
+            order: Sequence[int] | None = None) -> list[int]:
+    """Fixed-sequence risk control (``NCA.fixed_sequence_le``).
+
+    ``candidates[i]`` gives the number of audit inputs policy ``i`` answered
+    and how many of those it got wrong. Policies are tested in ``order``
+    (default: as listed), which must be fixed without looking at these
+    audit inputs, for example from a separate audit part. Each is declared
+    safe when the Clopper–Pearson upper bound on its error rate among
+    answered inputs is at most ``delta``; testing stops at the first policy
+    not declared safe. Returns the policies declared safe. With probability
+    at least ``1 - alpha`` over the audit, *every* returned policy's error
+    rate among answered inputs is at most ``delta``, so any of them may be
+    deployed, such as the one answering most.
+    """
+    from nca.stats import clopper_pearson_upper
+
+    accepted = []
+    for index in order if order is not None else range(len(candidates)):
+        answered, wrong = candidates[index]
+        if clopper_pearson_upper(wrong, answered, alpha) > delta:
+            break
+        accepted.append(index)
+    return accepted
+
+
+def certification_order(candidates: Sequence[tuple[int, int]], alpha: float) -> list[int]:
+    """Policies ordered from most to least likely to be certified, judged on a
+    separate audit part: by Clopper–Pearson upper bound, then by inputs
+    answered."""
+    from nca.stats import clopper_pearson_upper
+
+    return sorted(range(len(candidates)),
+                  key=lambda i: (clopper_pearson_upper(candidates[i][1], candidates[i][0], alpha),
+                                 -candidates[i][0]))
