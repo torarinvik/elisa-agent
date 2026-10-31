@@ -1,6 +1,8 @@
 import NCA.Check
 import NCA.Contract
+import NCA.Cost
 import NCA.Loading
+import NCA.MinCost
 import NCA.Pruning
 import NCA.Planner
 import NCA.Reliability

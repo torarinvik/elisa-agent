@@ -37,6 +37,8 @@ class Manifest:
     module_id: str
     version: str
     contract: Contract
+    cost: float = 1.0
+    """Cost of one invocation (for example, floating-point operations)."""
 
     @property
     def ref(self) -> str:

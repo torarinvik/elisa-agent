@@ -41,3 +41,10 @@ def test_value_of_mixed_expressions() -> None:
     assert value_of(("3", "+", "4", ">", "6")) is True
     assert value_of(("2", "-", "5", "=", "3")) is False
     assert value_of(("1", "<", "2", "*", "3", "=", "6")) is True
+
+
+def test_long_expressions_respect_precedence() -> None:
+    from nca.expressions import value_of
+
+    assert value_of(("1", "+", "2", "*", "3", "-", "4")) == 3
+    assert value_of(("2", "*", "3", "*", "4", "+", "5", "*", "6")) == 54

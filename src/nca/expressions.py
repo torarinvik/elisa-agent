@@ -18,6 +18,10 @@ from the first half of the MNIST test set; ``test`` and ``test_unseen`` from
 its second half, so no digit image is shared between validation (used for
 decisions such as route upgrades) and the reported test splits.
 
+``operands`` lengthens arithmetic expressions to ``a op b op c ...`` with that
+many single-digit operands on a canvas widened to fit; the first two operands
+follow the split's pair policy and the rest are uniform.
+
 ``hard`` renders a shifted style for robustness tests: operators with three
 times the usual jitter, and digits randomly thickened or thinned.
 """
@@ -154,7 +158,7 @@ class ExpressionDataset:
 
     def __init__(self, split: str, size: int, data_dir: Path = Path("data"),
                  seed: int = 0, operators: tuple[str, ...] = OPERATORS,
-                 mixed: bool = False, hard: bool = False) -> None:
+                 mixed: bool = False, hard: bool = False, operands: int = 2) -> None:
         from torchvision import datasets
 
         if split not in SPLITS:
@@ -174,7 +178,9 @@ class ExpressionDataset:
         self.operators = operators
         self.mixed = mixed
         self.hard = hard
-        self.width = MIXED_WIDTH if mixed else WIDTH
+        self.operands = operands
+        glyphs = 2 * operands - 1
+        self.width = MIXED_WIDTH if mixed else max(WIDTH, glyphs * (GLYPH + 4) + 4)
         self.seed = seed + SPLITS.index(split) * 1_000_003
 
     def __len__(self) -> int:
@@ -191,6 +197,9 @@ class ExpressionDataset:
         else:
             op = self.operators[rng.integers(len(self.operators))]
             tokens = (str(a), op, str(b))
+            for _ in range(self.operands - 2):
+                tokens += (self.operators[rng.integers(len(self.operators))],
+                           str(rng.integers(10)))
         glyphs = [
             self.images[rng.choice(self.by_digit[int(t)])] if t.isdigit()
             else render_operator(t, rng, 3.0 if self.hard else 1.0)

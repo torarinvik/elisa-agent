@@ -51,6 +51,7 @@ def execute(
             raise BudgetExceeded(f"budget of {budget} invocations exhausted")
         remaining -= 1
         manifest = node.module.manifest
+        workspace.spent += manifest.cost
         result = Message(
             type_id=manifest.contract.output,
             payload=node.module.invoke(*(a.payload for a in args)),

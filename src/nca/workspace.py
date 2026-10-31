@@ -9,6 +9,8 @@ class Workspace:
     def __init__(self) -> None:
         self._log: list[Message] = []
         self._index: dict[str, Message] = {}
+        self.spent = 0.0
+        """Total declared cost of the module invocations executed against this workspace."""
 
     def post(self, message: Message) -> None:
         """Record ``message``; its parents must already be in the workspace."""
