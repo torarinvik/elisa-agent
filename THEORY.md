@@ -662,3 +662,19 @@ operator floor and erased digits. Choosing between the raw and normalized
 digit recognizer is a route decision (§8): on normal-style validation data the
 raw one wins, so the normalized route is adopted only when the deployment
 distribution is known to include such styles.
+
+**Monolithic baseline under the same shift** (`nca.baseline`, one CNN trained
+end to end on 60,000 normal-style expressions, 5 epochs; 2000 expressions per
+split):
+
+| system | test | test_unseen | test (hard) | test_unseen (hard) |
+|---|---:|---:|---:|---:|
+| monolithic | 0.948 | 0.105 | 0.304 | 0.064 |
+| modular, raw recognizers | 0.977 | 0.984 | 0.446 | 0.463 |
+| modular, normalized digits | 0.968 | 0.963 | 0.501 | 0.509 |
+
+On seen digit pairs the shift costs the monolithic model 64 points and the
+modular pipeline 53 (47 with normalization). On unseen pairs the shift
+compounds with the monolithic model's failure to compose. The modular system's
+loss is also diagnosable, since per-module failure rates and shift lower
+bounds locate it, and it can be fixed by replacing a single module.

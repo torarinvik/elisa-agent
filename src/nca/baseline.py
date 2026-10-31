@@ -2,6 +2,8 @@
 
 The comparison point required by the architecture's add-and-freeze protocol:
 a modular system must beat this on ``test_unseen`` to show compositional gain.
+Test splits are also evaluated in the ``hard`` style, a shift neither system
+was trained on.
 ``--task arithmetic`` classifies ``a op b`` by value; ``--task mixed``
 classifies ``a op b rel c`` as true or false.
 
@@ -44,7 +46,8 @@ def accuracy(network: nn.Module, dataset: ExpressionDataset, device: str) -> flo
 
 def train(data_dir: Path, out: Path, epochs: int, train_size: int, test_size: int,
           seed: int, task: str = "arithmetic") -> dict[str, float]:
-    """Train the baseline and return accuracy on every split."""
+    """Train the baseline and return accuracy on every split, and on the test
+splits in the hard style."""
     torch.manual_seed(seed)
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     splits = {
@@ -64,7 +67,12 @@ def train(data_dir: Path, out: Path, epochs: int, train_size: int, test_size: in
             optimizer.step()
     out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(network.state_dict(), out)
-    return {split: accuracy(network, dataset, device) for split, dataset in splits.items()}
+    results = {split: accuracy(network, dataset, device) for split, dataset in splits.items()}
+    for split in ("test", "test_unseen"):
+        hard = ExpressionDataset(split, test_size, data_dir, seed, mixed=task == "mixed",
+                                 hard=True)
+        results[f"{split} (hard)"] = accuracy(network, hard, device)
+    return results
 
 
 def main() -> None:
@@ -80,7 +88,7 @@ def main() -> None:
     results = train(args.data, args.out, args.epochs, args.train_size, args.test_size,
                     args.seed, args.task)
     for split, acc in results.items():
-        print(f"{split:12s} accuracy: {acc:.4f}")
+        print(f"{split:18s} accuracy: {acc:.4f}")
 
 
 if __name__ == "__main__":
