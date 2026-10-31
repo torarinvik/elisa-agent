@@ -14,6 +14,18 @@ never implies compatibility.
 """
 
 
+def seq_type(element: TypeId) -> TypeId:
+    """The type of finite sequences of ``element``."""
+    return f"seq[{element}]"
+
+
+def elem_type(type_id: TypeId) -> TypeId | None:
+    """The element type if ``type_id`` is a sequence type, else ``None``."""
+    if type_id.startswith("seq[") and type_id.endswith("]"):
+        return type_id[4:-1]
+    return None
+
+
 @dataclass(frozen=True)
 class Contract:
     inputs: tuple[TypeId, ...]

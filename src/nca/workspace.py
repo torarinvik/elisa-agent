@@ -36,6 +36,10 @@ class Workspace:
         visit(message_id)
         return list(seen.values())
 
+    def messages(self) -> list[Message]:
+        """All messages in posting order."""
+        return list(self._log)
+
     def snapshot(self) -> int:
         return len(self._log)
 

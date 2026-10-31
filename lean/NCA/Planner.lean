@@ -1,7 +1,7 @@
 import NCA.Contract
 
 /-!
-# Planner soundness
+# Planner soundness and completeness
 
 Reference model of `nca.planner.plan`: depth-bounded backward chaining that
 tries contracts in installation order. Every plan it returns is well-typed.
@@ -40,7 +40,7 @@ theorem firstSome_spec {f : α → Option β} {b : β} :
       obtain ⟨a', ha', hfa'⟩ := firstSome_spec h
       exact ⟨a', List.mem_cons_of_mem _ ha', hfa'⟩
 
-theorem traverse_sound {lib : List (Contract Ty)} {avail : List Ty}
+theorem traverse_sound [SeqTypes Ty] {lib : List (Contract Ty)} {avail : List Ty}
     {f : Ty → Option (Plan Ty)} (hf : ∀ t p, f t = some p → WellTyped lib avail p t) :
     ∀ {ts : List Ty} {ps : List (Plan Ty)}, traverse f ts = some ps →
       WellTypedArgs lib avail ps ts
@@ -53,40 +53,73 @@ theorem traverse_sound {lib : List (Contract Ty)} {avail : List Ty}
     subst h
     exact .cons (hf _ _ hp) (traverse_sound hf hr)
 
-variable [DecidableEq Ty]
+variable [DecidableEq Ty] [SeqTypes Ty]
+open SeqTypes
 
-/-- Backward-chain from goal `t` to available types within `fuel` depth. -/
-def plan (lib : List (Contract Ty)) (avail : List Ty) : Nat → Ty → Option (Plan Ty)
-  | 0, _ => none
-  | n + 1, t =>
+/-- Candidate element types for `map`: elements of available sequence types
+and of sequence types some installed contract produces. -/
+def elemCandidates (lib : List (Contract Ty)) (avail : List Ty) : List Ty :=
+  (avail ++ lib.map Contract.output).filterMap elem?
+
+/-- Backward-chain from goal `t` to available types within `fuel` depth:
+first by applying a contract producing `t`, otherwise, for a sequence goal,
+by mapping an elementwise plan over a plannable source sequence. -/
+def plan (lib : List (Contract Ty)) : List Ty → Nat → Ty → Option (Plan Ty)
+  | _, 0, _ => none
+  | avail, n + 1, t =>
     if t ∈ avail then some (.given t)
     else
-      firstSome (fun c =>
+      (firstSome (fun c =>
         if c.output = t then (traverse (plan lib avail n) c.inputs).map (.apply c)
-        else none) lib
+        else none) lib).orElse fun _ =>
+      match elem? t with
+      | none => none
+      | some e => firstSome (fun a =>
+          match plan lib [a] n e, plan lib avail n (seq a) with
+          | some body, some src => some (.map a body src)
+          | _, _ => none) (elemCandidates lib avail)
 
 /-- **Soundness.** Any plan returned by the planner is well-typed. -/
-theorem plan_sound (lib : List (Contract Ty)) (avail : List Ty) :
-    ∀ (n : Nat) (t : Ty) (p : Plan Ty), plan lib avail n t = some p →
+theorem plan_sound (lib : List (Contract Ty)) :
+    ∀ (n : Nat) (avail : List Ty) (t : Ty) (p : Plan Ty), plan lib avail n t = some p →
       WellTyped lib avail p t
-  | 0, _, _, h => by simp [plan] at h
-  | n + 1, t, p, h => by
+  | 0, _, _, _, h => by simp [plan] at h
+  | n + 1, avail, t, p, h => by
     unfold plan at h
     split at h
     next ht =>
       cases h
       exact .given ht
     next =>
-      obtain ⟨c, hc, hf⟩ := firstSome_spec h
-      split at hf
-      next heq =>
-        cases hr : traverse (plan lib avail n) c.inputs with
-        | none => simp [hr] at hf
-        | some ps =>
-          simp [hr] at hf
-          subst hf heq
-          exact .apply hc (traverse_sound (plan_sound lib avail n) hr)
-      next => simp at hf
+      cases hfs : firstSome (fun c =>
+          if c.output = t then (traverse (plan lib avail n) c.inputs).map (Plan.apply c)
+          else none) lib with
+      | some q =>
+        rw [hfs] at h
+        cases h
+        obtain ⟨c, hc, hf⟩ := firstSome_spec hfs
+        split at hf
+        next heq =>
+          cases hr : traverse (plan lib avail n) c.inputs with
+          | none => simp [hr] at hf
+          | some ps =>
+            simp [hr] at hf
+            subst hf heq
+            exact .apply hc (traverse_sound (plan_sound lib n avail) hr)
+        next => simp at hf
+      | none =>
+        rw [hfs] at h
+        simp only [Option.orElse] at h
+        cases he : elem? t with
+        | none => simp [he] at h
+        | some e =>
+          simp only [he] at h
+          obtain ⟨a, _, hf⟩ := firstSome_spec h
+          cases hb : plan lib [a] n e <;> cases hs : plan lib avail n (seq a) <;>
+            simp [hb, hs] at hf
+          subst hf
+          rw [elem?_eq_some.mp he]
+          exact .map (plan_sound lib n [a] e _ hb) (plan_sound lib n avail _ _ hs)
 
 end NCA
 
@@ -113,13 +146,20 @@ theorem firstSome_isSome {f : α → Option β} :
       · simp [hx] at ha
       · exact firstSome_isSome hmem ha
 
+variable [SeqTypes Ty]
+open SeqTypes
+
 /-- `Derivable lib avail n t`: some composition of installed contracts of
 depth at most `n` produces `t` from the available inputs. -/
-inductive Derivable (lib : List (Contract Ty)) (avail : List Ty) : Nat → Ty → Prop
-  | given {n : Nat} {t : Ty} : t ∈ avail → Derivable lib avail (n + 1) t
-  | apply {n : Nat} {c : Contract Ty} :
+inductive Derivable (lib : List (Contract Ty)) : List Ty → Nat → Ty → Prop
+  | given {avail : List Ty} {n : Nat} {t : Ty} :
+      t ∈ avail → Derivable lib avail (n + 1) t
+  | apply {avail : List Ty} {n : Nat} {c : Contract Ty} :
       c ∈ lib → (∀ i ∈ c.inputs, Derivable lib avail n i) →
       Derivable lib avail (n + 1) c.output
+  | map {avail : List Ty} {n : Nat} {a e : Ty} :
+      a ∈ elemCandidates lib avail → Derivable lib [a] n e →
+      Derivable lib avail n (seq a) → Derivable lib avail (n + 1) (seq e)
 
 variable [DecidableEq Ty]
 
@@ -129,12 +169,29 @@ theorem plan_complete {lib : List (Contract Ty)} {avail : List Ty} {n : Nat} {t 
     (h : Derivable lib avail n t) : (plan lib avail n t).isSome := by
   induction h with
   | given ht => simp [plan, ht]
-  | @apply n c hc _ ih =>
+  | @apply avail n c hc _ ih =>
     unfold plan
     split
     · rfl
-    · apply firstSome_isSome hc
-      obtain ⟨ps, hps⟩ := Option.isSome_iff_exists.mp (traverse_isSome ih)
-      simp [hps]
+    · obtain ⟨q, hq⟩ := Option.isSome_iff_exists.mp (firstSome_isSome hc (by
+        obtain ⟨ps, hps⟩ := Option.isSome_iff_exists.mp (traverse_isSome ih)
+        simp [hps]) : (firstSome (fun c' =>
+          if c'.output = c.output then (traverse (plan lib avail n) c'.inputs).map (Plan.apply c')
+          else none) lib).isSome)
+      rw [hq]; rfl
+  | @map avail n a e ha _ _ ihb ihs =>
+    unfold plan
+    split
+    · rfl
+    · cases hfs : firstSome (fun c =>
+          if c.output = seq e then (traverse (plan lib avail n) c.inputs).map (Plan.apply c)
+          else none) lib with
+      | some q => rfl
+      | none =>
+        simp only [Option.orElse, elem?_eq_some.mpr rfl]
+        apply firstSome_isSome ha
+        obtain ⟨body, hb⟩ := Option.isSome_iff_exists.mp ihb
+        obtain ⟨src, hs⟩ := Option.isSome_iff_exists.mp ihs
+        simp [hb, hs]
 
 end NCA

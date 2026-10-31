@@ -20,7 +20,7 @@ from nca.workspace import Workspace
 def test_untrained_recognizer_honours_contract():
     registry = Registry()
     registry.install(DigitRecognizer(build_network()))
-    graph = plan(registry.modules(), frozenset({GLYPH}), DIGIT_DISTRIBUTION)
+    graph = plan(registry.modules(), (GLYPH,), DIGIT_DISTRIBUTION)
     glyph = Message(GLYPH, torch.rand(28, 28), producer="input")
 
     result = execute(graph, {GLYPH: glyph}, Workspace(), budget=1)

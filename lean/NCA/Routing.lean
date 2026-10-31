@@ -13,22 +13,30 @@ namespace NCA
 
 section Counterexample
 
-private def need1 : Contract Nat := ⟨0, [1], 0⟩
-private def from2 : Contract Nat := ⟨1, [2], 0⟩
-private def make1 : Contract Nat := ⟨2, [2], 1⟩
+/-- Types are naturals; odd numbers `2t + 1` encode `seq t`. -/
+private instance : SeqTypes Nat where
+  seq t := 2 * t + 1
+  elem? u := if u % 2 = 1 then some (u / 2) else none
+  elem?_eq_some := by
+    intro u t
+    split <;> simp <;> omega
+
+private def need1 : Contract Nat := ⟨0, [2], 0⟩
+private def from2 : Contract Nat := ⟨1, [4], 0⟩
+private def make1 : Contract Nat := ⟨2, [4], 2⟩
 
 /-- **Instability of the plain planner.** Installing `make1` makes the
 higher-priority `need1` applicable, so the route to goal `0` changes even
 though the old route is still valid. -/
 theorem plan_not_stable :
-    plan [need1, from2] [2] 3 0 = some (.apply from2 [.given 2]) ∧
-    plan [need1, from2, make1] [2] 3 0 =
-      some (.apply need1 [.apply make1 [.given 2]]) := by
+    plan [need1, from2] [4] 3 0 = some (.apply from2 [.given 4]) ∧
+    plan [need1, from2, make1] [4] 3 0 =
+      some (.apply need1 [.apply make1 [.given 4]]) := by
   constructor <;> rfl
 
 end Counterexample
 
-variable {Ty : Type} [DecidableEq Ty]
+variable {Ty : Type} [DecidableEq Ty] [SeqTypes Ty]
 
 /-- Generation-layered planning: use only the first `k` installed contracts,
 for the smallest `k` that succeeds. -/
@@ -61,7 +69,7 @@ theorem planStable_sound {lib : List (Contract Ty)} {avail : List Ty} {n : Nat}
     WellTyped lib avail p t := by
   obtain ⟨k, _, hk⟩ := firstSome_spec h
   exact WellTyped.mono (fun _ hc => List.mem_of_mem_take hc)
-    (plan_sound _ avail n t p hk)
+    (plan_sound _ n avail t p hk)
 
 /-- **Completeness** of layered planning. -/
 theorem planStable_complete {lib : List (Contract Ty)} {avail : List Ty} {n : Nat}
