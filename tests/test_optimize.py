@@ -97,3 +97,21 @@ def test_pareto_selects_cheapest_plan_meeting_error_target() -> None:
             else:
                 assert chosen is not None
                 assert chosen.cost == pytest.approx(min(o.cost for o in feasible))
+
+
+def test_pareto_is_sound_and_covers_exhaustive_search() -> None:
+    """``NCA.planPareto_sound`` and ``NCA.planPareto_cover`` on random libraries."""
+    rng = random.Random(2)
+    for _ in range(300):
+        modules = random_library(rng)
+        errors = {m.manifest.ref: rng.choice([0.0, 0.01, 0.05, 0.2]) for m in modules}
+        goal = rng.choice(["b", "c", "seq[b]"])
+        everything = all_plans(modules, ("a",), goal, 4, 3, errors)
+        frontier = plan_pareto(modules, ("a",), goal, 3, errors, fuel=4)
+        for option in frontier:
+            assert infer(modules, ("a",), option.plan) == goal
+            assert any(o.plan == option.plan and o.cost == pytest.approx(option.cost)
+                       and o.error == pytest.approx(option.error) for o in everything)
+        for option in everything:
+            assert any(f.cost <= option.cost + 1e-9 and f.error <= option.error + 1e-9
+                       for f in frontier)

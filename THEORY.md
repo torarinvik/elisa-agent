@@ -475,8 +475,20 @@ error composes exactly like cost, with map bodies counted `L` times. The
 planner keeps the Pareto frontier of non-dominated (cost, error) pairs at each
 type; combining sub-goal frontiers and discarding dominated results yields the
 exact frontier for two additive objectives, from which the cheapest route
-within an error target is read off. Both planners are tested against
-exhaustive enumeration of all searchable plans.
+within an error target is read off. Since error composes like cost, a plan's
+error bound is `p.cost ε L` for per-invocation failure rates `ε`, and the
+recursion is `planMin` with `best` replaced by dominance pruning
+(`lean/NCA/Pareto.lean`):
+
+| Theorem | Statement |
+|---|---|
+| `front_cover` | pruning dominated options loses nothing: every option is dominated by a survivor |
+| `planPareto_sound` | every option is a well-typed plan with its reported cost and error bound |
+| `planPareto_cover` | every searchable plan within the depth bound is dominated by a returned option |
+| `planPareto_within` | if a searchable plan meets error target `τ`, a returned option meets it at no greater cost |
+
+Both planners are also tested against exhaustive enumeration of all
+searchable plans.
 
 **Length–accuracy coupling.** Every route's cost and error bound grow linearly
 in `L`, so the cheapest expert meeting a fixed target changes with length, and

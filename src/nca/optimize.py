@@ -11,7 +11,11 @@ bound (``NCA.planMin_sound``, ``NCA.planMin_optimal``).
 error bound (the union bound of ``NCA.composition_error_le_sum``: a plan's
 error is at most the sum of its invocations' failure rates). It keeps every
 non-dominated (cost, error) pair at each type, so the cheapest plan meeting an
-error target can be selected exactly.
+error target can be selected exactly. It mirrors ``NCA.planPareto``
+(``lean/NCA/Pareto.lean``): every option is a well-typed plan with its reported
+cost and error bound, every searchable plan within the depth bound is
+dominated by an option, and so ``cheapest_within`` is exact
+(``NCA.planPareto_sound``, ``NCA.planPareto_cover``, ``NCA.planPareto_within``).
 """
 
 from __future__ import annotations
