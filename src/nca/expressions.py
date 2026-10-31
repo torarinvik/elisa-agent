@@ -1,10 +1,11 @@
-"""Procedural handwritten-expression images ``a op b``.
+"""Procedural handwritten-expression images ``a op b`` and ``a op b rel c``.
 
 Digits are MNIST glyphs; arithmetic operators (``+``, ``-``, ``*``) and
 relations (``<``, ``>``, ``=``) are rendered as jittered pen strokes, since
 MNIST has none. A dataset draws operators from one of the two sets: the
-arithmetic task has integer values, the comparison task boolean ones. Glyphs are laid out left to right
-with random spacing and vertical offset on a fixed canvas.
+arithmetic task has integer values, the comparison task boolean ones. The mixed task ``a op b rel c`` uses both
+sets on a wider canvas and has boolean values. Glyphs are laid out left to
+right with random spacing and vertical offset on a fixed canvas.
 
 Compositional hold-out: digit pairs ``(a, b)`` with ``(a + 2 * b) % 7 == 0``
 never appear in the ``train`` split, though every digit and operator does.
@@ -21,6 +22,7 @@ from pathlib import Path
 import numpy as np
 
 HEIGHT, WIDTH, GLYPH = 32, 96, 28
+MIXED_WIDTH = 160
 OPERATORS = ("+", "-", "*")
 RELATIONS = ("<", ">", "=")
 SPLITS = ("train", "test", "test_unseen")
@@ -46,6 +48,32 @@ def evaluate(a: int, op: str, b: int) -> int | bool:
             "<": a < b, ">": a > b, "=": a == b}[op]
 
 
+def value_of(tokens: tuple[str, ...]) -> int | bool:
+    """Ground truth for ``digit ((op | rel) digit)*``.
+
+    Sides between relations are evaluated with ``*`` binding tighter than
+    ``+`` and ``-``. Without relations the value is that integer; otherwise
+    it is whether every adjacent pair of sides satisfies its relation.
+    """
+    sides: list[int] = []
+    relations: list[str] = []
+    terms, signs = [int(tokens[0])], [1]
+    for op, digit in zip(tokens[1::2], tokens[2::2]):
+        if op in RELATIONS:
+            sides.append(sum(s * t for s, t in zip(signs, terms)))
+            relations.append(op)
+            terms, signs = [int(digit)], [1]
+        elif op == "*":
+            terms[-1] *= int(digit)
+        else:
+            terms.append(int(digit))
+            signs.append(1 if op == "+" else -1)
+    sides.append(sum(s * t for s, t in zip(signs, terms)))
+    if not relations:
+        return sides[0]
+    return all(evaluate(a, r, b) for a, r, b in zip(sides, relations, sides[1:]))
+
+
 def render_operator(op: str, rng: np.random.Generator) -> np.ndarray:
     """A 28x28 operator or relation glyph in [0, 1], white ink on black."""
     yy, xx = np.mgrid[0:GLYPH, 0:GLYPH] / (GLYPH - 1)
@@ -69,18 +97,18 @@ def render_operator(op: str, rng: np.random.Generator) -> np.ndarray:
 @dataclass(frozen=True)
 class Sample:
     image: np.ndarray
-    """(HEIGHT, WIDTH) float32 in [0, 1]."""
-    tokens: tuple[str, str, str]
+    """(HEIGHT, width) float32 in [0, 1]."""
+    tokens: tuple[str, ...]
     value: int | bool
     boxes: tuple[tuple[int, int], ...]
     """Top-left (x, y) of each glyph's 28x28 box, in token order."""
 
 
-def compose(glyphs: list[np.ndarray], tokens: tuple[str, str, str],
-            rng: np.random.Generator) -> Sample:
-    gaps = rng.integers(1, WIDTH - GLYPH * len(glyphs), size=len(glyphs) + 1)
-    gaps = gaps * (WIDTH - GLYPH * len(glyphs)) // gaps.sum()
-    image = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
+def compose(glyphs: list[np.ndarray], tokens: tuple[str, ...],
+            rng: np.random.Generator, width: int = WIDTH) -> Sample:
+    gaps = rng.integers(1, width - GLYPH * len(glyphs), size=len(glyphs) + 1)
+    gaps = gaps * (width - GLYPH * len(glyphs)) // gaps.sum()
+    image = np.zeros((HEIGHT, width), dtype=np.float32)
     boxes = []
     x = int(gaps[0])
     for glyph, gap in zip(glyphs, gaps[1:]):
@@ -88,19 +116,21 @@ def compose(glyphs: list[np.ndarray], tokens: tuple[str, str, str],
         image[y:y + GLYPH, x:x + GLYPH] = np.maximum(image[y:y + GLYPH, x:x + GLYPH], glyph)
         boxes.append((x, y))
         x += GLYPH + int(gap)
-    a, op, b = tokens
-    return Sample(image, tokens, evaluate(int(a), op, int(b)), tuple(boxes))
+    return Sample(image, tokens, value_of(tokens), tuple(boxes))
 
 
 class ExpressionDataset:
-    """``torch.utils.data.Dataset`` of (image[1, H, W], value - MIN_VALUE).
+    """``torch.utils.data.Dataset`` of (image[1, H, W], label).
 
-    ``operators`` selects the task: ``OPERATORS`` (arithmetic) or ``RELATIONS``
-    (comparison). Tensor items are defined for arithmetic only.
+    ``operators`` selects ``OPERATORS`` (arithmetic) or ``RELATIONS``
+    (comparison) for ``a op b``; ``mixed`` instead draws ``a op b rel c`` with
+    ``op`` from ``OPERATORS`` and ``rel`` from ``RELATIONS``. Labels are
+    ``value - MIN_VALUE`` for integer values and ``int(value)`` for booleans.
     """
 
     def __init__(self, split: str, size: int, data_dir: Path = Path("data"),
-                 seed: int = 0, operators: tuple[str, ...] = OPERATORS) -> None:
+                 seed: int = 0, operators: tuple[str, ...] = OPERATORS,
+                 mixed: bool = False) -> None:
         from torchvision import datasets
 
         if split not in SPLITS:
@@ -113,6 +143,8 @@ class ExpressionDataset:
                       if is_held_out(a, b) == (split == "test_unseen")]
         self.size = size
         self.operators = operators
+        self.mixed = mixed
+        self.width = MIXED_WIDTH if mixed else WIDTH
         self.seed = seed + SPLITS.index(split) * 1_000_003
 
     def __len__(self) -> int:
@@ -121,16 +153,24 @@ class ExpressionDataset:
     def sample(self, index: int) -> Sample:
         rng = np.random.default_rng((self.seed, index))
         a, b = self.pairs[rng.integers(len(self.pairs))]
-        op = self.operators[rng.integers(len(self.operators))]
+        if self.mixed:
+            op = OPERATORS[rng.integers(len(OPERATORS))]
+            rel = RELATIONS[rng.integers(len(RELATIONS))]
+            c = int(rng.integers(10))
+            tokens = (str(a), op, str(b), rel, str(c))
+        else:
+            op = self.operators[rng.integers(len(self.operators))]
+            tokens = (str(a), op, str(b))
         glyphs = [
-            self.images[rng.choice(self.by_digit[a])],
-            render_operator(op, rng),
-            self.images[rng.choice(self.by_digit[b])],
+            self.images[rng.choice(self.by_digit[int(t)])] if t.isdigit()
+            else render_operator(t, rng)
+            for t in tokens
         ]
-        return compose(glyphs, (str(a), op, str(b)), rng)
+        return compose(glyphs, tokens, rng, self.width)
 
     def __getitem__(self, index: int):
         import torch
 
         s = self.sample(index)
-        return torch.from_numpy(s.image)[None], s.value - MIN_VALUE
+        label = int(s.value) if isinstance(s.value, bool) else s.value - MIN_VALUE
+        return torch.from_numpy(s.image)[None], label

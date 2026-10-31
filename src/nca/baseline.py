@@ -2,6 +2,8 @@
 
 The comparison point required by the architecture's add-and-freeze protocol:
 a modular system must beat this on ``test_unseen`` to show compositional gain.
+``--task arithmetic`` classifies ``a op b`` by value; ``--task mixed``
+classifies ``a op b rel c`` as true or false.
 
     uv run --extra vision python -m nca.baseline --epochs 5
 """
@@ -14,17 +16,19 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from nca.expressions import HEIGHT, NUM_VALUES, SPLITS, WIDTH, ExpressionDataset
+from nca.expressions import HEIGHT, MIXED_WIDTH, NUM_VALUES, SPLITS, WIDTH, ExpressionDataset
+
+TASKS = {"arithmetic": (WIDTH, NUM_VALUES), "mixed": (MIXED_WIDTH, 2)}
 
 
-def build_network() -> nn.Module:
+def build_network(width: int = WIDTH, classes: int = NUM_VALUES) -> nn.Module:
     return nn.Sequential(
         nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         nn.Flatten(),
-        nn.Linear(128 * (HEIGHT // 8) * (WIDTH // 8), 256), nn.ReLU(),
-        nn.Linear(256, NUM_VALUES),
+        nn.Linear(128 * (HEIGHT // 8) * (width // 8), 256), nn.ReLU(),
+        nn.Linear(256, classes),
     )
 
 
@@ -39,17 +43,17 @@ def accuracy(network: nn.Module, dataset: ExpressionDataset, device: str) -> flo
 
 
 def train(data_dir: Path, out: Path, epochs: int, train_size: int, test_size: int,
-          seed: int) -> dict[str, float]:
+          seed: int, task: str = "arithmetic") -> dict[str, float]:
     """Train the baseline and return accuracy on every split."""
     torch.manual_seed(seed)
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     splits = {
         split: ExpressionDataset(split, train_size if split == "train" else test_size,
-                                 data_dir, seed)
+                                 data_dir, seed, mixed=task == "mixed")
         for split in SPLITS
     }
     loader = torch.utils.data.DataLoader(splits["train"], batch_size=128, shuffle=True)
-    network = build_network().to(device)
+    network = build_network(*TASKS[task]).to(device)
     optimizer = torch.optim.Adam(network.parameters(), lr=1e-3)
     loss_fn = nn.CrossEntropyLoss()
     for _ in range(epochs):
@@ -71,9 +75,10 @@ def main() -> None:
     parser.add_argument("--train-size", type=int, default=60_000)
     parser.add_argument("--test-size", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--task", choices=sorted(TASKS), default="arithmetic")
     args = parser.parse_args()
     results = train(args.data, args.out, args.epochs, args.train_size, args.test_size,
-                    args.seed)
+                    args.seed, args.task)
     for split, acc in results.items():
         print(f"{split:12s} accuracy: {acc:.4f}")
 

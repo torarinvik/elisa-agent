@@ -32,3 +32,12 @@ def test_compose_places_glyphs_without_overlap():
         assert all(b - a >= GLYPH for a, b in zip(xs, xs[1:]))
         assert xs[-1] + GLYPH <= WIDTH
         assert sample.image.sum() == 3 * GLYPH * GLYPH
+
+
+def test_value_of_mixed_expressions():
+    from nca.expressions import value_of
+
+    assert value_of(("7", "*", "8")) == 56
+    assert value_of(("3", "+", "4", ">", "6")) is True
+    assert value_of(("2", "-", "5", "=", "3")) is False
+    assert value_of(("1", "<", "2", "*", "3", "=", "6")) is True

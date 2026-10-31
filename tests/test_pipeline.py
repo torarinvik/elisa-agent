@@ -123,3 +123,49 @@ def test_substitute_recognizer_keeps_route_shape_and_types():
     assert after != before
     assert shape(after) == shape(before)
     assert infer(registry.modules(), (EXPRESSION_IMAGE,), after) == INTEGER
+
+
+def test_relational_parser_forces_one_relation():
+    from nca.modules.symbols import RelationalEvaluator, RelationalParser
+
+    def dist(**probs):
+        base = {k: 0.0 for k in "0123456789+-*<>="}
+        return {**base, **probs}
+
+    # Both operator slots prefer operators; the cheaper switch is position 3.
+    symbols = [dist(**{"3": 1}), dist(**{"+": 0.9, "<": 0.1}), dist(**{"4": 1}),
+               dist(**{"-": 0.6, ">": 0.4}), dist(**{"6": 1})]
+    tokens = RelationalParser().invoke(symbols)
+    assert tokens == ("3", "+", "4", ">", "6")
+    assert RelationalEvaluator().invoke(tokens) is True
+    assert RelationalParser().invoke(symbols[:1]) is None
+
+
+def test_mixed_fuser_normalizes():
+    from nca.modules.symbols import MixedSymbolFuser
+
+    fused = MixedSymbolFuser().invoke(tuple([0.1] * 10), (0.1, 0.1, 0.1, 0.7),
+                                      (0.2, 0.0, 0.0, 0.8))
+    assert np.isclose(sum(fused.values()), 1.0)
+    assert fused["<"] > fused["+"]
+
+
+def test_integration_route_is_an_explicit_upgrade():
+    from nca.complementarity import build_systems, integration_modules_of, registry_of
+    from nca.modules.operator_recognizer import RELATION_SET
+    from nca.modules.segmenter import EXPRESSION_IMAGE
+    from nca.modules.symbols import BOOLEAN
+    from nca.planner import plan, plan_stable
+    from nca.router import infer
+
+    systems = build_systems(DigitRecognizer(digit_net()), SymbolRecognizer(op_net()),
+                            SymbolRecognizer(op_net(RELATION_SET), RELATION_SET))
+    root = lambda route: route.module.manifest.module_id
+    assert plan_stable(systems["A"], (EXPRESSION_IMAGE,), BOOLEAN) is None
+
+    full = registry_of(systems["A⊕B"])
+    assert root(plan_stable(full.modules(), (EXPRESSION_IMAGE,), BOOLEAN)) == \
+        "nca.comparison.evaluator"
+    candidate = plan(integration_modules_of(full) + full.modules(), (EXPRESSION_IMAGE,), BOOLEAN)
+    assert root(candidate) == "nca.relational-evaluator"
+    assert infer(full.modules(), (EXPRESSION_IMAGE,), candidate) == BOOLEAN
