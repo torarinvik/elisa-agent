@@ -810,6 +810,7 @@ calibrated risk `r ≥ θ` are queued for a teacher's label.
 | `queued_value` | each queued label is expected to correct at least `θ` errors |
 | `unqueued_errors` | at most `θ` expected errors per unqueued glyph escape the queue |
 | `queued_captures` | the queue holds all but `θ · n` of the expected errors among `n` glyphs |
+| `proportional_value` | drawing glyphs with probability `∝ r` finds `Σ r² / Σ r ≥ Σ r / n` expected errors per label, never fewer than random labels |
 
 Practice is offline. A copy of the recognizer is fine-tuned on the queued
 glyphs mixed with 10,000 replayed MNIST training digits, so the normal style
@@ -822,17 +823,20 @@ reinforces errors.
 reads 4000 `train`-split expressions in the unseen hard style: 7878 digit
 glyphs, 27% misread. For a label budget `k` the queue takes the `k` riskiest
 glyphs, compared with `k` random glyphs from the same stream. Results on
-2000 test expressions per style:
+2000 test expressions per style (seed 0):
 
 | practice | labels | misread among labeled | digit error hard | accuracy normal | accuracy hard | sign test |
 |---|---:|---:|---:|---:|---:|---|
 | none | 0 | — | 0.211 | 0.977 | 0.446 | — |
 | queue | 100 | 91% | 0.173 | 0.981 | 0.485 | adopted, p = 2e-6 |
 | random | 100 | 27% | 0.201 | 0.981 | 0.455 | adopted, p = 0.003 |
+| proportional | 100 | 67% | 0.178 | 0.980 | 0.484 | adopted |
 | queue | 300 | 89% | 0.157 | 0.979 | 0.503 | adopted |
 | random | 300 | 27% | 0.152 | 0.980 | 0.514 | adopted |
+| proportional | 300 | 62% | 0.140 | 0.979 | 0.525 | adopted |
 | queue | 1000 | 82% | 0.130 | 0.974 | 0.536 | adopted |
 | random | 1000 | 27% | 0.128 | 0.978 | 0.538 | adopted |
+| proportional | 1000 | 63% | 0.099 | 0.976 | 0.569 | adopted |
 | everything | 7878 | 27% | 0.074 | 0.975 | 0.594 | adopted |
 | replay only (budget 0) | 0 | — | 0.234 | 0.978 | 0.418 | rejected, p = 0.16 |
 
@@ -844,8 +848,14 @@ glyphs, compared with `k` random glyphs from the same stream. Results on
   with 100 labels the queue gains 3.9 points of hard-style accuracy, random
   labels 0.9. From 300 labels on, queue and random are equal within noise.
   The riskiest glyphs are the most distorted, so their value as training
-  examples saturates while random labels add diversity. A queue that mixes
-  risk with diversity is the natural refinement.
+  examples saturates while random labels add diversity.
+- **Risk with diversity.** Sampling with probability proportional to risk
+  keeps most of the queue's error-finding (62–67% of labels misread) and the
+  diversity of random labels. It ties the top-risk queue at 100 labels and
+  beats both alternatives from 300 on. At 1000 labels it reaches 0.569
+  hard-style accuracy, 83% of the gain from labeling all 7878 glyphs with 13%
+  of the labels. On a second seed it is again best at 300 and 1000 labels
+  (0.527 and 0.553, against at most 0.511 and 0.538).
 - **Safety.** Every adopted version keeps normal-style accuracy within its
   interval. The one version that made things worse (replay without practice
   data) was rejected by the sign test, as the upgrade rule intends.

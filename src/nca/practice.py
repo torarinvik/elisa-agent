@@ -16,8 +16,11 @@ one by a one-sided sign test on ``validation`` expressions of both styles
 (the upgrade rule of ``lean/NCA/Upgrade.lean``). Never trained on its own
 unverified answers, the system cannot reinforce its errors.
 
-Compared, at each label budget, with practicing on as many randomly chosen
-labeled glyphs from the same stream, and with labeling the whole stream. A
+Compared, at each label budget, with practicing on as many glyphs drawn with
+probability proportional to risk (each label still expected to find at least
+as many errors as a random one, ``NCA.proportional_value``, while every
+doubtful glyph can be chosen), on as many randomly chosen labeled glyphs, and
+with labeling the whole stream. A
 budget of 0 practices on replayed digits alone, a version the sign test should
 reject. Reports labels used, digit
 error on test glyphs of each style, expression accuracy on ``test`` of each
@@ -66,6 +69,13 @@ def digit_glyphs(dataset: ExpressionDataset) -> tuple[torch.Tensor, torch.Tensor
 def queue(risks: torch.Tensor, threshold: float) -> torch.Tensor:
     """Indices of glyphs whose risk is at least ``threshold``."""
     return torch.nonzero(risks >= threshold).flatten()
+
+
+def proportional(risks: torch.Tensor, budget: int, seed: int) -> torch.Tensor:
+    """``budget`` distinct indices drawn with probability proportional to risk."""
+    generator = torch.Generator().manual_seed(seed)
+    return torch.multinomial(risks.clamp_min(1e-12), budget, replacement=False,
+                             generator=generator)
 
 
 def practice(network: nn.Module, glyphs: torch.Tensor, labels: torch.Tensor,
@@ -153,6 +163,14 @@ def main() -> None:
         candidates[f"random, {len(queued)}"] = (practice(
             current, stream[random], stream_labels[random], replay, args.epochs, args.seed),
             len(queued))
+        if budget:
+            sampled = proportional(risks, budget, args.seed)
+            print(f"{'':6s} misread among labels: queue {stream_errors[queued].float().mean():.2f},"
+                  f" proportional {stream_errors[sampled].float().mean():.2f},"
+                  f" random {stream_errors[random].float().mean():.2f}")
+            candidates[f"proportional, {budget}"] = (practice(
+                current, stream[sampled], stream_labels[sampled], replay, args.epochs,
+                args.seed), budget)
     candidates["all labeled"] = (practice(current, stream, stream_labels, replay, args.epochs,
                                           args.seed), len(stream))
 

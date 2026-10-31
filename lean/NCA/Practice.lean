@@ -1,6 +1,7 @@
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Real.Basic
+import Mathlib.Algebra.Order.Chebyshev
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -12,6 +13,11 @@ expected to correct at least `θ` errors, and the expected errors left out of
 the queue are at most `θ` per unqueued item. Labeling by risk therefore
 captures all but `θ · n` of the expected errors among `n` items, while each
 label is worth at least `θ`, against the average risk for a random label.
+
+Top-risk selection concentrates labels on the most distorted items. Sampling
+items with probability proportional to risk keeps every doubtful item in play
+(diversity) and still makes each label worth at least as much as a random one
+in expectation: `Σ r² / Σ r ≥ Σ r / n` (Cauchy–Schwarz).
 
 New expert versions trained on the queue enter the library only through the
 upgrade rule (`NCA.Upgrade`): routes of other goals are unchanged and an
@@ -51,5 +57,17 @@ theorem queued_captures (hθ : 0 ≤ θ) :
     exact_mod_cast card_le_card sdiff_subset
   have := unqueued_errors S r θ
   nlinarith
+
+omit [DecidableEq I] in
+/-- **Risk-proportional sampling is never worse than random.** Drawing an
+item with probability `r i / Σ r` finds an expected `Σ r² / Σ r` errors per
+label, at least the `Σ r / |S|` of a uniformly random label. -/
+theorem proportional_value (hpos : 0 < ∑ i ∈ S, r i) (hS : S.Nonempty) :
+    (∑ i ∈ S, r i) / S.card ≤ (∑ i ∈ S, r i ^ 2) / ∑ i ∈ S, r i := by
+  have hcard : (0 : ℝ) < S.card := by exact_mod_cast hS.card_pos
+  rw [div_le_div_iff₀ hcard hpos]
+  have h := sq_sum_le_card_mul_sum_sq (s := S) (f := r)
+  rw [sq] at h
+  linarith
 
 end NCA

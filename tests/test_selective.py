@@ -52,11 +52,13 @@ def test_repair_merges_the_narrowest_gap() -> None:
 
 
 def test_practice_queue_and_fine_tuning() -> None:
-    from nca.practice import practice, queue
+    from nca.practice import practice, proportional, queue
 
     torch.manual_seed(0)
     risks = torch.tensor([0.05, 0.6, 0.2, 0.9])
     assert queue(risks, 0.2).tolist() == [1, 2, 3]
+    drawn = proportional(torch.tensor([0.0, 0.0, 1.0, 1.0]), 2, seed=0)
+    assert sorted(drawn.tolist()) == [2, 3]
 
     network = nn.Sequential(nn.Flatten(), nn.Linear(28 * 28, 10))
     glyphs, labels = torch.rand(16, 28, 28), torch.full((16,), 3)
