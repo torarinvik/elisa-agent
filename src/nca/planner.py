@@ -1,8 +1,10 @@
-"""Symbolic capability planner.
+"""Symbolic capability planners.
 
-Mirrors ``NCA.plan`` in ``lean/NCA/Planner.lean``, where it is proved sound:
-every returned plan is well-typed with respect to the installed contracts and
-the available input types.
+``plan`` mirrors ``NCA.plan`` (``lean/NCA/Planner.lean``), proved sound and
+complete. ``plan_stable`` mirrors ``NCA.planStable`` (``lean/NCA/Routing.lean``),
+which is additionally proved stable: installing modules never changes the
+route of an already solvable task. ``NCA.plan_not_stable`` shows ``plan``
+alone lacks that property.
 """
 
 from __future__ import annotations
@@ -55,4 +57,18 @@ def plan(
             args.append(sub)
         else:
             return Apply(module, tuple(args))
+    return None
+
+
+def plan_stable(
+    modules: Sequence[Module],
+    available: frozenset[TypeId],
+    goal: TypeId,
+    fuel: int = 8,
+) -> Plan | None:
+    """Plan with the shortest prefix of installed modules that succeeds."""
+    for k in range(len(modules) + 1):
+        result = plan(modules[:k], available, goal, fuel)
+        if result is not None:
+            return result
     return None

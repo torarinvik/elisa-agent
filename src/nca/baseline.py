@@ -1,0 +1,82 @@
+"""Monolithic baseline: one CNN trained end to end from expression image to value.
+
+The comparison point required by the architecture's add-and-freeze protocol:
+a modular system must beat this on ``test_unseen`` to show compositional gain.
+
+    uv run --extra vision python -m nca.baseline --epochs 5
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import torch
+from torch import nn
+
+from nca.expressions import HEIGHT, NUM_VALUES, SPLITS, WIDTH, ExpressionDataset
+
+
+def build_network() -> nn.Module:
+    return nn.Sequential(
+        nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+        nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+        nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+        nn.Flatten(),
+        nn.Linear(128 * (HEIGHT // 8) * (WIDTH // 8), 256), nn.ReLU(),
+        nn.Linear(256, NUM_VALUES),
+    )
+
+
+@torch.no_grad()
+def accuracy(network: nn.Module, dataset: ExpressionDataset, device: str) -> float:
+    network.eval()
+    correct = 0
+    for images, values in torch.utils.data.DataLoader(dataset, batch_size=500):
+        predicted = network(images.to(device)).argmax(dim=1).cpu()
+        correct += (predicted == values).sum().item()
+    return correct / len(dataset)
+
+
+def train(data_dir: Path, out: Path, epochs: int, train_size: int, test_size: int,
+          seed: int) -> dict[str, float]:
+    """Train the baseline and return accuracy on every split."""
+    torch.manual_seed(seed)
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    splits = {
+        split: ExpressionDataset(split, train_size if split == "train" else test_size,
+                                 data_dir, seed)
+        for split in SPLITS
+    }
+    loader = torch.utils.data.DataLoader(splits["train"], batch_size=128, shuffle=True)
+    network = build_network().to(device)
+    optimizer = torch.optim.Adam(network.parameters(), lr=1e-3)
+    loss_fn = nn.CrossEntropyLoss()
+    for _ in range(epochs):
+        network.train()
+        for images, values in loader:
+            optimizer.zero_grad()
+            loss_fn(network(images.to(device)), values.to(device)).backward()
+            optimizer.step()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(network.state_dict(), out)
+    return {split: accuracy(network, dataset, device) for split, dataset in splits.items()}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--data", type=Path, default=Path("data"))
+    parser.add_argument("--out", type=Path, default=Path("checkpoints/baseline.pt"))
+    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--train-size", type=int, default=60_000)
+    parser.add_argument("--test-size", type=int, default=10_000)
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
+    results = train(args.data, args.out, args.epochs, args.train_size, args.test_size,
+                    args.seed)
+    for split, acc in results.items():
+        print(f"{split:12s} accuracy: {acc:.4f}")
+
+
+if __name__ == "__main__":
+    main()

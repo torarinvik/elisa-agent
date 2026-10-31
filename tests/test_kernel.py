@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import pytest
 
 from nca.abi import Contract, Manifest, Message
-from nca.planner import Apply, Given, plan
+from nca.planner import Apply, Given, plan, plan_stable
 from nca.registry import Registry
 from nca.runtime import BudgetExceeded, execute
 from nca.workspace import Workspace
@@ -86,3 +86,17 @@ def test_budget_exhaustion_rolls_back():
 def test_workspace_rejects_unknown_parents():
     with pytest.raises(ValueError):
         Workspace().post(Message(INT, 1, "x", parents=("msg:missing",)))
+
+
+def test_stable_routing_matches_lean_counterexample():
+    # Mirrors NCA.plan_not_stable: installing make1 reroutes the plain planner.
+    need1 = fn("need1", ["t1"], "t0", lambda x: x)
+    from2 = fn("from2", ["t2"], "t0", lambda x: x)
+    make1 = fn("make1", ["t2"], "t1", lambda x: x)
+    avail = frozenset({"t2"})
+
+    before = plan([need1, from2], avail, "t0")
+    after = plan([need1, from2, make1], avail, "t0")
+    assert before.module is from2 and after.module is need1
+
+    assert plan_stable([need1, from2, make1], avail, "t0") == before

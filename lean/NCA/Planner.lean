@@ -89,3 +89,52 @@ theorem plan_sound (lib : List (Contract Ty)) (avail : List Ty) :
       next => simp at hf
 
 end NCA
+
+namespace NCA
+variable {α β Ty : Type}
+
+theorem traverse_isSome {f : α → Option β} :
+    ∀ {l : List α}, (∀ a ∈ l, (f a).isSome) → (traverse f l).isSome
+  | [], _ => rfl
+  | a :: as, h => by
+    obtain ⟨b, hb⟩ := Option.isSome_iff_exists.mp (h a List.mem_cons_self)
+    obtain ⟨bs, hbs⟩ := Option.isSome_iff_exists.mp
+      (traverse_isSome fun x hx => h x (List.mem_cons_of_mem _ hx))
+    simp [traverse, hb, hbs]
+
+theorem firstSome_isSome {f : α → Option β} :
+    ∀ {l : List α} {a : α}, a ∈ l → (f a).isSome → (firstSome f l).isSome
+  | x :: xs, a, hmem, ha => by
+    cases hx : f x with
+    | some b => simp [firstSome, hx]
+    | none =>
+      simp only [firstSome, hx]
+      rcases List.mem_cons.mp hmem with rfl | hmem
+      · simp [hx] at ha
+      · exact firstSome_isSome hmem ha
+
+/-- `Derivable lib avail n t`: some composition of installed contracts of
+depth at most `n` produces `t` from the available inputs. -/
+inductive Derivable (lib : List (Contract Ty)) (avail : List Ty) : Nat → Ty → Prop
+  | given {n : Nat} {t : Ty} : t ∈ avail → Derivable lib avail (n + 1) t
+  | apply {n : Nat} {c : Contract Ty} :
+      c ∈ lib → (∀ i ∈ c.inputs, Derivable lib avail n i) →
+      Derivable lib avail (n + 1) c.output
+
+variable [DecidableEq Ty]
+
+/-- **Completeness.** If a composition of depth at most `n` exists, the
+planner with fuel `n` finds one. -/
+theorem plan_complete {lib : List (Contract Ty)} {avail : List Ty} {n : Nat} {t : Ty}
+    (h : Derivable lib avail n t) : (plan lib avail n t).isSome := by
+  induction h with
+  | given ht => simp [plan, ht]
+  | @apply n c hc _ ih =>
+    unfold plan
+    split
+    · rfl
+    · apply firstSome_isSome hc
+      obtain ⟨ps, hps⟩ := Option.isSome_iff_exists.mp (traverse_isSome ih)
+      simp [hps]
+
+end NCA
