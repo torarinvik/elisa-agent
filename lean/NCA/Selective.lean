@@ -17,6 +17,11 @@ bound by `β i`. For a price `λ` per unit of compute, the refinement set
 minimizing `bound + λ · cost` is the per-symbol threshold rule
 `{i | λ κ i ≤ β i}`: refine exactly the symbols whose bound reduction is worth
 their cost. Sweeping `λ` traces the optimal trade-off with local decisions.
+
+A ladder of readings has a floor: the lowest risk each glyph can reach. A
+target `δ` is reachable only if the floors sum to at most `δ`, so with a
+per-glyph floor `ρ` an `L`-glyph input needs `L · ρ ≤ δ`: holding `δ` fixed as
+inputs grow requires floors shrinking like `1 / L`.
 -/
 
 namespace NCA
@@ -63,6 +68,22 @@ theorem threshold_optimal (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) (hT
       simp only [f]; linarith
     linarith
   simp only [refinedObjective, f, sum_sub_distrib, ← mul_sum] at key ⊢
+  linarith
+
+omit [DecidableEq I] in
+/-- **Floor.** If every glyph's risk is at least its floor `ρ i`, the bound
+is at least the sum of floors; a target below it is unreachable. -/
+theorem bound_ge_floor (S : Finset I) (r ρ : I → ℝ) (h : ∀ i ∈ S, ρ i ≤ r i) :
+    ∑ i ∈ S, ρ i ≤ ∑ i ∈ S, r i :=
+  sum_le_sum h
+
+omit [DecidableEq I] in
+/-- **Length limit.** With a uniform floor `ρ`, a bound at most `δ` forces
+`|S| · ρ ≤ δ`. -/
+theorem length_limit (S : Finset I) (r : I → ℝ) (ρ δ : ℝ) (h : ∀ i ∈ S, ρ ≤ r i)
+    (hδ : ∑ i ∈ S, r i ≤ δ) : S.card * ρ ≤ δ := by
+  have := bound_ge_floor S r (fun _ => ρ) h
+  simp only [sum_const, nsmul_eq_mul] at this
   linarith
 
 end NCA

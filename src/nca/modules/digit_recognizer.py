@@ -4,8 +4,10 @@ Consumes a single 28x28 grayscale glyph and emits a probability distribution
 over the digits 0-9. It knows nothing about arithmetic or layout.
 
 Several independently trained implementations share the contract: the
-architecture (``cnn`` or ``mlp``) and the half of the MNIST training set used
-(``all``, ``first`` or ``second``) are training options. With ``--normalized``
+architecture (``cnn``, ``mlp``, or the larger ``wide``) and the half of the
+MNIST training set used (``all``, ``first`` or ``second``) are training
+options. With ``--augment`` every training digit is randomly rotated (±10°),
+shifted (±10%) and rescaled (±10%) each epoch. With ``--normalized``
 the recognizer is trained on, and consumes, normalized glyphs
 (``nca.modules.normalizer``). Train with::
 
@@ -32,6 +34,14 @@ CONTRACT = Contract(inputs=(GLYPH,), output=DIGIT_DISTRIBUTION)
 
 
 def build_network(arch: str = "cnn") -> nn.Module:
+    if arch == "wide":
+        return nn.Sequential(
+            nn.Conv2d(1, 64, 3, padding=1), nn.ReLU(), nn.Conv2d(64, 64, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Flatten(), nn.Dropout(0.3), nn.Linear(128 * 7 * 7, 256), nn.ReLU(),
+            nn.Linear(256, 10),
+        )
     if arch == "mlp":
         return nn.Sequential(
             nn.Flatten(), nn.Linear(28 * 28, 256), nn.ReLU(),
@@ -44,7 +54,7 @@ def build_network(arch: str = "cnn") -> nn.Module:
     )
 
 
-ARCHITECTURES = ("cnn", "mlp")
+ARCHITECTURES = ("cnn", "mlp", "wide")
 SUBSETS = ("all", "first", "second")
 
 
@@ -72,7 +82,7 @@ class DigitRecognizer:
 
 
 def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
-          subset: str = "all", normalized: bool = False) -> float:
+          subset: str = "all", normalized: bool = False, augment: bool = False) -> float:
     """Train on MNIST (or one half of its training set) and return test accuracy."""
     from torchvision import datasets
 
@@ -89,6 +99,21 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
             torch.from_numpy(images).float()[:, None], mnist.targets)
 
     train_set, test_set = load(True), load(False)
+    if augment:
+        from torchvision.transforms import v2
+
+        jitter = v2.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1))
+        clean = train_set
+
+        class Augmented(torch.utils.data.Dataset):
+            def __len__(self) -> int:
+                return len(clean)
+
+            def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
+                image, label = clean[index]
+                return jitter(image), label
+
+        train_set = Augmented()
     if subset != "all":
         half = len(train_set) // 2
         indices = range(half) if subset == "first" else range(half, len(train_set))
@@ -125,9 +150,10 @@ def main() -> None:
     parser.add_argument("--arch", choices=ARCHITECTURES, default="cnn")
     parser.add_argument("--subset", choices=SUBSETS, default="all")
     parser.add_argument("--normalized", action="store_true")
+    parser.add_argument("--augment", action="store_true")
     args = parser.parse_args()
     accuracy = train(args.data, args.out, args.epochs, args.seed, args.arch, args.subset,
-                     args.normalized)
+                     args.normalized, args.augment)
     print(f"test accuracy: {accuracy:.4f}")
 
 

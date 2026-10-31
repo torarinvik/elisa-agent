@@ -43,22 +43,24 @@ from nca.abi import Message
 from nca.expressions import ExpressionDataset
 from nca.modules.digit_recognizer import DigitRecognizer
 from nca.modules.operator_recognizer import SymbolRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE
+from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.pipeline import build_registry, compose
 from nca.router import sign_test
 from nca.runtime import execute
-from nca.selective import Reader, Rung, segment
+from nca.ladder import Rung
 from nca.stats import wilson
 from nca.workspace import Workspace
 
 
 def digit_glyphs(dataset: ExpressionDataset) -> tuple[torch.Tensor, torch.Tensor]:
-    """Digit crops and labels from expressions whose segmentation is correct."""
+    """Digit crops and labels, from the first segmentation alternative with the
+    teacher's glyph count."""
     glyphs, labels = [], []
     for index in range(len(dataset)):
         sample = dataset.sample(index)
-        crops = segment(sample.image, repair=True)
-        if len(crops) != len(sample.tokens):
+        crops = next((c for c in Segmenter().alternatives(torch.from_numpy(sample.image))
+                      if len(c) == len(sample.tokens)), None)
+        if crops is None:
             continue
         for crop, token in zip(crops[::2], sample.tokens[::2]):
             glyphs.append(crop)
@@ -131,19 +133,20 @@ def main() -> None:
 
     current = DigitRecognizer.load(args.digit).network
     operator = SymbolRecognizer.load(args.operator)
-    rung = Rung(Reader(current, slice(None)))
+    rung = Rung(DigitRecognizer(current))
     mnist = datasets.MNIST(args.data, train=False, download=True)
     half = len(mnist) // 2
-    rung.calibrate(rung.read(mnist.data[:half].float() / 255.0, None), mnist.targets[:half])
+    rung.calibrate(list(mnist.data[:half].float() / 255.0), mnist.targets[:half])
 
     stream, stream_labels = digit_glyphs(
         ExpressionDataset("train", args.stream, args.data, args.seed, hard=True))
-    risks = 1.0 - rung.calibrated(rung.read(stream, None)).max(dim=1).values
+    readings = torch.stack([rung.read(glyph) for glyph in stream])
+    risks = 1.0 - readings.max(dim=1).values
     rng = np.random.default_rng(args.seed)
     train = datasets.MNIST(args.data, train=True, download=True)
     pick = torch.from_numpy(rng.choice(len(train), args.replay, replace=False))
     replay = (train.data[pick].float() / 255.0, train.targets[pick])
-    stream_errors = (rung.read(stream, None).argmax(dim=1) != stream_labels)
+    stream_errors = readings.argmax(dim=1) != stream_labels
     print(f"stream: {len(stream)} digit glyphs, {int(stream_errors.sum())} misread "
           f"({stream_errors.float().mean():.4f})")
     print(f"{'θ':>6s} {'queued':>7s} {'errors held':>12s} {'expected in':>12s} "

@@ -741,65 +741,87 @@ there, and the system can decline to answer when doubt remains.
 |---|---|
 | `selective_risk_le` | if the true error probability is at most `b` and only inputs with `b ≤ δ` are answered, the error rate among answered inputs is at most `δ` |
 | `threshold_optimal` | for a price `λ` per unit of compute, refining exactly `{i : λ κ i ≤ β i}` minimizes bound plus priced compute over all refinement sets |
+| `bound_ge_floor`, `length_limit` | if every item's risk is at least `ρ`, a bound of at most `δ` needs `n · ρ ≤ δ`: holding `δ` as inputs grow needs floors shrinking like `1 / n` |
 
 So the efficient policy is local: refine a glyph when its expected bound
 reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
 trade compute for reliability.
 
-**Implementation** (`nca.selective`). Each glyph climbs a ladder of readings,
-each rung with its own temperature fitted on the `validation` split by
-negative log-likelihood. The digit ladder has three rungs: the cheap
-recognizer; the expensive recognizer; and the expensive recognizer looking
-again at four one-pixel shifts, averaged with its first look. The operator
-ladder has two: the operator recognizer and the same second look. A second
-look adds redundancy, since shifted views make partly independent errors.
-While the bound exceeds `δ`, the least confident glyph moves up one rung,
-using its current error estimate as its expected reduction. If no rung
-remains, the system abstains.
+**Implementation** (`nca.ladder`, `nca.selective`). The controller is
+generic over experts. A *ladder* for a contract is every installed module
+with that contract whose output is a distribution, ordered by declared cost,
+and each rung has its own temperature fitted on held-out labeled data by
+negative log-likelihood. `SecondLook` wraps any such expert into a costlier
+one with the same contract that averages its readings of several views, and
+joins ladders like any other expert. `refine` reads every item on the bottom
+rung and, while the summed risk `1 − max p` exceeds `δ`, moves the riskiest
+item up one rung, using its latest reading. If no rung remains, the system
+abstains. (Keeping the least risky of an item's readings instead would bias
+the bound downward: in a trial the mean bound fell below the observed error,
+voiding `selective_risk_le`.)
 
-Segmentation is repaired with the grammar: an even glyph count means a glyph
-was split, so the two runs separated by the narrowest gap are merged. On the
-test split 11% of 63-glyph expressions had one extra glyph (broken strokes;
-the validation half has almost none); after repair, none are unparseable.
+`nca.selective` applies the controller to a planned route ending in
+single-input consumers over a `map`. What it reads comes from module
+declarations, not from the task:
+
+- **Which elements:** the map consumer's `demand`.
+- **Which inputs of each element:** the map body's `demand`.
+- **Which experts:** the ladders for the body's input contracts.
+- **Segmentation:** if the map's source offers `alternatives` (the segmenter
+  offers its runs, then merges of adjacent runs, narrowest gap first), a
+  candidate the consumer would read nothing of is skipped without being read.
+  The parser declares that it reads nothing of an even-length sequence, so
+  this repairs split glyphs. On the test split 11% of 63-glyph expressions
+  had one extra glyph (broken strokes; the validation half has almost none).
+
+The arithmetic library installs cheap, expensive and (optionally) stronger
+digit recognizers, the operator recognizer, and second looks (four one-pixel
+shifts) of all but the cheapest. The stronger recognizer (`--arch wide
+--augment`: a wider network trained six epochs on randomly rotated, shifted
+and rescaled digits) reaches 99.19% on MNIST at about 10× the expensive
+recognizer's compute.
 
 **Results** (300 test expressions per length; MFLOPs per expression):
 
-| glyphs | system | coverage | error answered | error forced | MFLOPs |
-|---:|---|---:|---:|---:|---:|
-| 3 | bottom rungs | 0.993 | 0.037 | 0.043 | 9 |
-| 3 | top rungs, repaired | 1.000 | 0.010 | 0.010 | 128 |
-| 3 | δ = 0.05 | 0.940 | 0.004 | 0.007 | 18 |
-| 15 | bottom rungs | 0.967 | 0.145 | 0.173 | 61 |
-| 15 | top rungs, repaired | 1.000 | 0.063 | 0.063 | 640 |
-| 15 | δ = 0.2 | 0.923 | 0.061 | 0.080 | 111 |
-| 15 | δ = 0.01 | 0.360 | 0.000 | 0.063 | 445 |
-| 63 | bottom rungs | 0.893 | 0.515 | 0.567 | 248 |
-| 63 | top rungs, repaired | 1.000 | 0.273 | 0.273 | 2687 |
-| 63 | δ = 0.2 | 0.423 | 0.142 | 0.280 | 1680 |
-| 63 | δ = 0.05 | 0.070 | 0.095 | 0.273 | 2531 |
+| glyphs | ladder | system | coverage | error answered | error forced | MFLOPs |
+|---:|---|---|---:|---:|---:|---:|
+| 3 | base | bottom rungs | 1.000 | 0.037 | 0.037 | 26 |
+| 3 | base | top rungs | 1.000 | 0.010 | 0.010 | 255 |
+| 3 | base | δ = 0.05 | 0.917 | 0.004 | 0.007 | 47 |
+| 15 | base | top rungs | 1.000 | 0.063 | 0.063 | 1175 |
+| 15 | base | δ = 0.2 | 0.893 | 0.060 | 0.080 | 246 |
+| 15 | + strong | δ = 0.05 | 0.707 | 0.019 | 0.043 | 1753 |
+| 63 | base | bottom rungs | 1.000 | 0.523 | 0.523 | 549 |
+| 63 | base | top rungs | 1.000 | 0.280 | 0.280 | 4850 |
+| 63 | base | δ = 0.2 | 0.297 | 0.112 | 0.287 | 3582 |
+| 63 | + strong | top rungs | 1.000 | 0.193 | 0.193 | 22290 |
+| 63 | + strong | δ = 0.2 | 0.473 | 0.141 | 0.203 | 12073 |
 
 *Error forced* is the error when the system must answer after refining as
 far as the target asks.
 
 - **Reliability.** Error among answered expressions stays within `δ` up to
-  sampling noise. At 63 glyphs and `δ = 0.05`, 21 expressions are answered
-  with 2 errors (interval `[0.03, 0.29]`); calibration was fitted on the
-  easier validation half.
+  sampling noise. The widest gap is at 63 glyphs and `δ = 0.05` with the
+  strong ladder: 20 answered, 2 wrong, interval `[0.03, 0.30]`. Calibration is
+  fitted on the easier validation half.
 - **Efficiency.** Targeted refinement matches refining everything at a
-  fraction of the compute: 7× cheaper at 3 glyphs (and more accurate), 6×
-  cheaper at 15 glyphs for 1.7 points more error, and 37% cheaper at 63 glyphs
-  for 0.7 points.
+  fraction of the compute: 5× cheaper at 3 glyphs (and more accurate), and
+  5× cheaper at 15 glyphs for 1.7 points more error.
 - **Long inputs.** Second looks and segmentation repair cut forced error at 63
-  glyphs from 0.567 to 0.273.
-- **Calibration.** Bounds stay above the true error, as the union bound
-  requires; per-rung calibration tightened the mean bound at 63 glyphs from
-  0.79 to 0.49 against 0.27 observed. Averaged second looks are
-  under-confident (fitted temperature 0.70) and need their own temperature.
-- **Limit.** Even at the top rung the per-glyph bound is about 0.4% for
-  digits, so at 63 glyphs targets below about 0.15 are infeasible for most
-  expressions and the system abstains. Lower error at that length needs a
-  stronger or more diverse reader; the controller then uses it automatically
-  as another rung.
+  glyphs from 0.523 to 0.280. A stronger rung lowers the floor (`length_limit`):
+  forced error falls to 0.193, and coverage at `δ = 0.2` rises from 0.30 to
+  0.47.
+- **Cost of genericity.** Against a controller hand-written for this task,
+  the generic one spends about twice the compute and covers less at 63
+  glyphs (0.30 against 0.42 at `δ = 0.2`), for two reasons:
+  - The fuser's sound demand reads the operator recognizer at digit positions
+    too, whose risk then enters the bound although it cannot change the
+    reading there. A finer demand (which outputs can change the consumer's
+    *decision*, not only its value) would remove this.
+  - A generic second look re-reads the original view rather than reusing the
+    first reading.
+- **Limit.** Targets below about 0.15 at 63 glyphs remain infeasible for most
+  expressions: per-glyph floors are still too high for `L · ρ ≤ δ`.
 
 **Practice queue** (`lean/NCA/Practice.lean`, `nca.practice`). Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with
