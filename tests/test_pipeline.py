@@ -5,7 +5,7 @@ torch = pytest.importorskip("torch")
 
 from nca.expressions import GLYPH, compose, render_operator
 from nca.modules.digit_recognizer import DigitRecognizer, build_network as digit_net
-from nca.modules.operator_recognizer import OperatorRecognizer, build_network as op_net
+from nca.modules.operator_recognizer import SymbolRecognizer, build_network as op_net
 from nca.modules.segmenter import Segmenter, column_runs
 from nca.modules.symbols import Evaluator, ExpressionParser, SymbolFuser
 from nca.pipeline import build_registry, compose as compose_plan
@@ -13,7 +13,7 @@ from nca.planner import Apply, Map
 
 
 def test_planner_composes_full_pipeline_with_map():
-    registry = build_registry(DigitRecognizer(digit_net()), OperatorRecognizer(op_net()))
+    registry = build_registry(DigitRecognizer(digit_net()), SymbolRecognizer(op_net()))
     graph = compose_plan(registry)
     assert isinstance(graph, Apply) and graph.module.manifest.module_id == "nca.evaluator"
     parser = graph.args[0]
@@ -57,3 +57,29 @@ def test_parser_respects_grammar_and_evaluator_precedence():
     assert tokens == ("2", "-", "3", "*", "4")
     assert Evaluator().invoke(tokens) == -10
     assert ExpressionParser().invoke([peaked("2"), peaked("+")]) is None
+
+
+def test_installing_comparison_keeps_arithmetic_route_and_adds_coverage():
+    from nca.accumulation import comparison_modules
+    from nca.modules.operator_recognizer import RELATION_SET
+    from nca.modules.segmenter import EXPRESSION_IMAGE
+    from nca.modules.symbols import BOOLEAN, INTEGER
+    from nca.planner import plan_stable
+
+    registry = build_registry(DigitRecognizer(digit_net()), SymbolRecognizer(op_net()))
+    before = plan_stable(registry.modules(), (EXPRESSION_IMAGE,), INTEGER)
+    assert plan_stable(registry.modules(), (EXPRESSION_IMAGE,), BOOLEAN) is None
+
+    for module in comparison_modules(SymbolRecognizer(op_net(RELATION_SET), RELATION_SET)):
+        registry.install(module)
+
+    assert plan_stable(registry.modules(), (EXPRESSION_IMAGE,), INTEGER) == before
+    comparison = plan_stable(registry.modules(), (EXPRESSION_IMAGE,), BOOLEAN)
+    assert comparison.module.manifest.module_id == "nca.comparison.evaluator"
+
+
+def test_comparison_evaluator_chains():
+    from nca.modules.symbols import ComparisonEvaluator
+
+    assert ComparisonEvaluator().invoke(("1", "<", "3", "=", "3"))
+    assert not ComparisonEvaluator().invoke(("4", ">", "5"))

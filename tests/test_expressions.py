@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from nca.expressions import (
-    GLYPH, HEIGHT, OPERATORS, WIDTH, compose, evaluate, is_held_out, render_operator,
+    GLYPH, HEIGHT, OPERATORS, RELATIONS, WIDTH, compose, evaluate, is_held_out, render_operator,
 )
 
 
@@ -13,7 +13,7 @@ def test_every_digit_and_operand_position_seen_in_training():
     assert len(train) < 100
 
 
-@pytest.mark.parametrize("op", OPERATORS)
+@pytest.mark.parametrize("op", OPERATORS + RELATIONS)
 def test_operator_glyph_has_ink(op):
     glyph = render_operator(op, np.random.default_rng(0))
     assert glyph.shape == (GLYPH, GLYPH)

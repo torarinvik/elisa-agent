@@ -152,6 +152,11 @@ distribution `q` over `{+, −, ×, none}` and digit distribution `p`:
 `P(op) = q_op`, `P(d) = q_none · p_d`. The result is a probability
 distribution over the 13 symbols whenever `p` and `q` are.
 
+Fusion, parsing and the recognizers are parameterized by an operator
+vocabulary: arithmetic (`+ − ×`, value type `int.v1`) and comparison
+(`< > =`, value type `bool.v1`) use separate module ids and semantic types,
+so installing one family cannot satisfy or alter the other's contracts.
+
 **MAP parsing** (`ExpressionParser`). The grammar `digit (op digit)*` fixes the
 class of each position. Under independent per-position distributions the
 probability of a token string factorizes, so the most probable well-formed
@@ -160,3 +165,20 @@ Even-length sequences have no parse.
 
 **Evaluation** (`Evaluator`). `×` binds tighter than `+` and `−`; terms are
 accumulated left to right.
+
+**Comparison chains** (`ComparisonEvaluator`). `a₀ r₁ a₁ … rₖ aₖ` is true iff
+every adjacent relation `aᵢ₋₁ rᵢ aᵢ` holds.
+
+## 7. Measuring accumulation
+
+The add-and-freeze runner (`nca.accumulation`) checks the stability theorem
+on real modules. For each task in a fixed suite, before and after installing
+new modules, it records coverage (whether `planStable` finds a route),
+whether the route is unchanged, accuracy, and the number of individual
+answers that changed. Weight fingerprints (SHA-256 of each learned module's
+parameters) verify that installation modified no existing module.
+
+For deterministic modules, an unchanged route implies identical answers, so
+`planStable_append` predicts **zero changed answers** on every previously
+covered task. The changed-answer count is the stricter regression metric:
+equal accuracy can hide offsetting changes; zero changed answers cannot.

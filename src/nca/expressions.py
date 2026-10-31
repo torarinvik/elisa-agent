@@ -1,7 +1,9 @@
 """Procedural handwritten-expression images ``a op b``.
 
-Digits are MNIST glyphs; operators (``+``, ``-``, ``*``) are rendered as
-jittered pen strokes, since MNIST has none. Glyphs are laid out left to right
+Digits are MNIST glyphs; arithmetic operators (``+``, ``-``, ``*``) and
+relations (``<``, ``>``, ``=``) are rendered as jittered pen strokes, since
+MNIST has none. A dataset draws operators from one of the two sets: the
+arithmetic task has integer values, the comparison task boolean ones. Glyphs are laid out left to right
 with random spacing and vertical offset on a fixed canvas.
 
 Compositional hold-out: digit pairs ``(a, b)`` with ``(a + 2 * b) % 7 == 0``
@@ -20,6 +22,7 @@ import numpy as np
 
 HEIGHT, WIDTH, GLYPH = 32, 96, 28
 OPERATORS = ("+", "-", "*")
+RELATIONS = ("<", ">", "=")
 SPLITS = ("train", "test", "test_unseen")
 MIN_VALUE, MAX_VALUE = -9, 81
 NUM_VALUES = MAX_VALUE - MIN_VALUE + 1
@@ -28,6 +31,9 @@ _STROKES = {
     "+": [((0.5, 0.15), (0.5, 0.85)), ((0.15, 0.5), (0.85, 0.5))],
     "-": [((0.15, 0.5), (0.85, 0.5))],
     "*": [((0.2, 0.2), (0.8, 0.8)), ((0.8, 0.2), (0.2, 0.8))],
+    "<": [((0.8, 0.2), (0.2, 0.5)), ((0.2, 0.5), (0.8, 0.8))],
+    ">": [((0.2, 0.2), (0.8, 0.5)), ((0.8, 0.5), (0.2, 0.8))],
+    "=": [((0.15, 0.35), (0.85, 0.35)), ((0.15, 0.65), (0.85, 0.65))],
 }
 
 
@@ -35,12 +41,13 @@ def is_held_out(a: int, b: int) -> bool:
     return (a + 2 * b) % 7 == 0
 
 
-def evaluate(a: int, op: str, b: int) -> int:
-    return {"+": a + b, "-": a - b, "*": a * b}[op]
+def evaluate(a: int, op: str, b: int) -> int | bool:
+    return {"+": a + b, "-": a - b, "*": a * b,
+            "<": a < b, ">": a > b, "=": a == b}[op]
 
 
 def render_operator(op: str, rng: np.random.Generator) -> np.ndarray:
-    """A 28x28 operator glyph in [0, 1], white ink on black."""
+    """A 28x28 operator or relation glyph in [0, 1], white ink on black."""
     yy, xx = np.mgrid[0:GLYPH, 0:GLYPH] / (GLYPH - 1)
     angle = rng.normal(0.0, 0.12)
     scale = rng.uniform(0.7, 1.0)
@@ -64,7 +71,7 @@ class Sample:
     image: np.ndarray
     """(HEIGHT, WIDTH) float32 in [0, 1]."""
     tokens: tuple[str, str, str]
-    value: int
+    value: int | bool
     boxes: tuple[tuple[int, int], ...]
     """Top-left (x, y) of each glyph's 28x28 box, in token order."""
 
@@ -86,10 +93,14 @@ def compose(glyphs: list[np.ndarray], tokens: tuple[str, str, str],
 
 
 class ExpressionDataset:
-    """``torch.utils.data.Dataset`` of (image[1, H, W], value - MIN_VALUE)."""
+    """``torch.utils.data.Dataset`` of (image[1, H, W], value - MIN_VALUE).
+
+    ``operators`` selects the task: ``OPERATORS`` (arithmetic) or ``RELATIONS``
+    (comparison). Tensor items are defined for arithmetic only.
+    """
 
     def __init__(self, split: str, size: int, data_dir: Path = Path("data"),
-                 seed: int = 0) -> None:
+                 seed: int = 0, operators: tuple[str, ...] = OPERATORS) -> None:
         from torchvision import datasets
 
         if split not in SPLITS:
@@ -101,6 +112,7 @@ class ExpressionDataset:
         self.pairs = [(a, b) for a in range(10) for b in range(10)
                       if is_held_out(a, b) == (split == "test_unseen")]
         self.size = size
+        self.operators = operators
         self.seed = seed + SPLITS.index(split) * 1_000_003
 
     def __len__(self) -> int:
@@ -109,7 +121,7 @@ class ExpressionDataset:
     def sample(self, index: int) -> Sample:
         rng = np.random.default_rng((self.seed, index))
         a, b = self.pairs[rng.integers(len(self.pairs))]
-        op = OPERATORS[rng.integers(len(OPERATORS))]
+        op = self.operators[rng.integers(len(self.operators))]
         glyphs = [
             self.images[rng.choice(self.by_digit[a])],
             render_operator(op, rng),

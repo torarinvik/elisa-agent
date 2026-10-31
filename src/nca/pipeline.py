@@ -34,7 +34,7 @@ import torch
 from nca.abi import Message
 from nca.expressions import SPLITS, ExpressionDataset
 from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import OperatorRecognizer, make_dataset
+from nca.modules.operator_recognizer import SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import (
     INTEGER, SYMBOL_DISTRIBUTION, Evaluator, ExpressionParser, SymbolFuser,
@@ -45,7 +45,7 @@ from nca.runtime import execute
 from nca.workspace import Workspace
 
 
-def build_registry(digit: DigitRecognizer, operator: OperatorRecognizer) -> Registry:
+def build_registry(digit: DigitRecognizer, operator: SymbolRecognizer) -> Registry:
     registry = Registry()
     for module in (Segmenter(), digit, operator, SymbolFuser(), ExpressionParser(),
                    Evaluator()):
@@ -111,7 +111,7 @@ def evaluate(graph: Plan, dataset: ExpressionDataset) -> Report:
 
 
 @torch.no_grad()
-def offline_failure_rates(digit: DigitRecognizer, operator: OperatorRecognizer,
+def offline_failure_rates(digit: DigitRecognizer, operator: SymbolRecognizer,
                           data_dir: Path, seed: int) -> tuple[float, float]:
     """(digit, operator) failure rates on each recognizer's own test distribution.
 
@@ -135,13 +135,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--data", type=Path, default=Path("data"))
     parser.add_argument("--digit", type=Path, default=Path("checkpoints/digit.pt"))
-    parser.add_argument("--operator", type=Path, default=Path("checkpoints/operator.pt"))
+    parser.add_argument("--operator", type=Path, default=Path("checkpoints/operators.pt"))
     parser.add_argument("--size", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     digit = DigitRecognizer.load(args.digit)
-    operator = OperatorRecognizer.load(args.operator)
+    operator = SymbolRecognizer.load(args.operator)
     graph = compose(build_registry(digit, operator))
     offline_digit, offline_operator = offline_failure_rates(digit, operator, args.data,
                                                             args.seed)
