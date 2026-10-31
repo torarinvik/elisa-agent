@@ -19,8 +19,8 @@ Scenarios:
 changed answers for tasks that were already solvable under ``plan_stable``.
 
 Afterwards, wherever ``plan`` now proposes a different route than the stable
-one, that route is considered as an explicit upgrade: both are evaluated on a
-separate validation sample and the candidate is pinned only if a one-sided
+one, that route is considered as an explicit upgrade: both are evaluated on the
+validation split (digit images disjoint from the test splits) and the candidate is pinned only if a one-sided
 sign test on paired correctness accepts it (``nca.router``).
 
     uv run --extra vision python -m nca.accumulation --scenario conflict
@@ -200,7 +200,7 @@ def main() -> None:
                   f"{acc(a_route, a):>8s} {kept:>11s} {changed:>16s}")
 
     print()
-    validation = {task: ExpressionDataset("test", args.size, args.data, args.seed + 1, ops)
+    validation = {task: ExpressionDataset("validation", args.size, args.data, args.seed, ops)
                   for task, (_, ops) in TASKS.items()}
     router = Router()
     consider_upgrades(registry, router, validation)

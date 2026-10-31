@@ -43,6 +43,7 @@ from nca.modules.symbols import (
 from nca.planner import plan
 from nca.registry import Registry
 from nca.router import Router, sign_test
+from nca.stats import format_interval, paired_difference, wilson
 
 TASKS = {"arithmetic": INTEGER, "comparison": BOOLEAN, "mixed": BOOLEAN}
 
@@ -77,19 +78,15 @@ def registry_of(modules: list) -> Registry:
     return registry
 
 
-def accuracy(answers: list, truth: list) -> float:
-    return sum(a == t for a, t in zip(answers, truth)) / len(truth)
-
-
 @torch.no_grad()
-def monolithic_accuracy(path: Path, dataset: ExpressionDataset) -> float:
+def monolithic_correct(path: Path, dataset: ExpressionDataset) -> list[bool]:
     network = build_baseline(*BASELINE_TASKS["mixed"])
     network.load_state_dict(torch.load(path, map_location="cpu"))
     network.eval()
-    correct = 0
+    correct: list[bool] = []
     for images, labels in torch.utils.data.DataLoader(dataset, batch_size=500):
-        correct += (network(images).argmax(dim=1) == labels).sum().item()
-    return correct / len(dataset)
+        correct += (network(images).argmax(dim=1) == labels).tolist()
+    return correct
 
 
 def main() -> None:
@@ -115,7 +112,7 @@ def main() -> None:
     router = Router()
     candidate = plan(integration_modules_of(full) + full.modules(), (EXPRESSION_IMAGE,), BOOLEAN)
     current = router.route(full.modules(), (EXPRESSION_IMAGE,), BOOLEAN)
-    validation = [task_dataset(t, "test", args.size // 2, args.data, args.seed + 1)
+    validation = [task_dataset(t, "validation", args.size // 2, args.data, args.seed)
                   for t in ("comparison", "mixed")]
     current_ok, candidate_ok = [], []
     for dataset in validation:
@@ -130,24 +127,34 @@ def main() -> None:
         router.upgrade(full.modules(), (EXPRESSION_IMAGE,), BOOLEAN, candidate)
 
     print(f"{'task':12s} {'split':12s} " + " ".join(f"{name:>8s}" for name in systems)
-          + f" {'majority':>9s} {'mono':>7s} {'gain':>7s}")
+          + f" {'majority':>9s} {'mono':>7s}")
+    gains = []
     for (task, split), dataset in datasets.items():
-        scores = {}
+        values = truth[(task, split)]
+        correct: dict[str, list[bool]] = {}
         for name, modules in systems.items():
             registry = full if name == "A⊕B" else registry_of(modules)
             route = (router if name == "A⊕B" else Router()).route(
                 registry.modules(), (EXPRESSION_IMAGE,), TASKS[task])
-            scores[name] = 0.0 if route is None else accuracy(
-                answers_for(route, dataset), truth[(task, split)])
-        majority = Counter(truth[(task, split)]).most_common(1)[0][1] / len(dataset)
-        mono = (monolithic_accuracy(args.baseline, dataset)
-                if task == "mixed" and args.baseline else None)
-        baselines = [scores["A"], scores["B"], scores["A+B"], majority] + (
-            [mono] if mono is not None else [])
-        gain = scores["A⊕B"] - max(baselines)
-        cells = " ".join(f"{scores[n]:8.4f}" for n in systems)
-        mono_cell = "-" if mono is None else f"{mono:.4f}"
-        print(f"{task:12s} {split:12s} {cells} {majority:9.4f} {mono_cell:>7s} {gain:+7.4f}")
+            correct[name] = ([False] * len(values) if route is None else
+                             [a == v for a, v in zip(answers_for(route, dataset), values)])
+        majority_value = Counter(values).most_common(1)[0][0]
+        correct["majority"] = [v == majority_value for v in values]
+        if task == "mixed" and args.baseline:
+            correct["mono"] = monolithic_correct(args.baseline, dataset)
+        rate = {k: sum(v) / len(v) for k, v in correct.items()}
+        cells = " ".join(f"{rate[n]:8.4f}" for n in systems)
+        mono_cell = f"{rate['mono']:.4f}" if "mono" in rate else "-"
+        print(f"{task:12s} {split:12s} {cells} {rate['majority']:9.4f} {mono_cell:>7s}")
+        if task == "mixed":
+            best = max((k for k in correct if k != "A⊕B"), key=rate.__getitem__)
+            gains.append((split, correct["A⊕B"], best, correct[best]))
+
+    print("\nmixed task, 95% intervals (Wilson for accuracy; paired for gain):")
+    for split, ours, best, theirs in gains:
+        low, high = wilson(sum(ours), len(ours))
+        print(f"  {split:12s} A⊕B {format_interval(sum(ours) / len(ours), low, high)}; "
+              f"gain over {best}: {format_interval(*paired_difference(theirs, ours))}")
 
 
 def integration_modules_of(registry: Registry) -> list:

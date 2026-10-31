@@ -12,6 +12,14 @@ never appear in the ``train`` split, though every digit and operator does.
 ``test_unseen`` contains only those pairs, so a model that learned
 composition rather than memorizing pairs should do as well there as on
 ``test``.
+
+Digit images: ``train`` draws from the MNIST training set; ``validation``
+from the first half of the MNIST test set; ``test`` and ``test_unseen`` from
+its second half, so no digit image is shared between validation (used for
+decisions such as route upgrades) and the reported test splits.
+
+``hard`` renders a shifted style for robustness tests: operators with three
+times the usual jitter, and digits randomly thickened or thinned.
 """
 
 from __future__ import annotations
@@ -25,7 +33,8 @@ HEIGHT, WIDTH, GLYPH = 32, 96, 28
 MIXED_WIDTH = 160
 OPERATORS = ("+", "-", "*")
 RELATIONS = ("<", ">", "=")
-SPLITS = ("train", "test", "test_unseen")
+SPLITS = ("train", "test", "test_unseen", "validation")
+MNIST_TEST_HALF = 5_000
 MIN_VALUE, MAX_VALUE = -9, 81
 NUM_VALUES = MAX_VALUE - MIN_VALUE + 1
 
@@ -74,17 +83,20 @@ def value_of(tokens: tuple[str, ...]) -> int | bool:
     return all(evaluate(a, r, b) for a, r, b in zip(sides, relations, sides[1:]))
 
 
-def render_operator(op: str, rng: np.random.Generator) -> np.ndarray:
-    """A 28x28 operator or relation glyph in [0, 1], white ink on black."""
+def render_operator(op: str, rng: np.random.Generator, jitter: float = 1.0) -> np.ndarray:
+    """A 28x28 operator or relation glyph in [0, 1], white ink on black.
+
+    ``jitter`` scales the random rotation, endpoint noise, and size variation.
+    """
     yy, xx = np.mgrid[0:GLYPH, 0:GLYPH] / (GLYPH - 1)
-    angle = rng.normal(0.0, 0.12)
-    scale = rng.uniform(0.7, 1.0)
+    angle = rng.normal(0.0, 0.12 * jitter)
+    scale = 1.0 - rng.uniform(0.0, min(0.3 * jitter, 0.6))
     width = rng.uniform(0.035, 0.06)
     rot = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
     image = np.zeros((GLYPH, GLYPH))
     for start, end in _STROKES[op]:
         p0, p1 = (
-            rot @ ((np.array(pt) - 0.5) * scale) + 0.5 + rng.normal(0.0, 0.03, 2)
+            rot @ ((np.array(pt) - 0.5) * scale) + 0.5 + rng.normal(0.0, 0.03 * jitter, 2)
             for pt in (start, end)
         )
         d = p1 - p0
@@ -92,6 +104,14 @@ def render_operator(op: str, rng: np.random.Generator) -> np.ndarray:
         dist = np.hypot(xx - p0[0] - t * d[0], yy - p0[1] - t * d[1])
         image = np.maximum(image, np.clip(1.5 - dist / width, 0.0, 1.0))
     return image
+
+
+def restyle_digit(image: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Thicken (3x3 max) or thin (3x3 min) a glyph's strokes, with equal chance."""
+    padded = np.pad(image, 1)
+    windows = np.stack([padded[dy:dy + GLYPH, dx:dx + GLYPH]
+                        for dy in range(3) for dx in range(3)])
+    return windows.max(axis=0) if rng.random() < 0.5 else windows.min(axis=0)
 
 
 @dataclass(frozen=True)
@@ -130,7 +150,7 @@ class ExpressionDataset:
 
     def __init__(self, split: str, size: int, data_dir: Path = Path("data"),
                  seed: int = 0, operators: tuple[str, ...] = OPERATORS,
-                 mixed: bool = False) -> None:
+                 mixed: bool = False, hard: bool = False) -> None:
         from torchvision import datasets
 
         if split not in SPLITS:
@@ -138,12 +158,18 @@ class ExpressionDataset:
         mnist = datasets.MNIST(data_dir, train=split == "train", download=True)
         self.images = mnist.data.numpy().astype(np.float32) / 255.0
         labels = mnist.targets.numpy()
-        self.by_digit = [np.flatnonzero(labels == d) for d in range(10)]
+        pool = np.arange(len(labels))
+        if split == "validation":
+            pool = pool[:MNIST_TEST_HALF]
+        elif split != "train":
+            pool = pool[MNIST_TEST_HALF:]
+        self.by_digit = [pool[labels[pool] == d] for d in range(10)]
         self.pairs = [(a, b) for a in range(10) for b in range(10)
                       if is_held_out(a, b) == (split == "test_unseen")]
         self.size = size
         self.operators = operators
         self.mixed = mixed
+        self.hard = hard
         self.width = MIXED_WIDTH if mixed else WIDTH
         self.seed = seed + SPLITS.index(split) * 1_000_003
 
@@ -163,9 +189,12 @@ class ExpressionDataset:
             tokens = (str(a), op, str(b))
         glyphs = [
             self.images[rng.choice(self.by_digit[int(t)])] if t.isdigit()
-            else render_operator(t, rng)
+            else render_operator(t, rng, 3.0 if self.hard else 1.0)
             for t in tokens
         ]
+        if self.hard:
+            glyphs = [restyle_digit(g, rng) if t.isdigit() else g
+                      for g, t in zip(glyphs, tokens)]
         return compose(glyphs, tokens, rng, self.width)
 
     def __getitem__(self, index: int):

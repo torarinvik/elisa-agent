@@ -11,6 +11,8 @@ evaluates on the expression splits alongside the reliability bounds of
   measure, so on the empirical measure it can only fail if the propagation
   hypothesis (no module failure implies a correct answer) is false;
 * the independent product bound predicts accuracy from the failure rates;
+* accuracies carry 95% Wilson intervals, and every split is also evaluated
+  in the ``hard`` style (a deliberate distribution shift);
 * each recognizer's in-situ failure rate is compared with its offline rate
   on its own test distribution. By ``NCA.shift_ge_gap`` the excess is a lower
   bound on the shift between the input distribution the composition feeds it
@@ -32,7 +34,7 @@ from pathlib import Path
 import torch
 
 from nca.abi import Message
-from nca.expressions import SPLITS, ExpressionDataset
+from nca.expressions import ExpressionDataset
 from nca.modules.digit_recognizer import DigitRecognizer
 from nca.modules.operator_recognizer import SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -42,6 +44,7 @@ from nca.modules.symbols import (
 from nca.planner import Plan, plan_stable
 from nca.registry import Registry
 from nca.runtime import execute
+from nca.stats import wilson
 from nca.workspace import Workspace
 
 
@@ -147,15 +150,19 @@ def main() -> None:
                                                             args.seed)
     print(f"offline failure rates: digit {offline_digit:.4f}, "
           f"operator {offline_operator:.4f}\n")
-    print(f"{'split':12s} {'accuracy':>9s} {'union':>7s} {'product':>8s}  "
+    print(f"{'split':17s} {'accuracy [95% CI]':>26s} {'union':>7s} {'product':>8s}  "
           "failure rates (segment, digit, operator, digit)")
-    for split in SPLITS:
-        report = evaluate(graph, ExpressionDataset(split, args.size, args.data, args.seed))
+    for split, hard in (("test", False), ("test_unseen", False),
+                        ("test", True), ("test_unseen", True)):
+        dataset = ExpressionDataset(split, args.size, args.data, args.seed, hard=hard)
+        report = evaluate(graph, dataset)
         rates = ", ".join(f"{r:.4f}" for r in report.failure_rates())
-        print(f"{split:12s} {report.accuracy:9.4f} {report.union_bound:7.4f} "
-              f"{report.product_bound:8.4f}  {rates}")
+        low, high = wilson(report.correct, report.samples)
+        name = f"{split}{' (hard)' if hard else ''}"
+        print(f"{name:17s} {report.accuracy:.4f} [{low:.4f}, {high:.4f}]".ljust(44)
+              + f" {report.union_bound:7.4f} {report.product_bound:8.4f}  {rates}")
         _, d1, op, d2 = report.failure_rates()
-        print(f"{'':12s} shift lower bounds: digit {max(0.0, (d1 + d2) / 2 - offline_digit):.4f}, "
+        print(f"{'':17s} shift lower bounds: digit {max(0.0, (d1 + d2) / 2 - offline_digit):.4f}, "
               f"operator {max(0.0, op - offline_operator):.4f}")
 
 

@@ -303,3 +303,32 @@ rule of §8, on a validation suite drawn from both boolean tasks. This shows
 a limit of the type system: the task a goal stands for is not determined by
 its type alone, and choosing between routes for one type is an empirical
 decision.
+
+## 11. Evaluation methodology
+
+**Data separation** (`nca.expressions`). Training splits draw digit images
+from the MNIST training set. The MNIST test set is divided: its first half
+supplies the `validation` split, used for every decision taken from data
+(such as accepting route upgrades); its second half supplies `test` and
+`test_unseen`, used only for reporting. No digit image is shared between
+what decisions are made on and what is reported. `test_unseen` additionally
+holds out digit pairs never seen in training.
+
+**Deliberate shift.** The `hard` style renders operators with three times the
+usual geometric jitter and thickens or thins digit strokes (3×3 max or min
+filter). Evaluating on it measures robustness to a shift that no module was
+trained on; by §5 the accuracy loss is bounded by the induced shifts of the
+affected modules.
+
+**Accuracy intervals** (`nca.stats.wilson`). For `k` successes in `n` samples
+the 95% Wilson score interval is
+`(p̂ + z²/2n ± z·√(p̂(1−p̂)/n + z²/4n²)) / (1 + z²/n)` with `z ≈ 1.96`. It stays
+inside `[0, 1]` and remains accurate near 0 and 1, where accuracies cluster.
+
+**Paired differences** (`nca.stats.paired_difference`). Systems are compared
+on the same samples, so their difference is estimated from per-sample
+differences `dᵢ = 1[second correct] − 1[first correct]`: mean `d̄`, interval
+`d̄ ± z·s_d/√n`. Shared successes and failures contribute zero, which makes the
+interval far narrower than one derived from two independent accuracy
+intervals. Composition gain is reported this way against the best competing
+system on that split.
