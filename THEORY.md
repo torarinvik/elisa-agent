@@ -910,3 +910,189 @@ glyphs, compared with `k` random glyphs from the same stream. Results on
 - **Safety.** Every adopted version keeps normal-style accuracy within its
   interval. The one version that made things worse (replay without practice
   data) was rejected by the sign test, as the upgrade rule intends.
+
+## 17. Calibration under distribution shift
+
+### 17.1 The problem
+
+`selective_risk_le` promises that the error rate among answered inputs is at
+most `δ`, under one premise: the bound is valid, `q(x) ≤ b(x)` for every
+input `x`, where `q(x)` is the true probability that the answer to `x` is
+wrong and `b(x)` the controller's bound. The bound is a sum of calibrated
+per-item risks, and calibration is *fitted*. Temperatures minimize negative
+log-likelihood on held-out data from a reference distribution `P` (the
+`validation` half of the MNIST test set), which makes risks right *on
+average over `P`*. It makes them neither pointwise valid nor right on
+average over the distribution `Q` met in use (the other half, written by
+different people). §16 measured the consequence. At 63 glyphs with the strong
+ladder, the error among answered expressions was 0.074 at `δ = 0.05`
+(interval `[0.041, 0.131]`) and 0.053 at `δ = 0.01`: consistent with the
+target only because the intervals are wide, and leaning above it.
+
+Three facts organize the repair:
+
+1. how far the guarantee degrades is governed by a single quantity, the
+   answered mass of the bound's deficit (§17.2);
+2. degradation cannot be prevented by any method that looks only at `P`:
+   some information about `Q` is required (§17.3);
+3. a small audit sample from `Q`, labeled by a teacher, suffices for a
+   finite-sample, distribution-free guarantee, through a family of
+   increasingly cautious policies tested in a fixed order (§17.4–17.6).
+
+### 17.2 How much the guarantee degrades
+
+Write `A = {x : b(x) ≤ δ}` for the answered inputs and `p` for the input
+distribution. Splitting `q = b + (q − b) ≤ δ + (q − b)⁺` on `A` gives
+(`selective_risk_le_excess`, `lean/NCA/Calibration.lean`):
+
+> `Σ_{x∈A} p(x) q(x) ≤ δ · Σ_{x∈A} p(x) + Σ_{x∈A} p(x) (q(x) − b(x))⁺`.
+
+Dividing by `p(A)`, the error among answered inputs is at most `δ + D`, where
+`D = E[(q − b)⁺ | A]` is the mean *deficit* of the bound among answered
+inputs. Three remarks:
+
+- **Deficit, not miscalibration.** Only underestimation inside `A` matters.
+  An overestimating bound costs coverage, never validity, and errors on
+  inputs the system declines are irrelevant.
+- **Selection amplifies.** `A` is selected *by* `b`: inputs whose bound
+  happens to be low are exactly the answered ones, so `D` can exceed the
+  average deficit over all inputs. The controller sharpens this. It refines
+  until the bound crosses `δ`, then stops, so answered inputs sit just below
+  `δ` with whatever estimation error they carry. This is why violations
+  appear at strict targets first.
+- **Transfer under bounded shift.** If deployment weights are at most `W`
+  times reference weights (`pQ ≤ W · pP`), every nonnegative weighted sum
+  grows by at most `W` (`shift_ratio_le`). A deficit measured on `P` thus
+  bounds the deficit on `Q` up to the factor `W`, which is unknown in
+  practice and can be large.
+
+### 17.3 Why reference data alone cannot suffice
+
+Fix any procedure that maps reference data to a bound `b`. Take two
+deployment distributions `Q₁` and `Q₂` with the same inputs as `P` but
+different labels on a set `S` of inputs that `b` answers. On `S` the true
+error probabilities differ, while `b` is the same for both, because it never
+saw `Q`. The bound cannot be valid for both unless it declines `S`. Pushed to
+the limit, this is `offline_rate_insufficient` (§5): a module that never fails
+offline can fail always in situ. A guarantee on `Q` therefore requires
+observations from `Q`. The question is how few, and how to use them
+without spending the guarantee on their noise.
+
+### 17.4 The audit
+
+An **audit** is a sample of inputs from `Q`, labeled by a teacher, used only
+for calibration decisions. It is distinct from the practice queue (§16),
+whose labels are chosen by risk to train better experts. Audit inputs must
+be drawn so that their distribution is known: uniformly from the deployment
+stream (the default), or with known inclusion probabilities `π(x) > 0`, in
+which case every audit quantity is weighted by `1 / π(x)` and remains
+unbiased for its population value (`horvitz_thompson`). The second option
+lets practice labels drawn with probability proportional to risk be reused
+for auditing. Their weights are inversely proportional to risk, so
+low-risk inputs, rarely drawn, count heavily.
+
+Two uses of the audit are complementary.
+
+**Recalibration (estimation).** Refit each rung's temperatures on audit
+items (glyphs read in deployment, with teacher labels) instead of on
+reference data. This moves the risks toward calibration *on average over
+`Q`* and reduces the deficit `D`. It gives no finite-sample guarantee: the
+fitted temperatures carry estimation error, and average calibration is not
+pointwise validity.
+
+**Risk control (guarantee).** Treat the controller as a policy family and
+certify a member of it with the audit, as follows.
+
+### 17.5 Risk control by fixed-sequence testing
+
+**Policy family.** For an inflation factor `λ ≥ 1`, policy `π_λ` runs the
+controller with target `δ / λ` and answers when the final bound satisfies
+`λ · b ≤ δ`. Larger `λ` means more refinement and more caution. For a fixed
+bound function the answered sets are nested (`inflated_answered_mono`), and
+the family always contains a *trivially safe* member in the limit: never
+answer. The true selective risk of a policy on `Q` is
+
+> `R(λ) = P_Q(wrong | answered by π_λ)`,
+
+and `π_λ` is *safe* when `R(λ) ≤ δ`. Nothing requires `R` to be monotone in
+`λ`, and empirically it need not be.
+
+**Test of one candidate.** Run `π_λ` on the `m` audit expressions. Among the
+`n_λ` it answers, let `k_λ` be wrong. Conditional on `n_λ`, the wrong answers
+are a binomial sample with parameter `R(λ)` (audit expressions are drawn
+independently from `Q`, and the policy is fixed before seeing their labels).
+The exact one-sided Clopper–Pearson upper bound
+
+> `U(k, n; α) = the largest r with P(Binomial(n, r) ≤ k) ≥ α`
+
+satisfies `P(R(λ) > U(k_λ, n_λ; α)) ≤ α`. Declare `λ` safe when
+`U(k_λ, n_λ; α) ≤ δ`. When `λ` is unsafe (`R(λ) > δ`), declaring it safe
+requires `U < R(λ)`, which has probability at most `α`: each test is valid
+at level `α`.
+
+**Fixed sequence.** Order the candidates from most to least cautious,
+`λ₀ > λ₁ > … > λ_K = 1`, test them in that order, and stop at the first one
+not declared safe. Deploy the last candidate declared safe, or abstain on
+everything if even `λ₀` fails. By `fixed_sequence_le`:
+
+> `P(the deployed policy is unsafe) ≤ α`,
+
+with no correction for the number of candidates and no monotonicity
+assumption. The proof is two lines. Any acceptance of an unsafe candidate
+passes through the *first* unsafe candidate `k*` in the order (a fixed index,
+since safety is a property of `Q`, not of the audit). Reaching past `k*`
+requires its test to have wrongly declared it safe, an event of probability
+at most `α`.
+
+**The guarantee.** With probability at least `1 − α` over the audit, the
+deployed policy's error rate among answered inputs on `Q` is at most `δ`.
+It holds for any experts, any calibration (good or bad), and any shift
+between `P` and `Q`. What it assumes:
+
+- audit and deployment inputs are independent draws from the same `Q`;
+- the policy family and the order are fixed before the audit is labeled;
+- for a weighted audit, the inclusion probabilities are known.
+
+Calibration quality no longer affects validity. It affects only *efficiency*:
+better risks put the safe candidates further down the sequence, so a less
+cautious, higher-coverage policy is certified.
+
+### 17.6 How many audit labels
+
+When a candidate answers `n` audit expressions and errs on none, it is
+declared safe exactly when `(1 − δ)^n ≤ α`, that is when
+`n ≥ ln(1/α) / −ln(1 − δ) ≈ ln(1/α) / δ`:
+
+| `δ` | `α = 0.1` | `α = 0.05` |
+|---:|---:|---:|
+| 0.2 | 11 | 14 |
+| 0.05 | 45 | 59 |
+| 0.01 | 230 | 299 |
+
+These are *answered* audit expressions with no errors. With errors the
+requirement grows, since `U(k, n; α) ≈ k/n + O(√(k log(1/α))/n)`. Two
+consequences follow. Strict targets need audits in the hundreds. And because
+only answered expressions count, low-coverage policies need proportionally
+larger audits: coverage and certifiability are linked. Recalibration on the
+same audit raises coverage, so the two uses reinforce each other. To keep
+the guarantee, the audit is split: one part fits temperatures, the other
+tests the sequence. Reusing the fitting part for testing would make the
+policy depend on the labels it is tested on.
+
+### 17.7 Expected outcomes
+
+The theory makes falsifiable predictions for the experiment.
+
+1. **Validity.** With risk control at level `α`, the error rate among
+   answered test expressions stays at or below `δ` in at least a fraction
+   `1 − α` of independent audit draws, at every length and target. With
+   reference calibration alone it does not, at strict targets on long inputs.
+2. **Price.** Risk control costs coverage relative to the uncontrolled
+   controller at the same `δ`. The cost is largest where the uncontrolled
+   controller was violating the target.
+3. **Recovery.** Recalibrating on audit glyphs lowers the deficit
+   (mean bound closer to observed error) and returns coverage under risk
+   control.
+4. **Labels.** Certification fails at strict targets when too few answered
+   audit expressions remain (§17.6), and the controller then abstains on
+   everything. This is the honest answer when evidence is insufficient.
