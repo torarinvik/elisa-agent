@@ -10,7 +10,15 @@ evaluates on the expression splits alongside the reliability bounds of
 * the union bound ``P(wrong) <= sum of failure rates`` is a theorem for any
   measure, so on the empirical measure it can only fail if the propagation
   hypothesis (no module failure implies a correct answer) is false;
-* the independent product bound predicts accuracy from the failure rates.
+* the independent product bound predicts accuracy from the failure rates;
+* each recognizer's in-situ failure rate is compared with its offline rate
+  on its own test distribution. By ``NCA.shift_ge_gap`` the excess is a lower
+  bound on the shift between the input distribution the composition feeds it
+  and the one it was evaluated on (``lean/NCA/Shift.lean``).
+
+At digit positions the parser's restricted argmax equals the digit
+recognizer's argmax, and at operator positions the operator recognizer's
+argmax over operators, so positional failures are exactly module failures.
 
     uv run --extra vision python -m nca.pipeline
 """
@@ -26,7 +34,7 @@ import torch
 from nca.abi import Message
 from nca.expressions import SPLITS, ExpressionDataset
 from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import OperatorRecognizer
+from nca.modules.operator_recognizer import OperatorRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import (
     INTEGER, SYMBOL_DISTRIBUTION, Evaluator, ExpressionParser, SymbolFuser,
@@ -102,6 +110,27 @@ def evaluate(graph: Plan, dataset: ExpressionDataset) -> Report:
     return report
 
 
+@torch.no_grad()
+def offline_failure_rates(digit: DigitRecognizer, operator: OperatorRecognizer,
+                          data_dir: Path, seed: int) -> tuple[float, float]:
+    """(digit, operator) failure rates on each recognizer's own test distribution.
+
+    The operator rate counts the argmax over operators only, on operator glyphs,
+    matching how the parser uses the operator recognizer.
+    """
+    from torchvision import datasets
+
+    mnist = datasets.MNIST(data_dir, train=False, download=True)
+    images = mnist.data.float()[:, None] / 255.0
+    digit_error = (digit.network(images).argmax(dim=1) != mnist.targets).float().mean()
+
+    glyphs, labels = make_dataset(images[:, 0].numpy(), 10_000, seed + 1).tensors
+    is_operator = labels < 3
+    logits = operator.network(glyphs[is_operator])[:, :3]
+    operator_error = (logits.argmax(dim=1) != labels[is_operator]).float().mean()
+    return digit_error.item(), operator_error.item()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--data", type=Path, default=Path("data"))
@@ -111,9 +140,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    registry = build_registry(DigitRecognizer.load(args.digit),
-                              OperatorRecognizer.load(args.operator))
-    graph = compose(registry)
+    digit = DigitRecognizer.load(args.digit)
+    operator = OperatorRecognizer.load(args.operator)
+    graph = compose(build_registry(digit, operator))
+    offline_digit, offline_operator = offline_failure_rates(digit, operator, args.data,
+                                                            args.seed)
+    print(f"offline failure rates: digit {offline_digit:.4f}, "
+          f"operator {offline_operator:.4f}\n")
     print(f"{'split':12s} {'accuracy':>9s} {'union':>7s} {'product':>8s}  "
           "failure rates (segment, digit, operator, digit)")
     for split in SPLITS:
@@ -121,6 +154,9 @@ def main() -> None:
         rates = ", ".join(f"{r:.4f}" for r in report.failure_rates())
         print(f"{split:12s} {report.accuracy:9.4f} {report.union_bound:7.4f} "
               f"{report.product_bound:8.4f}  {rates}")
+        _, d1, op, d2 = report.failure_rates()
+        print(f"{'':12s} shift lower bounds: digit {max(0.0, (d1 + d2) / 2 - offline_digit):.4f}, "
+              f"operator {max(0.0, op - offline_operator):.4f}")
 
 
 if __name__ == "__main__":
