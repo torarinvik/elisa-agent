@@ -58,6 +58,15 @@ of depth at most `n` exists (for `map`, with `a` a candidate element type).
 **Theorem (completeness, `plan_complete`).** `Derivable lib avail n t` implies
 `plan lib avail n t` succeeds.
 
+**Type checking** (`lean/NCA/Check.lean`, `nca.router.infer`). `infer lib avail p`
+computes the type a plan produces: `given t` needs `t ∈ avail`; `apply c ps`
+needs `c ∈ lib` and the argument types to equal `c.inputs`; `map a body src`
+needs `body` to type-check under `[a]` and `src` to produce `seq a`.
+
+**Theorem (decidability, `infer_iff`).** `infer lib avail p = some t ↔
+WellTyped lib avail p t`. Plans not produced by the planner, such as
+hand-written pipelines and proposed upgrades, are admitted by checking.
+
 ## 3. Routing stability
 
 The add-and-freeze protocol requires that installing a module does not
@@ -195,3 +204,35 @@ installed module never improves an already covered task on its own: adopting
 a better route must be an explicit, evaluated decision (for example,
 reordering or replacing modules after comparing both routes on the suite),
 not a side effect of installation.
+
+## 8. Explicit route upgrades
+
+A router holds **pins**, per-goal routes that override layered planning:
+`route pins lib avail n t = pins t`, or `planStable lib avail n t` when `t` is
+unpinned. `upgrade pins t p` pins `p` for `t` if `infer lib avail p = some t`
+and fails otherwise. (`lean/NCA/Upgrade.lean`, `nca.router.Router`.)
+
+| Theorem | Statement |
+|---|---|
+| `route_sound` | if all pins are well-typed, every route is well-typed |
+| `upgrade_valid` | upgrading preserves well-typedness of all pins |
+| `upgrade_target` | after upgrading `t` to `p`, `t` is routed through `p` |
+| `upgrade_local` | every goal `t' ≠ t` keeps its route |
+| `upgrade_rollback` | restoring the previous pin of `t` restores the router exactly |
+| `route_append` | installing modules never changes an existing route, pinned or not |
+| `PinsValid.append` | pins remain well-typed after installing modules |
+
+The theorems make upgrades safe to *apply*; whether to apply one is an
+empirical question. **Decision rule** (`nca.router.sign_test`): evaluate the
+current and candidate routes on the same validation samples. Let `w` be the
+samples only the candidate answers correctly and `l` those only the current
+route answers correctly. Under the null hypothesis that neither route is
+better, `w ~ Binomial(w + l, 1/2)` conditional on `w + l`; the candidate is
+pinned iff `P(X ≥ w) < α` (default `α = 0.05`). The test is exact and uses
+only discordant samples, so shared successes and failures carry no weight.
+
+`nca.accumulation --scenario conflict` applies this rule to the route `plan`
+proposes after the encoder is installed: it rejects a weaker symbol
+classifier and accepts a stronger one, and only the arithmetic route changes.
+Validation samples are drawn with a different seed from the reported test
+samples.

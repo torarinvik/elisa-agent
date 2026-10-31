@@ -18,6 +18,11 @@ Scenarios:
 ``NCA.planStable_append`` predicts zero route changes and therefore zero
 changed answers for tasks that were already solvable under ``plan_stable``.
 
+Afterwards, wherever ``plan`` now proposes a different route than the stable
+one, that route is considered as an explicit upgrade: both are evaluated on a
+separate validation sample and the candidate is pinned only if a one-sided
+sign test on paired correctness accepts it (``nca.router``).
+
     uv run --extra vision python -m nca.accumulation --scenario conflict
 """
 
@@ -42,6 +47,7 @@ from nca.modules.symbols import (
 )
 from nca.planner import Plan, plan, plan_stable
 from nca.registry import Registry
+from nca.router import Router, sign_test
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -96,6 +102,37 @@ def run_task(registry: Registry, goal: str, dataset: ExpressionDataset) -> TaskR
             inputs = {EXPRESSION_IMAGE: Message(EXPRESSION_IMAGE, image, "input")}
             answers[name].append(execute(route, inputs, Workspace(), budget=64).payload)
     return TaskResult(routes, answers)
+
+
+def answers_for(route: Plan, dataset: ExpressionDataset) -> list:
+    answers = []
+    for index in range(len(dataset)):
+        image = torch.from_numpy(dataset.sample(index).image)
+        inputs = {EXPRESSION_IMAGE: Message(EXPRESSION_IMAGE, image, "input")}
+        answers.append(execute(route, inputs, Workspace(), budget=64).payload)
+    return answers
+
+
+def consider_upgrades(registry: Registry, router: Router, validation: dict) -> None:
+    """Pin ``plan``'s route where it differs from the current one and wins a sign test."""
+    for task, dataset in validation.items():
+        goal = TASKS[task][0]
+        current = router.route(registry.modules(), (EXPRESSION_IMAGE,), goal)
+        candidate = plan(registry.modules(), (EXPRESSION_IMAGE,), goal)
+        if current is None or candidate is None or candidate == current:
+            continue
+        truth = [dataset.sample(i).value for i in range(len(dataset))]
+        correct = lambda route: [a == t for a, t in zip(answers_for(route, dataset), truth)]
+        current_ok, candidate_ok = correct(current), correct(candidate)
+        accept, p_value = sign_test(current_ok, candidate_ok)
+        wins = sum(c and not o for o, c in zip(current_ok, candidate_ok))
+        losses = sum(o and not c for o, c in zip(current_ok, candidate_ok))
+        print(f"upgrade candidate for {task}: validation accuracy "
+              f"{sum(current_ok) / len(truth):.4f} -> {sum(candidate_ok) / len(truth):.4f}, "
+              f"wins {wins}, losses {losses}, p = {p_value:.3g}: "
+              + ("accepted" if accept else "rejected"))
+        if accept:
+            router.upgrade(registry.modules(), (EXPRESSION_IMAGE,), goal, candidate)
 
 
 def build_scenario(name: str, args: argparse.Namespace) -> tuple[Registry, list]:
@@ -161,6 +198,20 @@ def main() -> None:
             changed = "n/a" if b_route is None else str(sum(x != y for x, y in zip(b, a)))
             print(f"{key[0]:12s} {key[1]:12s} {name:8s} {acc(b_route, b):>8s} "
                   f"{acc(a_route, a):>8s} {kept:>11s} {changed:>16s}")
+
+    print()
+    validation = {task: ExpressionDataset("test", args.size, args.data, args.seed + 1, ops)
+                  for task, (_, ops) in TASKS.items()}
+    router = Router()
+    consider_upgrades(registry, router, validation)
+    if not router.pins:
+        print("no upgrades pinned; routes unchanged")
+    for key, dataset in datasets.items():
+        goal = TASKS[key[0]][0]
+        if goal in router.pins:
+            answers = answers_for(router.pins[goal], dataset)
+            accuracy = sum(a == t for a, t in zip(answers, truth[key])) / len(answers)
+            print(f"after upgrade: {key[0]} {key[1]} accuracy {accuracy:.4f}")
 
 
 if __name__ == "__main__":
