@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,6 +44,15 @@ class Manifest:
     @property
     def ref(self) -> str:
         return f"{self.module_id}@{self.version}"
+
+
+@dataclass(frozen=True)
+class Request:
+    """Returned by a module instead of its output to delegate that output to the
+    kernel: "produce a value of ``type_id`` from these inputs, without me"."""
+
+    type_id: TypeId
+    inputs: Mapping[TypeId, Any]
 
 
 _message_ids = itertools.count()

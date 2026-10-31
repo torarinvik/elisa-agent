@@ -123,3 +123,46 @@ def test_map_applies_elementwise_composition() -> None:
     assert result.payload == [2, 4, 6]
     with pytest.raises(BudgetExceeded):
         execute(graph, {TEXT: Message(TEXT, "1,2,3", "input")}, workspace, budget=6)
+
+
+def test_requests_are_resolved_by_the_kernel_without_the_requester() -> None:
+    from nca.abi import Request
+    from nca.kernel import Kernel
+    from nca.runtime import UnresolvedRequest
+
+    def unsure(x: int) -> int | Request:
+        return x if x % 2 == 0 else Request(INT, {TEXT: str(x)})
+
+    requester = fn("unsure", [TEXT], INT, lambda s: unsure(int(s)))
+    fallback = fn("parse-int", [TEXT], INT, lambda s: 100 + int(s))
+    modules = [requester, fallback]
+    kernel = Kernel(modules)
+    route = plan(modules, (TEXT,), INT)
+    assert route.module is requester
+
+    workspace = Workspace()
+    assert execute(route, {TEXT: Message(TEXT, "4", "input")}, workspace, 5, kernel).payload == 4
+    assert kernel.requests == 0
+    result = execute(route, {TEXT: Message(TEXT, "3", "input")}, workspace, 5, kernel)
+    assert result.payload == 103 and kernel.requests == 1
+    assert [m.producer for m in workspace.provenance(result.message_id)][-2:] == \
+        ["parse-int@1.0.0", "unsure@1.0.0+kernel"]
+
+    with pytest.raises(UnresolvedRequest):
+        execute(route, {TEXT: Message(TEXT, "3", "input")}, Workspace(), 5, Kernel([requester]))
+    with pytest.raises(UnresolvedRequest):
+        execute(route, {TEXT: Message(TEXT, "3", "input")}, Workspace(), 5)
+
+
+def test_nested_request_chains_terminate() -> None:
+    from nca.abi import Request
+    from nca.kernel import Kernel
+    from nca.runtime import UnresolvedRequest
+
+    always_ask = [fn(f"ask{i}", [TEXT], INT, lambda s: Request(INT, {TEXT: s}))
+                  for i in range(4)]
+    kernel = Kernel(always_ask)
+    route = plan(always_ask, (TEXT,), INT)
+    with pytest.raises(UnresolvedRequest):
+        execute(route, {TEXT: Message(TEXT, "1", "input")}, Workspace(), 100, kernel)
+    assert kernel.requests == len(always_ask)

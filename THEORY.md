@@ -456,3 +456,46 @@ quadratic term dominates once `T > 6d`. At glyph granularity and the lengths
 measured here the linear term dominates and costs are comparable; at
 image-patch granularity the quadratic term dominates and cost grows
 superlinearly. The modular pipeline's cost is proved linear at every length.
+
+## 14. Kernel-mediated requests and refinement
+
+Modules never invoke one another. A module may return a `Request` instead of
+its output, delegating that output to the kernel: "produce a value of this type
+from these inputs, without me". The kernel plans the request over the
+installed modules minus every module in the current request chain, executes it
+under the same budget, records it in the workspace, and uses its result as the
+requester's output (`nca.runtime`, `nca.kernel`). (`lean/NCA/Request.lean`.)
+
+| Theorem | Statement |
+|---|---|
+| `resolve_sound` | a resolved request is a well-typed plan producing the requested type from the request's inputs |
+| `resolve_avoids` | it never invokes a module in the request chain |
+| `RequestChain.length_le` | every chain of nested requests is at most as long as the number of installed modules, whatever the budget |
+
+Termination follows from freshness: each new requester is a module of a plan
+resolved with the chain excluded, so the chain has no repeats and is bounded
+by the library.
+
+**Confidence-triggered refinement** (`lean/NCA/Cascade.lean`,
+`nca.modules.refinement`). A cheap module answers when confident (event `C`)
+and otherwise requests refinement, served by a fallback. With `W₁`, `W₂` the
+cheap and fallback error events, the composite errs exactly on
+`(C ∩ W₁) ∪ (Cᶜ ∩ W₂)`.
+
+| Theorem | Statement |
+|---|---|
+| `cascade_error_eq` | `P(error) = P(C ∩ W₁) + P(Cᶜ ∩ W₂)` |
+| `cascade_le_fallback` | if `P(C ∩ W₁) ≤ P(C ∩ W₂)` (confidence is selective), the composite is at least as accurate as the fallback alone |
+| `cascade_expected_cost` | expected cost is `κ₁ + κ₂ · P(Cᶜ)` |
+
+The fallback can itself be a refining module, so the two-stage results compose
+into chains of any depth. Refinement spends expensive computation only on the
+fraction of inputs where the cheap module is unsure: cost tracks the input's
+difficulty, not its size alone.
+
+**Relevance.** A request is useful only if its result is read. In the
+arithmetic pipeline the digit recognizer runs on every glyph, but the parser
+reads its output only at digit positions, so requests raised on operator
+glyphs buy nothing (`nca.cascade` measures them). Gating requests on whether
+the requester's output can influence the answer, the event-restriction
+principle of §9 applied to computation, is the corresponding refinement.
