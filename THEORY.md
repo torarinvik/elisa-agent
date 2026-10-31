@@ -390,10 +390,42 @@ with pruning it is 6.8 ms. The remaining growth is one constant-time check per
 dormant producer of the goal type, removable by indexing producers by
 reachability.
 
-**Eviction.** Least-recently-used eviction thrashes when tasks whose routes
-together exceed the budget alternate: every switch reloads the evicted
-recognizer. Route-aware eviction, which keeps the experts of upcoming routes,
-is the corresponding refinement.
+**Eviction** (`lean/NCA/Eviction.lean`). The store holds a set `S` of experts
+within a byte budget; serving a route with working set `R` moves it to some
+`S' ⊇ R` at cost `bytes(S' \ S)`.
+
+| Theorem | Statement |
+|---|---|
+| `load_lower_bound` | every transition serving `R` loads at least `bytes(R \ S)` |
+| `routeAware_load`, `routeAware_optimal` | keeping `R ∪ K` with `K ⊆ S` loads exactly `bytes(R \ S)`, the minimum |
+| `routeAware_switch` | alternating routes `A`, `B` costs `bytes(B \ A)` per switch: shared experts are never reloaded |
+| `routeAware_repeat` | serving a resident route loads nothing |
+
+`ExpertStore.prepare(route)` implements the route-aware transition: the kernel
+calls it before executing a route; it evicts only experts outside the route
+(least recently used first), loads the missing ones, and pins the route's
+experts until the next `prepare`. Least-recently-used eviction is not optimal:
+when one route runs a shared expert first and the next route runs its own
+expert first, recency marks the shared expert as the victim, and it is
+reloaded at once (in `tests/test_loader.py`, 16 loads against the optimal 11).
+
+By `routeAware_repeat`, a task sequence costs only at route changes, so the
+remaining lever is the number of changes: independent tasks grouped by route
+switch once per route. Measured (`nca.scaling`, 200 arithmetic and 200
+comparison tasks, budget equal to the larger route, so both routes do not fit
+together):
+
+| order | eviction | loads | MB loaded |
+|---|---|---:|---:|
+| alternating | least recently used | 1602 | 677.8 |
+| alternating | route-aware | 1602 | 677.8 |
+| grouped by route | route-aware | 10 | 5.1 |
+
+Here least-recently-used eviction already meets the lower bound (each route
+runs its shared experts first, so they stay recent): 400 switches times the
+1.69 MB the routes do not share. The cost of alternation is unavoidable for
+any eviction policy; only reordering removes it. Accuracy is unchanged
+(0.985) in every configuration.
 
 ## 13. Efficiency
 

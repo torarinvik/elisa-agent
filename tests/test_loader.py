@@ -115,3 +115,34 @@ def test_pruned_memoized_planner_matches_lean_reference() -> None:
         available = tuple(rng.sample(types, rng.randint(1, 2)))
         goal = rng.choice(types + ["seq[t0]", "seq[t1]"])
         assert plan(modules, available, goal, 4) == reference_plan(modules, available, goal, 4)
+
+
+def test_route_aware_eviction_keeps_shared_experts() -> None:
+    from nca.loader import route_experts
+
+    def run(route_aware: bool) -> int:
+        store = ExpertStore(budget=200)
+
+        def expert(module_id: str, inputs: tuple[str, ...], output: str,
+                   fn: Callable[..., Any]) -> LazyExpert:
+            manifest = Manifest(module_id, "1.0.0", Contract(inputs, output))
+            return LazyExpert(manifest, lambda: Fn(manifest, fn), 100, store)
+
+        # The shared expert runs first in one route and second in the other,
+        # so recency marks it as the eviction victim on every switch.
+        modules = [expert("shared", ("text",), "int", int),
+                   expert("show", ("int",), "out", str),
+                   expert("spell", ("word",), "text", lambda w: str(len(w)))]
+        routes = [(plan(modules, ("text",), "out"), {"text": Message("text", "4", "input")}),
+                  (plan(modules, ("word",), "int"), {"word": Message("word", "abc", "input")})]
+        assert {e.manifest.module_id for e in route_experts(routes[0][0])} == {"shared", "show"}
+        for _ in range(5):
+            for route, inputs in routes:
+                if route_aware:
+                    store.prepare(route)
+                execute(route, inputs, Workspace(), budget=8)
+        return store.stats.loads
+
+    # Route-aware: the first two loads, then one missing expert per switch.
+    assert run(True) == 2 + 9
+    assert run(False) > run(True)

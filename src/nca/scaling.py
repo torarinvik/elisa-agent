@@ -12,8 +12,13 @@ route's working set for every ``n``; ``NCA.planIdx_eq`` and
 ``NCA.plan_prefix_mono`` justify the indexed binary search.
 
 Part 2, memory budget. Arithmetic and comparison tasks alternate under
-budgets that fit both routes, only the larger one, and less. The runner
-reports loads, evictions, and time spent loading.
+budgets that fit both routes, only the larger one, and less, with
+least-recently-used eviction, with route-aware eviction (the kernel
+prepares the store for each route before executing it), and with route-aware
+eviction over the same tasks grouped by route. The runner reports
+loads, evictions, bytes loaded, and time spent loading. Route-aware
+eviction loads exactly each route's missing experts
+(``NCA.routeAware_optimal``).
 
     uv run --extra vision python -m nca.scaling
 """
@@ -21,6 +26,7 @@ reports loads, evictions, and time spent loading.
 from __future__ import annotations
 
 import argparse
+import itertools
 import random
 import time
 from pathlib import Path
@@ -169,26 +175,34 @@ def budget_experiment(args: argparse.Namespace) -> None:
     union = sizes["arithmetic"] + sizes["comparison"]
     budgets = {"both routes": union, "larger route": max(route_bytes.values()),
                "unbounded": None}
-    print(f"\n{'budget':14s} {'bytes':>10s} {'loads':>6s} {'evictions':>10s} "
-          f"{'load time':>10s} {'accuracy':>9s}")
-    for name, budget in budgets.items():
+    print(f"\n{'budget':14s} {'bytes':>10s} {'eviction':>9s} {'loads':>6s} {'evictions':>10s} "
+          f"{'MB loaded':>10s} {'load time':>10s} {'accuracy':>9s}")
+    for (name, budget), policy in itertools.product(budgets.items(),
+                                                    ("lru", "route", "grouped")):
+        if budget is None and policy != "lru":
+            continue
         store = ExpertStore(budget)
         experts = real_experts(args, store)
         modules = experts["arithmetic"] + experts["comparison"]
         index = ProducerIndex(modules)
         routes = {t: plan_stable_indexed(index, (EXPRESSION_IMAGE,), g) for t, g in goals.items()}
         correct = 0
-        for i in range(args.samples):
-            for task in ("arithmetic", "comparison"):
-                sample = datasets[task].sample(i)
-                result = execute(routes[task], {EXPRESSION_IMAGE: Message(
-                    EXPRESSION_IMAGE, torch.from_numpy(sample.image), "input")},
-                    Workspace(), budget=64)
-                correct += result.payload == sample.value
+        order = [(i, task) for i in range(args.samples) for task in routes]
+        if policy == "grouped":
+            order.sort(key=lambda item: item[1])
+        for i, task in order:
+            sample = datasets[task].sample(i)
+            if policy != "lru":
+                store.prepare(routes[task])
+            result = execute(routes[task], {EXPRESSION_IMAGE: Message(
+                EXPRESSION_IMAGE, torch.from_numpy(sample.image), "input")},
+                Workspace(), budget=64)
+            correct += result.payload == sample.value
         stats = store.stats
         shown = "-" if budget is None else str(budget)
-        print(f"{name:14s} {shown:>10s} {stats.loads:6d} {stats.evictions:10d} "
-              f"{stats.load_seconds:8.2f} s {correct / (2 * args.samples):9.4f}")
+        print(f"{name:14s} {shown:>10s} {policy:>9s} {stats.loads:6d} {stats.evictions:10d} "
+              f"{stats.loaded_bytes / 1e6:10.2f} {stats.load_seconds:8.2f} s "
+              f"{correct / (2 * args.samples):9.4f}")
     print(f"\nroute sizes: arithmetic {route_bytes['arithmetic']} B, "
           f"comparison {route_bytes['comparison']} B")
 
