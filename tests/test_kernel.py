@@ -197,3 +197,25 @@ def test_consumer_declared_irrelevance_skips_resolution() -> None:
     assert any(m.type_id == "kernel.skipped" for m in workspace.messages())
     assert execute(route, {TEXT: Message(TEXT, "+7", "input")}, Workspace(), 9, kernel).payload == 7
     assert kernel.requests == 1
+
+
+def test_continuation_requests_resume_with_sub_results() -> None:
+    from collections.abc import Generator
+
+    from nca.abi import Request
+    from nca.kernel import Kernel
+
+    def split(text: str) -> Generator[Request, int, tuple[int, int]]:
+        left, right = text.split("+")
+        a = yield Request(INT, {TEXT: left})
+        b = yield Request(INT, {TEXT: right})
+        return (a, b)
+
+    modules = [fn("split", [TEXT], PAIR, split), fn("parse-int", [TEXT], INT, int)]
+    kernel = Kernel(modules)
+    graph = plan_stable(modules, (TEXT,), PAIR)
+    workspace = Workspace()
+    result = execute(graph, {TEXT: Message(TEXT, "7+5", "input")}, workspace, 10, kernel)
+    assert result.payload == (7, 5)
+    assert kernel.requests == 2
+    assert sum(m.type_id == "kernel.request" for m in workspace.messages()) == 2

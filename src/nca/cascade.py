@@ -22,7 +22,10 @@ per expression, requests resolved and skipped or unread per expression,
 resolved requests on operator glyphs (whose digit reading the parser never
 uses), and answers that differ from ungated refinement. ``NCA.gated_error_le``
 bounds these by the relevant requests a gate skips; demand soundness
-(``NCA.DemandSound.exact``) makes them zero for the demand gate.
+(``NCA.DemandSound.exact``) makes them zero for the demand gate. Finally the
+consulting recognizer, which continues with the second opinion and answers
+with a mixture of both instead of delegating (``NCA.Prog``), under the demand
+gate.
 
     uv run --extra vision python -m nca.cascade --cheap checkpoints/digit_mlp.pt \\
         --expensive checkpoints/digit_cnn.pt
@@ -41,7 +44,7 @@ from nca.expressions import ExpressionDataset
 from nca.kernel import Kernel
 from nca.modules.digit_recognizer import GLYPH, DigitRecognizer
 from nca.modules.operator_recognizer import SymbolRecognizer
-from nca.modules.refinement import RequestingRecognizer
+from nca.modules.refinement import ConsultingRecognizer, RequestingRecognizer
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
 from nca.planner import plan_stable
@@ -117,6 +120,10 @@ def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: Sym
             for gate in ("gated", "demand"):
                 systems[f"refine τ={tau} {gate}"] = build([segmenter], requester, operator,
                                                           [expensive], gate)
+            for weight in args.weights:
+                consulter = ConsultingRecognizer(cheap, tau, weight)
+                systems[f"consult τ={tau} w={weight}"] = build(
+                    [segmenter], consulter, operator, [expensive], "demand")
         answers: dict[str, list] = {}
         for name, modules in systems.items():
             kernel = Kernel(modules)
@@ -161,6 +168,8 @@ def main() -> None:
     parser.add_argument("--thresholds", type=float, nargs="+",
                         default=[0.5, 0.7, 0.9, 0.95, 0.99, 0.999])
     parser.add_argument("--end-to-end", type=float, nargs="+", default=[0.9])
+    parser.add_argument("--weights", type=float, nargs="+", default=[0.5],
+                        help="second-opinion weights of the consulting recognizer")
     args = parser.parse_args()
 
     cheap = DigitRecognizer.load(args.cheap)

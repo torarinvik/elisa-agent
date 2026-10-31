@@ -13,3 +13,4 @@ import NCA.Routing
 import NCA.Shift
 import NCA.Substitution
 import NCA.Upgrade
+import NCA.Continuation

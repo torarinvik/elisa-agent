@@ -62,8 +62,9 @@ NOTHING: frozenset[str] = frozenset()
 
 @dataclass(frozen=True)
 class Request:
-    """Returned by a module instead of its output to delegate that output to the
-    kernel: "produce a value of ``type_id`` from these inputs, without me"."""
+    """Asks the kernel: "produce a value of ``type_id`` from these inputs, without
+    me". Returned by a module to delegate its output, or yielded by a module's
+    generator to obtain a sub-result and continue."""
 
     type_id: TypeId
     inputs: Mapping[TypeId, Any]

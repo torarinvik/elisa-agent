@@ -555,3 +555,44 @@ Cost is MFLOPs per expression; error is identical to ungated refinement
 (0.030, 0.147, 0.503) and the expensive recognizer (0.033, 0.143, 0.500). The
 demand gate is both exact and cheaper than the heuristic one, because it skips
 the cheap recognizer as well as the request on operator positions.
+
+**Continuation requests.** Delegation replaces the requester's output; an
+expert that needs a sub-result and then keeps computing is instead a program
+over questions (`lean/NCA/Continuation.lean`):
+`Prog := pure a | ask q (k : A q → Prog)`, composed by `bind`. The kernel is a
+handler `h q : Option (A q)` (no route is `none`); `run h p` returns the result
+and the number of requests made. Each question `q` has a specification
+`R q a`, and `Safe R post p` holds when `p` meets `post` whatever correct
+answers it receives.
+
+| Theorem | Statement |
+|---|---|
+| `Safe.run` | a handler returning only correct answers gives results meeting `post` |
+| `Safe.bind` | a sequence is safe when the first program establishes what the continuation needs |
+| `Depth.run_le` | a program of question depth `n` makes at most `n` requests on any run |
+| `Depth.bind` | depths add under `bind` |
+
+In `nca.runtime` a module's `invoke` may return a generator: each yielded
+`Request` (of any type) is resolved at once, with the requester added to the
+chain, so `resolve_avoids` and `RequestChain.length_le` still apply, and the
+resolved value is sent back into the generator until it returns its output.
+Demand-driven evaluation is unaffected: a continuation is just a module.
+
+`ConsultingRecognizer` uses this to combine opinions rather than defer: when
+its confidence is below `τ` it asks for a second opinion on the glyph and
+answers `(1 − w) · own + w · second`. Under the demand gate, at `τ = 0.9` with
+the same 300 expressions and the same cost as demand-gated refinement:
+
+| glyphs | refine (replace) | consult `w = 0.3` | `w = 0.5` | `w = 0.7` |
+|---:|---:|---:|---:|---:|
+| 3 | 0.030 | 0.047 | 0.033 | 0.033 |
+| 15 | 0.147 | 0.193 | 0.150 | 0.143 |
+| 63 | 0.503 | 0.577 | 0.510 | 0.503 |
+
+Mixing does not beat replacement: below `τ` the cheap recognizer is the less
+reliable opinion, so weight on it costs accuracy and `w → 1` recovers
+delegation. Ensembles help only when the opinions' errors are complementary
+on the deferred set; for these two recognizers they are not. Continuations
+are needed when the sub-result has a different type from the output, which
+delegation cannot express (for example, splitting a value and requesting each
+part, as in `tests/test_kernel.py`).

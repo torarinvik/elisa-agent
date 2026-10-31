@@ -21,10 +21,18 @@ given the demand on its own output, what it reads of input ``index``. Inputs
 modules computing them nor requests raised there run. For demand-sound
 declarations the answer is unchanged (``lean/NCA/Demand.lean``), which makes
 skipping their requests a sound gate.
+
+A module may also continue with a sub-result: ``invoke`` returns a generator
+that yields ``Request`` objects of any type and receives each resolved value
+before continuing, until it returns its output. Each such request is resolved
+at once, with the requester in the chain (``lean/NCA/Continuation.lean``:
+correct answers give correct results, and the number of requests is bounded by
+the program's question depth).
 """
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 
@@ -127,6 +135,8 @@ def execute(
         workspace.spent += manifest.cost
         payload = node.module.invoke(*(a.payload for a in args))
         parents = tuple(a.message_id for a in args)
+        if isinstance(payload, Generator):
+            payload = resume(payload, manifest.module_id, manifest.ref, parents, chain)
         if isinstance(payload, Request):
             output = manifest.contract.output
             if payload.type_id != output:
@@ -137,6 +147,17 @@ def execute(
         result = Message(manifest.contract.output, payload, manifest.ref, parents)
         workspace.post(result)
         return result
+
+    def resume(program: Generator[Request, object, object], module_id: str, ref: str,
+               parents: tuple[str, ...], chain: tuple[str, ...]) -> object:
+        answer = None
+        try:
+            while True:
+                request = program.send(answer)
+                answer = delegate(request, module_id, ref, request.type_id, parents,
+                                  chain).payload
+        except StopIteration as done:
+            return done.value
 
     def settle(pending: Pending) -> Message:
         record = Message("kernel.skipped", pending.request, pending.ref, pending.parents)
