@@ -793,47 +793,62 @@ need the digit reading alone and operator decisions the operator reading
 alone. (This holds while `q_none > 0`; a randomized test checks that the
 parse is unchanged.)
 
-**Results** (300 test expressions per length; MFLOPs per expression; with
-decision demand):
+**Decision-relative risk.** A decision may range over only some of a
+reading's classes: at an operator position the parser chooses among
+operators, never "not an operator". The body declares this with
+`decision_classes(index, demand)`, and the item's risk becomes the error
+probability of that restricted decision, `1 − max_C p / Σ_C p`. When the most
+probable class lies in `C` this never exceeds `1 − max p`
+(`restricted_risk_le`), so the bound only tightens. Renormalizing the full
+output's calibrated probabilities is not enough. In a trial, error among
+answered expressions exceeded the target (0.084 at `δ = 0.05`, interval
+`[0.050, 0.138]`), because the restricted decision was over-confident. Each
+rung therefore fits a separate temperature per restricted decision, on the
+held-out inputs whose label is among its classes.
+
+**Results** (300 test expressions per length; MFLOPs per expression; decision
+demand and decision-relative risk):
 
 | glyphs | ladder | system | coverage | error answered | error forced | MFLOPs |
 |---:|---|---|---:|---:|---:|---:|
 | 3 | base | bottom rungs | 1.000 | 0.037 | 0.037 | 9 |
 | 3 | base | top rungs | 1.000 | 0.010 | 0.010 | 153 |
-| 3 | base | δ = 0.05 | 0.917 | 0.004 | 0.007 | 23 |
+| 3 | base | δ = 0.05 | 0.950 | 0.004 | 0.007 | 18 |
 | 15 | base | top rungs | 1.000 | 0.063 | 0.063 | 768 |
-| 15 | base | δ = 0.2 | 0.893 | 0.060 | 0.080 | 142 |
-| 15 | + strong | δ = 0.05 | 0.750 | 0.031 | 0.050 | 1367 |
+| 15 | base | δ = 0.2 | 0.933 | 0.064 | 0.080 | 114 |
+| 15 | + strong | δ = 0.05 | 0.903 | 0.030 | 0.050 | 598 |
 | 63 | base | bottom rungs | 1.000 | 0.523 | 0.523 | 278 |
 | 63 | base | top rungs | 1.000 | 0.280 | 0.280 | 3221 |
-| 63 | base | δ = 0.2 | 0.310 | 0.129 | 0.290 | 2317 |
+| 63 | base | δ = 0.2 | 0.493 | 0.155 | 0.293 | 1785 |
 | 63 | + strong | top rungs | 1.000 | 0.193 | 0.193 | 20661 |
-| 63 | + strong | δ = 0.2 | 0.487 | 0.144 | 0.207 | 10813 |
+| 63 | + strong | δ = 0.2 | 0.800 | 0.142 | 0.213 | 4498 |
+| 63 | + strong | δ = 0.05 | 0.450 | 0.074 | 0.190 | 11701 |
 
 *Error forced* is the error when the system must answer after refining as
 far as the target asks.
 
-- **Reliability.** Error among answered expressions stays within `δ` up to
-  sampling noise. The widest gap is at 63 glyphs and `δ = 0.05` with the
-  strong ladder: 25 answered, 2 wrong, interval `[0.02, 0.25]`. Calibration is
-  fitted on the easier validation half.
+- **Reliability.** Every interval for error among answered expressions
+  contains its target, though at strict targets on long inputs the estimates
+  lean above it (63 glyphs, strong ladder: 0.074 at `δ = 0.05`, interval
+  `[0.041, 0.131]`). Calibration is fitted on the validation half of the
+  MNIST test set, which is easier than the half used for testing, and this
+  shift is the likely cause.
 - **Efficiency.** Targeted refinement matches refining everything at a
-  fraction of the compute: 7× cheaper at 3 glyphs (and more accurate), and
-  5× cheaper at 15 glyphs for 1.7 points more error.
+  fraction of the compute: 8× cheaper at 3 glyphs (and more accurate), and
+  7× cheaper at 15 glyphs for 1.7 points more error.
 - **Long inputs.** Second looks and segmentation repair cut forced error at 63
-  glyphs from 0.523 to 0.280. A stronger rung lowers the floor (`length_limit`):
-  forced error falls to 0.193, and coverage at `δ = 0.2` rises from 0.31 to
-  0.49.
-- **Cost of genericity.** Before decision demand, the generic controller read
-  the operator recognizer at every glyph and spent about twice the compute of
-  a controller hand-written for this task (549 against 248 MFLOPs at 63
-  glyphs on the bottom rungs). With it, the cost is 278 MFLOPs (top rungs:
-  3221 against 2687, the rest being the generic second look's re-read of the
-  original view). Coverage at 63 glyphs and `δ = 0.2` remains lower (0.31
-  against 0.42). The generic risk `1 − max p` counts the operator
-  recognizer's "not an operator" mass as doubt, although the parser chooses
-  only among operators there. Risk measured against the classes the decision
-  ranges over would close this gap.
+  glyphs from 0.523 to 0.280, and a stronger rung lowers the floor
+  (`length_limit`) to 0.193. At `δ = 0.2` the strong ladder answers 80% of
+  63-glyph expressions with 0.142 error, at 22% of the compute of reading
+  everything with it.
+- **Cost of genericity.** Decision demand brought compute near a controller
+  hand-written for this task (278 against 248 MFLOPs at 63 glyphs on the
+  bottom rungs; the rest is the generic second look's re-read of the
+  original view). Decision-relative risk then raised coverage past it
+  (0.49 against 0.42 at 63 glyphs and `δ = 0.2`). The hand-written
+  controller also restricted operator decisions, so the difference lies
+  elsewhere, plausibly in per-rung temperatures for the averaged second
+  looks; it was not isolated.
 - **Limit.** Targets below about 0.15 at 63 glyphs remain infeasible for most
   expressions: per-glyph floors are still too high for `L · ρ ≤ δ`.
 

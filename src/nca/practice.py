@@ -140,7 +140,7 @@ def main() -> None:
 
     stream, stream_labels = digit_glyphs(
         ExpressionDataset("train", args.stream, args.data, args.seed, hard=True))
-    readings = torch.stack([rung.read(glyph) for glyph in stream])
+    readings = torch.stack([rung.reading(rung.observe(glyph)) for glyph in stream])
     risks = 1.0 - readings.max(dim=1).values
     rng = np.random.default_rng(args.seed)
     train = datasets.MNIST(args.data, train=True, download=True)

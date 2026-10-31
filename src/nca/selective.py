@@ -9,7 +9,9 @@ specific to glyphs:
   declaration, and what the body reads of each input from its ``decides``
   declaration (decision demand: inputs that can change the consumer's
   decision), falling back to ``demand``. Unread inputs are passed as ``None``,
-  so only decision-relevant readings are computed and enter the bound;
+  so only decision-relevant readings are computed and enter the bound, each
+  with risk measured over the classes its decision ranges over
+  (``decision_classes``, when declared);
 * every demanded input is produced by a ladder: all installed experts with
   that input's contract, ordered by declared cost and calibrated on held-out
   labeled data;
@@ -98,8 +100,9 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
              for k in range(len(body.args))
              if declare is None or declare(k, read) != NOTHING]
     types = body.module.manifest.contract.inputs
+    ranges = getattr(body.module, "decision_classes", lambda k, d: None)
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
-                     delta, start)
+                     delta, start, [ranges(k, reads[i]) for i, k in items])
     inputs: list[list[Any]] = [[None] * len(body.args) for _ in elements]
     for (i, k), reading in zip(items, refined.readings):
         inputs[i][k] = tuple(reading.tolist())
@@ -172,7 +175,7 @@ def main() -> None:
     ladders = build_ladders(modules, route,
                             validation_data(args.data, args.seed, args.calibration))
     for t, rungs in ladders.items():
-        print(f"{t}: " + ", ".join(f"{r.module.manifest.module_id} (T={r.temperature:.2f})"
+        print(f"{t}: " + ", ".join(f"{r.module.manifest.module_id} (T={r.temperature():.2f})"
                                    for r in rungs))
     print(f"{'glyphs':>7s} {'system':>13s} {'coverage':>9s} {'error answered [95% CI]':>27s} "
           f"{'mean bound':>11s} {'error forced':>13s} {'MFLOPs/expr':>12s}")

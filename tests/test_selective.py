@@ -64,8 +64,8 @@ def test_calibration_fits_temperature() -> None:
     rung = Rung(overconfident)
     labels = torch.tensor([1] * 7 + [0] * 3)
     rung.calibrate([0] * 10, labels)
-    assert rung.temperature > 1.0
-    assert rung.read(0)[1].item() == pytest.approx(0.7, abs=0.02)
+    assert rung.temperature() > 1.0
+    assert rung.reading(rung.observe(0))[1].item() == pytest.approx(0.7, abs=0.02)
 
 
 def test_segmenter_alternatives_merge_narrowest_gap_first() -> None:
@@ -146,3 +146,21 @@ def test_practice_queue_and_fine_tuning() -> None:
     with torch.no_grad():
         assert (student(glyphs[:, None]).argmax(dim=1) == 3).float().mean() > \
             (network(glyphs[:, None]).argmax(dim=1) == 3).float().mean()
+
+
+def test_risk_is_measured_against_the_decision() -> None:
+    from nca.ladder import risk
+
+    reading = torch.tensor([0.27, 0.02, 0.01, 0.70])  # three operators and "none"
+    assert risk(reading) == pytest.approx(0.30)
+    assert risk(reading, range(3)) == pytest.approx(0.10)
+
+
+def test_restricted_decision_gets_its_own_temperature() -> None:
+    # Among operator-labeled inputs the expert is right 60% of the time,
+    # though its output looks sure; the restricted temperature reflects that.
+    rung = Rung(constant("op", (0.9, 0.05, 0.03, 0.02), 1.0))
+    labels = torch.tensor([0] * 6 + [1] * 4 + [3] * 10)
+    rung.calibrate([0] * 20, labels)
+    assert rung.risk(rung.observe(0), range(3)) == pytest.approx(0.4, abs=0.05)
+    assert set(rung.temperatures) == {None, (0, 1, 2)}

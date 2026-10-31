@@ -22,6 +22,13 @@ A ladder of readings has a floor: the lowest risk each glyph can reach. A
 target `δ` is reachable only if the floors sum to at most `δ`, so with a
 per-glyph floor `ρ` an `L`-glyph input needs `L · ρ ≤ δ`: holding `δ` fixed as
 inputs grow requires floors shrinking like `1 / L`.
+
+When a decision ranges over a subset `C` of a reading's classes (an argmax
+restricted to `C`), only errors of that restricted decision matter, and its
+risk is `1 − max_C p / Σ_C p`. If the overall most probable class lies in
+`C`, this is at most the unrestricted risk `1 − max p`: measuring risk
+against the decision never loosens the bound and drops doubt about classes
+the decision never chooses.
 -/
 
 namespace NCA
@@ -84,6 +91,16 @@ theorem length_limit (S : Finset I) (r : I → ℝ) (ρ δ : ℝ) (h : ∀ i ∈
     (hδ : ∑ i ∈ S, r i ≤ δ) : S.card * ρ ≤ δ := by
   have := bound_ge_floor S r (fun _ => ρ) h
   simp only [sum_const, nsmul_eq_mul] at this
+  linarith
+
+/-- **Decision-relative risk is tighter.** With most probable mass `m` inside
+the decision's classes of total mass `s ≤ 1`, the restricted risk
+`1 − m / s` is at most the unrestricted risk `1 − m`. -/
+theorem restricted_risk_le {m s : ℝ} (hm : 0 ≤ m) (hs : 0 < s) (hs1 : s ≤ 1) :
+    1 - m / s ≤ 1 - m := by
+  have : m ≤ m / s := by
+    rw [le_div_iff₀ hs]
+    nlinarith
   linarith
 
 end NCA

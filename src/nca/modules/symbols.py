@@ -83,6 +83,13 @@ class SymbolFuser:
         field = "digits" if index == 0 else "operators"
         return None if field in demand else NOTHING
 
+    def decision_classes(self, index: int, demand: Demand) -> range | None:
+        """Classes of input ``index`` the reader's decision ranges over: an
+        operator decision chooses among operators, never "not an operator"."""
+        if index == 1 and isinstance(demand, frozenset) and demand == OPERATOR_FIELD:
+            return range(len(self.vocabulary.operators))
+        return None
+
     def relevant(self, index: int, provisional: list) -> bool:
         """The digit reading matters only for glyphs the operator recognizer
         considers at least ``digit_relevance`` likely not to be an operator.
