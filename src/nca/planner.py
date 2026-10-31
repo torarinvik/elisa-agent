@@ -66,18 +66,68 @@ class ProducerIndex:
 
     def __init__(self, modules: Sequence[Module]) -> None:
         self.size = len(modules)
+        self.outputs = [m.manifest.contract.output for m in modules]
         self.producers: dict[TypeId, list[tuple[int, Module]]] = {}
         self.sequence_outputs: list[tuple[int, TypeId]] = []
+        self.needs: list[frozenset[TypeId]] = []
+        self.consumers: dict[TypeId, list[int]] = {}
+        self.unconditional: list[int] = []
+        self._reach_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[TypeId]] = {}
         for position, module in enumerate(modules):
-            output = module.manifest.contract.output
-            self.producers.setdefault(output, []).append((position, module))
-            if elem_type(output) is not None:
-                self.sequence_outputs.append((position, output))
+            contract = module.manifest.contract
+            self.producers.setdefault(contract.output, []).append((position, module))
+            if elem_type(contract.output) is not None:
+                self.sequence_outputs.append((position, contract.output))
+            needs = frozenset(i for i in contract.inputs if elem_type(i) is None)
+            self.needs.append(needs)
+            for input_type in needs:
+                self.consumers.setdefault(input_type, []).append(position)
+            if not needs:
+                self.unconditional.append(position)
+
+    def reachable(self, available: Sequence[TypeId], limit: int) -> frozenset[TypeId]:
+        """Forward closure of ``available`` under the first ``limit`` contracts.
+
+        Mirrors ``NCA.Closure``: sequence types count as always reachable, so a
+        contract fires once all its non-sequence inputs are reachable. Horn-clause
+        propagation touches only contracts consuming reachable types, so dormant
+        modules elsewhere in the library cost nothing.
+        """
+        key = (tuple(available), limit)
+        if key in self._reach_cache:
+            return self._reach_cache[key]
+        reach = set(available)
+        queue = list(available)
+        remaining: dict[int, int] = {}
+
+        def fire(position: int) -> None:
+            output = self.outputs[position]
+            if output not in reach:
+                reach.add(output)
+                queue.append(output)
+
+        for position in self.unconditional:
+            if position < limit:
+                fire(position)
+        while queue:
+            for position in self.consumers.get(queue.pop(), ()):
+                if position >= limit:
+                    continue
+                remaining[position] = remaining.get(position, len(self.needs[position])) - 1
+                if remaining[position] == 0:
+                    fire(position)
+        result = frozenset(reach)
+        self._reach_cache[key] = result
+        return result
 
 
 def _plan(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
           fuel: int, memo: Memo | None = None) -> Plan | None:
     """The planner, memoized on ``(available, goal, fuel)`` within one call.
+
+    Producers with a non-sequence input outside the forward closure are skipped,
+    as in ``NCA.planPruned``, which is proved to return exactly ``NCA.plan``
+    given the closure oracle (``NCA.planPruned_eq``, ``NCA.derivable_closure``).
 
     Planning is a pure function of those arguments for a fixed index and limit,
     so memoization returns exactly what recomputation would; it bounds the work
@@ -96,9 +146,12 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
         return None
     if goal in available:
         return Given(goal)
+    reach = index.reachable(available, limit)
     for position, module in index.producers.get(goal, ()):
         if position >= limit:
             break
+        if not index.needs[position] <= reach:
+            continue
         args = []
         for input_type in module.manifest.contract.inputs:
             sub = _plan(index, limit, available, input_type, fuel - 1, memo)

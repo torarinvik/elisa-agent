@@ -360,13 +360,32 @@ of `(available, goal, fuel)`; memoizing it within one call returns exactly what
 recomputation would and bounds the work by the number of distinct subgoals
 rather than search paths.
 
+**Reachability pruning** (`lean/NCA/Pruning.lean`). Dormant producers of a
+relevant type, whose inputs nothing can supply, are dead ends the planner would
+otherwise explore. `planPruned` skips producers with an input rejected by a
+reachability oracle `reach`. An oracle is *sound* if it accepts every derivable
+type.
+
+| Theorem | Statement |
+|---|---|
+| `planPruned_eq` | with a sound oracle, pruned planning returns exactly `plan` |
+| `derivable_closure` | every derivable type is a sequence type or in the forward closure `Closure lib avail` |
+| `closure_oracle_sound` | any oracle accepting the closure (and all sequence types) is sound |
+
+`Closure lib avail` is the least set containing `avail` and closed under
+contracts whose non-sequence inputs it contains. It is computed by Horn-clause
+propagation (`ProducerIndex.reachable`): each contract keeps a count of
+unsatisfied inputs, and each newly reachable type decrements the counts of its
+consumers. The work is proportional to the contracts consuming reachable
+types, independent of dormant modules elsewhere in the library.
+
 **Measured cost structure** (`nca.scaling`). Among up to 100,000 unusable decoy
 experts, the loaded set always equals the route's working set and every answer
-is unchanged, as the theorems require. Per-step discovery cost is proportional
-to the producers of the goal type (`planIdx_eq`), but dormant producers of
-relevant types, which need inputs nothing can supply, are still explored, so
-planning time grows with their number. Pruning producers whose inputs are not
-forward-reachable from the available types is the next refinement.
+is unchanged, as the theorems require. Without pruning, planning time grew with
+the number of dormant producers of relevant types (1.6 s at 100,000 experts);
+with pruning it is 6.8 ms. The remaining growth is one constant-time check per
+dormant producer of the goal type, removable by indexing producers by
+reachability.
 
 **Eviction.** Least-recently-used eviction thrashes when tasks whose routes
 together exceed the budget alternate: every switch reloads the evicted
