@@ -1,0 +1,5 @@
+name = "NCA"
+defaultTargets = ["NCA"]
+
+[[lean_lib]]
+name = "NCA"
