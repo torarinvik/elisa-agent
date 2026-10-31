@@ -3,7 +3,9 @@
 Consumes a single 28x28 grayscale glyph and emits a probability distribution
 over the digits 0-9. It knows nothing about arithmetic or layout.
 
-Train with::
+Several independently trained implementations share the contract: the
+architecture (``cnn`` or ``mlp``) and the half of the MNIST training set used
+(``all``, ``first`` or ``second``) are training options. Train with::
 
     uv run --extra vision python -m nca.modules.digit_recognizer --out checkpoints/digit.pt
 """
@@ -27,12 +29,21 @@ DIGIT_DISTRIBUTION = "digit.distribution.v1"
 CONTRACT = Contract(inputs=(GLYPH,), output=DIGIT_DISTRIBUTION)
 
 
-def build_network() -> nn.Module:
+def build_network(arch: str = "cnn") -> nn.Module:
+    if arch == "mlp":
+        return nn.Sequential(
+            nn.Flatten(), nn.Linear(28 * 28, 256), nn.ReLU(),
+            nn.Linear(256, 128), nn.ReLU(), nn.Linear(128, 10),
+        )
     return nn.Sequential(
         nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         nn.Flatten(), nn.Linear(64 * 7 * 7, 128), nn.ReLU(), nn.Linear(128, 10),
     )
+
+
+ARCHITECTURES = ("cnn", "mlp")
+SUBSETS = ("all", "first", "second")
 
 
 class DigitRecognizer:
@@ -42,8 +53,9 @@ class DigitRecognizer:
 
     @classmethod
     def load(cls, path: Path, version: str = "1.0.0") -> DigitRecognizer:
-        network = build_network()
-        network.load_state_dict(torch.load(path, map_location="cpu"))
+        checkpoint = torch.load(path, map_location="cpu")
+        network = build_network(checkpoint["arch"])
+        network.load_state_dict(checkpoint["state_dict"])
         return cls(network, version)
 
     @torch.no_grad()
@@ -52,21 +64,26 @@ class DigitRecognizer:
         return tuple(torch.softmax(logits, dim=1)[0].tolist())
 
 
-def train(data_dir: Path, out: Path, epochs: int, seed: int) -> float:
-    """Train on MNIST and return held-out test accuracy."""
+def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
+          subset: str = "all") -> float:
+    """Train on MNIST (or one half of its training set) and return test accuracy."""
     from torchvision import datasets, transforms
 
     torch.manual_seed(seed)
     to_tensor = transforms.ToTensor()
     train_set = datasets.MNIST(data_dir, train=True, download=True, transform=to_tensor)
     test_set = datasets.MNIST(data_dir, train=False, download=True, transform=to_tensor)
+    if subset != "all":
+        half = len(train_set) // 2
+        indices = range(half) if subset == "first" else range(half, len(train_set))
+        train_set = torch.utils.data.Subset(train_set, indices)
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=128, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=1000)
 
-    network = build_network()
+    network = build_network(arch)
     optimizer = torch.optim.Adam(network.parameters(), lr=1e-3)
     loss_fn = nn.CrossEntropyLoss()
-    for epoch in range(epochs):
+    for _ in range(epochs):
         network.train()
         for images, labels in train_loader:
             optimizer.zero_grad()
@@ -79,7 +96,7 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int) -> float:
         for images, labels in test_loader:
             correct += (network(images).argmax(dim=1) == labels).sum().item()
     out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(network.state_dict(), out)
+    torch.save({"arch": arch, "state_dict": network.state_dict()}, out)
     return correct / len(test_set)
 
 
@@ -89,8 +106,10 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=Path("checkpoints/digit.pt"))
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--arch", choices=ARCHITECTURES, default="cnn")
+    parser.add_argument("--subset", choices=SUBSETS, default="all")
     args = parser.parse_args()
-    accuracy = train(args.data, args.out, args.epochs, args.seed)
+    accuracy = train(args.data, args.out, args.epochs, args.seed, args.arch, args.subset)
     print(f"test accuracy: {accuracy:.4f}")
 
 

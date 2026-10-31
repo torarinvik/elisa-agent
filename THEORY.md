@@ -236,3 +236,36 @@ proposes after the encoder is installed: it rejects a weaker symbol
 classifier and accepts a stronger one, and only the arithmetic route changes.
 Validation samples are drawn with a different seed from the reported test
 samples.
+
+## 9. Module substitution
+
+Plans refer to modules only through contracts, so replacing a module by one
+with an identical contract (`Registry.replace` enforces this) leaves every
+plan's shape and type unchanged; `infer` confirms the substituted route still
+type-checks. Behavior is what changes. (`lean/NCA/Substitution.lean`.)
+
+Let `disagree i` be the event that invocation `i` of the substitute gives a
+different decision than the original's, with in-situ probability at most `dᵢ`,
+and suppose the answer can change only if some such invocation disagrees.
+
+**Theorem (`substitution_change_le`).** `P(answer changes) ≤ Σᵢ dᵢ`.
+
+**Theorem (`accuracy_transfer`).** If original-correct and unchanged imply
+substitute-correct, then `P(correct) ≤ P(correct′) + P(answer changes)`.
+
+**Theorem (`substitution_accuracy_ge`).** Hence
+`P(correct′) ≥ P(correct) − Σᵢ dᵢ`.
+
+The bound is only as tight as the choice of events. Every invocation of the
+substitute is a valid event set, but `ExpressionParser` reads digit
+distributions only at even positions and only through their argmax, so the
+answer changes only if an even-position invocation's argmax disagrees.
+Restricting `disagree` to those invocations keeps the hypothesis true and
+removes the substitute's (irrelevant) disagreements on operator glyphs.
+Choosing the smallest event set that still covers every way the output can
+change is how a composition's structure tightens its guarantees.
+
+`nca.substitution` swaps independently trained digit recognizers (different
+architectures, disjoint halves of the training data) into the frozen system
+and reports route shape, type check, accuracy, changed-answer rate, `Σ d`, and
+accuracy drop relative to the reference.

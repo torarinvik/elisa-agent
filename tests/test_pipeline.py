@@ -108,3 +108,18 @@ def test_encoder_install_reroutes_plain_planner_but_not_stable():
 
     assert body(plan(registry.modules(), (EXPRESSION_IMAGE,), INTEGER)) == "nca.symbol-classifier"
     assert plan_stable(registry.modules(), (EXPRESSION_IMAGE,), INTEGER) == before
+
+
+def test_substitute_recognizer_keeps_route_shape_and_types():
+    from nca.modules.segmenter import EXPRESSION_IMAGE
+    from nca.modules.symbols import INTEGER
+    from nca.router import infer
+    from nca.substitution import shape
+
+    registry = build_registry(DigitRecognizer(digit_net()), SymbolRecognizer(op_net()))
+    before = compose_plan(registry)
+    registry.replace(DigitRecognizer(digit_net("mlp"), version="2.0.0"))
+    after = compose_plan(registry)
+    assert after != before
+    assert shape(after) == shape(before)
+    assert infer(registry.modules(), (EXPRESSION_IMAGE,), after) == INTEGER
