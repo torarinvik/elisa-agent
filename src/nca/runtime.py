@@ -14,6 +14,13 @@ the consumer declares irrelevant is settled with the requester's provisional
 answer instead of being resolved (``NCA.gated_error_le``,
 ``NCA.gated_error_eq_of_sound``). Requests whose value is consumed without a
 relevance declaration, mapped, or returned are always resolved.
+
+Evaluation is demand-driven. A consumer may declare ``demand(index, demand)``:
+given the demand on its own output, what it reads of input ``index``. Inputs
+(and map elements) with empty demand are not evaluated at all, so neither the
+modules computing them nor requests raised there run. For demand-sound
+declarations the answer is unchanged (``lean/NCA/Demand.lean``), which makes
+skipping their requests a sound gate.
 """
 
 from __future__ import annotations
@@ -21,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 
-from nca.abi import Message, Request, TypeId
+from nca.abi import NOTHING, Demand, Message, Request, SequenceDemand, TypeId
 from nca.planner import Given, Map, Plan, output_type
 from nca.workspace import Workspace
 
@@ -65,17 +72,30 @@ def execute(
     snapshot = workspace.snapshot()
     remaining = budget
 
-    def run(node: Plan, env: Mapping[TypeId, Message], chain: tuple[str, ...]) -> Message:
+    def unread(node: Plan) -> Message:
+        message = Message(output_type(node), None, "kernel.unread")
+        workspace.post(message)
+        return message
+
+    def run(node: Plan, env: Mapping[TypeId, Message], chain: tuple[str, ...],
+            demand: Demand = None) -> Message:
         nonlocal remaining
         if isinstance(node, Given):
             return env[node.type_id]
         if isinstance(node, Map):
             source = run(node.source, env, chain)
             results = []
-            for value in source.payload:
+            length = len(source.payload)
+            for i, value in enumerate(source.payload):
                 element = Message(node.element, value, "map", (source.message_id,))
                 workspace.post(element)
-                results.append(force(run(node.body, {node.element: element}, chain)))
+                element_demand = (demand.element(i, length)
+                                  if isinstance(demand, SequenceDemand) else demand)
+                if element_demand == NOTHING:
+                    results.append(unread(node.body))
+                else:
+                    results.append(force(run(node.body, {node.element: element}, chain,
+                                             element_demand)))
             result = Message(
                 type_id=output_type(node),
                 payload=[r.payload for r in results],
@@ -84,7 +104,11 @@ def execute(
             )
             workspace.post(result)
             return result
-        args = [run(arg, env, chain) for arg in node.args]
+        declare = getattr(node.module, "demand", None)
+        args = []
+        for i, arg in enumerate(node.args):
+            arg_demand = declare(i, demand) if declare is not None else None
+            args.append(unread(arg) if arg_demand == NOTHING else run(arg, env, chain, arg_demand))
         relevant = getattr(node.module, "relevant", None)
         provisional = [a.payload.request.provisional if isinstance(a.payload, Pending)
                        else a.payload for a in args]

@@ -13,13 +13,16 @@ as the fallback, and the expected cost ``κ₁ + κ₂ · P(defer)``
 
 Part B, end to end through the runtime and kernel. Arithmetic expressions of
 several lengths are solved with the cheap recognizer alone, the expensive one
-alone, and the requesting cheap recognizer at chosen thresholds, both ungated
-and gated by the symbol fuser's relevance declaration (the digit reading is
-irrelevant on glyphs the operator recognizer judges to be operators). Reports
-error, cost per expression, requests resolved and skipped per expression,
+alone, and the requesting cheap recognizer at chosen thresholds: ungated,
+gated by the symbol fuser's heuristic relevance declaration (the digit reading
+is irrelevant on glyphs the operator recognizer judges to be operators), and
+gated by demand-driven evaluation (the parser reads digits only at even
+positions, so the digit recognizer never runs on odd ones). Reports error, cost
+per expression, requests resolved and skipped or unread per expression,
 resolved requests on operator glyphs (whose digit reading the parser never
-uses), and answers that differ between gated and ungated refinement, which
-``NCA.gated_error_le`` bounds by the relevant requests the gate skips.
+uses), and answers that differ from ungated refinement. ``NCA.gated_error_le``
+bounds these by the relevant requests a gate skips; demand soundness
+(``NCA.DemandSound.exact``) makes them zero for the demand gate.
 
     uv run --extra vision python -m nca.cascade --cheap checkpoints/digit_mlp.pt \\
         --expensive checkpoints/digit_cnn.pt
@@ -88,8 +91,9 @@ def glyph_level(cheap: DigitRecognizer, expensive: DigitRecognizer,
 
 
 def build(modules_before: list[Module], digit: Module, operator: SymbolRecognizer,
-          extra: list[Module], gated: bool = False) -> list[Module]:
-    fuser = SymbolFuser(digit_relevance=0.5 if gated else 0.0)
+          extra: list[Module], gate: str = "") -> list[Module]:
+    fuser = SymbolFuser(digit_relevance=0.5 if gate == "gated" else 0.0,
+                        demand_driven=gate == "demand")
     return [*modules_before, digit, operator, fuser, ExpressionParser(), Evaluator(), *extra]
 
 
@@ -110,8 +114,9 @@ def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: Sym
         for tau in args.end_to_end:
             requester = RequestingRecognizer(cheap, tau)
             systems[f"refine τ={tau}"] = build([segmenter], requester, operator, [expensive])
-            systems[f"refine τ={tau} gated"] = build([segmenter], requester, operator,
-                                                     [expensive], gated=True)
+            for gate in ("gated", "demand"):
+                systems[f"refine τ={tau} {gate}"] = build([segmenter], requester, operator,
+                                                          [expensive], gate)
         answers: dict[str, list] = {}
         for name, modules in systems.items():
             kernel = Kernel(modules)
@@ -127,15 +132,17 @@ def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: Sym
                 wrong += result.payload != sample.value
                 answers[name].append(result.payload)
                 spent += workspace.spent
-                skipped += sum(m.type_id == "kernel.skipped" for m in workspace.messages())
+                skipped += sum(m.type_id == "kernel.skipped" or m.producer == "kernel.unread"
+                               for m in workspace.messages())
                 glyphs_in_order = [m.message_id for m in workspace.messages()
                                    if m.producer == "map" and m.type_id == GLYPH]
                 requested = {m.parents[0] for m in workspace.messages()
                              if m.type_id == "kernel.request"}
                 operator_requests += sum(1 for g in glyphs_in_order[1::2] if g in requested)
             low, high = wilson(wrong, len(dataset))
-            ungated = answers.get(name.removesuffix(" gated"))
-            changed = ("-" if not name.endswith("gated") or ungated is None else
+            base, _, gate = name.rpartition(" ")
+            ungated = answers.get(base) if gate in ("gated", "demand") else None
+            changed = ("-" if ungated is None else
                        str(sum(a != b for a, b in zip(answers[name], ungated))))
             n = len(dataset)
             print(f"{glyphs:7d} {name:>22s} {wrong / n:.4f} [{low:.4f}, {high:.4f}]"

@@ -517,3 +517,41 @@ the operator recognizer judges to be operators. That gate is not sound (a digit
 misjudged as an operator is skipped), so its cost is the extra term of
 `gated_error_le`, measured by the answers that differ between gated and
 ungated refinement (`nca.cascade`).
+
+**Demand-driven evaluation (a sound gate).** Soundness is easy to obtain when
+the gate comes from what a consumer provably reads rather than from what a
+value looks like. A *readable* type pairs values `V` with demands `D` and, for
+each demand, an agreement relation `v ≈_d v'` ("`v` and `v'` look the same to a
+reader with demand `d`"). A module `f : V → W` with demand map `δ : D_W → D_V`
+is *demand-sound* when `v ≈_{δ d} v'` implies `f v ≈_d f v'`: whatever the
+module's input differs in outside `δ d` cannot be seen in its output under `d`
+(`lean/NCA/Demand.lean`).
+
+| Theorem | Statement |
+|---|---|
+| `DemandSound.comp` | demand-sound modules compose: `g ∘ f` is sound with `δ_f ∘ δ_g` |
+| `DemandSound.pair` | modules on a pair are sound when each component's demand is |
+| `DemandSound.map` | `map f` is sound on lists with per-element demand `(i, n) ↦ δ (d i n)` |
+| `DemandSound.exact` | at a top demand under which agreement is equality, agreeing inputs give equal answers |
+
+So inputs whose demand is empty can be replaced by anything, in particular
+never computed, and the answer is unchanged. In `nca.runtime` a consumer may
+declare `demand(index, demand)`; arguments and `map` elements with empty demand
+are not evaluated, so neither their modules nor the requests raised there run.
+This makes skipping those requests a sound gate: by `gated_error_eq_of_sound`,
+gated and ungated refinement err exactly equally. `ExpressionParser` reads
+digit entries at even positions, operator entries at odd ones, and nothing of
+an even-length sequence; `SymbolFuser` reads its digit input only when digit
+entries are demanded. Hence the digit recognizer never runs on operator
+positions. With the cheap/expensive pair at `τ = 0.9` (300 test expressions):
+
+| glyphs | ungated cost | heuristic gate cost, changed | demand gate cost, changed |
+|---:|---:|---:|---:|
+| 3 | 31.4 | 27.4, 0 | 27.0, 0 |
+| 15 | 150.1 | 126.7, 1 | 123.6, 0 |
+| 63 | 519.4 | 434.8, 13 | 425.4, 0 |
+
+Cost is MFLOPs per expression; error is identical to ungated refinement
+(0.030, 0.147, 0.503) and the expensive recognizer (0.033, 0.143, 0.500). The
+demand gate is both exact and cheaper than the heuristic one, because it skips
+the cheap recognizer as well as the request on operator positions.

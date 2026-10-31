@@ -175,3 +175,29 @@ def test_integration_route_is_an_explicit_upgrade() -> None:
     candidate = plan(integration_modules_of(full) + full.modules(), (EXPRESSION_IMAGE,), BOOLEAN)
     assert root(candidate) == "nca.relational-evaluator"
     assert infer(full.modules(), (EXPRESSION_IMAGE,), candidate) == BOOLEAN
+
+
+def test_parser_demand_is_sound() -> None:
+    from nca.abi import NOTHING, SequenceDemand
+
+    rng = np.random.default_rng(0)
+    keys = "0123456789+-*"
+    parser, fuser = ExpressionParser(), SymbolFuser()
+    for n in range(1, 8):
+        demand = parser.demand(0, None)
+        assert isinstance(demand, SequenceDemand)
+        for _ in range(20):
+            symbols = [dict(zip(keys, rng.random(len(keys)))) for _ in range(n)]
+            altered = []
+            for i, dist in enumerate(symbols):
+                read = demand.element(i, n)
+                noise = dict(zip(keys, rng.random(len(keys))))
+                # Replace everything outside the demanded fields.
+                fields = {"digits": "0123456789", "operators": "+-*"}
+                kept = set().union(*(fields[f] for f in read)) if read else set()
+                altered.append({k: dist[k] if k in kept else noise[k] for k in keys})
+            assert parser.invoke(altered) == parser.invoke(symbols)
+            for i in range(n):
+                read = demand.element(i, n)
+                if read == NOTHING or "digits" not in read:
+                    assert fuser.demand(0, read) == NOTHING

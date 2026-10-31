@@ -1,6 +1,7 @@
 import NCA.Cascade
 import NCA.Check
 import NCA.Contract
+import NCA.Demand
 import NCA.Cost
 import NCA.Loading
 import NCA.MinCost

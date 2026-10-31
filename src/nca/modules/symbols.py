@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from nca.abi import Contract, Manifest, TypeId, seq_type
+from nca.abi import NOTHING, Contract, Demand, Manifest, SequenceDemand, TypeId, seq_type
 from nca.expressions import OPERATORS, RELATIONS, evaluate, value_of
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, RELATION_DISTRIBUTION
 
 DIGITS = "0123456789"
+DIGIT_FIELD: frozenset[str] = frozenset({"digits"})
+OPERATOR_FIELD: frozenset[str] = frozenset({"operators"})
 
 
 @dataclass(frozen=True)
@@ -48,15 +50,26 @@ class SymbolFuser:
     glyph is an operator and the digit recognizer gives the digit otherwise.
     """
 
-    def __init__(self, vocabulary: Vocabulary = ARITHMETIC,
-                 digit_relevance: float = 0.5) -> None:
+    def __init__(self, vocabulary: Vocabulary = ARITHMETIC, digit_relevance: float = 0.0,
+                 demand_driven: bool = True) -> None:
         self.vocabulary = vocabulary
         self.digit_relevance = digit_relevance
+        self.demand_driven = demand_driven
         self.manifest = Manifest(
             f"{vocabulary.prefix}.symbol-fuser", "1.0.0",
             Contract((DIGIT_DISTRIBUTION, vocabulary.operator_distribution),
                      vocabulary.symbol_distribution),
         )
+
+    def demand(self, index: int, demand: Demand) -> Demand:
+        """Digit entries depend on both inputs, operator entries on the operator
+        input only: the digit input is unread unless digit entries are."""
+        if not self.demand_driven or demand is None:
+            return None
+        assert isinstance(demand, frozenset)
+        if index == 0:
+            return None if "digits" in demand else NOTHING
+        return None if demand else NOTHING
 
     def relevant(self, index: int, provisional: list) -> bool:
         """The digit reading matters only for glyphs the operator recognizer
@@ -69,8 +82,10 @@ class SymbolFuser:
             return True
         return provisional[1][len(self.vocabulary.operators)] >= self.digit_relevance
 
-    def invoke(self, digits: tuple[float, ...], operators: tuple[float, ...]) -> dict[str, float]:
+    def invoke(self, digits: tuple[float, ...] | None,
+               operators: tuple[float, ...]) -> dict[str, float]:
         ops = self.vocabulary.operators
+        digits = digits if digits is not None else (0.0,) * len(DIGITS)
         fused = {str(d): operators[len(ops)] * p for d, p in enumerate(digits)}
         fused.update(zip(ops, operators))
         return fused
@@ -92,12 +107,21 @@ class ExpressionParser:
             Contract((seq_type(vocabulary.symbol_distribution),), vocabulary.expression),
         )
 
-    def invoke(self, symbols: list[dict[str, float]]) -> tuple[str, ...] | None:
+    def demand(self, index: int, demand: Demand) -> Demand:
+        """Digit entries are read at even positions, operator entries at odd ones;
+        nothing is read of an even-length sequence."""
+        def element(i: int, n: int) -> Demand:
+            if n % 2 == 0:
+                return NOTHING
+            return DIGIT_FIELD if i % 2 == 0 else OPERATOR_FIELD
+        return SequenceDemand(element)
+
+    def invoke(self, symbols: list[dict[str, float] | None]) -> tuple[str, ...] | None:
         if len(symbols) % 2 == 0:
             return None
         return tuple(
             max(self.vocabulary.operators if i % 2 else DIGITS, key=dist.__getitem__)
-            for i, dist in enumerate(symbols)
+            for i, dist in enumerate(symbols) if dist is not None
         )
 
 

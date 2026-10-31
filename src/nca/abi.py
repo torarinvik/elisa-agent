@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -44,6 +44,20 @@ class Manifest:
     @property
     def ref(self) -> str:
         return f"{self.module_id}@{self.version}"
+
+
+@dataclass(frozen=True)
+class SequenceDemand:
+    """Demand on a sequence: what is read of element ``i`` of a length-``n`` sequence."""
+
+    element: Callable[[int, int], "Demand"]
+
+
+Demand = frozenset[str] | SequenceDemand | None
+"""What a consumer reads of a value: ``None`` everything, a set of named fields,
+or a per-element demand for sequences. The empty set means nothing is read."""
+
+NOTHING: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
