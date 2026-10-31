@@ -801,10 +801,51 @@ far as the target asks.
   stronger or more diverse reader; the controller then uses it automatically
   as another rung.
 
-**Practice queue (design).** Abstentions and glyphs that reached the top rung
-with low confidence are where the library is weakest. Logged with the
-teacher's label, they form training data for a new expert version. That
-version is trained offline and adopted only through the upgrade rule of §8,
-so existing answers remain stable. Retraining on the system's own unverified
-answers is excluded: it reinforces its errors and breaks the freeze
-guarantees.
+**Practice queue** (`lean/NCA/Practice.lean`, `nca.practice`). Abstentions
+and doubtful glyphs show where the library is weakest. In use, glyphs with
+calibrated risk `r ≥ θ` are queued for a teacher's label.
+
+| Theorem | Statement |
+|---|---|
+| `queued_value` | each queued label is expected to correct at least `θ` errors |
+| `unqueued_errors` | at most `θ` expected errors per unqueued glyph escape the queue |
+| `queued_captures` | the queue holds all but `θ · n` of the expected errors among `n` glyphs |
+
+Practice is offline. A copy of the recognizer is fine-tuned on the queued
+glyphs mixed with 10,000 replayed MNIST training digits, so the normal style
+is not forgotten. The new version is adopted only if it beats the current one
+by a one-sided sign test on `validation` expressions of both styles (§8).
+Training on the system's own unverified answers is excluded, since it
+reinforces errors.
+
+**Experiment.** The expensive recognizer (calibrated on the normal style)
+reads 4000 `train`-split expressions in the unseen hard style: 7878 digit
+glyphs, 27% misread. For a label budget `k` the queue takes the `k` riskiest
+glyphs, compared with `k` random glyphs from the same stream. Results on
+2000 test expressions per style:
+
+| practice | labels | misread among labeled | digit error hard | accuracy normal | accuracy hard | sign test |
+|---|---:|---:|---:|---:|---:|---|
+| none | 0 | — | 0.211 | 0.977 | 0.446 | — |
+| queue | 100 | 91% | 0.173 | 0.981 | 0.485 | adopted, p = 2e-6 |
+| random | 100 | 27% | 0.201 | 0.981 | 0.455 | adopted, p = 0.003 |
+| queue | 300 | 89% | 0.157 | 0.979 | 0.503 | adopted |
+| random | 300 | 27% | 0.152 | 0.980 | 0.514 | adopted |
+| queue | 1000 | 82% | 0.130 | 0.974 | 0.536 | adopted |
+| random | 1000 | 27% | 0.128 | 0.978 | 0.538 | adopted |
+| everything | 7878 | 27% | 0.074 | 0.975 | 0.594 | adopted |
+| replay only (budget 0) | 0 | — | 0.234 | 0.978 | 0.418 | rejected, p = 0.16 |
+
+- **Finding errors.** Risk ranks errors well: 91% of the 100 riskiest glyphs
+  are misread against 27% of random ones, and the expected errors in the
+  queue (82, 243, 778) track the observed ones (91, 267, 824). The small
+  excess comes from calibrating on the normal style.
+- **Learning from them.** Queued labels help most when labels are scarce:
+  with 100 labels the queue gains 3.9 points of hard-style accuracy, random
+  labels 0.9. From 300 labels on, queue and random are equal within noise.
+  The riskiest glyphs are the most distorted, so their value as training
+  examples saturates while random labels add diversity. A queue that mixes
+  risk with diversity is the natural refinement.
+- **Safety.** Every adopted version keeps normal-style accuracy within its
+  interval. The one version that made things worse (replay without practice
+  data) was rejected by the sign test, as the upgrade rule intends.

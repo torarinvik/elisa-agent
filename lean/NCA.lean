@@ -18,3 +18,4 @@ import NCA.Normalize
 import NCA.Eviction
 import NCA.Pareto
 import NCA.Selective
+import NCA.Practice

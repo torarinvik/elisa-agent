@@ -49,3 +49,19 @@ def test_repair_merges_the_narrowest_gap() -> None:
     repaired = segment(image, repair=True)
     assert len(repaired) == 3
     assert np.isclose(repaired[1].sum().item(), 15 * 8, rtol=1e-2)
+
+
+def test_practice_queue_and_fine_tuning() -> None:
+    from nca.practice import practice, queue
+
+    torch.manual_seed(0)
+    risks = torch.tensor([0.05, 0.6, 0.2, 0.9])
+    assert queue(risks, 0.2).tolist() == [1, 2, 3]
+
+    network = nn.Sequential(nn.Flatten(), nn.Linear(28 * 28, 10))
+    glyphs, labels = torch.rand(16, 28, 28), torch.full((16,), 3)
+    student = practice(network, glyphs, labels, (glyphs[:8], labels[:8]), epochs=3, seed=0)
+    assert student is not network and not student.training
+    with torch.no_grad():
+        assert (student(glyphs[:, None]).argmax(dim=1) == 3).float().mean() > \
+            (network(glyphs[:, None]).argmax(dim=1) == 3).float().mean()
