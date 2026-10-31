@@ -71,6 +71,18 @@ class SymbolFuser:
             return None if "digits" in demand else NOTHING
         return None if demand else NOTHING
 
+    def decides(self, index: int, demand: Demand) -> Demand:
+        """Decision demand: what of input ``index`` can change which digit or
+        which operator the reader of ``demand`` picks. The operator input only
+        rescales digit entries by ``q_none``, which leaves the digit decision
+        unchanged while ``q_none > 0``, so digit decisions need the digit input
+        alone and operator decisions the operator input alone."""
+        if not self.demand_driven or demand is None:
+            return None
+        assert isinstance(demand, frozenset)
+        field = "digits" if index == 0 else "operators"
+        return None if field in demand else NOTHING
+
     def relevant(self, index: int, provisional: list) -> bool:
         """The digit reading matters only for glyphs the operator recognizer
         considers at least ``digit_relevance`` likely not to be an operator.
@@ -83,9 +95,12 @@ class SymbolFuser:
         return provisional[1][len(self.vocabulary.operators)] >= self.digit_relevance
 
     def invoke(self, digits: tuple[float, ...] | None,
-               operators: tuple[float, ...]) -> dict[str, float]:
+               operators: tuple[float, ...] | None) -> dict[str, float]:
+        """Unread inputs (``None``) count as no digit evidence, or as certainly
+        not an operator."""
         ops = self.vocabulary.operators
         digits = digits if digits is not None else (0.0,) * len(DIGITS)
+        operators = operators if operators is not None else (0.0,) * len(ops) + (1.0,)
         fused = {str(d): operators[len(ops)] * p for d, p in enumerate(digits)}
         fused.update(zip(ops, operators))
         return fused

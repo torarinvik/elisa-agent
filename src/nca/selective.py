@@ -6,7 +6,10 @@ whose body applies one module to readings of the element. Nothing below is
 specific to glyphs:
 
 * what is read of element ``i`` comes from the map consumer's ``demand``
-  declaration, and what the body reads of each input from the body's;
+  declaration, and what the body reads of each input from its ``decides``
+  declaration (decision demand: inputs that can change the consumer's
+  decision), falling back to ``demand``. Unread inputs are passed as ``None``,
+  so only decision-relevant readings are computed and enter the bound;
 * every demanded input is produced by a ladder: all installed experts with
   that input's contract, ordered by declared cost and calibrated on held-out
   labeled data;
@@ -90,7 +93,7 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
             break
     else:
         return Answer(None, 0.0, 1.0, True)
-    declare = getattr(body.module, "demand", None)
+    declare = getattr(body.module, "decides", getattr(body.module, "demand", None))
     items = [(i, k) for i, read in enumerate(reads) if read != NOTHING
              for k in range(len(body.args))
              if declare is None or declare(k, read) != NOTHING]

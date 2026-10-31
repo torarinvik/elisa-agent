@@ -11,6 +11,14 @@ composition, pairing, and elementwise maps, and at the top demand (agreement is
 equality) it means: replacing unread parts by anything leaves the answer
 unchanged. A gate that resolves exactly the demanded requests is therefore
 sound, and gated refinement is exact (`NCA.gated_error_eq_of_sound`).
+
+*Decision demand* uses coarser agreement: two values agree when they lead to
+the same decision (for a distribution, the same restricted argmax), not only
+when they are equal. Coarsening what a reader distinguishes keeps a module
+demand-sound (`coarsen`) and can justify smaller input demands (`shrink`).
+Readings outside the decision demand cannot change the answer, so the union
+bound runs over decision-demanded readings only: `composition_error_le_sum`
+with its propagation hypothesis supplied by `DemandSound.exact`.
 -/
 
 namespace NCA
@@ -74,5 +82,20 @@ theorem DemandSound.exact {V W : Type} {A : Readable V} {B : Readable W} {f : V 
     (htop : ∀ w w', B.agree top w w' → w = w') {v v' : V} (h : A.agree (δ top) v v') :
     f v = f v' :=
   htop _ _ (hf top v v' h)
+
+/-- **Coarsening.** A module stays demand-sound when its reader distinguishes
+less, e.g. decisions instead of values. -/
+theorem DemandSound.coarsen {V W : Type} {A : Readable V} {B B' : Readable W} {f : V → W}
+    {δ : B.Demand → A.Demand} (hf : DemandSound A B f δ) (e : B'.Demand → B.Demand)
+    (he : ∀ d w w', B.agree (e d) w w' → B'.agree d w w') :
+    DemandSound A B' f (δ ∘ e) :=
+  fun d v v' h => he d _ _ (hf (e d) v v' h)
+
+/-- **Shrinking.** A smaller input demand is sound whenever agreeing on it
+implies agreeing on a sound one. -/
+theorem DemandSound.shrink {V W : Type} {A : Readable V} {B : Readable W} {f : V → W}
+    {δ δ' : B.Demand → A.Demand} (hf : DemandSound A B f δ)
+    (h : ∀ d v v', A.agree (δ' d) v v' → A.agree (δ d) v v') : DemandSound A B f δ' :=
+  fun d v v' hv => hf d v v' (h d v v' hv)
 
 end NCA

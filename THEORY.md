@@ -781,45 +781,59 @@ shifts) of all but the cheapest. The stronger recognizer (`--arch wide
 and rescaled digits) reaches 99.19% on MNIST at about 10× the expensive
 recognizer's compute.
 
-**Results** (300 test expressions per length; MFLOPs per expression):
+**Decision demand.** The body declares `decides(index, demand)`: what of an
+input can change the consumer's *decision*, not only its value. Readings are
+computed, and enter the bound, only where decision-demanded; unread inputs
+are passed as `None`. Agreement on decisions is coarser than agreement on
+values, so this is demand-soundness for a coarser reader
+(`DemandSound.coarsen`, `DemandSound.shrink` in `lean/NCA/Demand.lean`).
+The fuser's operator input only rescales digit entries by `q_none`, and a
+positive rescaling leaves the digit argmax unchanged, so digit decisions
+need the digit reading alone and operator decisions the operator reading
+alone. (This holds while `q_none > 0`; a randomized test checks that the
+parse is unchanged.)
+
+**Results** (300 test expressions per length; MFLOPs per expression; with
+decision demand):
 
 | glyphs | ladder | system | coverage | error answered | error forced | MFLOPs |
 |---:|---|---|---:|---:|---:|---:|
-| 3 | base | bottom rungs | 1.000 | 0.037 | 0.037 | 26 |
-| 3 | base | top rungs | 1.000 | 0.010 | 0.010 | 255 |
-| 3 | base | δ = 0.05 | 0.917 | 0.004 | 0.007 | 47 |
-| 15 | base | top rungs | 1.000 | 0.063 | 0.063 | 1175 |
-| 15 | base | δ = 0.2 | 0.893 | 0.060 | 0.080 | 246 |
-| 15 | + strong | δ = 0.05 | 0.707 | 0.019 | 0.043 | 1753 |
-| 63 | base | bottom rungs | 1.000 | 0.523 | 0.523 | 549 |
-| 63 | base | top rungs | 1.000 | 0.280 | 0.280 | 4850 |
-| 63 | base | δ = 0.2 | 0.297 | 0.112 | 0.287 | 3582 |
-| 63 | + strong | top rungs | 1.000 | 0.193 | 0.193 | 22290 |
-| 63 | + strong | δ = 0.2 | 0.473 | 0.141 | 0.203 | 12073 |
+| 3 | base | bottom rungs | 1.000 | 0.037 | 0.037 | 9 |
+| 3 | base | top rungs | 1.000 | 0.010 | 0.010 | 153 |
+| 3 | base | δ = 0.05 | 0.917 | 0.004 | 0.007 | 23 |
+| 15 | base | top rungs | 1.000 | 0.063 | 0.063 | 768 |
+| 15 | base | δ = 0.2 | 0.893 | 0.060 | 0.080 | 142 |
+| 15 | + strong | δ = 0.05 | 0.750 | 0.031 | 0.050 | 1367 |
+| 63 | base | bottom rungs | 1.000 | 0.523 | 0.523 | 278 |
+| 63 | base | top rungs | 1.000 | 0.280 | 0.280 | 3221 |
+| 63 | base | δ = 0.2 | 0.310 | 0.129 | 0.290 | 2317 |
+| 63 | + strong | top rungs | 1.000 | 0.193 | 0.193 | 20661 |
+| 63 | + strong | δ = 0.2 | 0.487 | 0.144 | 0.207 | 10813 |
 
 *Error forced* is the error when the system must answer after refining as
 far as the target asks.
 
 - **Reliability.** Error among answered expressions stays within `δ` up to
   sampling noise. The widest gap is at 63 glyphs and `δ = 0.05` with the
-  strong ladder: 20 answered, 2 wrong, interval `[0.03, 0.30]`. Calibration is
+  strong ladder: 25 answered, 2 wrong, interval `[0.02, 0.25]`. Calibration is
   fitted on the easier validation half.
 - **Efficiency.** Targeted refinement matches refining everything at a
-  fraction of the compute: 5× cheaper at 3 glyphs (and more accurate), and
+  fraction of the compute: 7× cheaper at 3 glyphs (and more accurate), and
   5× cheaper at 15 glyphs for 1.7 points more error.
 - **Long inputs.** Second looks and segmentation repair cut forced error at 63
   glyphs from 0.523 to 0.280. A stronger rung lowers the floor (`length_limit`):
-  forced error falls to 0.193, and coverage at `δ = 0.2` rises from 0.30 to
-  0.47.
-- **Cost of genericity.** Against a controller hand-written for this task,
-  the generic one spends about twice the compute and covers less at 63
-  glyphs (0.30 against 0.42 at `δ = 0.2`), for two reasons:
-  - The fuser's sound demand reads the operator recognizer at digit positions
-    too, whose risk then enters the bound although it cannot change the
-    reading there. A finer demand (which outputs can change the consumer's
-    *decision*, not only its value) would remove this.
-  - A generic second look re-reads the original view rather than reusing the
-    first reading.
+  forced error falls to 0.193, and coverage at `δ = 0.2` rises from 0.31 to
+  0.49.
+- **Cost of genericity.** Before decision demand, the generic controller read
+  the operator recognizer at every glyph and spent about twice the compute of
+  a controller hand-written for this task (549 against 248 MFLOPs at 63
+  glyphs on the bottom rungs). With it, the cost is 278 MFLOPs (top rungs:
+  3221 against 2687, the rest being the generic second look's re-read of the
+  original view). Coverage at 63 glyphs and `δ = 0.2` remains lower (0.31
+  against 0.42). The generic risk `1 − max p` counts the operator
+  recognizer's "not an operator" mass as doubt, although the parser chooses
+  only among operators there. Risk measured against the classes the decision
+  ranges over would close this gap.
 - **Limit.** Targets below about 0.15 at 63 glyphs remain infeasible for most
   expressions: per-glyph floors are still too high for `L · ρ ≤ δ`.
 

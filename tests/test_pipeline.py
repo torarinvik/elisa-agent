@@ -201,3 +201,23 @@ def test_parser_demand_is_sound() -> None:
                 read = demand.element(i, n)
                 if read == NOTHING or "digits" not in read:
                     assert fuser.demand(0, read) == NOTHING
+
+
+def test_fuser_decision_demand_is_sound() -> None:
+    from nca.abi import SequenceDemand
+
+    rng = np.random.default_rng(1)
+    parser, fuser = ExpressionParser(), SymbolFuser()
+    for n in (1, 3, 5, 7):
+        demand = parser.demand(0, None)
+        assert isinstance(demand, SequenceDemand)
+        for _ in range(50):
+            digits = [tuple(rng.dirichlet(np.ones(10))) for _ in range(n)]
+            operators = [tuple(rng.dirichlet(np.ones(4))) for _ in range(n)]
+            full = [fuser.invoke(d, o) for d, o in zip(digits, operators)]
+            decided = []
+            for i, (d, o) in enumerate(zip(digits, operators)):
+                read = demand.element(i, n)
+                decided.append(fuser.invoke(d if fuser.decides(0, read) is None else None,
+                                            o if fuser.decides(1, read) is None else None))
+            assert parser.invoke(decided) == parser.invoke(full)
