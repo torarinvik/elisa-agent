@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any, Callable
 
 import pytest
 
@@ -10,20 +11,21 @@ from nca.router import Router, infer, sign_test
 @dataclass
 class Fn:
     manifest: Manifest
-    fn: object = field(repr=False, default=None)
+    fn: Callable[..., Any] | None = field(repr=False, default=None)
 
-    def invoke(self, *inputs):
+    def invoke(self, *inputs: Any) -> Any:
+        assert self.fn is not None
         return self.fn(*inputs)
 
 
-def fn(module_id, inputs, output):
+def fn(module_id: str, inputs: list[str], output: str) -> Fn:
     return Fn(Manifest(module_id, "1.0.0", Contract(tuple(inputs), output)))
 
 
 A, B, C = "a.v1", "b.v1", "c.v1"
 
 
-def test_infer_accepts_exactly_well_typed_plans():
+def test_infer_accepts_exactly_well_typed_plans() -> None:
     ab, bc = fn("ab", [A], B), fn("bc", [B], C)
     modules = [ab, bc]
     good = Apply(bc, (Apply(ab, (Given(A),)),))
@@ -37,7 +39,7 @@ def test_infer_accepts_exactly_well_typed_plans():
     assert infer([ab, split], (A,), Map(B, Given(B), Apply(split, (Given(A),)))) is None
 
 
-def test_upgrade_is_local_and_reversible():
+def test_upgrade_is_local_and_reversible() -> None:
     via_b, direct = fn("via-b", [B], C), fn("direct", [A], C)
     ab = fn("ab", [A], B)
     modules = [ab, via_b, direct, fn("other", [A], "d.v1")]
@@ -57,7 +59,7 @@ def test_upgrade_is_local_and_reversible():
         router.upgrade(modules, (A,), C, Apply(ab, (Given(A),)))
 
 
-def test_sign_test():
+def test_sign_test() -> None:
     current = [True] * 80 + [False] * 20
     better = [True] * 80 + [True] * 15 + [False] * 5
     accept, p = sign_test(current, better)

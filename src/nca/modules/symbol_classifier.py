@@ -74,7 +74,8 @@ def load(path: Path) -> tuple[GlyphEncoder, SymbolClassifier]:
     return GlyphEncoder(encoder), SymbolClassifier(classifier)
 
 
-def make_dataset(mnist_images: np.ndarray, mnist_labels: np.ndarray, size: int, seed: int):
+def make_dataset(mnist_images: np.ndarray, mnist_labels: np.ndarray, size: int,
+                 seed: int) -> torch.utils.data.TensorDataset:
     """Digits and operators in proportion 10:3, as in a uniform symbol draw."""
     rng = np.random.default_rng(seed)
     labels = rng.integers(len(SYMBOLS), size=size)

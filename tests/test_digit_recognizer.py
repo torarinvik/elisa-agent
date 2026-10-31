@@ -17,7 +17,7 @@ from nca.runtime import execute
 from nca.workspace import Workspace
 
 
-def test_untrained_recognizer_honours_contract():
+def test_untrained_recognizer_honours_contract() -> None:
     registry = Registry()
     registry.install(DigitRecognizer(build_network()))
     graph = plan(registry.modules(), (GLYPH,), DIGIT_DISTRIBUTION)

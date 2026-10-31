@@ -17,3 +17,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nca"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Every function is fully type-annotated; Any is allowed where values are opaque.
+select = ["ANN", "E731"]
+ignore = ["ANN401"]

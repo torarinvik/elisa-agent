@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any, Callable
 
 import pytest
 
@@ -16,24 +17,25 @@ PAIR = "int.pair.v1"
 @dataclass
 class Fn:
     manifest: Manifest
-    fn: object = field(repr=False)
+    fn: Callable[..., Any] = field(repr=False)
 
-    def invoke(self, *inputs):
+    def invoke(self, *inputs: Any) -> Any:
         return self.fn(*inputs)
 
 
-def fn(module_id, inputs, output, f, version="1.0.0"):
+def fn(module_id: str, inputs: list[str], output: str, f: Callable[..., Any],
+       version: str = "1.0.0") -> Fn:
     return Fn(Manifest(module_id, version, Contract(tuple(inputs), output)), f)
 
 
-def arithmetic_registry():
+def arithmetic_registry() -> Registry:
     registry = Registry()
     registry.install(fn("parse-int", [TEXT], INT, int))
     registry.install(fn("add", [INT, INT], INT, lambda a, b: a + b))
     return registry
 
 
-def test_planner_composes_by_type():
+def test_planner_composes_by_type() -> None:
     registry = arithmetic_registry()
     result = plan(registry.modules(), (TEXT,), INT)
     assert isinstance(result, Apply)
@@ -41,11 +43,11 @@ def test_planner_composes_by_type():
     assert result.args == (Given(TEXT),)
 
 
-def test_planner_fails_without_capability():
+def test_planner_fails_without_capability() -> None:
     assert plan(arithmetic_registry().modules(), (TEXT,), PAIR) is None
 
 
-def test_execute_records_provenance():
+def test_execute_records_provenance() -> None:
     registry = Registry()
     registry.install(fn("pair", [TEXT], PAIR, lambda s: tuple(map(int, s.split("+")))))
     registry.install(fn("sum", [PAIR], INT, lambda p: p[0] + p[1]))
@@ -60,7 +62,7 @@ def test_execute_records_provenance():
     assert chain == ["input", "pair@1.0.0", "sum@1.0.0"]
 
 
-def test_replacement_requires_same_contract():
+def test_replacement_requires_same_contract() -> None:
     registry = arithmetic_registry()
     registry.replace(fn("parse-int", [TEXT], INT, lambda s: int(s.strip()), version="2.0.0"))
     graph = plan(registry.modules(), (TEXT,), INT)
@@ -70,7 +72,7 @@ def test_replacement_requires_same_contract():
         registry.replace(fn("parse-int", [TEXT], TEXT, str))
 
 
-def test_budget_exhaustion_rolls_back():
+def test_budget_exhaustion_rolls_back() -> None:
     registry = Registry()
     registry.install(fn("pair", [TEXT], PAIR, lambda s: (1, 2)))
     registry.install(fn("sum", [PAIR], INT, sum))
@@ -83,12 +85,12 @@ def test_budget_exhaustion_rolls_back():
     assert len(workspace) == 1
 
 
-def test_workspace_rejects_unknown_parents():
+def test_workspace_rejects_unknown_parents() -> None:
     with pytest.raises(ValueError):
         Workspace().post(Message(INT, 1, "x", parents=("msg:missing",)))
 
 
-def test_stable_routing_matches_lean_counterexample():
+def test_stable_routing_matches_lean_counterexample() -> None:
     # Mirrors NCA.plan_not_stable: installing make1 reroutes the plain planner.
     need1 = fn("need1", ["t1"], "t0", lambda x: x)
     from2 = fn("from2", ["t2"], "t0", lambda x: x)
@@ -102,7 +104,7 @@ def test_stable_routing_matches_lean_counterexample():
     assert plan_stable([need1, from2, make1], avail, "t0") == before
 
 
-def test_map_applies_elementwise_composition():
+def test_map_applies_elementwise_composition() -> None:
     registry = Registry()
     registry.install(fn("split", [TEXT], "seq[text.v1]", lambda s: s.split(",")))
     registry.install(fn("parse-int", [TEXT], INT, int))

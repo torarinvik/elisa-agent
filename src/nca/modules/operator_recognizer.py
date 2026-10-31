@@ -76,7 +76,7 @@ class SymbolRecognizer:
 
 
 def make_dataset(mnist_images: np.ndarray, size: int, seed: int,
-                 symbol_set: SymbolSet = OPERATOR_SET):
+                 symbol_set: SymbolSet = OPERATOR_SET) -> torch.utils.data.TensorDataset:
     """Balanced glyphs: each symbol and "none of these" with equal frequency.
 
     Negatives are MNIST digits, plus rendered ``symbol_set.negatives`` glyphs
@@ -106,7 +106,10 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int,
     from torchvision import datasets
 
     torch.manual_seed(seed)
-    load = lambda train: datasets.MNIST(data_dir, train=train, download=True).data.numpy() / 255.0
+
+    def load(train: bool) -> np.ndarray:
+        return datasets.MNIST(data_dir, train=train, download=True).data.numpy() / 255.0
+
     train_set = make_dataset(load(True), 40_000, seed, symbol_set)
     test_set = make_dataset(load(False), 10_000, seed + 1, symbol_set)
 

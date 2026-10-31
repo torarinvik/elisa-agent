@@ -122,7 +122,10 @@ def consider_upgrades(registry: Registry, router: Router, validation: dict) -> N
         if current is None or candidate is None or candidate == current:
             continue
         truth = [dataset.sample(i).value for i in range(len(dataset))]
-        correct = lambda route: [a == t for a, t in zip(answers_for(route, dataset), truth)]
+
+        def correct(route: Plan) -> list[bool]:
+            return [a == t for a, t in zip(answers_for(route, dataset), truth)]
+
         current_ok, candidate_ok = correct(current), correct(candidate)
         accept, p_value = sign_test(current_ok, candidate_ok)
         wins = sum(c and not o for o, c in zip(current_ok, candidate_ok))
@@ -192,8 +195,12 @@ def main() -> None:
         for name in PLANNERS:
             b_route, a_route = before[key].routes[name], after[key].routes[name]
             b, a = before[key].answers[name], after[key].answers[name]
-            acc = lambda route, ans: "-" if route is None else (
-                f"{sum(x == t for x, t in zip(ans, truth[key])) / len(ans):.4f}")
+
+            def acc(route: Plan | None, ans: list) -> str:
+                if route is None:
+                    return "-"
+                return f"{sum(x == t for x, t in zip(ans, truth[key])) / len(ans):.4f}"
+
             kept = "n/a" if b_route is None else str(b_route == a_route)
             changed = "n/a" if b_route is None else str(sum(x != y for x, y in zip(b, a)))
             print(f"{key[0]:12s} {key[1]:12s} {name:8s} {acc(b_route, b):>8s} "

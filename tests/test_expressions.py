@@ -6,7 +6,7 @@ from nca.expressions import (
 )
 
 
-def test_every_digit_and_operand_position_seen_in_training():
+def test_every_digit_and_operand_position_seen_in_training() -> None:
     train = [(a, b) for a in range(10) for b in range(10) if not is_held_out(a, b)]
     assert {a for a, _ in train} == set(range(10))
     assert {b for _, b in train} == set(range(10))
@@ -14,14 +14,14 @@ def test_every_digit_and_operand_position_seen_in_training():
 
 
 @pytest.mark.parametrize("op", OPERATORS + RELATIONS)
-def test_operator_glyph_has_ink(op):
+def test_operator_glyph_has_ink(op: str) -> None:
     glyph = render_operator(op, np.random.default_rng(0))
     assert glyph.shape == (GLYPH, GLYPH)
     assert 0.0 <= glyph.min() and glyph.max() <= 1.0
     assert glyph.sum() > 20
 
 
-def test_compose_places_glyphs_without_overlap():
+def test_compose_places_glyphs_without_overlap() -> None:
     rng = np.random.default_rng(1)
     for _ in range(100):
         glyphs = [np.ones((GLYPH, GLYPH))] * 3
@@ -34,7 +34,7 @@ def test_compose_places_glyphs_without_overlap():
         assert sample.image.sum() == 3 * GLYPH * GLYPH
 
 
-def test_value_of_mixed_expressions():
+def test_value_of_mixed_expressions() -> None:
     from nca.expressions import value_of
 
     assert value_of(("7", "*", "8")) == 56

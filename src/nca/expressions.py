@@ -26,8 +26,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import torch
 
 HEIGHT, WIDTH, GLYPH = 32, 96, 28
 MIXED_WIDTH = 160
@@ -197,7 +201,7 @@ class ExpressionDataset:
                       for g, t in zip(glyphs, tokens)]
         return compose(glyphs, tokens, rng, self.width)
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
         import torch
 
         s = self.sample(index)
