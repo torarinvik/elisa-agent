@@ -332,3 +332,43 @@ differences `dᵢ = 1[second correct] − 1[first correct]`: mean `d̄`, interva
 interval far narrower than one derived from two independent accuracy
 intervals. Composition gain is reported this way against the best competing
 system on that split.
+
+## 12. Lazy loading and scalable discovery
+
+Planning reads only contracts (manifests), so manifests stay resident while
+implementations load on first use into a memory-budgeted store with
+least-recently-used eviction (`nca.loader`). (`lean/NCA/Loading.lean`.)
+
+**Working set.** `Plan.contracts p` lists the contracts a plan invokes.
+
+| Theorem | Statement |
+|---|---|
+| `WellTyped.contracts_subset` | a well-typed plan invokes only installed contracts |
+| `route_contracts_append` | installing modules leaves the working set of every routed task unchanged |
+| `plan_derivable` | a successful plan witnesses `Derivable` at the same depth |
+| `Derivable.mono`, `plan_mono` | installing modules never makes a solvable goal unsolvable |
+| `plan_prefix_mono` | success with the first `k` modules implies success with the first `k' ≥ k` |
+| `planIdx_eq` | planning through an index of producers by output type computes exactly `plan` |
+
+**Binary-search layered planning** (`nca.planner.plan_stable_indexed`). By
+`plan_prefix_mono`, success is monotone in the prefix length, so the smallest
+successful prefix (the route `planStable` returns) is found with
+`O(log |lib|)` planner calls instead of `|lib| + 1`.
+
+**Memoized search.** For a fixed library prefix the planner is a pure function
+of `(available, goal, fuel)`; memoizing it within one call returns exactly what
+recomputation would and bounds the work by the number of distinct subgoals
+rather than search paths.
+
+**Measured cost structure** (`nca.scaling`). Among up to 100,000 unusable decoy
+experts, the loaded set always equals the route's working set and every answer
+is unchanged, as the theorems require. Per-step discovery cost is proportional
+to the producers of the goal type (`planIdx_eq`), but dormant producers of
+relevant types, which need inputs nothing can supply, are still explored, so
+planning time grows with their number. Pruning producers whose inputs are not
+forward-reachable from the available types is the next refinement.
+
+**Eviction.** Least-recently-used eviction thrashes when tasks whose routes
+together exceed the budget alternate: every switch reloads the evicted
+recognizer. Route-aware eviction, which keeps the experts of upcoming routes,
+is the corresponding refinement.

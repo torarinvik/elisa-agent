@@ -1,5 +1,6 @@
 import NCA.Check
 import NCA.Contract
+import NCA.Loading
 import NCA.Planner
 import NCA.Reliability
 import NCA.Routing
