@@ -14,3 +14,4 @@ import NCA.Shift
 import NCA.Substitution
 import NCA.Upgrade
 import NCA.Continuation
+import NCA.Normalize

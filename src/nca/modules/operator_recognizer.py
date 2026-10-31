@@ -3,7 +3,8 @@
 Each classifies a glyph as one of its symbols or as none of them. A
 recognizer is trained only on rendered glyphs of its own symbols and, as
 negatives, MNIST digits and the other symbol set's glyphs. It never sees
-expressions, the digit recognizer, or arithmetic.
+expressions, the digit recognizer, or arithmetic. With ``--normalized`` it is
+trained on, and consumes, normalized glyphs (``nca.modules.normalizer``).
 
     uv run --extra vision python -m nca.modules.operator_recognizer --symbols operators
     uv run --extra vision python -m nca.modules.operator_recognizer --symbols relations
@@ -55,18 +56,24 @@ def build_network(symbol_set: SymbolSet = OPERATOR_SET) -> nn.Module:
 
 class SymbolRecognizer:
     def __init__(self, network: nn.Module, symbol_set: SymbolSet = OPERATOR_SET,
-                 version: str = "1.0.0") -> None:
+                 version: str = "1.0.0", normalized: bool = False) -> None:
+        from nca.modules.normalizer import NORMALIZED_GLYPH
+
         self.symbol_set = symbol_set
         self.manifest = Manifest(symbol_set.module_id, version,
-                                 Contract((GLYPH,), symbol_set.output))
+                                 Contract((NORMALIZED_GLYPH if normalized else GLYPH,),
+                                          symbol_set.output))
         self.network = network.eval()
+        self.normalized = normalized
 
     @classmethod
     def load(cls, path: Path, symbol_set: SymbolSet = OPERATOR_SET,
              version: str = "1.0.0") -> SymbolRecognizer:
         network = build_network(symbol_set)
-        network.load_state_dict(torch.load(path, map_location="cpu"))
-        return cls(network, symbol_set, version)
+        checkpoint = torch.load(path, map_location="cpu")
+        normalized = checkpoint.pop("normalized", False)
+        network.load_state_dict(checkpoint.get("state_dict", checkpoint))
+        return cls(network, symbol_set, version, normalized)
 
     @torch.no_grad()
     def invoke(self, glyph: torch.Tensor) -> tuple[float, ...]:
@@ -76,12 +83,15 @@ class SymbolRecognizer:
 
 
 def make_dataset(mnist_images: np.ndarray, size: int, seed: int,
-                 symbol_set: SymbolSet = OPERATOR_SET) -> torch.utils.data.TensorDataset:
+                 symbol_set: SymbolSet = OPERATOR_SET,
+                 normalized: bool = False) -> torch.utils.data.TensorDataset:
     """Balanced glyphs: each symbol and "none of these" with equal frequency.
 
     Negatives are MNIST digits, plus rendered ``symbol_set.negatives`` glyphs
     for a third of them when that set is non-empty.
     """
+    from nca.modules.normalizer import normalize_all
+
     rng = np.random.default_rng(seed)
     n = len(symbol_set.symbols)
     labels = rng.integers(n + 1, size=size)
@@ -96,12 +106,14 @@ def make_dataset(mnist_images: np.ndarray, size: int, seed: int,
         render_operator(symbol_set.symbols[y], rng) if y < n else negative()
         for y in labels
     ]).astype(np.float32)
+    if normalized:
+        images = normalize_all(images)
     return torch.utils.data.TensorDataset(
         torch.from_numpy(images)[:, None], torch.from_numpy(labels))
 
 
 def train(data_dir: Path, out: Path, epochs: int, seed: int,
-          symbol_set: SymbolSet = OPERATOR_SET) -> float:
+          symbol_set: SymbolSet = OPERATOR_SET, normalized: bool = False) -> float:
     """Train and return held-out accuracy (digits from the MNIST test set)."""
     from torchvision import datasets
 
@@ -110,8 +122,8 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int,
     def load(train: bool) -> np.ndarray:
         return datasets.MNIST(data_dir, train=train, download=True).data.numpy() / 255.0
 
-    train_set = make_dataset(load(True), 40_000, seed, symbol_set)
-    test_set = make_dataset(load(False), 10_000, seed + 1, symbol_set)
+    train_set = make_dataset(load(True), 40_000, seed, symbol_set, normalized)
+    test_set = make_dataset(load(False), 10_000, seed + 1, symbol_set, normalized)
 
     network = build_network(symbol_set)
     optimizer = torch.optim.Adam(network.parameters(), lr=1e-3)
@@ -128,7 +140,7 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int,
         images, labels = test_set.tensors
         accuracy = (network(images).argmax(dim=1) == labels).float().mean().item()
     out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(network.state_dict(), out)
+    torch.save({"normalized": normalized, "state_dict": network.state_dict()}, out)
     return accuracy
 
 
@@ -139,10 +151,12 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--normalized", action="store_true")
     args = parser.parse_args()
     symbol_set = SYMBOL_SETS[args.symbols]
     out = args.out or Path(f"checkpoints/{symbol_set.name}.pt")
-    print(f"test accuracy: {train(args.data, out, args.epochs, args.seed, symbol_set):.4f}")
+    accuracy = train(args.data, out, args.epochs, args.seed, symbol_set, args.normalized)
+    print(f"test accuracy: {accuracy:.4f}")
 
 
 if __name__ == "__main__":

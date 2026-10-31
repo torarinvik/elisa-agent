@@ -37,6 +37,7 @@ from nca.abi import Message
 from nca.expressions import ExpressionDataset
 from nca.modules.digit_recognizer import DigitRecognizer
 from nca.modules.operator_recognizer import SymbolRecognizer, make_dataset
+from nca.modules.normalizer import GlyphNormalizer, normalize_all
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import (
     INTEGER, SYMBOL_DISTRIBUTION, Evaluator, ExpressionParser, SymbolFuser,
@@ -50,8 +51,8 @@ from nca.workspace import Workspace
 
 def build_registry(digit: DigitRecognizer, operator: SymbolRecognizer) -> Registry:
     registry = Registry()
-    for module in (Segmenter(), digit, operator, SymbolFuser(), ExpressionParser(),
-                   Evaluator()):
+    for module in (Segmenter(), GlyphNormalizer(), digit, operator, SymbolFuser(),
+                   ExpressionParser(), Evaluator()):
         registry.install(module)
     return registry
 
@@ -124,10 +125,11 @@ def offline_failure_rates(digit: DigitRecognizer, operator: SymbolRecognizer,
     from torchvision import datasets
 
     mnist = datasets.MNIST(data_dir, train=False, download=True)
-    images = mnist.data.float()[:, None] / 255.0
+    raw = mnist.data.numpy() / 255.0
+    images = torch.from_numpy(normalize_all(raw) if digit.normalized else raw).float()[:, None]
     digit_error = (digit.network(images).argmax(dim=1) != mnist.targets).float().mean()
 
-    glyphs, labels = make_dataset(images[:, 0].numpy(), 10_000, seed + 1).tensors
+    glyphs, labels = make_dataset(raw, 10_000, seed + 1, normalized=operator.normalized).tensors
     is_operator = labels < 3
     logits = operator.network(glyphs[is_operator])[:, :3]
     operator_error = (logits.argmax(dim=1) != labels[is_operator]).float().mean()

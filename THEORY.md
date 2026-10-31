@@ -152,7 +152,10 @@ the composition pays for in full.
 ## 6. Algorithms of the handwritten-arithmetic pipeline
 
 **Segmentation** (`nca.modules.segmenter`). Ink columns (intensity > 0.1) are
-grouped into runs; runs separated by fewer than 2 blank columns merge. Each
+grouped into runs; runs separated by fewer than 4 blank columns merge (the
+gap was chosen on the `validation` split, where 4 minimizes segmentation
+failures for 2, 8 and 32 operands; results in sections before §15 were
+measured with a gap of 2, which split broken strokes more often). Each
 run is cropped and translated so that its center of ink mass is at the center
 of a 28×28 canvas, the MNIST normalization convention.
 
@@ -596,3 +599,66 @@ on the deferred set; for these two recognizers they are not. Continuations
 are needed when the sub-result has a different type from the output, which
 delegation cannot express (for example, splitting a value and requesting each
 part, as in `tests/test_kernel.py`).
+
+## 15. Normalization against shift
+
+**Theory** (`lean/NCA/Normalize.lean`). A normalizer `N : X → Y` is a module
+placed before a recognizer, which is then trained and evaluated on normalized
+inputs. A style shift is a map `T` applied to reference inputs, so the shifted
+distribution is `T_*ν₀` and the recognizer sees `N_*T_*ν₀` instead of `N_*ν₀`.
+
+| Theorem | Statement |
+|---|---|
+| `ShiftBound.map` | normalization never increases a shift (data processing) |
+| `shift_le_of_invariant_on` | if `N ∘ T = N` on `G`, the normalized shift is at most `ν₀(Gᶜ)` |
+| `shift_zero_of_invariant` | if `N ∘ T = N` everywhere, the shift is removed |
+
+With §5 this gives the design rule: a normalizer pays off exactly to the
+extent that it undoes the style, and no normalizer can help where the style
+destroys the information that separates classes (then `N(T x) = N(T x')` for
+`x`, `x'` of different classes, and any recognizer after `N` errs on one of
+them).
+
+**Normalizer** (`nca.modules.normalizer.GlyphNormalizer`, contract
+`GLYPH → NORMALIZED_GLYPH`). It scales the ink bounding box to 20 pixels,
+centers it, then thickens or thins strokes (3×3 max or min, at most three
+steps) until the ink fraction is in `[0.10, 0.21]`. This undoes size changes
+and most stroke-width changes; it does not undo rotation or endpoint noise.
+Recognizers trained with `--normalized` consume `NORMALIZED_GLYPH`, so the
+planner routes glyphs through the normalizer; they are trained on the normal
+style only.
+
+**Diagnosis of the hard style** (2000 expressions, failure rates per
+expression; before the fixes):
+
+| | segmentation | first digit | operator | second digit | accuracy |
+|---|---:|---:|---:|---:|---:|
+| test | 0.031 | 0.006 | 0.002 | 0.005 | 0.958 |
+| test (hard) | 0.123 | 0.157 | 0.257 | 0.161 | 0.428 |
+
+Segmentation failures on the hard style are almost all *extra* glyphs:
+thinned strokes break into pieces separated by narrow blank gaps. Thinning
+also erases 7% of digit glyphs completely, which nothing downstream can undo.
+For operators, a recognizer trained directly on the hard style reaches only
+80% among operators: rotation by up to ~20° with three times the endpoint
+noise makes `+` and `×` overlap, a floor of about 20% that no normalizer can
+remove.
+
+**Results** (2000 expressions; segmentation gap 4):
+
+| system | test | test_unseen | test (hard) | test_unseen (hard) |
+|---|---:|---:|---:|---:|
+| before (gap 2, raw recognizers) | 0.958 | 0.965 | 0.428 | 0.449 |
+| gap 4, raw recognizers | 0.977 | 0.984 | 0.446 | 0.463 |
+| gap 4, normalized digits | 0.968 | 0.963 | 0.501 | 0.509 |
+| gap 4, normalized digits and operators | 0.967 | 0.962 | 0.478 | 0.495 |
+
+With normalization the digit failure rate on the hard style falls from 0.19 to
+0.15 per position and the digit shift lower bound from 0.14 to 0.10 (the
+normalized operator recognizer is worse on hard operators, 0.305 vs 0.280,
+since rescaling does not undo rotation). The cost is about 0.5% digit
+error on the normal style. Remaining hard-style errors are dominated by the
+operator floor and erased digits. Choosing between the raw and normalized
+digit recognizer is a route decision (§8): on normal-style validation data the
+raw one wins, so the normalized route is adopted only when the deployment
+distribution is known to include such styles.

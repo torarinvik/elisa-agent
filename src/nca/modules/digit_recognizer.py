@@ -5,7 +5,9 @@ over the digits 0-9. It knows nothing about arithmetic or layout.
 
 Several independently trained implementations share the contract: the
 architecture (``cnn`` or ``mlp``) and the half of the MNIST training set used
-(``all``, ``first`` or ``second``) are training options. Train with::
+(``all``, ``first`` or ``second``) are training options. With ``--normalized``
+the recognizer is trained on, and consumes, normalized glyphs
+(``nca.modules.normalizer``). Train with::
 
     uv run --extra vision python -m nca.modules.digit_recognizer --out checkpoints/digit.pt
 """
@@ -47,16 +49,21 @@ SUBSETS = ("all", "first", "second")
 
 
 class DigitRecognizer:
-    def __init__(self, network: nn.Module, version: str = "1.0.0") -> None:
-        self.manifest = Manifest("nca.digit-recognizer", version, CONTRACT)
+    def __init__(self, network: nn.Module, version: str = "1.0.0",
+                 normalized: bool = False) -> None:
+        from nca.modules.normalizer import NORMALIZED_GLYPH
+
+        contract = Contract((NORMALIZED_GLYPH,), DIGIT_DISTRIBUTION) if normalized else CONTRACT
+        self.manifest = Manifest("nca.digit-recognizer", version, contract)
         self.network = network.eval()
+        self.normalized = normalized
 
     @classmethod
     def load(cls, path: Path, version: str = "1.0.0") -> DigitRecognizer:
         checkpoint = torch.load(path, map_location="cpu")
         network = build_network(checkpoint["arch"])
         network.load_state_dict(checkpoint["state_dict"])
-        return cls(network, version)
+        return cls(network, version, checkpoint.get("normalized", False))
 
     @torch.no_grad()
     def invoke(self, glyph: torch.Tensor) -> tuple[float, ...]:
@@ -65,14 +72,23 @@ class DigitRecognizer:
 
 
 def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
-          subset: str = "all") -> float:
+          subset: str = "all", normalized: bool = False) -> float:
     """Train on MNIST (or one half of its training set) and return test accuracy."""
-    from torchvision import datasets, transforms
+    from torchvision import datasets
+
+    from nca.modules.normalizer import normalize_all
 
     torch.manual_seed(seed)
-    to_tensor = transforms.ToTensor()
-    train_set = datasets.MNIST(data_dir, train=True, download=True, transform=to_tensor)
-    test_set = datasets.MNIST(data_dir, train=False, download=True, transform=to_tensor)
+
+    def load(train: bool) -> torch.utils.data.TensorDataset:
+        mnist = datasets.MNIST(data_dir, train=train, download=True)
+        images = mnist.data.numpy() / 255.0
+        if normalized:
+            images = normalize_all(images)
+        return torch.utils.data.TensorDataset(
+            torch.from_numpy(images).float()[:, None], mnist.targets)
+
+    train_set, test_set = load(True), load(False)
     if subset != "all":
         half = len(train_set) // 2
         indices = range(half) if subset == "first" else range(half, len(train_set))
@@ -96,7 +112,7 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
         for images, labels in test_loader:
             correct += (network(images).argmax(dim=1) == labels).sum().item()
     out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"arch": arch, "state_dict": network.state_dict()}, out)
+    torch.save({"arch": arch, "normalized": normalized, "state_dict": network.state_dict()}, out)
     return correct / len(test_set)
 
 
@@ -108,8 +124,10 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--arch", choices=ARCHITECTURES, default="cnn")
     parser.add_argument("--subset", choices=SUBSETS, default="all")
+    parser.add_argument("--normalized", action="store_true")
     args = parser.parse_args()
-    accuracy = train(args.data, args.out, args.epochs, args.seed, args.arch, args.subset)
+    accuracy = train(args.data, args.out, args.epochs, args.seed, args.arch, args.subset,
+                     args.normalized)
     print(f"test accuracy: {accuracy:.4f}")
 
 

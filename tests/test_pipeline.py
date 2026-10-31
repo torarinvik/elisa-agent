@@ -37,9 +37,9 @@ def test_segmenter_recovers_glyphs_in_order() -> None:
 
 
 def test_column_runs_merges_narrow_gaps() -> None:
-    image = np.zeros((4, 12))
-    image[:, [1, 2, 4, 8]] = 1.0
-    assert column_runs(image) == [(1, 5), (8, 9)]
+    image = np.zeros((4, 16))
+    image[:, [1, 2, 4, 12]] = 1.0
+    assert column_runs(image) == [(1, 5), (12, 13)]
 
 
 def test_fuser_is_a_distribution() -> None:

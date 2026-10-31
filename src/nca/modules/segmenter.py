@@ -19,7 +19,7 @@ EXPRESSION_IMAGE = "image.expression.gray.v1"
 """``torch.Tensor`` of shape (H, W), float in [0, 1], white ink on black."""
 
 INK = 0.1
-MIN_GAP = 2
+MIN_GAP = 4
 SIZE = 28
 
 
