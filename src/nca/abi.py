@@ -53,6 +53,8 @@ class Request:
 
     type_id: TypeId
     inputs: Mapping[TypeId, Any]
+    provisional: Any = None
+    """The requester's own best answer, used if the request turns out irrelevant."""
 
 
 _message_ids = itertools.count()

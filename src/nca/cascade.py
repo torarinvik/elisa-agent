@@ -13,9 +13,13 @@ as the fallback, and the expected cost ``κ₁ + κ₂ · P(defer)``
 
 Part B, end to end through the runtime and kernel. Arithmetic expressions of
 several lengths are solved with the cheap recognizer alone, the expensive one
-alone, and the requesting cheap recognizer at chosen thresholds, reporting
-error, cost per expression, and requests per expression, including requests
-spent on operator glyphs, whose digit reading the parser never uses.
+alone, and the requesting cheap recognizer at chosen thresholds, both ungated
+and gated by the symbol fuser's relevance declaration (the digit reading is
+irrelevant on glyphs the operator recognizer judges to be operators). Reports
+error, cost per expression, requests resolved and skipped per expression,
+resolved requests on operator glyphs (whose digit reading the parser never
+uses), and answers that differ between gated and ungated refinement, which
+``NCA.gated_error_le`` bounds by the relevant requests the gate skips.
 
     uv run --extra vision python -m nca.cascade --cheap checkpoints/digit_mlp.pt \\
         --expensive checkpoints/digit_cnn.pt
@@ -84,16 +88,16 @@ def glyph_level(cheap: DigitRecognizer, expensive: DigitRecognizer,
 
 
 def build(modules_before: list[Module], digit: Module, operator: SymbolRecognizer,
-          extra: list[Module]) -> list[Module]:
-    return [*modules_before, digit, operator, SymbolFuser(), ExpressionParser(), Evaluator(),
-            *extra]
+          extra: list[Module], gated: bool = False) -> list[Module]:
+    fuser = SymbolFuser(digit_relevance=0.5 if gated else 0.0)
+    return [*modules_before, digit, operator, fuser, ExpressionParser(), Evaluator(), *extra]
 
 
 def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: SymbolRecognizer,
                args: argparse.Namespace) -> None:
     print("\nPart B: end to end through the runtime and kernel")
-    print(f"{'glyphs':>7s} {'system':>18s} {'error [95% CI]':>26s} {'MFLOPs/expr':>12s} "
-          f"{'requests/expr':>14s} {'on operators':>13s}")
+    print(f"{'glyphs':>7s} {'system':>22s} {'error [95% CI]':>26s} {'MFLOPs/expr':>12s} "
+          f"{'resolved':>9s} {'skipped':>8s} {'on operators':>13s} {'changed':>8s}")
     segmenter = Segmenter()
     for operands in (2, 8, 32):
         glyphs = 2 * operands - 1
@@ -106,27 +110,37 @@ def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: Sym
         for tau in args.end_to_end:
             requester = RequestingRecognizer(cheap, tau)
             systems[f"refine τ={tau}"] = build([segmenter], requester, operator, [expensive])
+            systems[f"refine τ={tau} gated"] = build([segmenter], requester, operator,
+                                                     [expensive], gated=True)
+        answers: dict[str, list] = {}
         for name, modules in systems.items():
             kernel = Kernel(modules)
             route = plan_stable(modules, (EXPRESSION_IMAGE,), INTEGER)
             assert route is not None
-            wrong, spent, operator_requests = 0, 0.0, 0
+            wrong, spent, operator_requests, skipped = 0, 0.0, 0, 0
+            answers[name] = []
             for index in range(len(dataset)):
                 sample = dataset.sample(index)
                 workspace = Workspace()
                 image = Message(EXPRESSION_IMAGE, torch.from_numpy(sample.image), "input")
                 result = execute(route, {EXPRESSION_IMAGE: image}, workspace, 10_000, kernel)
                 wrong += result.payload != sample.value
+                answers[name].append(result.payload)
                 spent += workspace.spent
+                skipped += sum(m.type_id == "kernel.skipped" for m in workspace.messages())
                 glyphs_in_order = [m.message_id for m in workspace.messages()
                                    if m.producer == "map" and m.type_id == GLYPH]
                 requested = {m.parents[0] for m in workspace.messages()
                              if m.type_id == "kernel.request"}
                 operator_requests += sum(1 for g in glyphs_in_order[1::2] if g in requested)
             low, high = wilson(wrong, len(dataset))
-            print(f"{glyphs:7d} {name:>18s} {wrong / len(dataset):.4f} [{low:.4f}, {high:.4f}]"
-                  f" {spent / len(dataset) / 1e6:12.2f} {kernel.requests / len(dataset):14.2f}"
-                  f" {operator_requests / len(dataset):13.2f}")
+            ungated = answers.get(name.removesuffix(" gated"))
+            changed = ("-" if not name.endswith("gated") or ungated is None else
+                       str(sum(a != b for a, b in zip(answers[name], ungated))))
+            n = len(dataset)
+            print(f"{glyphs:7d} {name:>22s} {wrong / n:.4f} [{low:.4f}, {high:.4f}]"
+                  f" {spent / n / 1e6:12.2f} {kernel.requests / n:9.2f} {skipped / n:8.2f}"
+                  f" {operator_requests / n:13.2f} {changed:>8s}")
 
 
 def main() -> None:
@@ -139,7 +153,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--thresholds", type=float, nargs="+",
                         default=[0.5, 0.7, 0.9, 0.95, 0.99, 0.999])
-    parser.add_argument("--end-to-end", type=float, nargs="+", default=[0.9, 0.99])
+    parser.add_argument("--end-to-end", type=float, nargs="+", default=[0.9])
     args = parser.parse_args()
 
     cheap = DigitRecognizer.load(args.cheap)

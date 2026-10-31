@@ -28,4 +28,4 @@ class RequestingRecognizer:
         distribution = self.base.invoke(glyph)
         if max(distribution) >= self.threshold:
             return distribution
-        return Request(self.manifest.contract.output, {GLYPH: glyph})
+        return Request(self.manifest.contract.output, {GLYPH: glyph}, provisional=distribution)

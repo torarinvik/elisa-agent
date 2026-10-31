@@ -48,13 +48,26 @@ class SymbolFuser:
     glyph is an operator and the digit recognizer gives the digit otherwise.
     """
 
-    def __init__(self, vocabulary: Vocabulary = ARITHMETIC) -> None:
+    def __init__(self, vocabulary: Vocabulary = ARITHMETIC,
+                 digit_relevance: float = 0.5) -> None:
         self.vocabulary = vocabulary
+        self.digit_relevance = digit_relevance
         self.manifest = Manifest(
             f"{vocabulary.prefix}.symbol-fuser", "1.0.0",
             Contract((DIGIT_DISTRIBUTION, vocabulary.operator_distribution),
                      vocabulary.symbol_distribution),
         )
+
+    def relevant(self, index: int, provisional: list) -> bool:
+        """The digit reading matters only for glyphs the operator recognizer
+        considers at least ``digit_relevance`` likely not to be an operator.
+
+        A gate, not a guarantee: a digit misjudged as an operator is skipped,
+        which ``NCA.gated_error_le`` bounds.
+        """
+        if index != 0:
+            return True
+        return provisional[1][len(self.vocabulary.operators)] >= self.digit_relevance
 
     def invoke(self, digits: tuple[float, ...], operators: tuple[float, ...]) -> dict[str, float]:
         ops = self.vocabulary.operators

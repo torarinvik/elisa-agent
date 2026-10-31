@@ -166,3 +166,34 @@ def test_nested_request_chains_terminate() -> None:
     with pytest.raises(UnresolvedRequest):
         execute(route, {TEXT: Message(TEXT, "1", "input")}, Workspace(), 100, kernel)
     assert kernel.requests == len(always_ask)
+
+
+def test_consumer_declared_irrelevance_skips_resolution() -> None:
+    from nca.abi import Request
+    from nca.kernel import Kernel
+
+    @dataclass
+    class Chooser:
+        manifest: Manifest = field(default_factory=lambda: Manifest(
+            "choose", "1.0.0", Contract((INT, "flag.v1"), "choice.v1")))
+
+        def relevant(self, index: int, provisional: list) -> bool:
+            return index != 0 or provisional[1]
+
+        def invoke(self, value: int, flag: bool) -> int:
+            return value if flag else -1
+
+    requester = fn("unsure", [TEXT], INT, lambda s: Request(INT, {TEXT: s}, provisional=0))
+    fallback = fn("parse-int", [TEXT], INT, int)
+    flag = fn("flag", [TEXT], "flag.v1", lambda s: s.startswith("+"))
+    modules = [requester, flag, Chooser(), fallback]
+    route = plan(modules, (TEXT,), "choice.v1")
+    assert route.module.manifest.module_id == "choose"
+
+    kernel = Kernel(modules)
+    workspace = Workspace()
+    assert execute(route, {TEXT: Message(TEXT, "7", "input")}, workspace, 9, kernel).payload == -1
+    assert kernel.requests == 0
+    assert any(m.type_id == "kernel.skipped" for m in workspace.messages())
+    assert execute(route, {TEXT: Message(TEXT, "+7", "input")}, Workspace(), 9, kernel).payload == 7
+    assert kernel.requests == 1

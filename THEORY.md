@@ -493,9 +493,27 @@ into chains of any depth. Refinement spends expensive computation only on the
 fraction of inputs where the cheap module is unsure: cost tracks the input's
 difficulty, not its size alone.
 
-**Relevance.** A request is useful only if its result is read. In the
-arithmetic pipeline the digit recognizer runs on every glyph, but the parser
-reads its output only at digit positions, so requests raised on operator
-glyphs buy nothing (`nca.cascade` measures them). Gating requests on whether
-the requester's output can influence the answer, the event-restriction
-principle of §9 applied to computation, is the corresponding refinement.
+**Relevance gating.** A request is worth resolving only if its result can
+change the answer. Let `R` be the event that the requester's output influences
+the final answer: off `R`, the answer is wrong after refinement exactly when it
+is wrong without it (`E_r ∩ Rᶜ = E_u ∩ Rᶜ`). A gate `G` predicts relevance, and
+gated refinement resolves requests only on `Cᶜ ∩ G`.
+
+| Theorem | Statement |
+|---|---|
+| `gated_error_le` | `P(error, gated) ≤ P(error, ungated) + P(Cᶜ ∩ Gᶜ ∩ R)`: gating costs at most the relevant requests it skips |
+| `gated_error_eq_of_sound` | if the gate is sound (`R ⊆ G`), gated and ungated refinement err exactly equally |
+| `gated_expected_cost` | gated refinement costs `κ₁ + κ₂ · P(Cᶜ ∩ G)` |
+
+Requests are therefore resolved lazily (`nca.runtime`): a pending request is
+decided when its value is consumed. The *consumer* declares relevance, since
+only the reader knows what it reads: a module may define
+`relevant(index, provisional)`, judging from the provisional values of all its
+inputs whether input `index` can affect its result. An irrelevant pending
+request is settled with the requester's provisional answer and recorded as
+skipped; requests consumed without a declaration, mapped, or returned are
+always resolved. `SymbolFuser` declares the digit reading irrelevant on glyphs
+the operator recognizer judges to be operators. That gate is not sound (a digit
+misjudged as an operator is skipped), so its cost is the extra term of
+`gated_error_le`, measured by the answers that differ between gated and
+ungated refinement (`nca.cascade`).
