@@ -722,3 +722,89 @@ modular pipeline 53 (47 with normalization). On unseen pairs the shift
 compounds with the monolithic model's failure to compose. The modular system's
 loss is also diagnosable, since per-module failure rates and shift lower
 bounds locate it, and it can be fixed by replacing a single module.
+
+## 16. Knowing when to be unsure
+
+**Problem.** A long expression is answered correctly only if every glyph is
+read correctly, so with per-glyph error `ε` the answer error grows like
+`1 − (1 − ε)^L`: about 50% at 63 glyphs even with the expensive recognizer.
+Errors cannot be corrected without redundancy, but they can be *located*:
+calibrated confidences say which glyphs are doubtful, compute can be spent
+there, and the system can decline to answer when doubt remains.
+
+**Theory** (`lean/NCA/Selective.lean`). Each input carries an error bound
+`b`, the sum of its glyphs' calibrated error probabilities `1 − max p`
+(union bound, §4). Refining glyph `i` costs `κ i` and lowers the bound by
+`β i`.
+
+| Theorem | Statement |
+|---|---|
+| `selective_risk_le` | if the true error probability is at most `b` and only inputs with `b ≤ δ` are answered, the error rate among answered inputs is at most `δ` |
+| `threshold_optimal` | for a price `λ` per unit of compute, refining exactly `{i : λ κ i ≤ β i}` minimizes bound plus priced compute over all refinement sets |
+
+So the efficient policy is local: refine a glyph when its expected bound
+reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
+trade compute for reliability.
+
+**Implementation** (`nca.selective`). Each glyph climbs a ladder of readings,
+each rung with its own temperature fitted on the `validation` split by
+negative log-likelihood. The digit ladder has three rungs: the cheap
+recognizer; the expensive recognizer; and the expensive recognizer looking
+again at four one-pixel shifts, averaged with its first look. The operator
+ladder has two: the operator recognizer and the same second look. A second
+look adds redundancy, since shifted views make partly independent errors.
+While the bound exceeds `δ`, the least confident glyph moves up one rung,
+using its current error estimate as its expected reduction. If no rung
+remains, the system abstains.
+
+Segmentation is repaired with the grammar: an even glyph count means a glyph
+was split, so the two runs separated by the narrowest gap are merged. On the
+test split 11% of 63-glyph expressions had one extra glyph (broken strokes;
+the validation half has almost none); after repair, none are unparseable.
+
+**Results** (300 test expressions per length; MFLOPs per expression):
+
+| glyphs | system | coverage | error answered | error forced | MFLOPs |
+|---:|---|---:|---:|---:|---:|
+| 3 | bottom rungs | 0.993 | 0.037 | 0.043 | 9 |
+| 3 | top rungs, repaired | 1.000 | 0.010 | 0.010 | 128 |
+| 3 | δ = 0.05 | 0.940 | 0.004 | 0.007 | 18 |
+| 15 | bottom rungs | 0.967 | 0.145 | 0.173 | 61 |
+| 15 | top rungs, repaired | 1.000 | 0.063 | 0.063 | 640 |
+| 15 | δ = 0.2 | 0.923 | 0.061 | 0.080 | 111 |
+| 15 | δ = 0.01 | 0.360 | 0.000 | 0.063 | 445 |
+| 63 | bottom rungs | 0.893 | 0.515 | 0.567 | 248 |
+| 63 | top rungs, repaired | 1.000 | 0.273 | 0.273 | 2687 |
+| 63 | δ = 0.2 | 0.423 | 0.142 | 0.280 | 1680 |
+| 63 | δ = 0.05 | 0.070 | 0.095 | 0.273 | 2531 |
+
+*Error forced* is the error when the system must answer after refining as
+far as the target asks.
+
+- **Reliability.** Error among answered expressions stays within `δ` up to
+  sampling noise. At 63 glyphs and `δ = 0.05`, 21 expressions are answered
+  with 2 errors (interval `[0.03, 0.29]`); calibration was fitted on the
+  easier validation half.
+- **Efficiency.** Targeted refinement matches refining everything at a
+  fraction of the compute: 7× cheaper at 3 glyphs (and more accurate), 6×
+  cheaper at 15 glyphs for 1.7 points more error, and 37% cheaper at 63 glyphs
+  for 0.7 points.
+- **Long inputs.** Second looks and segmentation repair cut forced error at 63
+  glyphs from 0.567 to 0.273.
+- **Calibration.** Bounds stay above the true error, as the union bound
+  requires; per-rung calibration tightened the mean bound at 63 glyphs from
+  0.79 to 0.49 against 0.27 observed. Averaged second looks are
+  under-confident (fitted temperature 0.70) and need their own temperature.
+- **Limit.** Even at the top rung the per-glyph bound is about 0.4% for
+  digits, so at 63 glyphs targets below about 0.15 are infeasible for most
+  expressions and the system abstains. Lower error at that length needs a
+  stronger or more diverse reader; the controller then uses it automatically
+  as another rung.
+
+**Practice queue (design).** Abstentions and glyphs that reached the top rung
+with low confidence are where the library is weakest. Logged with the
+teacher's label, they form training data for a new expert version. That
+version is trained offline and adopted only through the upgrade rule of §8,
+so existing answers remain stable. Retraining on the system's own unverified
+answers is excluded: it reinforces its errors and breaks the freeze
+guarantees.
