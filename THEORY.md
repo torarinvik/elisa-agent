@@ -182,3 +182,16 @@ For deterministic modules, an unchanged route implies identical answers, so
 `planStable_append` predicts **zero changed answers** on every previously
 covered task. The changed-answer count is the stricter regression metric:
 equal accuracy can hide offsetting changes; zero changed answers cannot.
+
+The `conflict` scenario reproduces `plan_not_stable` with learned modules. A
+symbol classifier consuming `glyph.embedding.v1` is installed before the symbol
+fuser but is dormant: no module produces its input type. Installing a glyph
+encoder activates it. `plan` then routes every glyph through the classifier,
+because it precedes the fuser in installation order, and previously correct
+answers change; `planStable` keeps the original route.
+
+Stability is a guarantee about *unrequested* change. It also means a newly
+installed module never improves an already covered task on its own: adopting
+a better route must be an explicit, evaluated decision (for example,
+reordering or replacing modules after comparing both routes on the suite),
+not a side effect of installation.

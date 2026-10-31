@@ -83,3 +83,28 @@ def test_comparison_evaluator_chains():
 
     assert ComparisonEvaluator().invoke(("1", "<", "3", "=", "3"))
     assert not ComparisonEvaluator().invoke(("4", ">", "5"))
+
+
+def test_encoder_install_reroutes_plain_planner_but_not_stable():
+    from nca.modules.segmenter import EXPRESSION_IMAGE
+    from nca.modules.symbol_classifier import (
+        GlyphEncoder, SymbolClassifier, build_classifier, build_encoder,
+    )
+    from nca.modules.symbols import INTEGER
+    from nca.planner import plan, plan_stable
+    from nca.registry import Registry
+
+    registry = Registry()
+    for module in (Segmenter(), DigitRecognizer(digit_net()), SymbolRecognizer(op_net()),
+                   SymbolClassifier(build_classifier()), SymbolFuser(), ExpressionParser(),
+                   Evaluator()):
+        registry.install(module)
+    body = lambda route: route.args[0].args[0].body.module.manifest.module_id
+    before = plan_stable(registry.modules(), (EXPRESSION_IMAGE,), INTEGER)
+    assert before == plan(registry.modules(), (EXPRESSION_IMAGE,), INTEGER)
+    assert body(before) == "nca.symbol-fuser"
+
+    registry.install(GlyphEncoder(build_encoder()))
+
+    assert body(plan(registry.modules(), (EXPRESSION_IMAGE,), INTEGER)) == "nca.symbol-classifier"
+    assert plan_stable(registry.modules(), (EXPRESSION_IMAGE,), INTEGER) == before
