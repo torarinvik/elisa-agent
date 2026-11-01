@@ -34,7 +34,7 @@ from numbers import Integral
 from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
-from nca.abi import Manifest
+from nca.abi import Demand, Manifest
 from nca.planner import Apply, Map, Plan
 
 
@@ -169,16 +169,24 @@ class ExpertStore:
 
 
 class LazyExpert:
-    """A module loaded on first use, with a fixed manifest and owning store."""
+    """A module loaded on first use, with a fixed manifest and owning store.
+
+    Optional demand and relevance rules are available before the implementation
+    is loaded and must have the same semantics as its corresponding rules.
+    """
 
     def __init__(self, manifest: Manifest, load: Callable[[], Any], size: int,
-                 store: ExpertStore) -> None:
+                 store: ExpertStore, *,
+                 demand: Callable[[int, Demand], Demand] | None = None,
+                 relevant: Callable[[int, list[Any]], bool] | None = None) -> None:
         if isinstance(size, bool) or not isinstance(size, Integral) or size < 0:
             raise ValueError("expert size must be a nonnegative integer")
         self._manifest = manifest
         self.load = load
         self._size = int(size)
         self._store = store
+        self.demand = demand
+        self.relevant = relevant
 
     @property
     def manifest(self) -> Manifest:

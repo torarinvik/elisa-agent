@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 import pytest
 
-from nca.abi import Contract, Manifest, Message
+from nca.abi import NOTHING, Contract, Manifest, Message, Request
 from nca.loader import ExpertStore, LazyExpert
 from nca.planner import Apply, Given, Plan, ProducerIndex, plan, plan_stable_indexed
 from nca.runtime import execute
@@ -380,3 +380,30 @@ def test_lazy_expert_identity_and_store_are_stable() -> None:
     assert expert.store is store and expert.manifest is manifest
     expert.invoke()
     assert list(store.resident) == [manifest.ref] and store.stats.loads == 1
+
+
+def test_lazy_demand_rule_skips_unneeded_expert_without_loading_it() -> None:
+    store = ExpertStore(2)
+    loads: list[str] = []
+    source_manifest = Manifest("source", "1", Contract((), "unused"))
+    consumer_manifest = Manifest("consumer", "1", Contract(("unused",), "output"))
+    source = LazyExpert(source_manifest,
+                        lambda: loads.append("source") or Fn(source_manifest, lambda: 42),
+                        1, store)
+    consumer = LazyExpert(consumer_manifest,
+                          lambda: loads.append("consumer") or Fn(consumer_manifest, lambda _: "ok"),
+                          1, store, demand=lambda _index, _demand: NOTHING)
+    result = execute(Apply(consumer, (Apply(source, ()),)), {}, Workspace(), 2)
+    assert result.payload == "ok"
+    assert loads == ["consumer"] and list(store.resident) == [consumer_manifest.ref]
+
+
+def test_lazy_relevance_rule_skips_unneeded_request() -> None:
+    store = ExpertStore(1)
+    request_manifest = Manifest("request", "1", Contract((), "value"))
+    consumer_manifest = Manifest("consumer", "1", Contract(("value",), "output"))
+    requester = Fn(request_manifest, lambda: Request("value", {}, provisional=5))
+    consumer = LazyExpert(consumer_manifest, lambda: Fn(consumer_manifest, lambda value: value),
+                          1, store, relevant=lambda _index, _values: False)
+    result = execute(Apply(consumer, (Apply(requester, ()),)), {}, Workspace(), 2)
+    assert result.payload == 5 and store.stats.loads == 1
