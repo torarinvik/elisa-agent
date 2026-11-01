@@ -143,7 +143,8 @@ def resolve(term: Term, binding: Mapping[VarName, Term]) -> Term:
         return term if bound is None else resolve(bound, binding)
     if not term.args:
         return term
-    return App(term.name, tuple(resolve(a, binding) for a in term.args))
+    args = tuple(resolve(a, binding) for a in term.args)
+    return term if args == term.args else App(term.name, args)
 
 
 def unify(left: Term, right: Term, binding: dict[VarName, Term]) -> bool:
