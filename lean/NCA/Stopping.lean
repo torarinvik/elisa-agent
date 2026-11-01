@@ -12,9 +12,8 @@ Three facts about refinement's control decisions.
 
 * **Cost of reaching a target** (`cost_ge_of_ratio`). If no climb lowers the
   bound by more than `r` per unit of compute, lowering it by `D` costs at
-  least `D / r`, whatever the order. This is the fractional relaxation of
-  the covering problem refinement solves, and the bound climbing by largest
-  drop per unit cost attains in that relaxation.
+  least `D / r`, whatever the order. The lower bound need not be attainable,
+  even by the fractional relaxation, if the best-ratio climb is limited.
 * **Floors grow quadratically in fixed words** (`pairs_ge_count`). The pairs
   function of `t` risks, each at least `a`, is at least `t (t − 1) / 2 · a²`.
   So the pairs floor passes `δ` after about `1 + √(2δ) / a` fixed words, with
@@ -76,6 +75,13 @@ theorem cost_ge_of_ratio {I : Type*} (s : Finset I) (d c : I → ℝ) {r D : ℝ
   calc D ≤ ∑ i ∈ s, d i := hD
     _ ≤ ∑ i ∈ s, r * c i := sum_le_sum h
     _ = (∑ i ∈ s, c i) * r := by rw [← mul_sum, mul_comm]
+
+/-- A fractional instance where the best-ratio lower bound is strict. -/
+theorem fractional_ratio_bound_strict {x y : ℝ} (hx : x ≤ 1) (hy : y ≤ 1)
+    (h : 10 ≤ 6 * x + 4 * y) : (10 : ℝ) / 6 < x + 100 * y := by
+  have x_one : 1 ≤ x := by linarith
+  have y_one : 1 ≤ y := by linarith
+  linarith
 
 /-- The pairs function `Σ_{i<j} ρᵢ ρⱼ` of a list of risks. -/
 def pairsList : List ℝ → ℝ

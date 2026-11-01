@@ -23,9 +23,11 @@ the risks of the decisions it serves, ``NCA.certificate_error_le``); by
 default every item is charged the risk of a fixed decision. It abstains when
 no rung remains. For
 calibrated risks the error among answered inputs is at most ``δ``
-(``NCA.selective_risk_le``), and refining where the bound falls most per unit
-of compute is the ``NCA.threshold_optimal`` rule; with a floor ``ρ`` per item,
-``n`` items need ``n · ρ ≤ δ`` (``NCA.length_limit``).
+(``NCA.selective_risk_le``). For known independent reductions,
+``NCA.threshold_optimal`` characterizes a different objective: bound plus
+priced compute. The current largest-charge rule need not minimize compute;
+with a floor ``ρ`` per item, ``n`` items need ``n · ρ ≤ δ``
+(``NCA.length_limit``).
 
 ``refine`` may also abstain early (§22). A *floor* is a lower bound on every
 bound refinement can still reach, computed from the readings of *fixed*

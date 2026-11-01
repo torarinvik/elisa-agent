@@ -225,6 +225,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [24.4](theory/24-when-the-prior-is-wrong.md) | `dominated_risk_le` | `Misspecification` |
 | [24.5](theory/24-when-the-prior-is-wrong.md) | `adversarial_prior` | `Misspecification` |
 | [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `cost_ge_of_ratio` | `Stopping` |
+| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `fractional_ratio_bound_strict` | `Stopping` |
 | [25.2](theory/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
 | [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
 | [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |

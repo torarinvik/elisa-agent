@@ -48,6 +48,18 @@ def test_ladder_orders_experts_by_cost_and_refines_until_target() -> None:
     assert refine([0, 0], [rungs[:1]] * 2, delta=0.01).abstained
 
 
+def test_largest_charge_can_spend_more_than_a_feasible_alternative() -> None:
+    a0 = Rung(constant("a0", (0.4, 0.6), 1.0))
+    a1 = Rung(constant("a1", (0.001, 0.999), 100.0))
+    b0 = Rung(constant("b0", (0.3, 0.7), 1.0))
+    b1 = Rung(constant("b1", (0.001, 0.999), 1.0))
+    result = refine([0, 0], [[a0, a1], [b0, b1]], 0.41)
+    assert not result.abstained and result.cost == 102.0
+    alternative_bound = a0.risk(a0.observe(0)) + b1.risk(b1.observe(0))
+    assert alternative_bound < 0.41
+    assert a0.cost + b0.cost + b1.cost == 3.0
+
+
 def test_second_look_averages_views_and_costs_more() -> None:
     @dataclass
     class Echo:

@@ -15,9 +15,13 @@ bound by `dᵢ`, a quantity revealed only after the climb.
 lowers the bound by more than `r` per unit of compute, then any set of
 climbs that lowers it by `D` costs at least `D / r`, in any order.
 
-`D / r` is the optimum of the fractional relaxation. In that relaxation,
-climbing in order of largest drop per unit cost is optimal: each unit of
-compute buys the most bound it can.
+`D / r` is a lower bound, not necessarily the optimum of the fractional
+relaxation: the highest-ratio climbs may not supply enough drop. For
+example, reaching `D = 10` with climbs `(6, 1)` and `(4, 100)` requires
+both even in the fractional relaxation, so the optimum is 101 rather than
+`10 / 6`. With independent, known nonnegative drops and costs, the fractional
+relaxation is solved by taking available climbs in descending drop-to-cost
+order, taking a fraction of the last if needed.
 
 For whole climbs, neither greedy rule is optimal. Take `D = 10`:
 
@@ -26,20 +30,26 @@ For whole climbs, neither greedy rule is optimal. Take `D = 10`:
 | `(10, 2)`, `(6, 1)`, `(4, 1)` | `(10, 2)`: cost 2 | `(6, 1)`, then `(10, 2)`: cost 3 | 2 |
 | `(10, 5)`, `(6, 1)`, `(4, 1)` | `(10, 5)`: cost 5 | `(6, 1)`, `(4, 1)`: cost 2 | 2 |
 
-The ratio rule loses at most one climb's cost over the fractional optimum:
-it stops when the cumulative drop first reaches `D`, so only its last
-climb can overshoot. The controller charges by risk, not by expected drop
-per cost. That is the ratio rule with three simplifications:
+For independent known drops, the ratio rule loses at most one climb's cost
+over the fractional optimum: only its last climb can overshoot. These
+assumptions need not hold for state-dependent certificates or ladder steps.
+The controller charges by risk, not by expected drop per cost. Interpreting
+that as a ratio heuristic requires additional assumptions:
 
 - every climb is assumed to remove most of the item's charge;
-- equal costs are assumed within a ladder step;
-- drops are not known in advance.
+- equal costs are assumed within a ladder step.
 
-The second assumption holds exactly when one ladder serves every item, as
-in both domains. This connects to Theorem 16.2 (§16): refining
-exactly the items whose bound reduction exceeds `λ` times their cost
-minimizes risk plus `λ` times compute. Greedy by charge implements that
-rule one item at a time.
+Actual drops are not known before the climbs, so these assumptions may not
+hold on a given input.
+
+Even when one ladder serves every item, items at different rungs can have
+different next-climb costs. With different ladders the cost disparity can be
+larger. For example, at target 0.41, two independent charges 0.4 and 0.3
+can each be reduced to 0.001, at respective incremental costs 100 and 1.
+The largest-charge rule spends 100, although refining the second item alone
+reaches 0.401 at cost 1. Theorem 16.2 (§16) instead applies when the actual
+independent reductions and costs are known; ordering by current charge does
+not in general implement its threshold rule.
 
 ## 25.2 Why floors pass `δ` early
 
