@@ -228,3 +228,21 @@ def test_failed_load_releases_partial_route_pins() -> None:
     extra = make("extra", lambda: object())
     store.acquire(extra)
     assert store.resident_bytes <= 2
+
+
+def test_failed_route_preserves_only_surviving_old_pins() -> None:
+    store = ExpertStore(3)
+    def expert(name: str, loader: Callable[[], Any]) -> LazyExpert:
+        return LazyExpert(Manifest(name, "1", Contract((), name)), loader, 1, store)
+    shared = expert("shared", lambda: object())
+    old_only = expert("old", lambda: object())
+    store.prepare(Apply(shared, (Apply(old_only, ()),)))
+    partial = expert("partial", lambda: object())
+    def fail() -> Any:
+        raise RuntimeError("load failed")
+    broken = expert("broken", fail)
+    with pytest.raises(RuntimeError, match="load failed"):
+        store.prepare(Apply(shared, (Apply(partial, ()), Apply(broken, ()))))
+    assert store.pinned == frozenset({"shared@1"})
+    assert set(store.resident) == {"shared@1", "partial@1"}
+    assert store.resident_bytes == 2
