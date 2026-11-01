@@ -273,6 +273,9 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 `bernoulli_step_upper` establishes monotonicity of one nonnegative update;
 `poisson_binomial_upper_bound` uses upward-rounded operations in `stats.elisa`
 or its Python fallback for excess p-values, under IEEE 754 assumptions.
+The conservative Clopper–Pearson bisection uses a homogeneous-event Elisa
+recurrence without materializing repeated probabilities; the Python path
+remains the reference when the kernel is unavailable.
 For low thresholds it tracks the tail directly; `bernoulli_tail_step_upper`
 states the corresponding monotonicity step.
 Exact zero- and one-probability events are removed before choosing a count

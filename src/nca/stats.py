@@ -99,9 +99,15 @@ def clopper_pearson_upper(k: int, n: int, alpha: float) -> float:
     _validate_binomial_audit(k, n, alpha)
     if n == 0 or k >= n:
         return 1.0
+    native_alpha = float(alpha)
+    if native_alpha > alpha:
+        native_alpha = math.nextafter(native_alpha, 0.0)
     native_zero = getattr(_NATIVE, "clopper_zero_upper", None)
-    if k == 0 and native_zero is not None and n < 2**63:
-        return float(native_zero(n, alpha))
+    if k == 0 and native_zero is not None and n < 2**63 and native_alpha > 0.0:
+        return float(native_zero(n, native_alpha))
+    native = getattr(_NATIVE, "clopper_upper", None)
+    if native is not None and n < 2**63 and native_alpha > 0.0:
+        return float(native(k, n, native_alpha))
     low, high = 0.0, 1.0
     for _ in range(60):
         mid = (low + high) / 2
@@ -125,7 +131,15 @@ def _binomial_cdf_upper(k: int, n: int, rate: float) -> float:
         return 1.0
     if rate >= 1.0:
         return 0.0
-    failure = math.nextafter(1.0 - rate, 1.0)
+    lower_rate = float(rate)
+    if lower_rate > rate:
+        lower_rate = math.nextafter(lower_rate, 0.0)
+    if lower_rate == 0.0:
+        return 1.0
+    native = getattr(_NATIVE, "binomial_cdf_upper", None)
+    if k > 0 and native is not None and n < 2**63:
+        return float(native(k, n, lower_rate))
+    failure = math.nextafter(1.0 - lower_rate, 1.0)
     if k == 0:
         # P(no failures) = (1-rate)^n; exponentiation by squaring, rounded up.
         power, result, exponent = failure, 1.0, n
@@ -153,7 +167,10 @@ def clopper_pearson_exceeds(k: int, n: int, alpha: float, threshold: float) -> b
         return False
     if n == 0 or k >= n:
         return True
-    tail = poisson_binomial_upper_bound(k + 1, [threshold] * n)
+    upper_rate = float(threshold)
+    if upper_rate < threshold:
+        upper_rate = math.nextafter(upper_rate, 1.0)
+    tail = poisson_binomial_upper_bound(k + 1, [upper_rate] * n)
     lower_cdf = math.nextafter(1.0 - tail, 0.0) if tail < 1.0 else 0.0
     return lower_cdf > alpha
 

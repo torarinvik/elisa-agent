@@ -99,6 +99,46 @@ def poisson_binomial_upper(probabilities: view[f64], complements: view[f64], obs
         for i in 0..<(width + 1) |total: f64 = 0.0| -> total:
             total <- upper_add(total, pmf[i])
 
+# The same recurrence for identical events, without materializing n copies.
+def binomial_cdf_upper(k: i64, n: i64, rate: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    return 1.0 if rate <= 0.0
+    return 0.0 if rate >= 1.0
+    success: f64 = nextafter(1.0 - rate, 1.0)
+    return 1.0 if success == 1.0
+    failure: f64 = nextafter(1.0 - success, 1.0)
+    threshold: i64 = n - k
+    if threshold < k:
+        result: f64 =
+            for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<threshold], result: f64 = 0.0| -> result:
+                result <- upper_add(result, upper_product(success, pmf[threshold - 1]))
+                high: i64 = i + 1 if i + 1 < threshold else threshold - 1
+                for step in 0..<high:
+                    j: i64 = high - step
+                    pmf[j] <- upper_add(upper_product(failure, pmf[j]), upper_product(success, pmf[j - 1]))
+                pmf[0] <- upper_product(failure, pmf[0])
+        return result
+    pmf: darray[f64] =
+        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(k + 1)]| -> pmf:
+            high: i64 = i + 1 if i + 1 < k else k
+            for step in 0..<high:
+                j: i64 = high - step
+                pmf[j] <- upper_add(upper_product(success, pmf[j]), upper_product(failure, pmf[j - 1]))
+            pmf[0] <- upper_product(success, pmf[0])
+    return
+        for i in 0..<(k + 1) |result: f64 = 0.0| -> result:
+            result <- upper_add(result, pmf[i])
+
+def clopper_upper(k: i64, n: i64, alpha: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    return 1.0 if n <= 0 or k >= n
+    return clopper_zero_upper(n, alpha) if k == 0
+    return
+        for _ in 0..<60 |low: f64 = 0.0, high: f64 = 1.0| -> high:
+            mid: f64 = (low + high) / 2.0
+            if binomial_cdf_upper(k, n, mid) >= alpha:
+                low <- mid
+            else:
+                high <- mid
+
 def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     n: i64 = probabilities.len.i64()
     return [] if complements.len.i64() != n
@@ -132,3 +172,5 @@ export pymodule stats:
     fn poisson_binomial_upper
     fn pair_risk_upper
     fn clopper_zero_upper
+    fn clopper_upper
+    fn binomial_cdf_upper

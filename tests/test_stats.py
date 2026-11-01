@@ -270,6 +270,48 @@ def test_zero_error_native_bound_matches_fallback(monkeypatch) -> None:
             assert stats.clopper_pearson_upper(0, n, alpha) == expected
 
 
+def test_nonzero_native_bound_matches_fallback(monkeypatch) -> None:
+    import nca.stats as stats
+
+    native = stats._NATIVE
+    if getattr(native, "clopper_upper", None) is None:
+        pytest.skip("Elisa confidence bound is not built")
+    for n, k in ((2, 1), (10, 1), (10, 5), (10, 9), (50, 3), (50, 49)):
+        for alpha in (0.01, 0.1, 0.9):
+            monkeypatch.setattr(stats, "_NATIVE", None)
+            expected = stats.clopper_pearson_upper(k, n, alpha)
+            monkeypatch.setattr(stats, "_NATIVE", native)
+            assert stats.clopper_pearson_upper(k, n, alpha) == expected
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_clopper_pearson_high_precision_inputs_are_conservative(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import math
+    from fractions import Fraction
+    import nca.stats as stats
+
+    if reference:
+        monkeypatch.setattr(stats, "_NATIVE", None)
+    alphas = (Fraction(1, 10), Fraction(1, 3), Fraction(1, 2) - Fraction(1, 2**60))
+    thresholds = (Fraction(1, 2) - Fraction(1, 2**60),
+                  Fraction(1, 2) + Fraction(1, 2**60), Fraction(9, 10))
+    for n, k in ((1, 0), (2, 1), (10, 3)):
+        for alpha in alphas:
+            bound = stats.clopper_pearson_upper(k, n, alpha)
+            p = Fraction.from_float(bound)
+            cdf = sum((Fraction(math.comb(n, i)) * p**i * (1 - p)**(n - i)
+                       for i in range(k + 1)), Fraction())
+            assert cdf <= alpha
+            for threshold in thresholds:
+                exact = sum((Fraction(math.comb(n, i)) * threshold**i *
+                             (1 - threshold)**(n - i) for i in range(k + 1)), Fraction())
+                if stats.clopper_pearson_within(k, n, alpha, threshold):
+                    assert exact < alpha
+                if stats.clopper_pearson_exceeds(k, n, alpha, threshold):
+                    assert exact > alpha
+
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_clopper_pearson_early_rejection_is_sound(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:

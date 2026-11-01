@@ -119,6 +119,8 @@ rounded comparison does not certify. Early rejection uses a lower CDF bound
 above `α`, so numerical uncertainty cannot turn an inconclusive case into an
 irreversible rejection. These numerical claims use the IEEE 754 assumptions
 of the count-tail bounds in §21.8; they do not establish the sampling premise.
+Inputs represented more precisely than binary64 are rounded in the conservative
+direction before they enter a binary64 native calculation.
 
 **Fixed sequence.** Fix an order of the candidates, test them in that
 order, and stop at the first one not declared safe. By Theorem 17.5:
