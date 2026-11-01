@@ -71,6 +71,18 @@ never computed, and the answer is unchanged. Skipping the requests raised for
 them is therefore a sound gate: by Theorem 14.8, gated and
 ungated refinement err exactly equally.
 
+**Positive rescaling and decision demand.** Suppose a fuser presents scores
+`qᵢ = s · pᵢ` for a family of alternatives, where `s > 0` is independent of
+`i`. **Theorem 14.18.** Any maximizer of `p` is also a maximizer of `q`,
+and conversely. A consumer choosing only within that family can therefore ignore the input that
+sets `s`, provided the fuser and consumer use the same tie rule. This argument
+requires strictly positive `s`: at zero all scaled scores tie and the original
+winner need not be selected. In finite precision, even positive scaling can
+round distinct scores to the same value, so the real-number result alone does
+not justify dropping the ordering information. If a risk account uses the
+original ordering, every downstream decision based on the scaled scores must
+receive and use that same ordering as well.
+
 **Continuation requests.** Delegation replaces the requester's output; an
 expert that needs a sub-result and then keeps computing is instead a program
 over questions:

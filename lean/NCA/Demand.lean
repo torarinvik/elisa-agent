@@ -1,3 +1,5 @@
+import Mathlib.Data.Real.Basic
+
 /-!
 # Demand-driven evaluation
 
@@ -97,5 +99,20 @@ theorem DemandSound.shrink {V W : Type} {A : Readable V} {B : Readable W} {f : V
     {δ δ' : B.Demand → A.Demand} (hf : DemandSound A B f δ)
     (h : ∀ d v v', A.agree (δ' d) v v' → A.agree (δ d) v v') : DemandSound A B f δ' :=
   fun d v v' hv => hf d v v' (h d v v' hv)
+
+
+/-- A common strictly positive scale preserves every weak maximum. -/
+theorem positive_scale_preserves_maximum {ι : Type} (p : ι → ℝ) (a : ι)
+    {s : ℝ} (hs : 0 < s) :
+    (∀ i, p i ≤ p a) ↔ (∀ i, s * p i ≤ s * p a) := by
+  constructor
+  · intro h i
+    exact mul_le_mul_of_nonneg_left (h i) (le_of_lt hs)
+  · intro h i
+    exact le_of_mul_le_mul_left (h i) hs
+
+/-- With zero scale, all choices tie even when their original scores differ. -/
+theorem zero_scale_collapses_order (x y : ℝ) : (0 : ℝ) * x = 0 * y := by
+  simp
 
 end NCA

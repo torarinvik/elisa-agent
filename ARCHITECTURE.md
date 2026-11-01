@@ -140,6 +140,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [14.15](theory/14-kernel-mediated-requests-and-refinement.md) | `Safe.bind` | `Continuation` |
 | [14.16](theory/14-kernel-mediated-requests-and-refinement.md) | `Depth.run_le` | `Continuation` |
 | [14.17](theory/14-kernel-mediated-requests-and-refinement.md) | `Depth.bind` | `Continuation` |
+| [14.18](theory/14-kernel-mediated-requests-and-refinement.md) | `positive_scale_preserves_maximum`, `zero_scale_collapses_order` | `Demand` |
 | [15.1](theory/15-normalization-against-shift.md) | `ShiftBound.map` | `Normalize` |
 | [15.2](theory/15-normalization-against-shift.md) | `shift_le_of_invariant_on` | `Normalize` |
 | [15.3](theory/15-normalization-against-shift.md) | `shift_zero_of_invariant` | `Normalize` |
