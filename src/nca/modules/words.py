@@ -38,7 +38,7 @@ from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
 from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
 from nca.priors import ArityPrior, complete_prior, format_prior, height_prior, risk_from_partition
 from nca.partition import PartitionCursor
-from nca.ladder import Decision, _lower_sum, allocate_risk
+from nca.ladder import Decision, _lower_sum, _upper_sum, allocate_risk
 from nca.native import load
 
 _NATIVE = load("decoding")
@@ -112,6 +112,28 @@ def _arity_masses(readings: Sequence[Sequence[float]]) -> np.ndarray:
                                      len(ARITY_ORDER))).reshape(len(readings), len(ARITY_ORDER))
     return np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
                      for r in readings])
+
+
+def _pair_shares(risks: Sequence[float]) -> list[float]:
+    """Conservative pair shares without subtracting a risk from the total."""
+    values = []
+    for risk in risks:
+        value = float(risk)
+        values.append(math.nextafter(value, math.inf) if risk > value else value)
+    native = getattr(_NATIVE, "pair_shares", None)
+    if native is not None:
+        return list(native(np.asarray(values, dtype=np.float64)))
+    prefix = [0.0]
+    for value in values:
+        prefix.append(_upper_sum([prefix[-1], value]))
+    suffix = [0.0] * (len(values) + 1)
+    for i in reversed(range(len(values))):
+        suffix[i] = _upper_sum([suffix[i + 1], values[i]])
+    def product(a: float, b: float) -> float:
+        value = a * b
+        return value if a == 0.0 or b == 0.0 or math.isinf(value) else math.nextafter(value, math.inf)
+    return [product(product(value, _upper_sum([prefix[i], suffix[i + 1]])), 0.5)
+            for i, value in enumerate(values)]
 
 
 DETECTION = ("none", "markov", "pairs")
@@ -726,11 +748,11 @@ class FormulaEvaluator:
                   for k, w in enumerate(words)]
         kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
                 else set(range(n)))
-        total = sum(arity)
         shares = [r / 2 for r in arity]
-        pairs = [r * (total - r) / 2 for r in arity]
-        if self.detection == "pairs" and sum(pairs) < sum(shares):
-            shares = pairs
+        if self.detection == "pairs":
+            pairs = _pair_shares(arity)
+            if sum(pairs) < sum(shares):
+                shares = pairs
         return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
 
     def floor(self, readings: Sequence[Sequence[float]], risk: Callable[[int, Decision], float],

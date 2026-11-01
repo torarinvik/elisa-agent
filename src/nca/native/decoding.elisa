@@ -40,6 +40,22 @@ def lower_sum(values: view[f64]) -> f64 can[Abort.Panic]:
         for i in 0..<values.len.i64() |total: f64 = 0.0| -> total:
             total <- lower_add(total, values[i])
 
+# Upper-bounding products of nonnegative binary64 operands.
+def upper_product(a: f64, b: f64) -> f64:
+    product: f64 = a * b
+    return product if a == 0.0 or b == 0.0 or product == -log(0.0)
+    return nextafter(product, -log(0.0))
+
+# Half of each item's risk times the sum of all other risks, without subtraction.
+def pair_shares(risks: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    n: i64 = risks.len.i64()
+    prefix: darray[f64] = [0.0 for _ in 0..<(n + 1)]
+    suffix: darray[f64] = [0.0 for _ in 0..<(n + 1)]
+    for i in 0..<n:
+        prefix[i + 1] <- upper_add(prefix[i], risks[i])
+        suffix[n - i - 1] <- upper_add(suffix[n - i], risks[n - i - 1])
+    return [upper_product(upper_product(risks[i], upper_add(prefix[i], suffix[i + 1])), 0.5) for i in 0..<n]
+
 # Log weights may contain negative infinity but not NaN or positive infinity.
 def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
     for i in 0..<rows.len.i64():
@@ -716,6 +732,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
 export pymodule decoding:
     fn upper_sum
     fn lower_sum
+    fn pair_shares
     fn prior_partition
     fn valid_log_weights
     fn normalized_rows_fast

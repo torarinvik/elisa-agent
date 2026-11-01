@@ -202,6 +202,31 @@ def test_detection_accounts() -> None:
     assert sum(pairs.values()) == pytest.approx(evaluated + e2)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_pair_shares_preserve_tiny_risks(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    rng = np.random.default_rng(932)
+    samples = [[1.0, 1e-18, 0.0], [1.0, np.nextafter(0.0, 1.0)],
+               *[rng.random(10).tolist() for _ in range(100)]]
+    for risks in samples:
+        shares = word_module._pair_shares(risks)
+        exact = [Fraction.from_float(float(r)) for r in risks]
+        for i, share in enumerate(shares):
+            expected = exact[i] * sum((v for j, v in enumerate(exact) if i != j), Fraction()) / 2
+            assert Fraction.from_float(share) >= expected
+
+    arity = [1.0, 1e-18, 0.0]
+    def risk(k: int, decision: Decision) -> float:
+        return arity[k] if decision == ARITY_DECISION else 0.0
+    evaluator = FormulaEvaluator(detection="pairs", short_circuit=False)
+    account = evaluator.certificate(one_hot(["and", "true", "true"]), risk, no_distribution)
+    assert account is not None
+    assert sum(Fraction.from_float(float(v)) for v in account.values()) >= Fraction.from_float(1e-18)
+
+
 def test_floors_bound_every_account() -> None:
     """``FormulaEvaluator.floor`` never exceeds the account it bounds (§22.3),
     whatever the risks of the open words."""

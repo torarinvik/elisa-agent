@@ -109,6 +109,12 @@ over pairs. The generic interface therefore moves one step:
 | detection, Markov | `ρ_k / 2`, plus its restricted risk if evaluated |
 | detection, pairs | `ρ_k (S − ρ_k) / 2` (these sum to `e₂`), plus its restricted risk if evaluated |
 
+For an ordered sequence, `S − ρ_k` is exactly the sum of the risks before
+and after `k`. Prefix and suffix sums evaluate all such shares in linear
+time without subtracting nearly equal floating-point values. If the two
+partial sums bound their exact values from above and `ρ_k ≥ 0`, replacing
+them by those bounds cannot lower the corresponding exact pair share.
+
 ## 19.7 Scaling
 
 Over `m` words with arity risk `ρ` each, the arity term is

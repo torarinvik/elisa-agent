@@ -167,6 +167,14 @@ theorem detection_account_mono [LinearOrder ι] {ρ ρ' : ι → ℝ} (h0 : ∀ 
 
 end Counting
 
+/-- Upper bounds on the risks before and after an item upper-bound its pair share. -/
+theorem pair_share_prefix_suffix_upper (risk left right leftUpper rightUpper : ℝ)
+    (hr : 0 ≤ risk) (hl : left ≤ leftUpper) (hh : right ≤ rightUpper) :
+    risk * (left + right) / 2 ≤ risk * (leftUpper + rightUpper) / 2 := by
+  have h : 0 ≤ risk * ((leftUpper - left) + (rightUpper - right)) :=
+    mul_nonneg hr (add_nonneg (sub_nonneg.mpr hl) (sub_nonneg.mpr hh))
+  nlinarith
+
 /-- **Within-group errors.** Under a reading `p`, the probability that the
 true class lies in the read class's group `g` but differs from it,
 `p(g) − p(a)`, is at most the risk `1 − p(a) / p(g)` of the decision

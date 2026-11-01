@@ -154,6 +154,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [19.4](theory/19-error-detection-by-the-format.md) | `joint_le_restricted` | `Detection` |
 | [19.5](theory/19-error-detection-by-the-format.md) | `two_occur_le_half` | `Detection` |
 | [19.6](theory/19-error-detection-by-the-format.md) | `two_occur_le_pairs` | `Detection` |
+| [19.6](theory/19-error-detection-by-the-format.md) | `pair_share_prefix_suffix_upper` | `Detection` |
 | [20.1](theory/20-higher-order-experts-and-budgeted-requests.md) | `HTyped.mono` | `Slots` |
 | [20.2](theory/20-higher-order-experts-and-budgeted-requests.md) | `embed_wellTyped` | `Slots` |
 | [20.3](theory/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_le_pow` | `Slots` |
@@ -490,6 +491,9 @@ the conservativeness of the charges themselves.
 The built-in additive floor and the formula evaluator's non-detection floors
 convert and sum fixed charges downward under the same arithmetic assumptions.
 Detection-based and other custom floors retain their own obligations.
+Pairwise detection shares use Elisa prefix and suffix sums with upward-rounded
+products; Lean checks the real-number ordering, not the floating-point code.
+Other rounding in the detection account is not yet enclosed.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs
