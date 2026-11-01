@@ -36,7 +36,7 @@ class ArityPrior:
 
     Missing transitions are -1. Log edge and final weights may be -inf.
     Formula priors must incorporate the format constraint in their automaton.
-    Arrays are copied and made read-only so decoded risks retain their prior.
+    Arrays use immutable backing storage so decoded risks retain their prior.
     """
 
     alphabet: tuple[int, ...]
@@ -65,8 +65,8 @@ class ArityPrior:
         object.__setattr__(self, "alphabet", alphabet)
         for name, array in (("transitions", transitions.astype(np.int64)),
                             ("log_weights", weights), ("log_final", final)):
-            array.setflags(write=False)
-            object.__setattr__(self, name, array)
+            frozen = np.frombuffer(array.tobytes(order="C"), dtype=array.dtype).reshape(array.shape)
+            object.__setattr__(self, name, frozen)
 
     def log_weight(self, arities: Sequence[int]) -> float:
         """Log prior weight, or -inf for a forbidden sequence."""

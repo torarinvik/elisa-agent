@@ -9,6 +9,23 @@ from nca.formulas import (decode,
                           parse)
 
 
+def test_prior_arrays_cannot_be_made_writeable() -> None:
+    transitions = np.array([[0, 0]])
+    weights = np.array([[0.0, -1.0]])
+    final = np.array([0.0])
+    prior = priors.ArityPrior((0, 1), transitions, weights, final)
+    expected = prior.log_weight((0, 1))
+    transitions[:] = -1
+    weights[:] = 2
+    final[:] = -np.inf
+    for array in (prior.transitions, prior.log_weights, prior.log_final):
+        with pytest.raises(ValueError):
+            array.setflags(write=True)
+        with pytest.raises(ValueError):
+            array.flat[0] = 0
+    assert prior.log_weight((0, 1)) == expected
+
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
