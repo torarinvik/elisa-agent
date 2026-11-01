@@ -140,8 +140,6 @@ def solve_many(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
     Consumers must be deterministic. Floors and predictive stopping are not
     enabled; answers retain the cost at their own first qualifying state.
     """
-    if any(math.isnan(target) or target < 0 for target in targets):
-        raise ValueError("targets must be nonnegative and not NaN")
     if not targets:
         return []
     return _solve_targets(route, ladders, value, targets, start)
@@ -150,6 +148,8 @@ def solve_many(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
 def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                    targets: Sequence[float], start: int = 0, floors: bool = False,
                    stop: Stop | None = None, trace: list[State] | None = None) -> list[Answer]:
+    if any(math.isnan(target) or target < 0 for target in targets):
+        raise ValueError("targets must be nonnegative and not NaN")
     delta = min(targets)
     chain, mapped = split_route(route)
     chain = [getattr(module, "solve_session", lambda: module)() for module in chain]

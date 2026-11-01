@@ -195,6 +195,28 @@ def test_missing_certificate_cannot_meet_infinite_target() -> None:
     assert all(answer.abstained for answer in solve_many(route, ladders, "a", [1.0, float("inf")]))
 
 
+@pytest.mark.parametrize("account", [
+    {0: float("nan")}, {0: float("inf")}, {0: -0.1}, {-1: 0.1},
+    {2: 0.1}, {True: 0.1}, {0: 1e308, 1: 1e308},
+])
+def test_refinement_rejects_invalid_certificate_charges(account: dict[int, float]) -> None:
+    rung = Rung(constant("invalid-account-reader", (0.1, 0.9), 1.0))
+    with pytest.raises(ValueError, match="certificate charges"):
+        refine([0, 0], [[rung], [rung]], 1.0, certificate=lambda *_: account)
+
+
+@pytest.mark.parametrize("target", [float("nan"), -1.0])
+def test_refinement_and_single_solve_reject_invalid_targets(target: float) -> None:
+    rung = Rung(constant("invalid-target-reader", (0.1, 0.9), 1.0))
+    with pytest.raises(ValueError, match="target"):
+        refine([0], [[rung]], target)
+    reader = constant("invalid-target-route", (0.1, 0.9), 1.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), reader, Argmax(), Joiner()], ("text",), "out")
+    assert route is not None
+    with pytest.raises(ValueError, match="target"):
+        solve(route, {"dist": [Rung(reader)]}, "a", target)
+
+
 def test_practice_queue_and_fine_tuning() -> None:
     from nca.practice import practice, proportional, queue
 

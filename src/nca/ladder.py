@@ -41,6 +41,7 @@ compute and never affects the answers given.
 from __future__ import annotations
 
 import math
+from numbers import Integral
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from functools import cache
@@ -244,10 +245,11 @@ class Distribution:
 Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float],
                         Callable[[int, Decision], torch.Tensor]], dict[int, float] | None]
 """``certificate(readings, risk, distribution)``: a risk account for the
-current readings, each charged item's charge, computed with
+current readings, each charged item's finite nonnegative charge, computed with
 ``risk(i, decision)`` and the calibrated entry probabilities
 ``distribution(i, decision)``; the charges sum to a bound on the answer's
-error probability. ``None`` if the readings determine no answer."""
+error probability. Keys identify refined items. ``None`` if the readings
+determine no answer."""
 
 
 Floor = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float], frozenset[int]],
@@ -307,6 +309,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     state, including the initial and terminal states, with an independent
     outer reading list. Observers must not mutate the reading tensors.
     """
+    if math.isnan(delta) or delta < 0:
+        raise ValueError("target must be nonnegative and not NaN")
     decisions = list(classes) if classes is not None else [None] * len(values)
     levels = [0] * len(values)
     logs: list[torch.Tensor] = [torch.empty(0)] * len(values)
@@ -348,6 +352,10 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf
         else:
             charges, bound = account, sum(account.values())
+        if (any(isinstance(i, bool) or not isinstance(i, Integral) or not 0 <= i < len(values)
+                or not math.isfinite(charge) or charge < 0 for i, charge in charges.items())
+                or (account is not None and not math.isfinite(bound))):
+            raise ValueError("certificate charges must have valid item indices and finite nonnegative values")
         available = account is not None
         if observe is not None:
             observe(Refinement(list(readings), cost, bound,
