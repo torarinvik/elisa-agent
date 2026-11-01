@@ -296,6 +296,31 @@ def test_prior_selection_caches_fixed_base_normalizers_per_length(
         observations[0], np.broadcast_to(original_base, (2, 3))) for provider in providers)
     assert formulas.select_prior(providers, stream(), base).scores == scores
 
+
+def test_native_row_validation_falls_back_at_normalization_boundary() -> None:
+    native = getattr(priors._NATIVE, "normalized_rows_fast", None)
+    if native is None:
+        pytest.skip("native validation unavailable")
+    base = np.array([np.log(0.5), np.log(0.5), -np.inf])
+    valid = base.reshape(1, -1).copy()
+    assert native(valid.reshape(-1), base)
+    for delta in (0.0, 0.8e-12, 0.95e-12, 1.05e-12, 2e-12):
+        with np.errstate(divide="ignore"):
+            rows = np.log(np.array([[0.5, 0.5 - delta, 0.0]]))
+        accepted = bool(np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12))
+        if not accepted:
+            assert not native(rows.reshape(-1), base)
+    unsupported = np.log(np.array([[0.4, 0.4, 0.2]]))
+    assert not native(unsupported.reshape(-1), base)
+    assert not native(np.array([np.nan, 0.0, -np.inf]), base)
+    rng = np.random.default_rng(2715)
+    for width in (1, 2, 3):
+        shared_base = np.log(np.full(width, 1 / width))
+        for _ in range(200):
+            rows = np.log(rng.dirichlet(np.ones(width), size=5))
+            assert native(rows.reshape(-1), shared_base)
+            assert np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_bounded_selection_scores_unavailable_lengths_without_losing_the_batch(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:

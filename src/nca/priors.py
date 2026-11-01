@@ -287,9 +287,12 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
             raise ValueError("readings must be nonempty matrices over the shared alphabet")
         common = np.broadcast_to(base, rows.shape)
         # Validate every observation even after some candidates become unavailable.
-        if (np.any(np.isnan(rows)) or np.any(rows > 0)
+        fast_validate = getattr(_NATIVE, "normalized_rows_fast", None)
+        fast_valid = (fast_validate is not None
+                      and fast_validate(rows.reshape(-1), base))
+        if (not fast_valid and (np.any(np.isnan(rows)) or np.any(rows > 0)
                 or not np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)
-                or np.any(np.isneginf(common) & np.isfinite(rows))):
+                or np.any(np.isneginf(common) & np.isfinite(rows)))):
             raise ValueError("readings must be normalized and supported by the shared base")
         for i, provider in enumerate(candidates):
             if scores[i] == -math.inf:

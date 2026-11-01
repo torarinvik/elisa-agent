@@ -14,6 +14,20 @@
 extern exp(x: f64) -> f64
 extern log(x: f64) -> f64
 
+# Accept only rows comfortably inside the normalization tolerance. A false
+# result asks the caller to run its full validator, including boundary cases.
+def normalized_rows_fast(rows: view[f64], base: view[f64]) -> bool can[Abort.Panic]:
+    width: i64 = base.len.i64()
+    return false if width < 1 or width > 3 or rows.len.i64() % width != 0
+    for k in 0..<(rows.len.i64() / width):
+        total: f64 =
+            for j in 0..<width |total: f64 = 0.0| -> total:
+                x: f64 = rows[k * width + j]
+                return false if x != x or x > 0.0 or (base[j] == log(0.0) and x != log(0.0))
+                total += exp(x)
+        return false if total < 1.0 - 9.0e-13 or total > 1.0 + 9.0e-13
+    return true
+
 # The log-weight of an unreachable state, and log Z when no sequence is accepted.
 const FLOOR: f64 = -1.0e308
 
@@ -531,6 +545,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return 1.0 - probabilities[groups[top]]
 
 export pymodule decoding:
+    fn normalized_rows_fast
     fn decode
     fn decode_prior
     fn prior_log_weight

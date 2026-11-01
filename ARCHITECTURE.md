@@ -846,6 +846,9 @@ order for the batch. A local cache retains each immutable prior model and
 base normalizer by candidate index and length; observation normalizers are
 still computed for every formula. The cache is discarded when selection
 returns, so no cached denominator crosses calibration or selection runs.
+For widths up to three, Elisa accepts clearly normalized, base-supported
+reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
+full validation, as do wider alphabets and installations without the kernel.
 
 `FormulaDataset(..., early_leaf=p)` and `formula(..., early_leaf=p)` expose
 the structural-shift family in §18.1. The new trailing parameter defaults
