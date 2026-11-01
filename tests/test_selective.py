@@ -205,6 +205,12 @@ def test_refinement_rejects_invalid_certificate_charges(account: dict[int, float
         refine([0, 0], [[rung], [rung]], 1.0, certificate=lambda *_: account)
 
 
+def test_refinement_accepts_non_builtin_integral_indices() -> None:
+    rung = Rung(constant("numpy-index-reader", (0.1, 0.9), 1.0))
+    result = refine([0], [[rung]], 0.5, certificate=lambda *_: {np.int64(0): 0.1})
+    assert not result.abstained and result.bound == 0.1
+
+
 @pytest.mark.parametrize("target", [float("nan"), -1.0])
 def test_refinement_and_single_solve_reject_invalid_targets(target: float) -> None:
     rung = Rung(constant("invalid-target-reader", (0.1, 0.9), 1.0))
