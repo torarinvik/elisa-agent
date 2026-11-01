@@ -798,3 +798,31 @@ def test_native_grouped_masses_handles_empty_and_reordered_groups() -> None:
     np.testing.assert_array_equal(np.array(native(scores.reshape(-1), groups, 5)).reshape(3, 5),
                                   expected)
     assert native(np.empty(0), groups, 5) == []
+
+
+@pytest.mark.parametrize("decode", [False, True])
+def test_solve_formula_preserves_weight_order_when_logs_tie(decode: bool) -> None:
+    import math
+
+    from nca.modules.words import WORD_DISTRIBUTION
+
+    low = 1e-300
+    weights = [0.0] * len(VOCABULARY)
+    false = VOCABULARY.index("false")
+    true = VOCABULARY.index("true")
+    first, second = sorted((false, true))
+    weights[first] = low
+    weights[second] = math.nextafter(low, math.inf)
+
+    class Reader:
+        manifest = Manifest("tie-reader", "1", READER, cost=1.0)
+        def invoke(self, value):
+            return tuple(weights)
+
+    reader = Reader()
+    route = plan_stable([Tokenizer(), reader, FormulaEvaluator(decode=decode)],
+                        (FORMULA_TEXT,), BOOLEAN)
+    assert route is not None
+    result = solve(route, {WORD_DISTRIBUTION: [Rung(reader)]}, "true", 1.0)
+    assert not result.abstained
+    assert result.value == (second == true)

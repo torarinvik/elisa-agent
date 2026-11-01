@@ -126,16 +126,40 @@ class RankedObservation:
 
     def top(self, classes: Sequence[int] | None = None) -> int:
         """Return the first highest-weight class among the supplied indices."""
-        indices = tuple(range(len(self.weights))) if classes is None else tuple(classes)
-        if (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
-                               or not 0 <= i < len(self.weights) for i in indices)):
-            raise ValueError("classes must contain valid class indices")
-        native = getattr(_NATIVE, "row_argmax", None)
-        if native is not None:
-            values = np.fromiter((self.weights[i] for i in indices), dtype=np.float64,
-                                 count=len(indices))
-            return int(indices[int(native(values, len(indices))[0])])
-        return int(max(indices, key=self.weights.__getitem__))
+        return _ranked_top(self.weights, classes)
+
+
+def _ranked_top(weights: tuple[float, ...], classes: Sequence[int] | None) -> int:
+    indices = tuple(range(len(weights))) if classes is None else tuple(classes)
+    if (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
+                           or not 0 <= i < len(weights) for i in indices)):
+        raise ValueError("classes must contain valid class indices")
+    native = getattr(_NATIVE, "row_argmax", None)
+    if native is not None:
+        values = np.fromiter((weights[i] for i in indices), dtype=np.float64,
+                             count=len(indices))
+        return int(indices[int(native(values, len(indices))[0])])
+    return int(max(indices, key=weights.__getitem__))
+
+
+@dataclass(frozen=True)
+class RankedReading(Sequence[float]):
+    """Calibrated probabilities with the expert's original class ordering."""
+
+    probabilities: tuple[float, ...]
+    weights: tuple[float, ...]
+
+    def __len__(self) -> int:
+        return len(self.probabilities)
+
+    def __getitem__(self, index):
+        return self.probabilities[index]
+
+    def top(self, classes: Sequence[int] | None = None) -> int:
+        return _ranked_top(self.weights, classes)
+
+    def tolist(self) -> list[float]:
+        return list(self.probabilities)
 
 
 @dataclass
@@ -235,9 +259,12 @@ class Rung:
 
     def reading(self, log: torch.Tensor | RankedObservation) -> torch.Tensor:
         """Numerical probabilities; ranked ordering remains on the observation."""
+        temperature = self.temperature()
         if isinstance(log, RankedObservation):
+            if not math.isfinite(temperature) or temperature <= 0:
+                raise ValueError("ranked reading requires a positive finite temperature")
             log = log.logits
-        return torch.softmax(log / self.temperature(), dim=-1)
+        return torch.softmax(log / temperature, dim=-1)
 
     def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> float:
         """Calibrated error probability of the decision over ``classes``.
@@ -339,7 +366,7 @@ def ladder(modules: Sequence[Module], contract: Contract) -> list[Rung]:
 
 @dataclass
 class Refinement:
-    readings: list[torch.Tensor]
+    readings: list[torch.Tensor | RankedReading]
     cost: float
     bound: float
     abstained: bool
@@ -532,7 +559,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
            additive_floor: bool = False, stop: Stop | None = None,
            trace: list[State] | None = None,
            observe: Callable[[Refinement], None] | None = None, *,
-           priority: ClimbPriority | None = None) -> Refinement:
+           priority: ClimbPriority | None = None, ranked: bool = False) -> Refinement:
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
     Every item starts at rung ``min(start, top)``, reading each rung below it.
@@ -543,14 +570,16 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     instead ranks open items using their index, charge and next invocation
     cost; it must not mutate the refinement state. ``observe`` receives each
     state, including the initial and terminal states, with an independent
-    outer reading list. Observers must not mutate the reading tensors.
+    outer reading list. Observers must not mutate the reading tensors. When
+    ``ranked`` is enabled, readings preserve the original weight ordering;
+    the certificate and downstream consumer must use that ordering to choose.
     """
     if math.isnan(delta) or delta < 0:
         raise ValueError("target must be nonnegative and not NaN")
     decisions = list(classes) if classes is not None else [None] * len(values)
     levels = [0] * len(values)
-    logs: list[torch.Tensor] = [torch.empty(0)] * len(values)
-    readings: list[torch.Tensor] = [torch.empty(0)] * len(values)
+    logs: list[torch.Tensor | RankedObservation] = [torch.empty(0)] * len(values)
+    readings: list[torch.Tensor | RankedReading] = [torch.empty(0)] * len(values)
     risks: dict[tuple[int, int, DecisionKey], float] = {}
     distributions: dict[tuple[int, int, DecisionKey], torch.Tensor] = {}
     cost = 0.0
@@ -558,8 +587,11 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     def climb(i: int) -> None:
         nonlocal cost
         rung = ladders[i][levels[i]]
-        logs[i] = rung.observe(values[i])
-        readings[i] = rung.reading(logs[i])
+        observation = rung.observe_ranked(values[i]) if ranked else rung.observe(values[i])
+        logs[i] = observation
+        numeric = rung.reading(observation)
+        readings[i] = (RankedReading(tuple(numeric.tolist()), observation.weights)
+                       if isinstance(observation, RankedObservation) else numeric)
         cost += rung.cost
 
     def item_risk(i: int, decision: Decision) -> float:

@@ -24,6 +24,9 @@ to several readings of the element. Nothing below is specific to glyphs:
   risks and the elements whose readings can no longer change, a lower bound
   on every bound refinement can still reach, so that refinement abstains as
   soon as it exceeds the target (§22);
+* a direct consumer may declare ``ranked_readings = True`` to receive
+  calibrated sequences with original-weight ordering via ``top(classes)``;
+  its certificate, floor and answer must use the same ordering;
 * a consumer may declare ``solve_session()`` to provide a per-solve module;
   its demand, certificate, floor and answer are used throughout that solve;
 * if the map's source offers ``alternatives`` and the consumer would read
@@ -54,8 +57,8 @@ import torch
 from nca.abi import NOTHING, Contract, Message, Module, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
-from nca.ladder import (Certificate, ClimbPriority, Decision, Distribution, Floor, Refinement,
-                        Rung, SecondLook, State, Stop, ladder, refine)
+from nca.ladder import (Certificate, ClimbPriority, Decision, Distribution, Floor,
+                        RankedReading, Refinement, Rung, SecondLook, State, Stop, ladder, refine)
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -219,12 +222,14 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                      delta, start, [ranges(k, reads[i]) for i, k in items], certificate,
                      floor, floors, stop_shared if stops is not None else stop, trace,
                      observe if len(targets) > 1 or stops is not None else None,
-                     priority=priority)
+                     priority=priority,
+                     ranked=fuse is None and getattr(consumer, "ranked_readings", False))
 
     def answer(state: Refinement, target: float) -> Answer:
         inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]
         for (i, k), observed in zip(items, state.readings):
-            inputs[i][k] = tuple(observed.tolist())
+            inputs[i][k] = (observed if isinstance(observed, RankedReading)
+                            else tuple(observed.tolist()))
         result: Any = ([args[0] for args in inputs] if fuse is None else
                        [fuse.invoke(*args) if read != NOTHING else None
                         for args, read in zip(inputs, reads)])
@@ -276,7 +281,7 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
         for j, ((i, _), value) in enumerate(zip(items, readings)):
             version = revision(j) if revision is not None else None
             if version is None or revisions.get(i) != version:
-                elements[i] = tuple(value.tolist())
+                elements[i] = value if isinstance(value, RankedReading) else tuple(value.tolist())
                 if version is not None:
                     revisions[i] = version
 
@@ -305,7 +310,7 @@ def element_floor(consumer: Module, items: Sequence[tuple[int, int]],
               fixed: frozenset[int]) -> float:
         elements: list[Any] = [None] * count
         for (i, _), value in zip(items, readings):
-            elements[i] = tuple(value.tolist())
+            elements[i] = value if isinstance(value, RankedReading) else tuple(value.tolist())
         return declared(elements, lambda i, d: risk(position[i], d),
                         frozenset(items[j][0] for j in fixed))
 

@@ -38,7 +38,7 @@ from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
 from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
 from nca.priors import ArityPrior, complete_prior, format_prior, height_prior, risk_from_partition
 from nca.partition import PartitionCursor
-from nca.ladder import Decision, _lower_sum, _lower_values, _upper_sum, allocate_risk
+from nca.ladder import RankedReading, Decision, _lower_sum, _lower_values, _upper_sum, allocate_risk
 from nca.native import load
 
 _NATIVE = load("decoding")
@@ -64,6 +64,11 @@ ARITY_PRIOR = "logic.arity.prior.v1"
 
 def _most_likely_words(readings: Sequence[Sequence[float]]) -> list[str]:
     native = getattr(_NATIVE, "row_argmax", None)
+    if len(readings) and all(isinstance(row, RankedReading) for row in readings):
+        if native is not None:
+            scores = np.asarray([row.weights for row in readings], dtype=np.float64)
+            return [VOCABULARY[i] for i in native(scores.reshape(-1), scores.shape[1])]
+        return [VOCABULARY[row.top()] for row in readings]
     # A shared NumPy dtype must not round one row merely because another row
     # has a different dtype. Python float tuples and binary float arrays are
     # safe to convert together; other inputs retain per-row NumPy semantics.
@@ -448,6 +453,8 @@ class FormulaEvaluator:
     since a later climb can change the decoded sequence.
     """
 
+    ranked_readings = True
+
     def __init__(self, short_circuit: bool = True, detection: str = "none",
                  decode: bool = False, band_slack: float | None = None,
                  prior: Callable[[int], ArityPrior | None] | None = None) -> None:
@@ -531,6 +538,14 @@ class FormulaEvaluator:
                 _, state.answer_arities = state.answer_cursor.best(anchor)
             arities = state.answer_arities
         native = getattr(_NATIVE, "grouped_argmax", None)
+        if len(readings) and all(isinstance(row, RankedReading) for row in readings):
+            if native is not None:
+                scores = np.asarray([row.weights for row in readings], dtype=np.float64)
+                chosen = native(scores.reshape(-1), np.asarray(ARITY, dtype=np.int64),
+                                np.asarray(arities, dtype=np.int64))
+                return [VOCABULARY[c] for c in chosen]
+            return [VOCABULARY[row.top(ARITY_DECISION[a])]
+                    for row, a in zip(readings, arities)]
         if native is not None:
             scores = (state.answer_readings if state is not None else
                       np.asarray(readings, dtype=np.float64))

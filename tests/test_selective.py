@@ -1216,3 +1216,28 @@ def test_family_budget_reaches_all_audit_decision_paths(
     logic.shifted(None, {}, args)
     assert seen == {"order": 8, "check": 8, "certify": 8}
     assert "audit family: 8 tests" in capsys.readouterr().out
+
+
+def test_ranked_consumer_uses_same_order_for_answer_and_certificate() -> None:
+    from nca.selective import solve_many
+
+    class Consumer:
+        manifest = Manifest("ranked-consumer", "1", Contract(("seq[dist]",), "out"))
+        ranked_readings = True
+
+        def certificate(self, readings, risk, distribution):
+            assert readings[0].top([1, 2, 3]) == 2
+            return {0: risk(0, ((1, 3), (2,)))}
+
+        def invoke(self, readings):
+            return readings[0].top([1, 2, 3])
+
+    low = 1e-300
+    reader = constant("ranked-reader", (1.0, low, math.nextafter(low, math.inf), 1e-301),
+                      1.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), reader, Consumer()], ("text",), "out")
+    assert route is not None
+    answers = solve_many(route, {"dist": [Rung(reader)]}, "a", [0.5, 0.53])
+    assert [answer.value for answer in answers] == [2, 2]
+    assert [answer.abstained for answer in answers] == [True, False]
+    assert answers[1].bound == pytest.approx(11 / 21, abs=1e-14)
