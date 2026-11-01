@@ -141,6 +141,14 @@ theorem restricted_risk_le {m s : ℝ} (hm : 0 ≤ m) (hs : 0 < s) (hs1 : s ≤ 
     nlinarith
   linarith
 
+/-- The mass outside the chosen group gives the same conditional risk. -/
+theorem risk_as_alternative_mass (chosen alternative : ℝ)
+    (h : chosen + alternative ≠ 0) :
+    1 - chosen / (chosen + alternative) = alternative / (chosen + alternative) := by
+  have hsum : chosen / (chosen + alternative) + alternative / (chosen + alternative) = 1 := by
+    rw [← add_div, div_self h]
+  linarith
+
 /-- Grouping a finite class distribution preserves its total mass. -/
 theorem grouped_mass_sum {C G : Type} [Fintype C] [Fintype G] [DecidableEq G]
     (p : C → ℝ) (group : C → G) :

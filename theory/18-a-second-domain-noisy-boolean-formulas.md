@@ -94,6 +94,12 @@ outside the chosen group. With singleton groups this is the restricted risk
 `1 − max_C p / p(C)` of §16. With `C` all classes and singleton groups, it is
 the class risk `1 − max p`.
 
+For a partition with positive total mass, the same risk is the sum of masses
+outside the chosen group divided by the total. Computing that alternative
+mass directly avoids losing a small nonzero risk when the chosen share rounds
+to one. This improves numerical stability but does not itself round the risk
+outward or establish calibration.
+
 For a total group map `g : C → G`, define `q(a) = Σ_{c : g(c)=a} p(c)`.
 Every class contributes to exactly one group, so `Σ_a q(a) = Σ_c p(c)`;
 nonnegative class masses give nonnegative group masses. Thus grouping a

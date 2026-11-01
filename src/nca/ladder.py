@@ -255,15 +255,21 @@ def _lower_sum(values: Sequence[float]) -> float:
 
 def risk(reading: torch.Tensor, classes: Decision = None) -> float:
     """Error probability of the decision over ``classes`` (all if ``None``):
-    one minus the share of the chosen entry, the one holding the most
-    probable class listed."""
+    the share outside the entry holding the most probable class listed."""
     if classes is None:
-        return 1.0 - (reading.max() / reading.sum()).item()
-    union, positions = _layout(decision_key(classes))
+        top = int(reading.argmax())
+        outside = torch.cat((reading[:top], reading[top + 1:]))
+        return (outside.sum() / reading.sum()).item()
+    key = decision_key(classes)
+    union, positions = _layout(key)
     mass = reading[union]
     top = int(mass.argmax())
     chosen = next(part for part in positions if top in part)
-    return 1.0 - (mass[chosen].sum() / mass.sum()).item()
+    if _group_ids(key) is None:
+        return 1.0 - (mass[chosen].sum() / mass.sum()).item()
+    selected = set(chosen)
+    outside = [i for i in range(len(union)) if i not in selected]
+    return (mass[outside].sum() / mass.sum()).item()
 
 
 @dataclass(frozen=True)

@@ -161,6 +161,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_budget_obstruction` | `Calibration` |
 | [17.5](theory/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `grouped_risk_le` | `Certificate` |
+| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `risk_as_alternative_mass` | `Selective` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_symmetric` | `Edit` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_empty_left`, `osa_empty_right` | `Edit` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_self` | `Edit` |
@@ -781,6 +782,9 @@ observations continue through PyTorch and retain differentiability.
 observations and partitioned groups. It chooses the group containing the
 highest individual logit, preserving first-class ties, rather than choosing
 the group with greatest total mass. Full-class risk uses singleton groups.
+It sums the other groups' weights directly instead of subtracting the chosen
+probability from one. The PyTorch risk path uses the same formulation for
+partitions; overlapping decisions retain their existing behavior.
 PyTorch remains the fallback under the same device/gradient restrictions as
 grouped distribution. Native double arithmetic can change final rounding.
 

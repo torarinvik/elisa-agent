@@ -301,6 +301,31 @@ def test_risk_is_measured_against_the_decision() -> None:
     assert risk(reading, range(3)) == pytest.approx(0.10)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_risk_preserves_tiny_alternative_mass(reference: bool,
+                                               monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if reference:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    probabilities = torch.tensor([1.0, 1e-18, 2e-18], dtype=torch.float64)
+    rung = Rung(constant("tiny-risk", (1.0, 1e-18, 2e-18), 1.0))
+    logits = probabilities.log()
+    for classes, expected in ((None, 3e-18), (((0,), (1, 2)), 3e-18),
+                              (((0, 1), (2,)), 2e-18)):
+        assert ladder_module.risk(probabilities, classes) == pytest.approx(expected, rel=1e-14, abs=0)
+        assert rung.risk(logits, classes) == pytest.approx(expected, rel=1e-13, abs=0)
+
+
+def test_overlapping_decision_retains_existing_risk_semantics() -> None:
+    from nca.ladder import risk
+
+    reading = torch.tensor([0.5, 0.3, 0.2], dtype=torch.float64)
+    mass = reading[[0, 1, 1, 2]]
+    expected = 1.0 - (mass[[0, 1]].sum() / mass.sum()).item()
+    assert risk(reading, ((0, 1), (1, 2))) == expected
+
+
 def test_restricted_decision_gets_its_own_temperature() -> None:
     # Among operator-labeled inputs the expert is right 60% of the time,
     # though its output looks sure; the restricted temperature reflects that.

@@ -752,8 +752,13 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     top: i64 =
         for k in 0..<logits.len.i64() |top: i64 = 0| -> top:
             top <- k if logits[k] > logits[top] else top
-    probabilities: darray[f64] = calibrated_groups(logits, groups, entries, temperature)
-    return 1.0 - probabilities[groups[top]]
+    chosen: i64 = groups[top]
+    total, outside =
+        for i in 0..<logits.len.i64() |total: f64 = 0.0, outside: f64 = 0.0| -> (total, outside):
+            weight: f64 = exp((logits[i] - logits[top]) / temperature)
+            total += weight
+            outside += weight if groups[i] != chosen else 0.0
+    return outside / total
 
 export pymodule decoding:
     fn upper_sum
