@@ -164,3 +164,51 @@ def test_restricted_decision_gets_its_own_temperature() -> None:
     rung.calibrate([0] * 20, labels)
     assert rung.risk(rung.observe(0), range(3)) == pytest.approx(0.4, abs=0.05)
     assert set(rung.temperatures) == {None, (0, 1, 2)}
+
+
+@dataclass
+class Table:
+    """An expert reading item ``value`` as row ``value`` of a fixed table."""
+
+    manifest: Manifest
+    rows: list[tuple[float, ...]]
+
+    def invoke(self, value: int) -> tuple[float, ...]:
+        return self.rows[value]
+
+
+def test_floors_never_change_answers() -> None:
+    """Abstaining early by a floor gives the same answers and abstentions,
+    never at greater cost (§22.3)."""
+    rng = np.random.default_rng(0)
+    contract = Contract(("x",), "dist")
+    early_stops = 0
+    for _ in range(200):
+        n = int(rng.integers(1, 6))
+        rungs = ladder([Table(Manifest(f"r{c}", "1.0.0", contract, cost=float(10 ** c)),
+                              [tuple(rng.dirichlet([0.3, 0.3, 0.3]).tolist()) for _ in range(n)])
+                        for c in range(3)], contract)
+        delta = float(rng.choice([0.3, 0.1, 0.01]))
+        plain = refine(list(range(n)), [rungs] * n, delta)
+        early = refine(list(range(n)), [rungs] * n, delta, additive_floor=True)
+        assert early.abstained == plain.abstained and early.cost <= plain.cost
+        if not plain.abstained:
+            assert early.bound == plain.bound
+            assert all(torch.equal(a, b) for a, b in zip(early.readings, plain.readings))
+        early_stops += early.cost < plain.cost
+
+        def floor(readings: list[torch.Tensor], risk: Any, fixed: frozenset[int]) -> float:
+            return sum(risk(i, None) for i in fixed)
+
+        declared = refine(list(range(n)), [rungs] * n, delta, floor=floor)
+        assert declared.abstained == plain.abstained and declared.cost == early.cost
+    assert early_stops > 0
+
+
+def test_stopping_rule_only_abstains() -> None:
+    contract = Contract(("x",), "dist")
+    rungs = ladder([constant("unsure", (0.4, 0.6), 1.0, contract),
+                    constant("sure", (0.01, 0.99), 10.0, contract)], contract)
+    assert not refine([0, 0], [rungs] * 2, 0.05, stop=lambda state: False).abstained
+    stopped = refine([0, 0], [rungs] * 2, 0.05, stop=lambda state: True)
+    assert stopped.abstained and stopped.cost == pytest.approx(2.0)

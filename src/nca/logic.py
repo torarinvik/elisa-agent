@@ -11,6 +11,12 @@ certificate crediting error detection by Markov's inequality or by pairs
 formulas, mean bound among answered, error when forced to answer, and compute
 per formula.
 
+With ``--floors`` every system also runs with early abstention by the
+evaluator's floor (§22.3), checking that the answers are identical and
+reporting compute overall and on abstained formulas. ``--frontier`` traces
+the coverage–compute frontier of the predictive stopping rule (§22.4) for
+one account (``--account``), fitted on validation formulas of each depth.
+
 It first reports certificate sizes on the true formulas: the fewest leaves a
 valid certificate evaluates, against the bound ``2^⌈d/2⌉`` of
 ``NCA.alternating_cert_leaves``.
@@ -33,13 +39,13 @@ import torch
 from nca.abi import TypeId
 from nca.certify import INFLATIONS
 from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words, parse
-from nca.ladder import Rung, certification_order, certify
+from nca.ladder import Rung, State, Stop, certification_order, certify, stopping_rule
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (WORD_DISTRIBUTION, CharReader, EditReader, FormulaEvaluator,
                                FORMULA_TEXT, Tokenizer)
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
-from nca.selective import build_ladders, solve
+from nca.selective import Answer, build_ladders, solve
 from nca.stats import wilson
 
 
@@ -76,11 +82,39 @@ def outcomes(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[F
     return answered, wrong
 
 
+def run(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[FormulaSample],
+        delta: float, start: int = 0, floors: bool = False,
+        stop: Stop | None = None) -> list[Answer]:
+    return [solve(route, ladders, s.text, delta, start, floors, stop) for s in samples]
+
+
+def summary(answers: Sequence[Answer], samples: Sequence[FormulaSample]) -> str:
+    """Coverage, error among answered [95% CI], mean bound, error forced, kFLOPs."""
+    n = len(samples)
+    answered = [a for a in answers if not a.abstained]
+    wrong_answered = sum(a.value != s.value for a, s in zip(answers, samples) if not a.abstained)
+    wrong_forced = sum(a.value != s.value for a, s in zip(answers, samples))
+    low, high = wilson(wrong_answered, len(answered)) if answered else (0.0, 1.0)
+    rate = wrong_answered / len(answered) if answered else float("nan")
+    mean_bound = sum(a.bound for a in answered) / len(answered) if answered else float("nan")
+    return (f"{len(answered) / n:9.3f} {rate:.4f} [{low:.4f}, {high:.4f}]".ljust(37)
+            + f" {mean_bound:11.4f} {wrong_forced / n:13.4f} "
+            f"{sum(a.cost for a in answers) / n / 1e3:8.1f}")
+
+
+def abstained_cost(answers: Sequence[Answer]) -> float:
+    """Mean kFLOPs on abstained formulas."""
+    spent = [a.cost for a in answers if a.abstained]
+    return sum(spent) / len(spent) / 1e3 if spent else float("nan")
+
+
 def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
               args: argparse.Namespace) -> None:
+    extra = (f" {'abst kFLOPs':>11s} {'floor kFLOPs':>12s} {'floor abst':>10s} {'same':>5s}"
+             if args.floors else "")
     print(f"{'depth':>5s} {'words':>6s} {'system':>13s} {'coverage':>9s} "
           f"{'error answered [95% CI]':>27s} {'mean bound':>11s} {'error forced':>13s} "
-          f"{'kFLOPs':>8s}")
+          f"{'kFLOPs':>8s}" + extra)
     top = max(len(rungs) for rungs in ladders.values())
     for depth in args.depths:
         dataset = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor)
@@ -91,25 +125,39 @@ def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
         for delta in args.targets:
             systems |= {f"{name} δ={delta:g}": (name, delta, 0) for name in args.accounts}
         for system, (name, delta, start) in systems.items():
-            answered = wrong_answered = wrong_forced = 0
-            spent = bound_sum = 0.0
-            for sample in samples:
-                answer = solve(routes[name], ladders, sample.text, delta, start)
-                wrong = answer.value != sample.value
-                spent += answer.cost
-                wrong_forced += wrong
-                if not answer.abstained:
-                    answered += 1
-                    wrong_answered += wrong
-                    bound_sum += answer.bound
-            n = len(samples)
-            low, high = wilson(wrong_answered, answered) if answered else (0.0, 1.0)
-            rate = wrong_answered / answered if answered else float("nan")
-            mean_bound = bound_sum / answered if answered else float("nan")
-            print(f"{depth:5d} {words:6.1f} {system.replace('certificate', 'cert'):>13s} "
-                  f"{answered / n:9.3f} {rate:.4f} [{low:.4f}, {high:.4f}]".ljust(66)
-                  + f" {mean_bound:11.4f} {wrong_forced / n:13.4f} {spent / n / 1e3:8.1f}",
-                  flush=True)
+            answers = run(routes[name], ladders, samples, delta, start)
+            line = (f"{depth:5d} {words:6.1f} {system.replace('certificate', 'cert'):>13s} "
+                    + summary(answers, samples))
+            if args.floors:
+                early = run(routes[name], ladders, samples, delta, start, floors=True)
+                same = all(a.abstained == b.abstained and (a.abstained or a.value == b.value)
+                           for a, b in zip(answers, early))
+                line += (f" {abstained_cost(answers):11.1f} "
+                         f"{sum(a.cost for a in early) / len(early) / 1e3:12.1f} "
+                         f"{abstained_cost(early):10.1f} {str(same):>5s}")
+            print(line, flush=True)
+
+
+def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Namespace) -> None:
+    """Coverage and compute of the predictive stopping rule as ``λ`` varies."""
+    print(f"{'depth':>5s} {'δ':>5s} {'λ':>8s} {'coverage':>9s} {'error answered [95% CI]':>27s} "
+          f"{'mean bound':>11s} {'error forced':>13s} {'kFLOPs':>8s}")
+    for depth in args.depths:
+        fit = FormulaDataset("validation", args.fit, depth, args.noise, args.seed + 1, args.xor)
+        test = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor)
+        samples = [test.sample(i) for i in range(len(test))]
+        for delta in args.targets:
+            runs = []
+            for i in range(len(fit)):
+                trace: list[State] = []
+                answer = solve(route, ladders, fit.sample(i).text, delta, floors=True,
+                               trace=trace)
+                runs.append((trace, not answer.abstained, answer.cost))
+            for lam in (0.0, *args.lambdas):
+                stop = stopping_rule(runs, delta, lam) if lam > 0 else None
+                answers = run(route, ladders, samples, delta, floors=True, stop=stop)
+                print(f"{depth:5d} {delta:5g} {lam:8.1e} " + summary(answers, samples),
+                      flush=True)
 
 
 def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Namespace) -> None:
@@ -159,6 +207,12 @@ def main() -> None:
     parser.add_argument("--audit", type=int, default=200, help="formulas per audit half")
     parser.add_argument("--draws", type=int, default=3)
     parser.add_argument("--alpha", type=float, default=0.1)
+    parser.add_argument("--floors", action="store_true", help="compare early abstention")
+    parser.add_argument("--frontier", action="store_true",
+                        help="trace the predictive stopping rule for --account")
+    parser.add_argument("--fit", type=int, default=200, help="formulas to fit the rule")
+    parser.add_argument("--lambdas", type=float, nargs="+",
+                        default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     args = parser.parse_args()
 
     routes = {}
@@ -183,7 +237,9 @@ def main() -> None:
         print(f"{depth:5d} {2 ** depth:7d} {sum(sizes) / len(sizes):25.2f} {max(sizes):5d} "
               f"{2 ** ((depth + 1) // 2):14d}")
 
-    if args.shift is None:
+    if args.frontier:
+        frontier(routes[args.account], ladders, args)
+    elif args.shift is None:
         selective(routes, ladders, args)
     else:
         shifted(routes[args.account], ladders, args)

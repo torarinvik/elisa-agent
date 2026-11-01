@@ -19,6 +19,10 @@ to several readings of the element. Nothing below is specific to glyphs:
   given the readings and each one's risk under any decision, a risk account
   charging each reading its share of a bound on the answer's error, which
   may depend on the readings' values (``NCA.certificate_error_le``);
+* such a consumer may also declare a ``floor``: given the readings, their
+  risks and the elements whose readings can no longer change, a lower bound
+  on every bound refinement can still reach, so that refinement abstains as
+  soon as it exceeds the target (§22);
 * if the map's source offers ``alternatives`` and the consumer would read
   nothing of a candidate, the next candidate is tried without reading it.
 
@@ -46,7 +50,8 @@ import torch
 from nca.abi import NOTHING, Contract, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
-from nca.ladder import Certificate, Decision, Rung, SecondLook, ladder, refine
+from nca.ladder import (Certificate, Decision, Floor, Rung, SecondLook, State, Stop, ladder,
+                        refine)
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -94,7 +99,14 @@ def split_route(route: Plan) -> tuple[list[Module], Map]:
 
 
 def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: float,
-          start: int = 0) -> Answer:
+          start: int = 0, floors: bool = False, stop: Stop | None = None,
+          trace: list[State] | None = None) -> Answer:
+    """Answer ``value`` along ``route`` within target ``delta``, or abstain.
+
+    With ``floors`` refinement abstains as soon as the consumer's floor (or,
+    without a certificate, the additive floor) exceeds ``delta``; ``stop`` and
+    ``trace`` are passed to ``refine``.
+    """
     chain, mapped = split_route(route)
     consumer, body, source = chain[-1], mapped.body, mapped.source
     experts = readers(mapped)
@@ -119,8 +131,10 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
     ranges = getattr(fuse, "decision_classes", lambda k, d: None)
     certificate = element_certificate(consumer, items, len(elements))
     assert certificate is None or fuse is None, "certificates are declared on direct readings"
+    floor = element_floor(consumer, items, len(elements)) if floors else None
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
-                     delta, start, [ranges(k, reads[i]) for i, k in items], certificate)
+                     delta, start, [ranges(k, reads[i]) for i, k in items], certificate,
+                     floor, floors, stop, trace)
     inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]
     for (i, k), observed in zip(items, refined.readings):
         inputs[i][k] = tuple(observed.tolist())
@@ -149,6 +163,25 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
         return None if chosen is None else {position[i]: c for i, c in chosen.items()}
 
     return certificate
+
+
+def element_floor(consumer: Module, items: Sequence[tuple[int, int]],
+                  count: int) -> Floor | None:
+    """The consumer's floor over its elements, as one over refined items."""
+    declared = getattr(consumer, "floor", None)
+    if declared is None:
+        return None
+    position = {i: j for j, (i, _) in enumerate(items)}
+
+    def floor(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
+              fixed: frozenset[int]) -> float:
+        elements: list[Any] = [None] * count
+        for (i, _), value in zip(items, readings):
+            elements[i] = tuple(value.tolist())
+        return declared(elements, lambda i, d: risk(position[i], d),
+                        frozenset(items[j][0] for j in fixed))
+
+    return floor
 
 
 def build_ladders(modules: Sequence[Module], route: Plan,
@@ -205,6 +238,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--operands", type=int, nargs="+", default=[2, 8, 32])
     parser.add_argument("--targets", type=float, nargs="+", default=[0.2, 0.05, 0.01])
+    parser.add_argument("--hard", action="store_true", help="the shifted hard style")
+    parser.add_argument("--floors", action="store_true",
+                        help="also abstain early by the additive floor, checking answers agree")
     args = parser.parse_args()
 
     modules = library(args)
@@ -216,19 +252,27 @@ def main() -> None:
         print(f"{t}: " + ", ".join(f"{r.module.manifest.module_id} (T={r.temperature():.2f})"
                                    for r in rungs))
     print(f"{'glyphs':>7s} {'system':>13s} {'coverage':>9s} {'error answered [95% CI]':>27s} "
-          f"{'mean bound':>11s} {'error forced':>13s} {'MFLOPs/expr':>12s}")
+          f"{'mean bound':>11s} {'error forced':>13s} {'MFLOPs/expr':>12s}"
+          + (f" {'floor MFLOPs':>12s} {'same':>5s}" if args.floors else ""))
     top = max(len(rungs) for rungs in ladders.values())
     for operands in args.operands:
         dataset = ExpressionDataset("test", args.samples, args.data, args.seed,
-                                    operands=operands)
+                                    hard=args.hard, operands=operands)
         samples = [dataset.sample(i) for i in range(len(dataset))]
         systems = {"bottom rungs": (float("inf"), 0), "top rungs": (float("inf"), top)}
         systems |= {f"δ={d:g}": (d, 0) for d in args.targets}
         for name, (delta, start) in systems.items():
             answered = wrong_answered = wrong_forced = 0
-            spent = bound_sum = 0.0
+            spent = bound_sum = early_spent = 0.0
+            same = True
             for sample in samples:
                 answer = solve(route, ladders, torch.from_numpy(sample.image), delta, start)
+                if args.floors:
+                    early = solve(route, ladders, torch.from_numpy(sample.image), delta, start,
+                                  floors=True)
+                    early_spent += early.cost
+                    same &= early.abstained == answer.abstained and (
+                        answer.abstained or early.value == answer.value)
                 wrong = answer.value != sample.value
                 spent += answer.cost
                 wrong_forced += wrong
@@ -242,7 +286,9 @@ def main() -> None:
             mean_bound = bound_sum / answered if answered else float("nan")
             print(f"{2 * operands - 1:7d} {name:>13s} {answered / n:9.3f} "
                   f"{rate:.4f} [{low:.4f}, {high:.4f}]".ljust(59)
-                  + f" {mean_bound:11.4f} {wrong_forced / n:13.4f} {spent / n / 1e6:12.2f}")
+                  + f" {mean_bound:11.4f} {wrong_forced / n:13.4f} {spent / n / 1e6:12.2f}"
+                  + (f" {early_spent / n / 1e6:12.2f} {str(same):>5s}" if args.floors else ""),
+                  flush=True)
 
 
 if __name__ == "__main__":
