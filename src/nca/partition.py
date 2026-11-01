@@ -50,7 +50,7 @@ class PartitionCursor:
         if len(selected) != len(rows):
             raise ValueError("selected sequence must match the number of rows")
         if _NATIVE is None or any(symbol not in self.prior.alphabet for symbol in selected):
-            self._valid = False
+            # The rolling fallback does not mutate the cached prefix snapshot.
             return self.prior.partition(rows, selected)
         m, states = len(rows), len(self.prior.log_final)
         cache_bytes = (m + 1) * (states * 8 + 32) + m * (rows.shape[1] + 1) * 8

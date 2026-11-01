@@ -177,6 +177,24 @@ def test_partition_cursor_tracks_independent_reading_and_selection_changes() -> 
     assert cursor.last_start == 3
 
 
+def test_partition_cursor_reuses_snapshot_after_out_of_alphabet_fallback() -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.height_prior(3)
+    rows = np.zeros((12, 3))
+    selected = (0,) * len(rows)
+    cursor = incremental.PartitionCursor(prior)
+    cursor.partition(rows, selected)
+    invalid = (0,) * 11 + (7,)
+    rows[10, 1] = -1.0
+    np.testing.assert_allclose(cursor.partition(rows, invalid), prior.partition(rows, invalid))
+    rows[11, 1] = -2.0
+    np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected))
+    assert cursor.last_start == 10
+
+
 def test_partition_first_change_matches_row_comparison() -> None:
     import nca.partition as incremental
 
