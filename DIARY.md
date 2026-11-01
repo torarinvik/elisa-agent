@@ -1386,6 +1386,24 @@ must not be interpreted as recurring dictionary-lookup overhead. Subsequent
 performance experiments should separate cold calibration preparation from
 warmed execution before selecting another hot loop to port.
 
+**Cold versus warm calibration.** The three-formula profile took
+0.92459 s cold and 0.82749 s warm with exactly identical outputs, bounds and
+costs. Cold execution fitted eight restricted temperatures (0.065806 s);
+warm execution fitted none. Temperature lookup cumulative time fell from
+0.090454 s to 0.004766 s. Warm correction preparation remained 0.399 s and
+word selection 0.178 s, so repeatedly porting temperature lookup would target
+a cost that is mainly one-time fitting.
+
+**Revision-cached adapter tuples.** The selective adapter now converts
+only revised readings to tuples while keeping independent consumer list
+snapshots. A regression checks snapshot independence and transition through
+an unversioned callback. Native suite: 122 passes; fallback: 109 passes and
+13 skips. After warming the readers, reference/cached/cached/reference runs
+of the same three formulas took 0.53167/0.49361/0.49414/0.53018 s. Outcomes,
+bounds (to displayed 1e-8) and declared costs agreed. This small controlled
+comparison supports retaining the cache, but does not establish general
+coverage or timing guarantees. Per-item revision scanning remains full-length.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

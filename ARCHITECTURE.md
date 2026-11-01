@@ -508,3 +508,10 @@ highest individual logit, preserving first-class ties, rather than choosing
 the group with greatest total mass. Full-class risk uses singleton groups.
 PyTorch remains the fallback under the same device/gradient restrictions as
 grouped distribution. Native double arithmetic can change final rounding.
+
+The selective certificate adapter caches immutable reading tuples by the
+item's revision within one solve. Consumers still receive independent outer
+lists, preserving earlier snapshots. Without revision metadata it refreshes
+all tuples and clears revision history; returning to revision-aware calls
+therefore cannot reuse values from an unversioned callback. This uses the
+same revision invariant as calibrated state (Theorem 23.12).

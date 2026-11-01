@@ -157,20 +157,29 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
     if session is not None:
         declared = session()
     position = {i: j for j, (i, _) in enumerate(items)}
+    elements: list[Any] = [None] * count
+    revisions: dict[int, int] = {}
 
     def certificate(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
                     distribution: Callable[[int, Decision], torch.Tensor],
                     ) -> dict[int, float] | None:
-        elements: list[Any] = [None] * count
-        for (i, _), value in zip(items, readings):
-            elements[i] = tuple(value.tolist())
+        revision = getattr(distribution, "revision", None)
+        if revision is None:
+            revisions.clear()
+        for j, ((i, _), value) in enumerate(zip(items, readings)):
+            version = revision(j) if revision is not None else None
+            if version is None or revisions.get(i) != version:
+                elements[i] = tuple(value.tolist())
+                if version is not None:
+                    revisions[i] = version
+
         def mapped_distribution(i: int, d: Decision) -> torch.Tensor:
             return distribution(position[i], d)
 
         revision = getattr(distribution, "revision", None)
         calibrated = (Distribution(mapped_distribution, lambda i: revision(position[i]))
                       if revision is not None else mapped_distribution)
-        chosen = declared(elements, lambda i, d: risk(position[i], d), calibrated)
+        chosen = declared(list(elements), lambda i, d: risk(position[i], d), calibrated)
         return None if chosen is None else {position[i]: c for i, c in chosen.items()}
 
     return certificate
@@ -186,9 +195,13 @@ def element_floor(consumer: Module, items: Sequence[tuple[int, int]],
 
     def floor(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
               fixed: frozenset[int]) -> float:
-        elements: list[Any] = [None] * count
-        for (i, _), value in zip(items, readings):
-            elements[i] = tuple(value.tolist())
+        revision = getattr(distribution, "revision", None)
+        for j, ((i, _), value) in enumerate(zip(items, readings)):
+            version = revision(j) if revision is not None else None
+            if version is None or revisions.get(i) != version:
+                elements[i] = tuple(value.tolist())
+                if version is not None:
+                    revisions[i] = version
         return declared(elements, lambda i, d: risk(position[i], d),
                         frozenset(items[j][0] for j in fixed))
 

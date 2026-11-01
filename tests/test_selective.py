@@ -311,3 +311,31 @@ def test_native_calibrated_risk_uses_top_class_group(classes: Any,
     assert actual == pytest.approx([rung.risk(row, classes) for row in rows], abs=1e-7)
     if classes == ((0,), (1, 2)):
         assert actual[0] == pytest.approx(0.6, abs=1e-7)
+
+
+def test_element_certificate_keeps_independent_reading_snapshots() -> None:
+    from nca.ladder import Distribution
+    from nca.selective import element_certificate
+
+    snapshots: list[list[Any]] = []
+
+    class Consumer:
+        def certificate(self, readings: list[Any], risk: Any, distribution: Any) -> dict[int, float]:
+            snapshots.append(readings)
+            return {0: 0.1}
+
+    version = [0]
+    callback = element_certificate(Consumer(), [(0, 0)], 1)
+    assert callback is not None
+    distribution = Distribution(lambda i, d: torch.tensor([0.5, 0.5]), version.__getitem__)
+    callback([torch.tensor([0.4, 0.6])], lambda i, d: 0.1, distribution)
+    version[0] += 1
+    callback([torch.tensor([0.7, 0.3])], lambda i, d: 0.1, distribution)
+    assert snapshots[0][0] == pytest.approx((0.4, 0.6))
+    assert snapshots[1][0] == pytest.approx((0.7, 0.3))
+    # Ordinary callbacks may change values without carrying a revision.
+    def plain(i: int, d: Any) -> torch.Tensor:
+        return torch.tensor([0.5, 0.5])
+    callback([torch.tensor([0.2, 0.8])], lambda i, d: 0.1, plain)
+    callback([torch.tensor([0.7, 0.3])], lambda i, d: 0.1, distribution)
+    assert snapshots[-1][0] == pytest.approx((0.7, 0.3))
