@@ -1117,6 +1117,26 @@ with the explicit `ELISA_ALLOW_STALE_STAGE1=1` override. This does not change
 the project's default build command. Repairing the compiler provenance check
 remains a follow-up before relying on an ordinary reproducible native build.
 
+**Provenance diagnosis and rebuilt certificate kernel.** The toolchain
+artifacts were unchanged. The differing fingerprint was the effective linker
+command: the inherited `LIBRARY_PATH` repeated the bdw-gc directory. Using
+`LIBRARY_PATH=/opt/homebrew/opt/bdw-gc/lib:` and
+`ELISA_TOOL_PYTHON=/opt/homebrew/bin/python3.14` for the build matched the
+installed compiler's recorded environment and rebuilt the kernel without
+`ELISA_ALLOW_STALE_STAGE1`. The trailing empty search-path entry is part of
+that recorded environment, not a portable project requirement. The compiler
+correctly detects this difference; no provenance bypass or source fix was
+needed. The earlier proposed provenance repair is therefore resolved by
+matching the build environment rather than weakening its check.
+
+All 108 tests passed on the rebuilt kernel. Repeating the three-formula,
+depth-8 cProfile experiment took 1.315 s (previously 1.628 s), again with
+605 certificate calls and two answers. Certificate selection fell from
+0.381 s to 0.086 s including native marshaling; parsing remained 0.147 s
+and word selection 0.247 s. These are profiled single runs rather than a
+controlled runtime benchmark. Parsing and word-selection marshaling are
+now the clearest remaining full-sequence work for a subsequent native port.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
