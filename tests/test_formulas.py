@@ -228,6 +228,32 @@ def test_pair_shares_preserve_tiny_risks(reference: bool, monkeypatch: pytest.Mo
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_pair_risk_upper_avoids_cancellation_and_underflow(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+        monkeypatch.setattr(word_module, "_STATS_NATIVE", None)
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rng = np.random.default_rng(2331)
+    samples = [[], [1.0, 1e-18], [1e-200, 1e-200], [0.8, 0.8, 0.8],
+               *[rng.random(10).tolist() for _ in range(100)]]
+    for risks in samples:
+        values = [Fraction.from_float(float(r)) for r in risks]
+        exact = min(Fraction(1), sum((a * b for a, b in itertools.combinations(values, 2)),
+                                    Fraction()))
+        bound = word_module.pair_risk_upper(risks)
+        assert Fraction.from_float(bound) >= exact
+        assert bound <= 1.0
+    assert word_module.pair_risk_upper([1.0, 1e-18]) > 0.0
+    assert word_module.pair_risk_upper([1e-200, 1e-200]) > 0.0
+    assert np.isnan(word_module.pair_risk_upper([float("nan"), 0.2]))
+    assert np.isnan(word_module.pair_risk_upper([-0.1, 0.2]))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_detection_shares_round_up_at_boundaries(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.modules import words as word_module
 

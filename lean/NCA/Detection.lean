@@ -167,6 +167,13 @@ theorem detection_account_mono [LinearOrder ι] {ρ ρ' : ι → ℝ} (h0 : ∀ 
 
 end Counting
 
+/-- Adding one risk preserves a pair-sum bound when its prefix is bounded. -/
+theorem pair_prefix_step_upper (total pref risk totalUpper prefixUpper riskUpper : ℝ)
+    (hTotal : total ≤ totalUpper) (hPrefix : pref ≤ prefixUpper)
+    (hRisk : risk ≤ riskUpper) (hRisk0 : 0 ≤ risk) (hPrefixUpper0 : 0 ≤ prefixUpper) :
+    total + pref * risk ≤ totalUpper + prefixUpper * riskUpper := by
+  exact add_le_add hTotal (mul_le_mul hPrefix hRisk hRisk0 hPrefixUpper0)
+
 /-- Upper bounds on the risks before and after an item upper-bound its pair share. -/
 theorem pair_share_prefix_suffix_upper (risk left right leftUpper rightUpper : ℝ)
     (hr : 0 ≤ risk) (hl : left ≤ leftUpper) (hh : right ≤ rightUpper) :

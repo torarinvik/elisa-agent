@@ -1,6 +1,7 @@
 # Distribution of a sum of independent Bernoulli variables.
 # Descending updates preserve the preceding row in place.
 extern nextafter(x: f64, y: f64) -> f64
+extern log(x: f64) -> f64
 
 def upper_product(a: f64, b: f64) -> f64:
     return 0.0 if a == 0.0 or b == 0.0
@@ -14,6 +15,19 @@ def upper_add(a: f64, b: f64) -> f64:
     total: f64 = a + b
     return 1.0 if total >= 1.0
     return nextafter(total, 1.0)
+
+# Upper bound on min(1, sum of unordered products) without subtraction.
+def pair_risk_upper(risks: view[f64]) -> f64:
+    total: f64 =
+        for i in 0..<risks.len.i64() |total: f64 = 0.0, prefix: f64 = 0.0| -> total:
+            value: f64 = risks[i]
+            total <- upper_add(total, upper_product(prefix, value))
+            sum: f64 = prefix + value
+            if prefix == 0.0 or value == 0.0 or sum == -log(0.0):
+                prefix <- sum
+            else:
+                prefix <- nextafter(sum, -log(0.0))
+    return total
 
 # Upper bound on P(successes >= observed), using a truncated failure count.
 def poisson_binomial_upper(probabilities: view[f64], complements: view[f64], observed: i64) -> f64 can[Memory.Allocate, Abort.Panic]:
@@ -65,3 +79,4 @@ def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> da
 export pymodule stats:
     fn poisson_binomial_pmf
     fn poisson_binomial_upper
+    fn pair_risk_upper

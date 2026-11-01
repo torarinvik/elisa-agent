@@ -43,6 +43,7 @@ from nca.native import load
 
 _NATIVE = load("decoding")
 _EDIT_NATIVE = load("edit")
+_STATS_NATIVE = load("stats")
 from nca.modules.symbols import BOOLEAN
 
 FORMULA_TEXT = "text.formula.prefix.v1"
@@ -139,6 +140,17 @@ def _pair_shares(risks: Sequence[float]) -> list[float]:
         return value if a == 0.0 or b == 0.0 or math.isinf(value) else math.nextafter(value, math.inf)
     return [product(product(value, _upper_sum([prefix[i], suffix[i + 1]])), 0.5)
             for i, value in enumerate(values)]
+
+
+def pair_risk_upper(risks: Sequence[float]) -> float:
+    """Upper bound on the unordered pair sum, capped at one."""
+    values = _upper_values(risks)
+    if any(not math.isfinite(value) or value < 0.0 for value in values):
+        return math.nan
+    native = getattr(_STATS_NATIVE, "pair_risk_upper", None)
+    if native is not None:
+        return float(native(np.asarray(values, dtype=np.float64)))
+    return min(_upper_sum(_pair_shares(values)), 1.0)
 
 
 def _markov_shares(risks: Sequence[float]) -> list[float]:

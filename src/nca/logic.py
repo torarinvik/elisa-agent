@@ -56,7 +56,8 @@ from nca.ladder import (Rung, State, Stop, certification_order, certification_po
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
-                               CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator)
+                               CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator,
+                               pair_risk_upper)
 from nca.planner import Plan, plan_stable
 from nca.selective import Answer, build_ladders, solve, solve_many
 from nca.stats import (clopper_pearson_upper, family_audit_alpha, format_upper_bound,
@@ -293,6 +294,7 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
             risks: list[float] = []
             wrong: list[bool] = []
             pairs: list[float] = []
+            pair_estimates: list[float] = []
             doubled = 0
             failures = predicted = 0.0
             joint = {"adjacent": 0, "distant": 0}
@@ -314,12 +316,13 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
                 read = arities(FormulaEvaluator().words(readings))
                 failed = np.array([a != t for a, t in zip(read, truth)])
                 doubled += int(failed.sum() >= 2)
-                pairs.append(float((rho.sum() ** 2 - (rho ** 2).sum()) / 2))
+                pair_estimates.append(float((rho.sum() ** 2 - (rho ** 2).sum()) / 2))
+                pairs.append(pair_risk_upper(rho))
                 failures += float(failed.sum())
                 predicted += float(rho.sum())
                 close = sum(float(rho[:-g] @ rho[g:]) for g in range(1, near) if g < len(rho))
                 expected["adjacent"] += float(rho[:-1] @ rho[1:])
-                expected["distant"] += pairs[-1] - close
+                expected["distant"] += pair_estimates[-1] - close
                 where = np.flatnonzero(failed)
                 gaps = np.abs(where[:, None] - where[None, :])[np.triu_indices(len(where), 1)]
                 joint["adjacent"] += int((gaps == 1).sum())
@@ -337,12 +340,12 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
                     print(f"  R in [{low:g}, {min(high, 1.0):g}): {len(chosen_bin):5d} formulas, "
                           f"mean R {np.mean([risks[i] for i in chosen_bin]):.4f}, "
                           f"wrong {np.mean([wrong[i] for i in chosen_bin]):.4f}")
-            above = poisson_binomial_upper_bound(doubled, [min(1.0, e) for e in pairs])
-            print(f"  ≥ 2 arity failures: {doubled} formulas, Σ e₂ = {sum(pairs):.1f} "
+            above = poisson_binomial_upper_bound(doubled, pairs)
+            print(f"  ≥ 2 arity failures: {doubled} formulas, Σ e₂ ≈ {sum(pair_estimates):.1f} "
                   f"(P(X ≥ obs) ≤ {format_upper_bound(above)}); arity failures {failures:.0f}, "
                   f"Σ ρ = {predicted:.1f}")
             for kind in joint:
-                print(f"  {kind} joint failures: {joint[kind]}, Σ ρᵢρⱼ = {expected[kind]:.2f}, "
+                print(f"  {kind} joint failures: {joint[kind]}, Σ ρᵢρⱼ ≈ {expected[kind]:.2f}, "
                       f"ratio {joint[kind] / expected[kind]:.2f} against marginal ratio² "
                       f"{(failures / predicted) ** 2:.2f}")
 

@@ -272,6 +272,9 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 `poisson_binomial_upper_bound` uses upward-rounded operations in `stats.elisa`
 or its Python fallback for excess p-values, under IEEE 754 assumptions.
 `format_upper_bound` rounds displayed bounds upward in decimal as well.
+The pair-premise audit supplies `pair_risk_upper` as input to that excess-tail
+bound. Its Elisa kernel accumulates pair products with an upward-rounded
+prefix (`pair_prefix_step_upper`); the fallback sums upper-rounded shares.
 `bernoulliStep_impossible` justifies skipping zero-probability events.
 `bernoulliStep_certain_zero` and `bernoulliStep_certain_succ` justify combining
 the shifts for events with probability one.

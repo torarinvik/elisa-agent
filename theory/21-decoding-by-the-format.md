@@ -208,6 +208,10 @@ test rejects the premise if `O₂` is significantly larger. A direct check:
 over pairs of words, the observed rate of joint arity failures against the
 product of the marginal rates, for adjacent and for distant pairs
 separately.
+The p-value uses an upper-rounded prefix accumulation of pair products,
+capped at one for each formula. The subtraction formula
+`(S² − Σρᵢ²)/2` is retained only as a diagnostic estimate because
+cancellation can underestimate small pair risks.
 
 Unlike the absence of observed errors, these tests can fail.
 
