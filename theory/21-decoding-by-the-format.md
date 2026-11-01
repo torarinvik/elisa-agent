@@ -83,6 +83,10 @@ not remove differences caused by floating-point scores rounding differently.
 For a nonnegative arity `a`, a transition from state `n ≥ 1` reaches
 `n − 1 + a ≥ a`. Thus if `a` already exceeds the next row's largest viable
 state, the transition can be discarded before calculating the sum.
+If every arity is at most `A`, a reachable counter after `k` words is at most
+`1 + k · max(A − 1, 0)`. Intersecting this reachability bound with the
+completion bound `m − k` gives the state range needed by the exact decoder;
+the smaller `k + 1` bound applies only when arities are at most two.
 
 **Marginals.** Forward sums `F_k(n)` and backward sums `B_k(n)` over the
 same states give each word's posterior arity distribution:

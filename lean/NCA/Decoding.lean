@@ -40,6 +40,13 @@ theorem arity_exceeds_state_bound (state arity bound : ℕ) (h : bound < arity) 
     bound < state - 1 + arity := by
   omega
 
+/-- A step with arity at most `growth + 1` increases the counter bound by at most `growth`. -/
+theorem counter_growth_bound (state k arity growth : ℕ) (positive : 1 ≤ state)
+    (before : state ≤ 1 + k * growth) (arity_bound : arity ≤ growth + 1) :
+    state - 1 + arity ≤ 1 + (k + 1) * growth := by
+  simp only [Nat.add_mul, Nat.one_mul]
+  omega
+
 section Automaton
 
 variable {σ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)

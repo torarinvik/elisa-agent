@@ -2,8 +2,8 @@
 #
 # The state is the number of subformulas still awaited, starting at 1; a word of arity a
 # read while n >= 1 are awaited leaves n - 1 + a, and a sequence is accepted when none
-# remain at its end. Before word k only states n <= min(k + 1, m - k) are both reachable
-# and completable, so row k of every table holds states 0 ..= min(k + 1, m - k).
+# remain at its end. For maximum arity A, before word k the counter is at most
+# 1 + k * max(A - 1, 0), and it must be at most m - k to be completable.
 #
 # The sums run in linear space. Forward row k is stored unscaled and read divided by its
 # total c(k), so every step works on a row of total 1 and log Z = Σ log c(k). The backward
@@ -117,8 +117,13 @@ def normalized_rows_fast(rows: view[f64], base: view[f64]) -> bool can[Abort.Pan
 # The log-weight of an unreachable state, and log Z when no sequence is accepted.
 const FLOOR: f64 = -1.0e308
 
-def live(k: i64, m: i64) -> i64:
-    return k + 1 if k + 1 < m - k else m - k
+def live(k: i64, m: i64, max_arity: i64) -> i64:
+    remaining: i64 = m - k
+    return 0 if remaining == 0
+    return 1 if k == 0 or max_arity <= 1
+    growth: i64 = max_arity - 1
+    return remaining if growth > (remaining - 1) / k
+    return 1 + k * growth
 
 # `log_probs` holds m rows of one log-probability per entry of `alphabet` (the arities).
 # The result is [log Z, decoded arities (m), posterior marginals (m rows)], or [FLOOR] when
@@ -128,11 +133,14 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
     return [FLOOR] if width == 0 or log_probs.len.i64() % width != 0
     for j in 0..<width:
         return [FLOOR] if alphabet[j] < 0
+    max_arity: i64 =
+        for j in 0..<width |largest: i64 = 0| -> largest:
+            largest <- alphabet[j] if alphabet[j] > largest else largest
     m: i64 = log_probs.len.i64() / width
     return [FLOOR] if m == 0
     offsets: darray[i64] =
         for k in 0..<(m + 1) |offsets: darray[i64] = [0 for _ in 0..<(m + 2)]| -> offsets:
-            offsets[k + 1] <- offsets[k] + live(k, m) + 1
+            offsets[k + 1] <- offsets[k] + live(k, m, max_arity) + 1
     weights: darray[f64] = [exp(log_probs[i]) for i in 0..<(m * width)]
     # Subnormal weights lose relative precision, and finite weights may vanish.
     # Signal the caller to rerun the whole calculation in log space.
@@ -142,8 +150,8 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
         for k in 0..<m |forward: darray[f64] = [1.0 if i == offsets[0] + 1 else 0.0 for i in 0..<offsets[m + 1]], best: darray[f64] = [0.0 if i == offsets[0] + 1 else FLOOR for i in 0..<offsets[m + 1]], choice: darray[i64] = [0 for _ in 0..<offsets[m + 1]], totals: darray[f64] = [1.0 for _ in 0..<(m + 1)], log_z: f64 = 0.0| -> (forward, best, choice, totals, log_z):
             total: f64 = |forward, best, choice|
                 next_row: i64 = offsets[k + 1]
-                next_top: i64 = live(k + 1, m)
-                for n in 1..<(live(k, m) + 1) |forward, best, choice|:
+                next_top: i64 = live(k + 1, m, max_arity)
+                for n in 1..<(live(k, m, max_arity) + 1) |forward, best, choice|:
                     here_best: f64 = best[offsets[k] + n]
                     continue if here_best <= FLOOR
                     here: f64 = forward[offsets[k] + n] / totals[k]
@@ -175,13 +183,13 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
             k: i64 = m - 1 - step
             here_row: i64 = offsets[k]
             next_row: i64 = offsets[k + 1]
-            next_top: i64 = live(k + 1, m)
+            next_top: i64 = live(k + 1, m, max_arity)
             for j in 0..<width |result, backward|:
                 continue if alphabet[j] > next_top
                 through_total: f64 = |backward|
                     weight: f64 = weights[k * width + j] / totals[k + 1]
                     return [FLOOR] if weight == -log(0.0)
-                    for n in 1..<(live(k, m) + 1) |backward, through_total: f64 = 0.0| -> through_total:
+                    for n in 1..<(live(k, m, max_arity) + 1) |backward, through_total: f64 = 0.0| -> through_total:
                         through: f64 =
                             target: i64 = n - 1 + alphabet[j]
                             continue if target > next_top

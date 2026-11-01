@@ -506,6 +506,31 @@ def test_decode_accepts_arities_larger_than_any_possible_state(alphabet) -> None
         np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
 
 
+def test_native_decode_keeps_ternary_paths_alongside_unary_paths() -> None:
+    alphabet = (0, 1, 3)
+    rows = np.full((4, 3), -np.log(3.0))
+    result, reference = decode(rows, alphabet), decode_reference(rows, alphabet)
+    assert result is not None and reference is not None
+    assert result.log_z == pytest.approx(reference.log_z, abs=1e-12)
+    np.testing.assert_allclose(result.marginals, reference.marginals, atol=1e-12)
+    assert result.marginals[0, 2] == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 3), (3, 0, 1), (0, 2, 4),
+                                      (0, 1, 2, 2**63 - 1)])
+def test_native_decode_matches_reference_for_general_arities(alphabet) -> None:
+    rng = np.random.default_rng(242)
+    for m in range(1, 11):
+        for _ in range(20):
+            rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+            actual, expected = decode(rows, alphabet), decode_reference(rows, alphabet)
+            assert (actual is None) == (expected is None)
+            if actual is not None and expected is not None:
+                assert actual.arities == expected.arities
+                assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
+                np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+
+
 @pytest.mark.parametrize("alphabet", [(), (0, -1)])
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
 def test_decode_rejects_empty_or_negative_arity_alphabet(decoder, alphabet) -> None:
