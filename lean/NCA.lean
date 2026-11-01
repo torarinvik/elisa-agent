@@ -30,6 +30,7 @@ import NCA.Slots
 import NCA.Eliminators
 import NCA.Relevance
 import NCA.Banding
+import NCA.BandSearch
 import NCA.Misspecification
 import NCA.Stopping
 import NCA.Composition

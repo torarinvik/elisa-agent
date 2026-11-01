@@ -45,7 +45,8 @@ They therefore increase and then decrease. Since `C ≥ 1` and the search
 threshold is below one, if `U₁` exceeds the threshold, every qualifying
 index lies on the decreasing side and qualifying indices form a suffix.
 The native search uses this property to locate the first qualifying index
-with logarithmically many bound evaluations.
+with logarithmically many bound evaluations. Lean proves this suffix property
+for the exact-real polynomial; floating-point comparisons can still round.
 
 Numerically, off-reference mass is summed directly in log space, rather than
 subtracting the reference mass from a rounded row total. The tail comparison
