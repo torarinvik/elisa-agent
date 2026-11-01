@@ -476,6 +476,7 @@ overflow and uses uniform weights when all priorities are zero.
 risks. `certificate_session` creates a cursor and priorities owned by one solve;
 `element_certificate` creates that session through an optional generic hook.
 State is reset when its evaluator, decoder mode, or input length changes.
+Each certificate resolves its prior once for both answer selection and risk.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs

@@ -486,6 +486,34 @@ def test_prior_change_refreshes_allocation_priorities() -> None:
     assert actual == pytest.approx(fresh)
 
 
+@pytest.mark.parametrize("with_state", [False, True])
+def test_prior_provider_is_resolved_once_per_certificate(with_state: bool) -> None:
+    from nca.modules.words import CorrectionState
+
+    rng = np.random.default_rng(506)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
+    calibrated = rng.dirichlet(np.ones(3), size=9)
+    first, second = priors.height_prior(4), priors.format_prior(9)
+    calls = []
+    def provider(length: int) -> priors.ArityPrior:
+        calls.append(length)
+        return first if len(calls) == 1 else second
+    def distribution(k: int, d: Decision) -> torch.Tensor:
+        return torch.tensor(calibrated[k])
+    def risk(k: int, d: Decision) -> float:
+        return 0.0
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=provider)
+    expected = FormulaEvaluator(decode=True, short_circuit=False, prior=lambda n: first)
+    actual = evaluator.certificate(readings, risk, distribution,
+                                   CorrectionState() if with_state else None)
+    assert actual is not None
+    assert actual == pytest.approx(expected.certificate(readings, risk, distribution))
+    assert calls == [9]
+    calls.clear()
+    assert evaluator.invoke(readings) == expected.invoke(readings)
+    assert calls == [9]
+
+
 def test_priorities_track_prior_when_partition_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
     from nca.modules.words import CorrectionState

@@ -374,7 +374,8 @@ class FormulaEvaluator:
         return prior
 
     def words(self, readings: Sequence[Sequence[float]],
-              state: CorrectionState | None = None) -> list[str]:
+              state: CorrectionState | None = None, *,
+              _prior: ArityPrior | None = None) -> list[str]:
         """The words read: each word's most probable class, or, when decoding,
         the most probable class within its decoded arity group."""
         if state is not None:
@@ -384,7 +385,8 @@ class FormulaEvaluator:
         if state is None or self.prior is not None:
             masses = _arity_masses(readings)
             with np.errstate(divide="ignore"):
-                prior = None if self.prior is None else self._arity_prior(len(readings))
+                prior = (None if self.prior is None else
+                         _prior if _prior is not None else self._arity_prior(len(readings)))
                 if self.prior is None:
                     decoded = decode(np.log(masses), ARITY_ORDER)
                     arities = None if decoded is None else decoded.arities
@@ -467,7 +469,7 @@ class FormulaEvaluator:
         prior = self._arity_prior(len(readings))
         if self.prior is not None and prior is None:
             return None
-        words = self.words(readings)
+        words = self.words(readings, _prior=prior)
         arities = [ARITY[VOCABULARY.index(w)] for w in words]
         if prior is not None and not math.isfinite(prior.log_weight(arities)):
             return None
@@ -532,6 +534,7 @@ class FormulaEvaluator:
                   risk: Callable[[int, Decision], float],
                   distribution: Callable[[int, Decision], torch.Tensor],
                   state: CorrectionState | None = None,
+                  *, _prior: ArityPrior | None = None,
                   ) -> dict[int, float] | None:
         """The correction account (§21.5–21.6) of the decoded ``words``."""
         n = len(words)
@@ -580,7 +583,8 @@ class FormulaEvaluator:
                     state.within.pop((k, a), None)
         arities = [ARITY[VOCABULARY.index(w)] for w in words]
         if state is None:
-            prior = None if self.prior is None else self._arity_prior(n)
+            prior = (None if self.prior is None else
+                     _prior if _prior is not None else self._arity_prior(n))
             posterior = (decode(log_probs, ARITY_ORDER) if self.prior is None else
                          None if prior is None else prior.decode(log_probs))
             if posterior is None:
@@ -589,7 +593,7 @@ class FormulaEvaluator:
             priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
                           for k, a in enumerate(arities)]
         elif self.prior is not None:
-            prior = self._arity_prior(n)
+            prior = _prior if _prior is not None else self._arity_prior(n)
             if prior is None:
                 return None
             state.steps += len(invalidated)
@@ -691,14 +695,17 @@ class FormulaEvaluator:
                     distribution: Callable[[int, Decision], torch.Tensor],
                     state: CorrectionState | None = None,
                     ) -> dict[int, float] | None:
-        words = self.words(readings, state)
+        prior = self._arity_prior(len(readings))
+        if self.prior is not None and prior is None:
+            return None
+        words = self.words(readings, state, _prior=prior)
         fused = self.decode and getattr(_NATIVE, "certificate_words", None) is not None
         children = None if fused else parse([ARITY[VOCABULARY.index(w)] for w in words])
         if children is None and not fused:
             return None
         n = len(words)
         if self.decode:
-            return self.corrected(words, children, risk, distribution, state)
+            return self.corrected(words, children, risk, distribution, state, _prior=prior)
         assert children is not None
         arity = [risk(k, ARITY_DECISION) for k in range(n)]
         if self.detection == "none":
