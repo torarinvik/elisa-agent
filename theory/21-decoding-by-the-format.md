@@ -149,6 +149,11 @@ to zero by an upstream expert and do not provide an outward-rounding guarantee.
 A finite alternative whose probability is below binary64 range receives the
 smallest positive value; if all allocated shares underflow, one retains that
 value. Other rounding errors are not covered by this safeguard.
+The selected and alternative path masses can be summed separately for any
+finite nonnegative-arity alphabet. Multiplying every path weight by the same
+positive factor leaves their normalized ratio unchanged; carrying the two
+parts separately avoids losing a small alternative when a common log-weight
+shift makes the rounded total equal the selected weight.
 
 ## 21.6 Charges for refinement
 

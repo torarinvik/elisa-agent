@@ -394,15 +394,52 @@ def format_prior(length: int) -> ArityPrior:
     return ArityPrior((0, 1, 2), transitions, np.zeros((states, 3)), final, start=1)
 
 
+def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
+    """Exact model risk with selected and alternative paths summed separately."""
+    native = getattr(_NATIVE, "format_partition", None)
+    if native is not None:
+        partition = native(np.ascontiguousarray(rows, dtype=np.float64).reshape(-1),
+                           np.asarray(alphabet, dtype=np.int64),
+                           np.asarray(selected, dtype=np.int64))
+        if len(partition) == 2:
+            return risk_from_partition(*partition)
+    m = len(rows)
+    alternatives = np.full(m + 2, -np.inf)
+    matched, state = 0.0, 1
+    for k in range(m):
+        following = np.full(m + 2, -np.inf)
+        for n in range(1, m - k + 1):
+            for j, value in enumerate(alphabet):
+                arity = int(value)
+                target = n - 1 + arity
+                if target > m - k - 1:
+                    continue
+                following[target] = np.logaddexp(following[target], alternatives[n] + rows[k, j])
+                if n == state and arity != selected[k]:
+                    following[target] = np.logaddexp(following[target], matched + rows[k, j])
+        column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
+        if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
+            matched = -math.inf
+        else:
+            matched += float(rows[k, column])
+            state += int(selected[k]) - 1
+        alternatives = following
+    return risk_from_partition(matched if state == 0 else -math.inf, float(alternatives[0]))
+
+
 def format_sequence_risk(log_probs: np.ndarray, alphabet: Sequence[int],
                          selected: Sequence[int]) -> float:
     """Risk of an arity sequence under the complete prefix format."""
     alphabet = tuple(alphabet)
-    if not alphabet or len(set(alphabet)) != len(alphabet) or any(a not in (0, 1, 2) for a in alphabet):
-        raise ValueError("format risk requires distinct arities from 0, 1, and 2")
+    if (not alphabet or len(set(alphabet)) != len(alphabet)
+            or any(not isinstance(a, (int, np.integer)) or a < 0 for a in alphabet)):
+        raise ValueError("format risk requires distinct nonnegative arities")
     rows = np.asarray(log_probs, dtype=np.float64)
-    if rows.ndim != 2 or rows.shape[1] != len(alphabet) or not len(rows):
+    if (rows.ndim != 2 or rows.shape[1] != len(alphabet) or not len(rows)
+            or len(selected) != len(rows) or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
         raise ValueError("format risk requires nonempty rows over the alphabet")
+    if any(a > 2 for a in alphabet):
+        return _generic_format_sequence_risk(rows, alphabet, selected)
     if alphabet != (0, 1, 2):
         canonical = np.full((len(rows), 3), -np.inf)
         for column, arity in enumerate(alphabet):
@@ -613,6 +650,7 @@ class Decoded:
                 raise ValueError("alphabet must match the decoded prior")
             return self.prior.sequence_risk(log_probs, chosen)
         symbols = tuple(alphabet)
-        if symbols and len(set(symbols)) == len(symbols) and all(a in (0, 1, 2) for a in symbols):
+        if symbols and len(set(symbols)) == len(symbols) and all(
+                isinstance(a, (int, np.integer)) and a >= 0 for a in symbols):
             return format_sequence_risk(log_probs, symbols, chosen)
         return risk_from_log_weight(self.log_weight(log_probs, symbols, chosen), self.log_z)

@@ -254,6 +254,12 @@ theorem risk_from_other_mass (chosen other : ℝ) (h : chosen + other ≠ 0) :
   field_simp
   ring
 
+/-- Scaling both parts of a partition leaves the normalized alternative mass unchanged. -/
+theorem partition_risk_common_factor (chosen other factor : ℝ) (hf : factor ≠ 0) :
+    (factor * other) / (factor * chosen + factor * other) = other / (chosen + other) := by
+  rw [← mul_add]
+  exact mul_div_mul_left other (chosen + other) hf
+
 /-- Combine selected and alternative mass from independent segments. -/
 def partitionCompose (left right : ℝ × ℝ) : ℝ × ℝ :=
   (left.1 * right.1, left.2 * (right.1 + right.2) + left.1 * right.2)

@@ -191,7 +191,7 @@ def test_native_format_partition_matches_reference(alphabet, monkeypatch: pytest
                 continue
             actual = decoding._format_sequence_risk(rows, alphabet, chosen.arities)
             with monkeypatch.context() as patch:
-                patch.setattr(decoding, "_NATIVE", None)
+                patch.setattr(priors, "_NATIVE", None)
                 expected = decoding._format_sequence_risk(rows, alphabet, chosen.arities)
             assert actual == pytest.approx(expected, rel=1e-12, abs=1e-15)
 
@@ -210,6 +210,34 @@ def test_format_partition_matches_enumerated_paths(alphabet) -> None:
             expected = np.delete(weights, index).sum() / weights.sum()
             actual = decoding._format_sequence_risk(rows, alphabet, path)
             assert actual == pytest.approx(expected, rel=1e-12, abs=1e-15)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("shift", [0.0, -40.0])
+def test_generic_decoded_risk_survives_log_weight_shift(
+        reference_only: bool, shift: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.array([[-np.inf, 0.0, -40.0], [-40.0, 0.0, -np.inf],
+                     [-40.0, 0.0, -np.inf], [0.0, -np.inf, -np.inf]])
+    rows[0] += shift
+    result = decode_reference(rows, (0, 1, 3))
+    assert result is not None and result.arities == (1, 1, 1, 0)
+    assert result.risk(rows, (0, 1, 3)) == pytest.approx(np.exp(-120), rel=1e-12)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 3), (3, 0, 1, 2**63 - 1)])
+def test_generic_decoded_risk_is_stable_under_row_shifts(alphabet) -> None:
+    rng = np.random.default_rng(248)
+    for m in range(1, 8):
+        for _ in range(10):
+            rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+            selected = decode_reference(rows, alphabet)
+            if selected is None:
+                continue
+            shifted = rows - rng.uniform(0.0, 100.0, size=(m, 1))
+            assert selected.risk(shifted, alphabet) == pytest.approx(
+                selected.risk(rows, alphabet), rel=1e-12, abs=1e-14)
 
 def test_split_matches_full_decoding() -> None:
     """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one

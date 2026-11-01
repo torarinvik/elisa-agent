@@ -10,7 +10,8 @@ from itertools import accumulate
 import numpy as np
 
 from nca.native import load
-from nca.priors import Decoded, risk_from_log_weight, risk_from_partition, sequence_log_weight
+from nca.priors import (Decoded, _generic_format_sequence_risk as _format_sequence_risk,
+                        risk_from_log_weight, sequence_log_weight)
 
 _NATIVE = load("decoding")
 
@@ -156,38 +157,6 @@ def _initial_band_changes(log_off: float, slack: float) -> int:
         j += 1
     return j
 
-
-def _format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
-    """Exact model risk with selected and alternative paths summed separately."""
-    native = getattr(_NATIVE, "format_partition", None)
-    if native is not None:
-        partition = native(np.ascontiguousarray(rows, dtype=np.float64).reshape(-1),
-                           np.asarray(alphabet, dtype=np.int64),
-                           np.asarray(selected, dtype=np.int64))
-        if len(partition) == 2:
-            return risk_from_partition(*partition)
-    m = len(rows)
-    alternatives = np.full(m + 2, -np.inf)
-    matched, state = 0.0, 1
-    for k in range(m):
-        following = np.full(m + 2, -np.inf)
-        for n in range(1, m - k + 1):
-            for j, value in enumerate(alphabet):
-                arity = int(value)
-                target = n - 1 + arity
-                if target > m - k - 1:
-                    continue
-                following[target] = np.logaddexp(following[target], alternatives[n] + rows[k, j])
-                if n == state and arity != selected[k]:
-                    following[target] = np.logaddexp(following[target], matched + rows[k, j])
-        column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
-        if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
-            matched = -math.inf
-        else:
-            matched += float(rows[k, column])
-            state += int(selected[k]) - 1
-        alternatives = following
-    return risk_from_partition(matched if state == 0 else -math.inf, float(alternatives[0]))
 
 
 def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) -> tuple[int, float]:
