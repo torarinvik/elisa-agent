@@ -285,3 +285,24 @@ def test_budgeted_recursion_is_paid_and_refused_never_wrong() -> None:
     with pytest.raises(UnresolvedRequest):
         execute(route, {"ints.v1": Message("ints.v1", values, "input")}, Workspace(), 10_000,
                 Kernel([summer]))
+
+
+def test_extending_registry_supports_an_unrelated_task_without_rerouting() -> None:
+    registry = Registry()
+    registry.install(fn("tokenize-weather", ["weather.report.v1"], "weather.words.v1", str.split))
+    registry.install(fn("summarize-weather", ["weather.words.v1"], "weather.summary.v1",
+                        lambda words: "/".join(words)))
+    weather = plan_stable(registry.modules(), ("weather.report.v1",), "weather.summary.v1")
+    assert weather is not None
+    assert execute(weather, {"weather.report.v1": Message("weather.report.v1", "rain north", "input")},
+                   Workspace(), budget=4).payload == "rain/north"
+
+    registry.install(fn("music-describe", ["music.notes.v1"], "music.description.v1",
+                        lambda notes: ",".join(notes)))
+    assert plan_stable(registry.modules(), ("weather.report.v1",), "weather.summary.v1") == weather
+    music = plan_stable(registry.modules(), ("music.notes.v1",), "music.description.v1")
+    assert music is not None
+    assert execute(music, {"music.notes.v1": Message("music.notes.v1", ["C", "G"], "input")},
+                   Workspace(), budget=4).payload == "C,G"
+    registry.uninstall("music-describe")
+    assert plan_stable(registry.modules(), ("music.notes.v1",), "music.description.v1") is None
