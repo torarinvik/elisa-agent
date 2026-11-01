@@ -671,8 +671,9 @@ that underflow in numerical probabilities; native Elisa grouping has a PyTorch
 fallback. Adapters preserve this interface and its revision identity. A
 custom rung overriding probability distributions must also provide a matching
 log distribution to retain underflowed masses; otherwise the adapter logs the
-numerical probabilities. The linear-space format decoder falls back to
-log-space decoding if all accepted mass underflows; banded correction checks an
+numerical probabilities. The linear-space format decoder falls back to an
+Elisa log-space decoder if all accepted mass underflows, or to the NumPy
+reference when the native kernel is unavailable; banded correction checks an
 exact partition if its risk rounds to zero, which can require more work. If a
 rung lacks labels needed to fit a requested restricted decision,
 the account is unavailable rather than treated as a finite bound; refinement

@@ -348,3 +348,23 @@ def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
     assert result.arities == reference.arities == (2, 0, 0)
     assert result.log_z == pytest.approx(reference.log_z)
     np.testing.assert_allclose(result.marginals, reference.marginals)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0), (0, 3), (0, 2**63 - 1)])
+def test_native_log_decoder_matches_reference_on_extreme_tied_rows(alphabet) -> None:
+    native = getattr(decoding._NATIVE, "decode_log", None)
+    if native is None:
+        pytest.skip("native log decoder is not built")
+    rng = np.random.default_rng(286)
+    for length in range(1, 9):
+        for _ in range(20):
+            rows = rng.choice([0.0, -1000.0, -1500.0, -np.inf], size=(length, len(alphabet)))
+            expected = decode_reference(rows, alphabet)
+            actual = native(rows.reshape(-1), np.asarray(alphabet, dtype=np.int64))
+            if expected is None:
+                assert actual == []
+            else:
+                assert actual[0] == pytest.approx(expected.log_z, abs=1e-12)
+                assert tuple(int(x) for x in actual[1:length + 1]) == expected.arities
+                np.testing.assert_allclose(np.asarray(actual[1 + length:]).reshape(rows.shape),
+                                           expected.marginals, atol=1e-12)

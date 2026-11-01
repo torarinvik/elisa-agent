@@ -205,6 +205,59 @@ def log_add(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return log_add_present(x, y)
 
+# Exact format decoding in log space, used when linear-space paths underflow.
+def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    alphabet_size: i64 = alphabet.len.i64()
+    return [] if alphabet_size == 0 or log_probs.len.i64() % alphabet_size != 0
+    m: i64 = log_probs.len.i64() / alphabet_size
+    return [] if m == 0
+    width: i64 = m + 2
+    unreachable: f64 = log(0.0)
+    forward: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
+    best: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
+    choice: darray[i64] = [0 for _ in 0..<((m + 1) * width)]
+    for k in 0..<m:
+        for j in 0..<alphabet_size:
+            arity: i64 = alphabet[j]
+            return [] if arity < 0
+            continue if arity >= width
+            step: f64 = log_probs[k * alphabet_size + j]
+            for state in 1..<width:
+                target: i64 = state - 1 + arity
+                continue if target >= width or target > m - k - 1
+                cell: i64 = (k + 1) * width + target
+                forward[cell] <- log_add(forward[cell], forward[k * width + state] + step)
+                candidate: f64 = best[k * width + state] + step
+                if candidate > best[cell]:
+                    best[cell] <- candidate
+                    choice[cell] <- j
+    log_z: f64 = forward[m * width]
+    return [] if log_z == unreachable
+    result: darray[f64] = [0.0 for _ in 0..<(1 + m + m * alphabet_size)]
+    result[0] <- log_z
+    trace: darray[i64] = [0]
+    for step in 0..<m:
+        k: i64 = m - step
+        arity: i64 = alphabet[choice[k * width + trace[0]]]
+        result[k] <- arity.f64()
+        trace[0] <- trace[0] + 1 - arity
+    backward: darray[f64] = [0.0 if i == m * width else unreachable for i in 0..<((m + 1) * width)]
+    marginal: darray[f64] = [unreachable for _ in 0..<(m * alphabet_size)]
+    for step in 0..<m:
+        k: i64 = m - 1 - step
+        for j in 0..<alphabet_size:
+            arity: i64 = alphabet[j]
+            continue if arity >= width
+            reading: f64 = log_probs[k * alphabet_size + j]
+            for state in 1..<width:
+                target: i64 = state - 1 + arity
+                continue if target >= width
+                through: f64 = reading + backward[(k + 1) * width + target]
+                backward[k * width + state] <- log_add(backward[k * width + state], through)
+                marginal[k * alphabet_size + j] <- log_add(marginal[k * alphabet_size + j], forward[k * width + state] + through)
+            result[1 + m + k * alphabet_size + j] <- exp(marginal[k * alphabet_size + j] - log_z)
+    return result
+
 # Sum-product only, retaining two state rows; no maximum or marginal tables.
 def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> f64 can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
@@ -873,6 +926,7 @@ export pymodule decoding:
     fn valid_log_weights
     fn normalized_rows_fast
     fn decode
+    fn decode_log
     fn decode_prior
     fn prior_log_weight
     fn prior_normalizer
