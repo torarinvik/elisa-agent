@@ -72,14 +72,21 @@ def decision_key(decision: Decision) -> DecisionKey:
     if decision is None:
         return None
     if (type(decision) is tuple and
-            all(type(entry) is int or type(entry) is tuple for entry in decision)):
-        key = decision
-    else:
-        key = tuple(e if isinstance(e, int) else tuple(e) for e in decision)
-    if any(type(c) is not int for entry in key
-           for c in (entry if isinstance(entry, tuple) else (entry,))):
-        raise ValueError("decision groups must form a nonempty partition of nonnegative class indices")
-    return key
+            all(type(entry) is int or
+                (type(entry) is tuple and all(type(c) is int for c in entry))
+                for entry in decision)):
+        return decision
+
+    def index(value: object) -> int:
+        if isinstance(value, bool) or not isinstance(value, Integral):
+            raise ValueError("decision groups must form a nonempty partition of nonnegative class indices")
+        return int(value)
+
+    try:
+        return tuple(index(e) if isinstance(e, Integral) else tuple(index(c) for c in e)
+                     for e in decision)
+    except TypeError as exc:
+        raise ValueError("decision groups must form a nonempty partition of nonnegative class indices") from exc
 
 
 
@@ -92,7 +99,12 @@ def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[lis
             or any(isinstance(c, bool) or not isinstance(c, int) or c < 0 for c in union)
             or len(set(union)) != len(union)):
         raise ValueError("decision groups must form a nonempty partition of nonnegative class indices")
-    return union, [[union.index(c) for c in part] for part in parts]
+    positions = []
+    offset = 0
+    for part in parts:
+        positions.append(list(range(offset, offset + len(part))))
+        offset += len(part)
+    return union, positions
 
 
 @cache

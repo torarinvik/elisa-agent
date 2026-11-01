@@ -1457,3 +1457,23 @@ def test_native_unrestricted_risk_accepts_noncontiguous_readings(monkeypatch) ->
     native = rung.risk(logits, reading=reading)
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
     assert native == pytest.approx(rung.risk(logits, reading=reading))
+
+
+def test_decision_accepts_nonbuiltin_integral_indices_without_cache_aliasing() -> None:
+    from nca.ladder import decision_key, risk
+
+    reading = torch.tensor([0.6, 0.3, 0.1], dtype=torch.float64)
+    decision = (np.int64(0), (np.int32(1), np.int64(2)))
+    assert decision_key(decision) == (0, (1, 2))
+    assert risk(reading, decision) == pytest.approx(0.4)
+    for invalid in ((np.bool_(True),), ((np.float64(1),),)):
+        with pytest.raises(ValueError, match="nonempty partition"):
+            decision_key(invalid)
+
+
+def test_partition_layout_positions_follow_class_order() -> None:
+    from nca.ladder import _layout
+
+    union, positions = _layout(((8, 2, 5), 7, (0, 4)))
+    assert union == [8, 2, 5, 7, 0, 4]
+    assert positions == [[0, 1, 2], [3], [4, 5]]
