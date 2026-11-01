@@ -108,7 +108,7 @@ def route_experts(route: Plan) -> Iterator[LazyExpert]:
     if isinstance(route, Apply):
         if isinstance(route.module, LazyExpert):
             yield route.module
-        for arg in route.args:
+        for arg in (*route.args, *route.slots):
             yield from route_experts(arg)
     elif isinstance(route, Map):
         yield from route_experts(route.source)

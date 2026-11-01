@@ -219,3 +219,69 @@ def test_continuation_requests_resume_with_sub_results() -> None:
     assert result.payload == (7, 5)
     assert kernel.requests == 2
     assert sum(m.type_id == "kernel.request" for m in workspace.messages()) == 2
+
+
+def test_slots_are_planned_and_called_through_the_kernel() -> None:
+    from nca.abi import Calls
+
+    @dataclass
+    class Both:
+        manifest: Manifest = field(default_factory=lambda: Manifest(
+            "both", "1.0.0", Contract((INT,), PAIR, (((INT,), "int.next.v1"),)), cost=1.0,
+            calls=(Calls(2.0),)))
+
+        def invoke(self, step: Callable[[int], int], value: int) -> tuple[int, int]:
+            return step(value), step(-value)
+
+    from nca.router import infer
+
+    inc = fn("inc", [INT], "int.next.v1", lambda x: x + 1)
+    modules = [Both(), fn("parse-int", [TEXT], INT, int), inc]
+    route = plan_stable(modules, (TEXT,), PAIR)
+    assert route == Apply(modules[0], (Apply(modules[1], (Given(TEXT),)),),
+                          (Apply(inc, (Given(INT),)),))
+    assert infer(modules, (TEXT,), route) == PAIR
+    assert infer(modules, (TEXT,), Apply(modules[0], route.args)) is None
+    assert plan_stable(modules[:2], (TEXT,), PAIR) is None
+    workspace = Workspace()
+    result = execute(route, {TEXT: Message(TEXT, "5", "input")}, workspace, budget=4)
+    assert result.payload == (6, -4) and workspace.spent == 4.0
+    with pytest.raises(BudgetExceeded):
+        execute(route, {TEXT: Message(TEXT, "5", "input")}, Workspace(), budget=3)
+
+
+def test_budgeted_recursion_is_paid_and_refused_never_wrong() -> None:
+    """``NCA.serve``: a recursive expert within its budget answers correctly;
+    with too little budget it is refused, never wrong."""
+    from collections.abc import Generator
+
+    from nca.abi import Request
+    from nca.kernel import Kernel
+    from nca.runtime import UnresolvedRequest, attempt
+
+    def total(values: tuple[int, ...]) -> Generator[Request, int, int]:
+        if len(values) <= 1:
+            return sum(values)
+        half = len(values) // 2
+        left = yield Request(INT, {"ints.v1": values[:half]})
+        right = yield Request(INT, {"ints.v1": values[half:]})
+        return left + right
+
+    summer = Fn(Manifest("sum", "1.0.0", Contract(("ints.v1",), INT), cost=2.0), total)
+    route = Apply(summer, (Given("ints.v1"),))
+    values = tuple(range(1, 17))
+    needed = 2.0 * (2 * len(values) - 1)
+    for budget in (needed, needed + 7):
+        workspace = Workspace()
+        result = attempt(route, {"ints.v1": Message("ints.v1", values, "input")}, workspace,
+                         10_000, Kernel([summer], recursive=True), cost_budget=budget)
+        assert result is not None and result.payload == sum(values)
+        assert workspace.spent == needed
+    for budget in (0.0, 1.0, needed - 2):
+        workspace = Workspace()
+        assert attempt(route, {"ints.v1": Message("ints.v1", values, "input")}, workspace,
+                       10_000, Kernel([summer], recursive=True), cost_budget=budget) is None
+        assert workspace.spent <= budget
+    with pytest.raises(UnresolvedRequest):
+        execute(route, {"ints.v1": Message("ints.v1", values, "input")}, Workspace(), 10_000,
+                Kernel([summer]))

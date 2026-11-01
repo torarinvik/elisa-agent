@@ -27,10 +27,28 @@ def elem_type(type_id: TypeId) -> TypeId | None:
     return None
 
 
+Slot = tuple[tuple[TypeId, ...], TypeId]
+"""A sub-goal ``inputs ⇒ output`` that the kernel fills with a plan."""
+
+
 @dataclass(frozen=True)
 class Contract:
     inputs: tuple[TypeId, ...]
     output: TypeId
+    slots: tuple[Slot, ...] = ()
+    """Sub-goals the module calls as functions (higher-order experts, ``NCA.HContract``)."""
+
+
+@dataclass(frozen=True)
+class Calls:
+    """Calls per invocation to a slot on inputs of length ``L``:
+    ``fixed + per_element · L``."""
+
+    fixed: float = 0.0
+    per_element: float = 0.0
+
+    def at(self, length: int) -> float:
+        return self.fixed + self.per_element * length
 
 
 @dataclass(frozen=True)
@@ -40,6 +58,12 @@ class Manifest:
     contract: Contract
     cost: float = 1.0
     """Cost of one invocation (for example, floating-point operations)."""
+    calls: tuple[Calls, ...] = ()
+    """Worst-case calls per invocation to each slot (``ν``), for budgets and
+    guarantees."""
+    expected_calls: tuple[Calls, ...] | None = None
+    """Expected calls per invocation to each slot (``ν̄``), the planner's cost
+    objective; ``calls`` if not declared."""
 
     @property
     def ref(self) -> str:

@@ -8,6 +8,10 @@ alone lacks that property.
 
 Available types are an ordered sequence, as in the Lean model, because their
 order determines the order in which ``map`` candidates are tried.
+
+A module whose contract declares slots (a higher-order expert, ``NCA.HPlan``)
+is applied with one plan per slot, planned as a sub-goal whose only available
+inputs are the slot's inputs, like a ``map`` body.
 """
 
 from __future__ import annotations
@@ -28,6 +32,8 @@ class Given:
 class Apply:
     module: Module
     args: tuple["Plan", ...]
+    slots: tuple["Plan", ...] = ()
+    """One plan per slot of the module's contract, each from the slot's inputs."""
 
 
 @dataclass(frozen=True)
@@ -140,6 +146,19 @@ def _plan(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: T
     return memo[key]
 
 
+def _plan_all(index: ProducerIndex, limit: int,
+              goals: Sequence[tuple[Sequence[TypeId], TypeId]], fuel: int,
+              memo: Memo) -> tuple[Plan, ...] | None:
+    """Plans for every ``(available, goal)`` sub-goal at depth ``fuel - 1``."""
+    found = []
+    for available, goal in goals:
+        sub = _plan(index, limit, available, goal, fuel - 1, memo)
+        if sub is None:
+            return None
+        found.append(sub)
+    return tuple(found)
+
+
 def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
             fuel: int, memo: Memo) -> Plan | None:
     if fuel == 0:
@@ -152,14 +171,13 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
             break
         if not index.needs[position] <= reach:
             continue
-        args = []
-        for input_type in module.manifest.contract.inputs:
-            sub = _plan(index, limit, available, input_type, fuel - 1, memo)
-            if sub is None:
-                break
-            args.append(sub)
-        else:
-            return Apply(module, tuple(args))
+        contract = module.manifest.contract
+        args = _plan_all(index, limit, [(available, t) for t in contract.inputs], fuel, memo)
+        if args is None:
+            continue
+        slots = _plan_all(index, limit, list(contract.slots), fuel, memo)
+        if slots is not None:
+            return Apply(module, args, slots)
     element_goal = elem_type(goal)
     if element_goal is None:
         return None

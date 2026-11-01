@@ -1855,7 +1855,10 @@ two numbers per slot:
 - the bound `ν`, used for budgets and guarantees;
 - the expected number of calls `ν̄`, used as the planner's cost objective.
 
-For fallback, `ν̄ = (1, P(unsure))`, which is `cascade_expected_cost`.
+For fallback, `ν̄ = (1, P(unsure))`, which is `cascade_expected_cost`. The
+premise matters: a filling whose cost is correlated with being called (a
+cascade nested in a cascade, deferring on the same inputs) breaks it
+(§20.8).
 
 ### 20.5 Planning with slots
 
@@ -1951,6 +1954,77 @@ units, with repeats in the chain allowed when a budget is set, it becomes
 4. **Budgets.** A recursive expert (one that asks its own question on
    subinputs) runs within its declared budget, and is refused rather than
    wrong when the budget is too small.
+
+### 20.8 Results
+
+Slots are implemented in the ABI (`Contract.slots`, with `Manifest.calls`
+and `Manifest.expected_calls` for `ν` and `ν̄`), in the stable, cost and
+Pareto planners (`nca.planner`, `nca.optimize`), in type checking
+(`nca.router.infer`) and in the runtime, which passes each filling to its
+expert as a callable run through the kernel (`nca.runtime.Filling`).
+`nca.modules.combinators` holds `MapExpert` and `Fallback`. Budgets in cost
+units are `execute(..., cost_budget=...)`, with `attempt` reporting a
+refusal as no answer and `Kernel(recursive=True)` lifting chain exclusion.
+
+Against the predictions of §20.7:
+
+1. **Exactness: confirmed.** With a library `MapExpert` installed, the
+   stable planner returns exactly the built-in plan rewritten by
+   `embed_maps`, and the arithmetic pipeline gives the same answers at the
+   same cost (`tests/test_pipeline.py`). Demand passes through: the digit
+   recognizer still never runs on operator positions. The built-in `Map`
+   node stays, so no experiment changed. The only difference is that the
+   library `map` counts one invocation against the invocation budget.
+2. **Planner optimality: confirmed.** On 300 random libraries with
+   higher-order experts (one or two slots, fixed and per-element call
+   bounds, declared expected calls in half), the cost planner agrees with
+   exhaustive enumeration under worst-case and expected calls, every Pareto
+   option type-checks, and the frontier covers every enumerated plan. The
+   stable planner finds a plan exactly when one exists. The cheapest plan
+   used a higher-order expert in more than 20 cases.
+3. **Automatic cascades: confirmed, with one correction to the theory.**
+   `nca.cascade` Part C installs the cheap and expensive digit recognizers
+   and `Fallback` at six thresholds, measures errors on 2000 validation
+   digit glyphs, and plans with depth 3. For each error target, the planner
+   chooses `Fallback(cheap, expensive)` at some threshold. On 3958 test
+   glyphs, its error and cost equal the hand-built requesting recognizer's
+   exactly:
+
+   | target (validation error) | chosen | test error | FLOPs per glyph | hand-built error | hand-built FLOPs |
+   |---:|---|---:|---:|---:|---:|
+   | 0.0245 | fallback τ=0.99 (cheap, expensive) | 0.0063 | 2,312,551 | 0.0063 | 2,312,551 |
+   | 0.0270 | fallback τ=0.95 (cheap, expensive) | 0.0066 | 1,290,303 | 0.0066 | 1,290,303 |
+   | 0.0368 | fallback τ=0.7 (cheap, expensive) | 0.0121 | 677,383 | 0.0121 | 677,383 |
+   | 0.0490 | fallback τ=0.5 (cheap, expensive) | 0.0189 | 501,650 | 0.0189 | 501,650 |
+   | 0.0980 | cheap | 0.0217 | 469,504 | – | – |
+
+   The expensive recognizer alone (error 0.0058, 8.48M FLOPs) is never
+   chosen: τ=0.99 reaches nearly its error at 27% of its cost. Validation
+   glyphs (the first half of the MNIST test set) are harder than test
+   glyphs, with errors about 2.5 and 4 times higher for the two
+   recognizers, so targets are in validation units.
+
+   **The correction.** At depth 4 the planner first chose
+   `Fallback(cheap, Fallback(cheap, expensive))`. It predicted 2.01M FLOPs
+   per glyph, but the plan cost 2.41M on test, more than the depth-3
+   cascade. The expected-cost formula of §20.4 multiplies the second
+   filling's expected cost by `P(unsure)`. That assumes the filling's cost
+   does not depend on whether it is called. Here the inner cascade defers
+   on exactly the glyphs where the outer one does, so its cost on the
+   deferred glyphs is far above its average. `Fallback.assess` now charges
+   the second filling its audit cost on the inputs where it is actually
+   called. With that, nested re-checks of the cheap recognizer are
+   correctly dominated. Depth 4 still finds deeper compositions whose
+   validation gains (at most 0.0015, three glyphs in 2000) do not carry to
+   test (for example 0.0068 against 0.0066 at the first target). Selecting
+   among many candidates on one audit overfits it, as §17 would predict.
+4. **Budgets: confirmed.** A divide-and-conquer summing expert asks the
+   kernel for the sums of both halves of its input, so it requests its own
+   question. On 16 numbers with cost 2 per invocation, it needs 62 cost
+   units. With budget 62 or 69, it answers correctly and spends exactly 62.
+   With budget 0, 1 or 60, `attempt` returns no answer, never a wrong one,
+   and spends at most the budget. With the default kernel (chain
+   exclusion), the same request is unresolved.
 
 ## 21. Decoding by the format
 

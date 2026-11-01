@@ -27,6 +27,13 @@ consulting recognizer, which continues with the second opinion and answers
 with a mixture of both instead of delegating (``NCA.Prog``), under the demand
 gate.
 
+Part C, the cascade built by the planner (§20). The library holds the two
+recognizers and the higher-order ``Fallback`` expert at each threshold, whose
+slots the Pareto planner fills; each recognizer's error and each pair's
+cascade error are measured on validation glyphs. For error targets, the
+cheapest plan within the target is executed on the test glyphs and compared
+with the hand-built requesting recognizer at the same threshold.
+
     uv run --extra vision python -m nca.cascade --cheap checkpoints/digit_mlp.pt \\
         --expensive checkpoints/digit_cnn.pt
 """
@@ -39,10 +46,13 @@ from pathlib import Path
 import torch
 
 from nca.abi import Message
+from nca.modules.combinators import Fallback
+from nca.optimize import cheapest_within, plan_pareto
+from nca.planner import Apply, Given, Plan
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
 from nca.kernel import Kernel
-from nca.modules.digit_recognizer import GLYPH, DigitRecognizer
+from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, GLYPH, DigitRecognizer
 from nca.modules.operator_recognizer import SymbolRecognizer
 from nca.modules.refinement import ConsultingRecognizer, RequestingRecognizer
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -56,9 +66,8 @@ from nca.workspace import Workspace
 GLYPH_SHAPE = (1, 28, 28)
 
 
-@torch.no_grad()
-def glyph_level(cheap: DigitRecognizer, expensive: DigitRecognizer,
-                dataset: ExpressionDataset, thresholds: list[float]) -> None:
+def digit_glyphs(dataset: ExpressionDataset) -> tuple[list[torch.Tensor], list[int]]:
+    """Digit crops of correctly segmented expressions, with their labels."""
     segmenter = Segmenter()
     crops, labels = [], []
     for index in range(len(dataset)):
@@ -67,6 +76,13 @@ def glyph_level(cheap: DigitRecognizer, expensive: DigitRecognizer,
         if len(pieces) == len(sample.tokens):
             crops += pieces[::2]
             labels += [int(t) for t in sample.tokens[::2]]
+    return crops, labels
+
+
+@torch.no_grad()
+def glyph_level(cheap: DigitRecognizer, expensive: DigitRecognizer,
+                dataset: ExpressionDataset, thresholds: list[float]) -> None:
+    crops, labels = digit_glyphs(dataset)
     batch = torch.stack(crops)[:, None]
     truth = torch.tensor(labels)
     p1 = torch.softmax(cheap.network(batch), dim=1)
@@ -157,6 +173,66 @@ def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: Sym
                   f" {operator_requests / n:13.2f} {changed:>8s}")
 
 
+def describe(plan: Plan) -> str:
+    if isinstance(plan, Given):
+        return "glyph"
+    assert isinstance(plan, Apply)
+    name = plan.module.manifest.module_id.rpartition(".")[2]
+    if isinstance(plan.module, Fallback):
+        name = f"fallback τ={plan.module.threshold:g}"
+    return name if not plan.slots else f"{name}({', '.join(describe(f) for f in plan.slots)})"
+
+
+@torch.no_grad()
+def measure(route: Plan, crops: list[torch.Tensor], labels: list[int],
+            kernel: Kernel | None = None) -> tuple[float, float]:
+    """Error and cost per glyph of ``route`` run through the runtime."""
+    wrong, spent = 0, 0.0
+    for crop, label in zip(crops, labels):
+        workspace = Workspace()
+        result = execute(route, {GLYPH: Message(GLYPH, crop, "input")}, workspace, 100, kernel)
+        wrong += int(torch.tensor(result.payload).argmax()) != label
+        spent += workspace.spent
+    return wrong / len(labels), spent / len(labels)
+
+
+def planned_cascade(cheap: DigitRecognizer, expensive: DigitRecognizer,
+                    args: argparse.Namespace) -> None:
+    print("\nPart C: the cascade built by the planner")
+    audit, audit_labels = digit_glyphs(ExpressionDataset("validation", args.samples * 2,
+                                                         args.data, args.seed))
+    crops, labels = digit_glyphs(ExpressionDataset("test", args.samples * 4, args.data,
+                                                   args.seed))
+    errors = {m.manifest.ref: measure(Apply(m, (Given(GLYPH),)), audit, audit_labels)[0]
+              for m in (cheap, expensive)}
+    library: list[Module] = [cheap, expensive, *(
+        Fallback(GLYPH, DIGIT_DISTRIBUTION, tau, audit, audit_labels) for tau in args.thresholds)]
+    frontier = plan_pareto(library, (GLYPH,), DIGIT_DISTRIBUTION, 1, errors, fuel=args.fuel)
+    print(f"{len(audit)} validation and {len(crops)} test digit glyphs; frontier "
+          f"(validation error, expected FLOPs per glyph):")
+    for option in frontier:
+        print(f"  {describe(option.plan):>50s} {option.error:.4f} {option.cost:12,.0f}")
+    expensive_error = errors[expensive.manifest.ref]
+    print(f"{'target':>7s} {'chosen plan':>50s} {'test error':>11s} {'cost/glyph':>11s} "
+          f"{'hand-built error':>17s} {'cost/glyph':>11s}")
+    for factor in args.targets:
+        target = factor * expensive_error
+        chosen = cheapest_within(frontier, target)
+        if chosen is None:
+            print(f"{target:7.4f} {'-':>50s}")
+            continue
+        error, cost = measure(chosen.plan, crops, labels)
+        hand = "-"
+        node = chosen.plan
+        if (isinstance(node, Apply) and isinstance(node.module, Fallback)
+                and [f.module for f in node.slots if isinstance(f, Apply)] == [cheap, expensive]):
+            requester = RequestingRecognizer(cheap, node.module.threshold)
+            hand_error, hand_cost = measure(Apply(requester, (Given(GLYPH),)), crops, labels,
+                                            Kernel([requester, expensive]))
+            hand = f"{hand_error:17.4f} {hand_cost:11,.0f}"
+        print(f"{target:7.4f} {describe(chosen.plan):>50s} {error:11.4f} {cost:11,.0f} {hand}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--data", type=Path, default=Path("data"))
@@ -170,6 +246,10 @@ def main() -> None:
     parser.add_argument("--end-to-end", type=float, nargs="+", default=[0.9])
     parser.add_argument("--weights", type=float, nargs="+", default=[0.5],
                         help="second-opinion weights of the consulting recognizer")
+    parser.add_argument("--targets", type=float, nargs="+", default=[1.0, 1.1, 1.5, 2.0, 4.0],
+                        help="error targets of Part C, as multiples of the expensive error")
+    parser.add_argument("--fuel", type=int, default=3, help="planning depth of Part C")
+    parser.add_argument("--parts", default="ABC")
     args = parser.parse_args()
 
     cheap = DigitRecognizer.load(args.cheap)
@@ -179,9 +259,13 @@ def main() -> None:
            "nca.digit-recognizer.expensive")
     operator = SymbolRecognizer.load(args.operator)
     costed(operator, network_flops(operator.network, GLYPH_SHAPE))
-    glyph_level(cheap, expensive, ExpressionDataset("test", args.samples * 4, args.data,
-                                                    args.seed), args.thresholds)
-    end_to_end(cheap, expensive, operator, args)
+    if "A" in args.parts:
+        glyph_level(cheap, expensive, ExpressionDataset("test", args.samples * 4, args.data,
+                                                        args.seed), args.thresholds)
+    if "B" in args.parts:
+        end_to_end(cheap, expensive, operator, args)
+    if "C" in args.parts:
+        planned_cascade(cheap, expensive, args)
 
 
 if __name__ == "__main__":

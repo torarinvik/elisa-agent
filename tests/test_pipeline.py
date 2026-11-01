@@ -221,3 +221,40 @@ def test_fuser_decision_demand_is_sound() -> None:
                 decided.append(fuser.invoke(d if fuser.decides(0, read) is None else None,
                                             o if fuser.decides(1, read) is None else None))
             assert parser.invoke(decided) == parser.invoke(full)
+
+
+def test_library_map_matches_built_in_map() -> None:
+    """``NCA.embed_wellTyped``: ``map`` as a library expert gives the same
+    answers at the same cost, with the parser's demand passed through."""
+    from nca.abi import Message
+    from nca.efficiency import costed
+    from nca.modules.combinators import MapExpert, embed_maps
+    from nca.modules.segmenter import EXPRESSION_IMAGE
+    from nca.modules.symbols import INTEGER
+    from nca.planner import output_type, plan_stable
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    torch.manual_seed(0)
+    digit = costed(DigitRecognizer(digit_net()), 1000.0, "digit")
+    operator = costed(SymbolRecognizer(op_net()), 10.0, "operator")
+    registry = build_registry(digit, operator)
+    built_in = compose_plan(registry)
+    embedded = embed_maps(built_in)
+    mapped = built_in.args[0].args[0]
+    library = [MapExpert(mapped.element, output_type(mapped.body)), *registry.modules()]
+    assert plan_stable(library, (EXPRESSION_IMAGE,), INTEGER) == embedded
+    rng = np.random.default_rng(1)
+    for operands in (2, 4):
+        tokens = tuple("3" if i % 2 == 0 else "+" for i in range(2 * operands - 1))
+        glyphs = [(rng.random((GLYPH, GLYPH)) < 0.3).astype(np.float32) if t == "3"
+                  else render_operator(t, rng) for t in tokens]
+        image = torch.from_numpy(compose(glyphs, tokens, rng, width=40 * len(glyphs)).image)
+        results = []
+        for route in (built_in, embedded):
+            workspace = Workspace()
+            out = execute(route, {EXPRESSION_IMAGE: Message(EXPRESSION_IMAGE, image, "input")},
+                          workspace, 1000)
+            results.append((out.payload, workspace.spent))
+        assert results[0] == results[1]
+        assert results[0][1] < 1000.0 * len(tokens)

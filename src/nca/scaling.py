@@ -107,7 +107,8 @@ def decoys(n: int, store: ExpertStore, seed: int) -> list[LazyExpert]:
 
 def working_set(node: Plan) -> set[str]:
     if isinstance(node, Apply):
-        return {node.module.manifest.module_id}.union(*(working_set(a) for a in node.args))
+        return {node.module.manifest.module_id}.union(
+            *(working_set(a) for a in (*node.args, *node.slots)))
     if isinstance(node, Map):
         return working_set(node.body) | working_set(node.source)
     return set()
