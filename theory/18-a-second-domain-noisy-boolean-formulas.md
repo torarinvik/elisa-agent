@@ -21,8 +21,8 @@ a random letter with probability `ν/2`, deleted with probability `ν/5`,
 followed by an inserted random letter with probability `ν/5`, or swapped with
 the next character with probability `ν/10`. A word never becomes empty (a
 fully deleted word keeps one random letter). Spaces are not corrupted, so
-word boundaries are known. A distribution shift is a larger `ν` in use than
-in calibration.
+word boundaries are known. A noise shift is a larger `ν` in use than in calibration; a structural
+shift changes the formula generator as described below.
 
 **Formulas.** Complete binary trees of depth `d` (`n = 2^d` leaves) whose
 levels alternate between `and` and `or` (root chosen at random), with uniform

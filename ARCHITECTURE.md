@@ -788,7 +788,10 @@ returns, so no cached denominator crosses calibration or selection runs.
 `FormulaDataset(..., early_leaf=p)` and `formula(..., early_leaf=p)` expose
 the structural-shift family in §18.1. The new trailing parameter defaults
 to zero; its disabled branch consumes no random draw, preserving historical
-seeded samples. The CLI still uses the default complete generator.
+seeded samples. `logic --early-leaf p` applies the structural variant to
+selection, stopping-rule fit, diagnostics, audit halves and evaluation;
+reader calibration remains on complete trees. The descriptive leaf column
+is labeled as a maximum, since actual pruned-tree sizes vary.
 `prunedLeaves`, `prunedBranches` and `pruned_branches_eq_leaves_sub_one` in
 `NCA/Decoding.lean` formalize the algebraic count recurrences and identity;
 they do not formalize the RNG's probability law.

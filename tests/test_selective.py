@@ -498,3 +498,31 @@ def test_solve_many_matches_independent_answers_and_costs() -> None:
         solve(route, ladders, "", delta) for delta in targets]
     with pytest.raises(ValueError):
         solve_many(route, ladders, "abcd", [float("nan")])
+
+
+def test_structural_shift_reaches_both_audit_halves_and_evaluation(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+
+    checked: list[int] = []
+
+    def counts(route: Any, ladders: Any, samples: Any, delta: float,
+               **kwargs: Any) -> tuple[int, int]:
+        assert all(len(sample.words) <= 2 for sample in samples)
+        checked.append(len(samples))
+        return len(samples), 0
+
+    def fit(route: Any, ladders: Any, samples: Any, targets: Any) -> list[tuple[int, int]]:
+        assert all(len(sample.words) <= 2 for sample in samples)
+        checked.append(-len(samples))
+        return [(len(samples), 0) for _ in targets]
+
+    monkeypatch.setattr(logic, "outcomes", counts)
+    monkeypatch.setattr(logic, "outcomes_many", fit)
+    args = SimpleNamespace(depths=[3], samples=3, shift=0.2, seed=0, xor=0.0,
+                           draws=1, audit=60, targets=[0.05], alpha=0.1, early_leaf=1.0)
+    logic.shifted(None, {}, args)
+    assert checked[0] == -60
+    assert checked.count(60) == len(logic.INFLATIONS)
+    assert checked[-2:] == [3, 3]

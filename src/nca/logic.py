@@ -184,7 +184,8 @@ def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
           f"{'kFLOPs':>8s}" + extra)
     top = max(len(rungs) for rungs in ladders.values())
     for depth in args.depths:
-        dataset = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor)
+        dataset = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor,
+                                 early_leaf=getattr(args, "early_leaf", 0.0))
         samples = [dataset.sample(i) for i in range(len(dataset))]
         words = sum(len(s.words) for s in samples) / len(samples)
         systems = {"bottom rungs": ("certificate", float("inf"), 0),
@@ -210,8 +211,10 @@ def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Name
     print(f"{'depth':>5s} {'δ':>5s} {'λ':>8s} {'coverage':>9s} {'error answered [95% CI]':>27s} "
           f"{'mean bound':>11s} {'error forced':>13s} {'kFLOPs':>8s}")
     for depth in args.depths:
-        fit = FormulaDataset("validation", args.fit, depth, args.noise, args.seed + 1, args.xor)
-        test = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor)
+        fit = FormulaDataset("validation", args.fit, depth, args.noise, args.seed + 1, args.xor,
+                             early_leaf=getattr(args, "early_leaf", 0.0))
+        test = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor,
+                                 early_leaf=getattr(args, "early_leaf", 0.0))
         samples = [test.sample(i) for i in range(len(test))]
         for delta in args.targets:
             runs = []
@@ -231,11 +234,13 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
     print(f"{'depth':>5s} {'draw':>5s} {'δ':>5s} {'control':>8s} {'λ':>5s} {'coverage':>9s} "
           f"{'error answered [95% CI]':>27s} {'≤ δ':>5s}")
     for depth in args.depths:
-        evaluation = FormulaDataset("test", args.samples, depth, args.shift, args.seed, args.xor)
+        evaluation = FormulaDataset("test", args.samples, depth, args.shift, args.seed, args.xor,
+                                    early_leaf=getattr(args, "early_leaf", 0.0))
         samples = [evaluation.sample(i) for i in range(len(evaluation))]
         for draw in range(args.draws):
             audit = FormulaDataset("test", 2 * args.audit, depth, args.shift,
-                                   args.seed + 1 + draw, args.xor)
+                                   args.seed + 1 + draw, args.xor,
+                                   early_leaf=getattr(args, "early_leaf", 0.0))
             fit = [audit.sample(i) for i in range(args.audit)]
             check = [audit.sample(i) for i in range(args.audit, 2 * args.audit)]
             for delta in args.targets:
@@ -276,7 +281,8 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
     near = 10
     for noise in (args.noise, *(() if args.shift is None else (args.shift,))):
         for depth in args.depths:
-            dataset = FormulaDataset("test", args.samples, depth, noise, args.seed, args.xor)
+            dataset = FormulaDataset("test", args.samples, depth, noise, args.seed, args.xor,
+                                     early_leaf=getattr(args, "early_leaf", 0.0))
             risks: list[float] = []
             wrong: list[bool] = []
             pairs: list[float] = []
@@ -345,6 +351,8 @@ def main() -> None:
     parser.add_argument("--prior-score-clip", type=float, default=100.0)
     parser.add_argument("--prior-alpha", type=float, default=0.1)
     parser.add_argument("--noise", type=float, default=0.1)
+    parser.add_argument("--early-leaf", type=float, default=0.0,
+                        help="early stopping probability in use; reader calibration stays complete")
     parser.add_argument("--xor", type=float, default=0.0)
     parser.add_argument("--calibration", type=int, default=100, help="validation formulas")
     parser.add_argument("--samples", type=int, default=300)
@@ -366,6 +374,8 @@ def main() -> None:
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
+    if not 0 <= args.early_leaf <= 1:
+        parser.error("--early-leaf must be between zero and one")
     if args.prior in ("height", "auto"):
         if args.prior_height is None or args.prior_height < 0:
             parser.error("--prior height/auto requires a nonnegative --prior-height")
@@ -396,7 +406,7 @@ def main() -> None:
     if args.prior == "auto" and not args.premises:
         fit = FormulaDataset("validation", args.prior_fit, max(args.depths),
                              args.noise if args.shift is None else args.shift,
-                             args.seed + 10_000, args.xor)
+                             args.seed + 10_000, args.xor, early_leaf=args.early_leaf)
         choice = choose_prior(ladders[WORD_DISTRIBUTION][-1], labels,
                               (fit.sample(i).text for i in range(len(fit))),
                               args.prior_height, args.prior_score_clip, args.prior_alpha)
@@ -411,6 +421,7 @@ def main() -> None:
               f"scores={choice.scores}, total error={choice.score_error:g}", flush=True)
     print(f"correction prior: {chosen_prior}" + (f" (height {args.prior_height})"
           if chosen_prior == "height" else ""), flush=True)
+    print(f"deployment early-leaf probability: {args.early_leaf:g}", flush=True)
     print(f"{WORD_DISTRIBUTION}: " + ", ".join(
         f"{r.module.manifest.module_id} (cost {r.cost:g}, T={r.temperature():.2f})"
         for r in ladders[WORD_DISTRIBUTION]))
@@ -421,12 +432,13 @@ def main() -> None:
             premises(rung, args)
         return
 
-    print(f"{'depth':>5s} {'leaves':>7s} {'certificate leaves: mean':>25s} {'max':>5s} "
+    print(f"{'depth':>5s} {'max leaves':>10s} {'certificate leaves: mean':>25s} {'max':>5s} "
           f"{'bound 2^⌈d/2⌉':>14s}")
     for depth in args.depths:
-        dataset = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor)
+        dataset = FormulaDataset("test", args.samples, depth, args.noise, args.seed, args.xor,
+                                 early_leaf=getattr(args, "early_leaf", 0.0))
         sizes = [certificate_leaves(dataset.sample(i)) for i in range(len(dataset))]
-        print(f"{depth:5d} {2 ** depth:7d} {sum(sizes) / len(sizes):25.2f} {max(sizes):5d} "
+        print(f"{depth:5d} {2 ** depth:10d} {sum(sizes) / len(sizes):25.2f} {max(sizes):5d} "
               f"{2 ** ((depth + 1) // 2):14d}")
 
     if args.frontier:

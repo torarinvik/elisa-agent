@@ -1376,9 +1376,18 @@ def test_auto_prior_is_fixed_before_deployment_audit(
     from nca import logic
 
     phases: list[str] = []
+    datasets: list[tuple[str, int, float]] = []
+    original_dataset = logic.FormulaDataset
+
+    def dataset(*args: Any, **kwargs: Any) -> FormulaDataset:
+        result = original_dataset(*args, **kwargs)
+        datasets.append((result.split, result.seed, result.early_leaf))
+        return result
+
+    monkeypatch.setattr(logic, "FormulaDataset", dataset)
     monkeypatch.setattr(sys, "argv", ["logic", "--prior", "auto", "--prior-height", "1",
         "--prior-fit", "2", "--calibration", "1", "--samples", "1", "--depths", "0",
-        "--shift", "0.2", "--account", "correction", "--draws", "2"])
+        "--shift", "0.2", "--account", "correction", "--draws", "2", "--early-leaf", "0.25"])
     monkeypatch.setattr(logic, "library", lambda *args, **kwargs: [
         SimpleNamespace(prior=kwargs.get("prior"))])
     monkeypatch.setattr(logic, "plan_stable", lambda modules, available, target: modules[0])
@@ -1399,6 +1408,8 @@ def test_auto_prior_is_fixed_before_deployment_audit(
     monkeypatch.setattr(logic, "shifted", audit)
     logic.main()
     assert phases == ["select", "audit"]
+    assert datasets == [("validation", 0, 0.0), ("validation", 10000, 0.25),
+                        ("test", 0, 0.25)]
 
 
 @pytest.mark.parametrize("reference", [False, True])
