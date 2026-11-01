@@ -154,6 +154,17 @@ def bernoulliStep (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) : ℝ :=
 theorem bernoulli_split_mass (mass p : ℝ) : (1 - p) * mass + p * mass = mass := by
   ring
 
+/-- Upper bounds remain upper bounds through one nonnegative count update. -/
+theorem bernoulli_step_upper (p q p' q' x y x' y' : ℝ)
+    (hp : 0 ≤ p) (hq : 0 ≤ q) (hx' : 0 ≤ x') (hy' : 0 ≤ y')
+    (hpp : p ≤ p') (hqq : q ≤ q') (hxx : x ≤ x') (hyy : y ≤ y') :
+    q * x + p * y ≤ q' * x' + p' * y' := by
+  calc
+    q * x + p * y ≤ q * x' + p * y' :=
+      add_le_add (mul_le_mul_of_nonneg_left hxx hq) (mul_le_mul_of_nonneg_left hyy hp)
+    _ ≤ q' * x' + p' * y' :=
+      add_le_add (mul_le_mul_of_nonneg_right hqq hx') (mul_le_mul_of_nonneg_right hpp hy')
+
 /-- The number of successes cannot exceed the number of Bernoulli events. -/
 theorem bernoulli_count_le_length (events : List Bool) :
     events.count true ≤ events.length := by

@@ -107,6 +107,49 @@ def test_poisson_binomial_nan_propagates_at_support_edges() -> None:
         assert all(math.isnan(p) for p in poisson_binomial_tails(observed, [float("nan")]))
 
 
+def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch) -> None:
+    import math
+    from fractions import Fraction
+
+    import numpy as np
+    import nca.stats as stats
+
+    rng = np.random.default_rng(894)
+    cases = [[], [0.0, 1.0], [1e-200, 1e-200], [0.1, 0.3, 0.7]]
+    cases += [np.array([0.1, 0.3, 0.7], dtype=dtype)
+              for dtype in (np.float16, np.float32, np.longdouble)]
+    cases += [rng.random(int(rng.integers(1, 9))).tolist() for _ in range(100)]
+    native = stats._NATIVE
+    for probabilities in cases:
+        pmf = [Fraction(1)]
+        for value in probabilities:
+            p = Fraction(*value.as_integer_ratio())
+            old = pmf
+            pmf = [Fraction(0)] * (len(old) + 1)
+            for i, mass in enumerate(old):
+                pmf[i] += (1 - p) * mass
+                pmf[i + 1] += p * mass
+        for observed in range(len(probabilities) + 1):
+            exact = sum(pmf[observed:])
+            answers = []
+            for implementation in (None, native):
+                monkeypatch.setattr(stats, "_NATIVE", implementation)
+                bound = stats.poisson_binomial_upper_bound(observed, probabilities)
+                assert Fraction.from_float(bound) >= exact
+                assert bound <= 1.0
+                answers.append(bound)
+            assert answers[0] == answers[1]
+    assert stats.poisson_binomial_upper_bound(2, [1e-200, 1e-200]) > 0.0
+    assert math.isnan(stats.poisson_binomial_upper_bound(0, [float("nan")]))
+    assert stats.poisson_binomial_upper_bound(-1, []) == 1.0
+    assert stats.poisson_binomial_upper_bound(1, []) == 0.0
+    for implementation in (None, native):
+        monkeypatch.setattr(stats, "_NATIVE", implementation)
+        with np.errstate(under="raise"):
+            assert stats.poisson_binomial_upper_bound(1, [1.0]) == 1.0
+            assert stats.poisson_binomial_upper_bound(2, [1e-200, 1e-200]) > 0.0
+
+
 def test_native_poisson_binomial_handles_sparse_and_nonfinite_inputs() -> None:
     import numpy as np
     import nca.stats as stats

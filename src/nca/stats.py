@@ -130,3 +130,62 @@ def _poisson_binomial_pmf_reference(probabilities: Sequence[float]) -> np.ndarra
         pmf[1:n + 1] = pmf[1:n + 1] * (1 - p) + pmf[:n] * p
         pmf[0] *= 1 - p
     return pmf
+
+
+def poisson_binomial_upper_bound(observed: int, probabilities: Sequence[float]) -> float:
+    """Upward-rounded bound on the excess tail for independent Bernoulli events.
+
+    Arithmetic assumes IEEE 754 binary64 operations rounded to nearest,
+    gradual underflow, and a correctly rounded ``nextafter``. NaNs propagate.
+    """
+    clipped = np.clip(probabilities, 0.0, 1.0)
+    if clipped.ndim != 1 or clipped.dtype.kind not in "biuf":
+        raise ValueError("probabilities must be a one-dimensional real sequence")
+    if np.isnan(clipped).any():
+        return math.nan
+    n = len(clipped)
+    if observed <= 0:
+        return 1.0
+    if observed > n:
+        return 0.0
+    with np.errstate(under="ignore"):
+        values = np.ascontiguousarray(clipped, dtype=np.float64)
+        if clipped.dtype.kind == "f" and clipped.dtype.itemsize > 8:
+            lower = np.nextafter(values, 0.0)
+            upper = np.nextafter(values, 1.0)
+        else:
+            lower = upper = values
+        complements = np.nextafter(1.0 - lower, 1.0)
+    complements = np.where(lower == 1.0, 0.0, complements)
+    native = getattr(_NATIVE, "poisson_binomial_upper", None)
+    if native is not None:
+        return float(native(upper, complements, observed))
+    return _poisson_binomial_upper_reference(observed, upper, complements)
+
+
+def _poisson_binomial_upper_reference(observed: int, probabilities: np.ndarray,
+                                      complements: np.ndarray) -> float:
+    """Directed-rounding reference for the truncated failure-count recurrence."""
+    def product(a: float, b: float) -> float:
+        if a == 0 or b == 0:
+            return 0.0
+        return min(1.0, math.nextafter(a * b, 1.0))
+
+    def add(a: float, b: float) -> float:
+        if a == 0:
+            return b
+        if b == 0:
+            return a
+        return min(1.0, math.nextafter(a + b, 1.0))
+
+    width = len(probabilities) - observed
+    pmf = [1.0] + [0.0] * width
+    for i, (p, q) in enumerate(zip(probabilities, complements)):
+        p, q = float(p), float(q)
+        for k in range(min(i + 1, width), 0, -1):
+            pmf[k] = add(product(p, pmf[k]), product(q, pmf[k - 1]))
+        pmf[0] = product(p, pmf[0])
+    total = 0.0
+    for value in pmf:
+        total = add(total, value)
+    return total

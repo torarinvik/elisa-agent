@@ -59,7 +59,8 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
                                CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator)
 from nca.planner import Plan, plan_stable
 from nca.selective import Answer, build_ladders, solve, solve_many
-from nca.stats import clopper_pearson_upper, family_audit_alpha, poisson_binomial_tails, wilson
+from nca.stats import (clopper_pearson_upper, family_audit_alpha, poisson_binomial_tails,
+                       poisson_binomial_upper_bound, wilson)
 
 
 ACCOUNTS = {"static": (False, "none", False), "certificate": (True, "none", False),
@@ -324,10 +325,11 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
                 joint["adjacent"] += int((gaps == 1).sum())
                 joint["distant"] += int((gaps >= near).sum())
             observed = sum(wrong)
-            above, below = poisson_binomial_tails(observed, risks)
+            _, below = poisson_binomial_tails(observed, risks)
+            above = poisson_binomial_upper_bound(observed, risks)
             print(f"noise {noise:g} depth {depth}: decoded arity sequence wrong {observed} "
                   f"of {len(wrong)}, predicted Σ R = {sum(risks):.1f} "
-                  f"(P(X ≥ obs) = {above:.3g}, P(X ≤ obs) = {below:.3g})")
+                  f"(P(X ≥ obs) ≤ {above:.3g}, P(X ≤ obs) ≈ {below:.3g})")
             edges = (0.0, 1e-3, 1e-2, 0.1, 1.0 + 1e-9)
             for low, high in zip(edges, edges[1:]):
                 chosen_bin = [i for i, r in enumerate(risks) if low <= r < high]
@@ -335,9 +337,9 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
                     print(f"  R in [{low:g}, {min(high, 1.0):g}): {len(chosen_bin):5d} formulas, "
                           f"mean R {np.mean([risks[i] for i in chosen_bin]):.4f}, "
                           f"wrong {np.mean([wrong[i] for i in chosen_bin]):.4f}")
-            above, _ = poisson_binomial_tails(doubled, [min(1.0, e) for e in pairs])
+            above = poisson_binomial_upper_bound(doubled, [min(1.0, e) for e in pairs])
             print(f"  ≥ 2 arity failures: {doubled} formulas, Σ e₂ = {sum(pairs):.1f} "
-                  f"(P(X ≥ obs) = {above:.3g}); arity failures {failures:.0f}, "
+                  f"(P(X ≥ obs) ≤ {above:.3g}); arity failures {failures:.0f}, "
                   f"Σ ρ = {predicted:.1f}")
             for kind in joint:
                 print(f"  {kind} joint failures: {joint[kind]}, Σ ρᵢρⱼ = {expected[kind]:.2f}, "

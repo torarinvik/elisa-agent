@@ -1,5 +1,39 @@
 # Distribution of a sum of independent Bernoulli variables.
 # Descending updates preserve the preceding row in place.
+extern nextafter(x: f64, y: f64) -> f64
+
+def upper_product(a: f64, b: f64) -> f64:
+    return 0.0 if a == 0.0 or b == 0.0
+    product: f64 = a * b
+    return 1.0 if product >= 1.0
+    return nextafter(product, 1.0)
+
+def upper_add(a: f64, b: f64) -> f64:
+    return b if a == 0.0
+    return a if b == 0.0
+    total: f64 = a + b
+    return 1.0 if total >= 1.0
+    return nextafter(total, 1.0)
+
+# Upper bound on P(successes >= observed), using a truncated failure count.
+def poisson_binomial_upper(probabilities: view[f64], complements: view[f64], observed: i64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    n: i64 = probabilities.len.i64()
+    return 1.0 if complements.len.i64() != n or observed <= 0
+    return 0.0 if observed > n
+    width: i64 = n - observed
+    pmf: darray[f64] =
+        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(width + 1)]| -> pmf:
+            p: f64 = probabilities[i]
+            q: f64 = complements[i]
+            high: i64 = i + 1 if i + 1 < width else width
+            for step in 0..<high:
+                k: i64 = high - step
+                pmf[k] <- upper_add(upper_product(p, pmf[k]), upper_product(q, pmf[k - 1]))
+            pmf[0] <- upper_product(p, pmf[0])
+    return
+        for i in 0..<(width + 1) |total: f64 = 0.0| -> total:
+            total <- upper_add(total, pmf[i])
+
 def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     n: i64 = probabilities.len.i64()
     return [] if complements.len.i64() != n
@@ -30,3 +64,4 @@ def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> da
 
 export pymodule stats:
     fn poisson_binomial_pmf
+    fn poisson_binomial_upper

@@ -192,6 +192,12 @@ Before this recurrence, reduced-precision inputs are promoted so that forming
 still uses floating-point arithmetic and is not an outward-rounded certificate.
 Finite tails are bounded above by one, and the two certain boundary tails
 are returned as exactly one; undefined inputs continue to propagate NaNs.
+For an excess p-value, an upper bound is computed separately: count failures
+up to `N-observed`, use upper bounds for each event's success and failure
+probabilities, and round each nonzero product and sum upward. Monotonicity of
+the nonnegative recurrence preserves the bound. This implementation assumes
+IEEE 754 binary64 operations rounded to nearest, gradual underflow, and a
+correctly rounded `nextafter`; the Lean recurrence proof is over exact reals.
 
 **The pairs premise of §19.** Let `O₂` be the number of formulas whose
 per-word reading has at least two arity failures. If failures are not
