@@ -164,6 +164,14 @@ theorem bernoulliStep_impossible (mass : ℕ → ℝ) (k : ℕ) :
     bernoulliStep mass 0 k = mass k := by
   simp [bernoulliStep]
 
+/-- A certain event shifts the count distribution by one. -/
+theorem bernoulliStep_certain_zero (mass : ℕ → ℝ) : bernoulliStep mass 1 0 = 0 := by
+  simp [bernoulliStep]
+
+theorem bernoulliStep_certain_succ (mass : ℕ → ℝ) (k : ℕ) :
+    bernoulliStep mass 1 (k + 1) = mass k := by
+  simp [bernoulliStep]
+
 theorem bernoulliStep_succ (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) :
     bernoulliStep mass p (k + 1) = (1 - p) * mass (k + 1) + p * mass k := by
   simp [bernoulliStep]

@@ -97,6 +97,20 @@ def test_native_poisson_binomial_handles_sparse_and_nonfinite_inputs() -> None:
             np.testing.assert_array_equal(actual, expected)
 
 
+def test_native_poisson_binomial_certain_events_shift_distribution() -> None:
+    import numpy as np
+    import nca.stats as stats
+
+    if stats._NATIVE is None:
+        pytest.skip("Elisa statistics kernel is not built")
+    for probabilities in ([1.0] * 100, [0.0, 1.0, 0.1, 1.0, 0.2, 0.0],
+                          [1.0, 1e-320, 0.5, 1.0], [1.0, float("nan"), 0.0, 1.0]):
+        values = np.asarray(probabilities)
+        expected = stats._poisson_binomial_pmf_reference(values)
+        actual = stats._NATIVE.poisson_binomial_pmf(values, 1 - values)
+        np.testing.assert_array_equal(actual, expected)
+
+
 def test_clopper_pearson_upper_matches_closed_form_and_sample_sizes() -> None:
     from nca.stats import binomial_cdf, clopper_pearson_upper
 

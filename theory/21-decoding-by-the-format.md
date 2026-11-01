@@ -183,7 +183,8 @@ Bernoulli event of probability `p` changes mass `q(k)` to
 `(1-p)q(k) + p q(k-1)`, taking `q(-1) = 0`. Updating counts in descending
 order retains the previous masses needed for this recurrence.
 An event with probability zero leaves the distribution unchanged and does
-not increase the maximum attainable count.
+not increase the maximum attainable count. An event with probability one
+shifts the distribution by one; several such shifts can be combined.
 The sum is always between zero and the number of events, so its lower tail
 below zero and upper tail above that number are zero.
 

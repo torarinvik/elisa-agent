@@ -8,16 +8,24 @@ def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> da
             p: f64 = probabilities[i]
             q: f64 = complements[i]
             valid <- valid and p >= 0.0 and p <= 1.0 and q >= 0.0 and q <= 1.0
-    pmf: darray[f64] =
-        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(n + 1)], active: i64 = 0| -> pmf:
+    pmf, certain =
+        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(n + 1)], active: i64 = 0, certain: i64 = 0| -> (pmf, certain):
             p: f64 = probabilities[i]
             q: f64 = complements[i]
             continue if bounded and p == 0.0 and q == 1.0
+            if bounded and p == 1.0 and q == 0.0:
+                certain <- certain + 1
+                continue
             active <- active + 1
             for j in 0..<active:
                 k: i64 = active - j
                 pmf[k] <- pmf[k] * q + pmf[k - 1] * p
             pmf[0] <- pmf[0] * q
+    # Shift once for all certain events, descending to preserve the source.
+    return pmf if certain == 0
+    for j in 0..<(n + 1):
+        k: i64 = n - j
+        pmf[k] <- 0.0 if k < certain else pmf[k - certain]
     return pmf
 
 export pymodule stats:
