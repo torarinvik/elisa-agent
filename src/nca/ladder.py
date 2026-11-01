@@ -227,12 +227,14 @@ def risk(reading: torch.Tensor, classes: Decision = None) -> float:
 class Distribution:
     """Calibrated probabilities with optional per-item revision identities.
 
-    A revision identifies the observation and calibration within one run.
+    A revision identifies the observation and calibration within its source.
+    Adapters may share a source token when they preserve that identity.
     Consumers without revision support may call this like any other function.
     """
 
     lookup: Callable[[int, Decision], torch.Tensor]
     revision: Callable[[int], int]
+    source: object = field(default_factory=object, compare=False, repr=False)
 
     def __call__(self, i: int, decision: Decision) -> torch.Tensor:
         return self.lookup(i, decision)

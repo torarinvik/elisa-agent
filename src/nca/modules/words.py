@@ -251,6 +251,7 @@ class CorrectionState:
     steps: int = 0
     changed: tuple[int, ...] = ()
     revisions: tuple[int, ...] | None = None
+    distribution_source: object | None = None
     within: dict[tuple[int, int], float] = field(default_factory=dict)
     risk_prior: ArityPrior | None = None
     risk_arities: tuple[int, ...] | None = None
@@ -488,9 +489,11 @@ class FormulaEvaluator:
         if self.band_slack is not None and state is None:
             state = CorrectionState()
         revision = getattr(distribution, "revision", None)
+        source = getattr(distribution, "source", distribution)
         versions = tuple(revision(k) for k in range(n)) if revision is not None else None
         invalidated = tuple(k for k in range(n) if state is None or versions is None
-                            or state.revisions is None or versions[k] != state.revisions[k])
+                            or state.distribution_source is not source or state.revisions is None
+                            or len(state.revisions) != n or versions[k] != state.revisions[k])
         cached = None
         if state is not None:
             if invalidated:
@@ -516,6 +519,7 @@ class FormulaEvaluator:
             if self.prior is not None:
                 state.prior_log_probs = log_probs
             state.revisions = versions
+            state.distribution_source = source
             for k in invalidated:
                 for a in ARITY_ORDER:
                     state.within.pop((k, a), None)

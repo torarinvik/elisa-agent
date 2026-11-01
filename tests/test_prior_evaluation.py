@@ -144,6 +144,29 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
     assert evaluator.certificate(readings, risk, unversioned, state) is not None
     assert calls == before + 2
 
+
+@pytest.mark.parametrize("use_prior", [False, True])
+def test_correction_session_invalidates_when_distribution_source_changes(use_prior: bool) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False,
+                                 prior=formulas.format_prior if use_prior else None)
+    readings = one_hot(["and", "true", "true"])
+    first = np.array([[.1, .3, .6], [.5, .4, .1], [.8, .1, .1]])
+    second = np.array([[.3, .1, .6], [.2, .7, .1], [.5, .2, .3]])
+    old = Distribution(lambda k, d: torch.tensor(first[k]), lambda k: 0)
+    new = Distribution(lambda k, d: torch.tensor(second[k]), lambda k: 0)
+    def risk(k: int, d: Decision) -> float:
+        return 0.0
+    state = CorrectionState()
+    old_account = evaluator.certificate(readings, risk, old, state)
+    switched = evaluator.certificate(readings, risk, new, state)
+    fresh = evaluator.certificate(readings, risk, new)
+    assert old_account is not None and switched is not None and fresh is not None
+    assert sum(old_account.values()) != pytest.approx(sum(fresh.values()))
+    assert switched == pytest.approx(fresh)
+
 def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
     from nca.abi import Message
     from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior

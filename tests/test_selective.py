@@ -318,10 +318,12 @@ def test_element_certificate_keeps_independent_reading_snapshots() -> None:
     from nca.selective import element_certificate
 
     snapshots: list[list[Any]] = []
+    sources: list[object | None] = []
 
     class Consumer:
         def certificate(self, readings: list[Any], risk: Any, distribution: Any) -> dict[int, float]:
             snapshots.append(readings)
+            sources.append(getattr(distribution, "source", None))
             return {0: 0.1}
 
     version = [0]
@@ -333,12 +335,17 @@ def test_element_certificate_keeps_independent_reading_snapshots() -> None:
     callback([torch.tensor([0.7, 0.3])], lambda i, d: 0.1, distribution)
     assert snapshots[0][0] == pytest.approx((0.4, 0.6))
     assert snapshots[1][0] == pytest.approx((0.7, 0.3))
+    assert sources[0] is sources[1] is distribution.source
     # Ordinary callbacks may change values without carrying a revision.
     def plain(i: int, d: Any) -> torch.Tensor:
         return torch.tensor([0.5, 0.5])
     callback([torch.tensor([0.2, 0.8])], lambda i, d: 0.1, plain)
     callback([torch.tensor([0.7, 0.3])], lambda i, d: 0.1, distribution)
     assert snapshots[-1][0] == pytest.approx((0.7, 0.3))
+    replacement = Distribution(lambda i, d: torch.tensor([0.5, 0.5]), lambda i: version[0])
+    callback([torch.tensor([0.9, 0.1])], lambda i, d: 0.1, replacement)
+    assert snapshots[-1][0] == pytest.approx((0.9, 0.1))
+    assert sources[-1] is replacement.source
 
 
 def test_element_floor_maps_current_readings_and_fixed_items() -> None:

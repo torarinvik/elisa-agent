@@ -211,10 +211,16 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
     position = {i: j for j, (i, _) in enumerate(items)}
     elements: list[Any] = [None] * count
     revisions: dict[int, int] = {}
+    source: object | None = None
 
     def certificate(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
                     distribution: Callable[[int, Decision], torch.Tensor],
                     ) -> dict[int, float] | None:
+        nonlocal source
+        current_source = getattr(distribution, "source", distribution)
+        if current_source is not source:
+            revisions.clear()
+            source = current_source
         revision = getattr(distribution, "revision", None)
         if revision is None:
             revisions.clear()
@@ -229,7 +235,7 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
             return distribution(position[i], d)
 
         revision = getattr(distribution, "revision", None)
-        calibrated = (Distribution(mapped_distribution, lambda i: revision(position[i]))
+        calibrated = (Distribution(mapped_distribution, lambda i: revision(position[i]), current_source)
                       if revision is not None else mapped_distribution)
         chosen = declared(list(elements), lambda i, d: risk(position[i], d), calibrated)
         return None if chosen is None else {position[i]: c for i, c in chosen.items()}
