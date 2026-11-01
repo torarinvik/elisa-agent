@@ -70,6 +70,8 @@ class ArityPrior:
             object.__setattr__(self, name, frozen)
 
     def __setstate__(self, state: dict[str, Any]) -> None:
+        if self.__dict__:
+            raise TypeError("cannot restore state into an initialized prior")
         for name, value in state.items():
             object.__setattr__(self, name, value)
         self.__post_init__()

@@ -26,6 +26,9 @@ def test_prior_arrays_cannot_be_made_writeable() -> None:
         with pytest.raises(ValueError):
             array.flat[0] = 0
     assert prior.log_weight((0, 1)) == expected
+    with pytest.raises(TypeError, match="initialized prior"):
+        prior.__setstate__({"alphabet": (1,)})
+    assert prior.log_weight((0, 1)) == expected
 
 
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
