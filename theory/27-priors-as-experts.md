@@ -267,6 +267,21 @@ regret and audit soundness has failure probability at most
 α_prior + α_audit by a union bound. Neither result says that each finite
 evaluation sample's observed error rate must lie below δ.
 
+**Theorem 27.12 (bounded scores for partial prior providers).** A provider
+may explicitly declare itself unavailable at some lengths. Define its
+per-observation reward to be `−B` there, and the clipped log-evidence score
+elsewhere. This is a fixed total function in `[−B,B]` when provided models
+have valid base normalizers. The same Hoeffding and selection bounds of
+Theorems 27.10 and 27.9 apply to its expected bounded reward, without
+conditioning on observed availability or removing the candidate catalog.
+
+The penalty must be fixed before the selection sample. It is not a
+likelihood assigned to an undefined conditional model. Invalid base
+normalizers in a provided model remain errors. If every model is unavailable,
+all rewards tie at the floor; the score rule supplies no coverage guarantee.
+A provider selected this way can still abstain on later inputs, and its
+answering policy still needs an independent risk audit.
+
 Two safeguards:
 
 1. Prefer the largest support among priors whose evidence is statistically

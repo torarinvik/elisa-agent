@@ -204,6 +204,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret` | `Product` |
 | [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds` (range only; concentration not formalized) | `Product` |
 | [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
+| [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
 
 ## Native kernels
 
@@ -734,8 +735,8 @@ convention of no accepted formula.
 `formulas.select_prior` sums relative log evidence from unlabeled held-out
 reading matrices under length-indexed candidate providers and one shared base
 vector. It returns `PriorSelection` with the winning index, all scores and
-sample count. Exact ties keep the caller's declared order; unavailable
-lengths exclude a candidate. Invalid normalizers, incompatible alphabets,
+sample count. Exact ties keep the caller's declared order; without clipping,
+unavailable lengths exclude a candidate. Invalid normalizers, incompatible alphabets,
 empty inputs, score overflow and no finite-evidence candidate are errors.
 `format_prior(length)` exposes the syntax-only counter through the same
 automaton interface for comparison.
@@ -751,10 +752,11 @@ must be fixed before selection; deployment checking remains separate.
 
 `select_prior(..., score_clip=B, alpha=α)` clips each per-formula score to
 [-B,B] and derives the simultaneous total-score error of §27.10. The result
-records B, α and the derived error. Bounded mode requires candidates at
-every observed length and rejects mixing a manual error with this bound.
+records B, α and the derived error. In bounded mode, a provider returning
+`None` receives -B for that observation; provided models with zero base mass
+still raise an error. Mixing a manual error with this bound is rejected.
 It assumes fixed models/base/B/K/n, IID formulas, and valid candidate base
-normalizers throughout the population. `clipped_evidence_bounds` proves
+normalizers wherever a model is supplied. `clipped_evidence_bounds` proves
 the clipping range and `prior_selection_regret` proves the conditional
 selection step; Hoeffding concentration is not formalized in Lean here.
 The bound concerns expected clipped scores, not raw evidence or deployment
@@ -790,3 +792,9 @@ seeded samples. The CLI still uses the default complete generator.
 `prunedLeaves`, `prunedBranches` and `pruned_branches_eq_leaves_sub_one` in
 `NCA/Decoding.lean` formalize the algebraic count recurrences and identity;
 they do not formalize the RNG's probability law.
+
+The per-selection model cache also remembers declared absence. Bounded
+selection penalizes each unavailable observation without discarding earlier
+valid scores or excluding the whole batch. `partialEvidenceScore` and
+`partial_evidence_bounds` formalize this reward's range (§27.12); no
+likelihood interpretation or coverage guarantee is assigned to absence.

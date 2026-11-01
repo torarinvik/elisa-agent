@@ -1341,8 +1341,9 @@ def test_clipped_prior_selection_derives_uniform_total_score_error(
                     {"score_clip": 2, "alpha": 0.1, "score_error": 1}):
         with pytest.raises(ValueError):
             formulas.select_prior(candidates, [rows], base, **options)
-    with pytest.raises(ValueError, match="every observed length"):
-        formulas.select_prior([lambda length: None], [rows], base, score_clip=2, alpha=0.1)
+    unavailable = formulas.select_prior([lambda length: None], [rows], base,
+                                        score_clip=2, alpha=0.1)
+    assert unavailable.scores == (-2.0,) and unavailable.index == 0
 
 
 def test_logic_prior_fit_consumes_texts_with_separate_calibration_labels() -> None:
@@ -1474,3 +1475,36 @@ def test_zero_early_leaf_preserves_existing_generator_stream() -> None:
     default = FormulaDataset("test", 10, 3, 0.1, 809)
     explicit = FormulaDataset("test", 10, 3, 0.1, 809, early_leaf=0.0)
     assert [default.sample(i) for i in range(10)] == [explicit.sample(i) for i in range(10)]
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_bounded_selection_scores_unavailable_lengths_without_losing_the_batch(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    seen: list[int] = []
+
+    def partial(length: int) -> formulas.ArityPrior | None:
+        seen.append(length)
+        return formulas.complete_prior(length)
+
+    shapes = [(2, 0, 0), (1, 1, 1, 1, 1, 0), (1, 1, 1, 1, 1, 0)]
+    rows = []
+    for shape in shapes:
+        q = np.full((len(shape), 3), -np.inf)
+        for k, a in enumerate(shape):
+            q[k, a] = 0.0
+        rows.append(q)
+    base = np.log(np.full(3, 1 / 3))
+    result = formulas.select_prior([formulas.format_prior, partial], rows, base,
+                                   score_clip=4, alpha=0.1)
+    first = formulas.complete_prior(3).log_evidence(rows[0], np.broadcast_to(base, (3, 3)))
+    assert result.scores[1] == pytest.approx(first - 8)
+    assert seen == [3, 6]  # Cached absence, with a penalty for each absent observation.
+    reversed_result = formulas.select_prior([formulas.format_prior, partial], reversed(rows), base,
+                                            score_clip=4, alpha=0.1)
+    assert reversed_result.scores == pytest.approx(result.scores)
+    empty = formulas.ArityPrior((0, 1, 2), np.full((1, 3), -1),
+                                np.zeros((1, 3)), np.array([-np.inf]))
+    with pytest.raises(ValueError, match="zero mass"):
+        formulas.select_prior([lambda length: empty], rows, base, score_clip=4, alpha=0.1)

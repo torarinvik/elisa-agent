@@ -173,4 +173,16 @@ theorem selected_audit_failure_le {S : Type} [Fintype S]
       Finset.sum_le_sum fun s _ => mul_le_mul_of_nonneg_left (haudit s) (hp s)
     _ = α := by rw [← Finset.sum_mul, htotal, one_mul]
 
+/-- A fixed bounded score for partial models, with absence scored at the floor. -/
+def partialEvidenceScore (B : ℝ) : Option ℝ → ℝ
+  | none => -B
+  | some x => max (-B) (min B x)
+
+/-- Partial-model scoring retains the clipping interval for every input. -/
+theorem partial_evidence_bounds {B : ℝ} (hB : 0 ≤ B) (score : Option ℝ) :
+    -B ≤ partialEvidenceScore B score ∧ partialEvidenceScore B score ≤ B := by
+  cases score with
+  | none => exact ⟨le_rfl, by dsimp [partialEvidenceScore]; linarith⟩
+  | some x => exact clipped_evidence_bounds hB
+
 end NCA

@@ -343,12 +343,13 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     must be declared in advance, broadest support first if that is the policy.
     The default is empirical maximization with exact ties. This API does not
     estimate or certify score_error; it also performs no risk certification
-    or automatic installation. None providers are excluded; zero base mass
-    is invalid rather than zero evidence.
+    or automatic installation. Without clipping, None providers are excluded;
+    with clipping, unavailability receives -B. Zero base mass in a provided
+    model remains invalid rather than zero evidence.
     Supplying score_clip B and alpha clips each log evidence to [-B,B] and
     derives B*sqrt(2*n*log(2*K/alpha)) as the simultaneous total-score error.
-    This requires IID observations, fixed models/base/B/K, and valid priors
-    throughout the population. It bounds clipped-score means, not raw evidence
+    This requires IID observations, fixed models/base/B/K, and valid base
+    normalizers wherever a provider supplies a model. It bounds clipped-score means, not raw evidence
     or answer errors. The concentration step is not formalized in Lean.
     """
     if not math.isfinite(score_error) or score_error < 0:
@@ -368,7 +369,7 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
             or not np.isclose(np.exp(base).sum(), 1.0, rtol=0, atol=1e-12)):
         raise ValueError("requires candidates and a normalized shared base vector")
     scores = [0.0] * len(candidates)
-    models: dict[tuple[int, int], tuple[ArityPrior, float]] = {}
+    models: dict[tuple[int, int], tuple[ArityPrior, float] | None] = {}
     count = 0
     for observation in readings:
         rows = np.asarray(observation, dtype=np.float64)
@@ -387,18 +388,23 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
             if key not in models:
                 prior = provider(len(rows))
                 if prior is None:
-                    if score_clip is not None:
-                        raise ValueError("bounded scoring requires all candidates at every observed length")
+                    models[key] = None
+                else:
+                    if prior.alphabet != alphabet:
+                        raise ValueError("candidate alphabet must match the shared base")
+                    denominator = prior.log_normalizer(common)
+                    if denominator == -math.inf:
+                        raise ValueError("candidate prior has zero mass under the base")
+                    models[key] = prior, denominator
+            model = models[key]
+            if model is None:
+                if score_clip is None:
                     scores[i] = -math.inf
                     continue
-                if prior.alphabet != alphabet:
-                    raise ValueError("candidate alphabet must match the shared base")
-                denominator = prior.log_normalizer(common)
-                if denominator == -math.inf:
-                    raise ValueError("candidate prior has zero mass under the base")
-                models[key] = prior, denominator
-            prior, denominator = models[key]
-            evidence = prior.log_normalizer(rows) - denominator
+                evidence = -score_clip
+            else:
+                prior, denominator = model
+                evidence = prior.log_normalizer(rows) - denominator
             if math.isnan(evidence) or evidence == math.inf:
                 raise ValueError("candidate evidence must be finite or negative infinity")
             if score_clip is not None:
