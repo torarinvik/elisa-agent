@@ -213,6 +213,78 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
 
 
 @dataclass(frozen=True)
+class Banded:
+    """Decoding restricted to a band of counter values around a reference
+    sequence (THEORY §23.2–23.3): the most probable parseable sequence in the
+    band, the certified risk ``1 − x / (Z_band + U)``, and whether ``x ≥ U``
+    certifies that the sequence is also the most probable overall."""
+
+    arities: tuple[int, ...]
+    risk: float
+    exact: bool
+    changes: int
+    width: int
+
+
+def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) -> tuple[int, float]:
+    """The least ``j`` with ``S^j / j! ≤ slack``, where ``S`` is the summed
+    off-reference arity mass, and the tail bound ``U_j = S^j / j!``."""
+    probs = np.exp(log_probs)
+    rows = np.arange(len(reference))
+    s = float(np.sum(probs.sum(axis=1) - probs[rows, reference]))
+    j, tail = 1, s
+    while tail > slack:
+        j += 1
+        tail *= s / j
+    return j, tail
+
+
+def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
+                  slack: float = 1e-4) -> Banded | None:
+    """``decode`` with the dynamic programs restricted to counter values within
+    ``2(j − 1)`` of each word's most probable arity sequence, ``j`` chosen by
+    ``band_changes``. ``None`` if no parseable sequence lies in the band."""
+    m = len(log_probs)
+    if m == 0:
+        return None
+    reference = np.argmax(log_probs, axis=1)
+    changes, tail = band_changes(log_probs, reference, slack)
+    half = 2 * (changes - 1)
+    centre = 1 + np.concatenate(([0], np.cumsum(np.asarray(alphabet)[reference] - 1)))
+    width = m + 2
+    states = np.arange(width)
+    inside = [(np.abs(states - centre[k]) <= half) & (states <= m - k) for k in range(m + 1)]
+    forward = np.full((m + 1, width), -np.inf)
+    best = np.full((m + 1, width), -np.inf)
+    choice = np.zeros((m + 1, width), dtype=np.int64)
+    if inside[0][1]:
+        forward[0, 1] = best[0, 1] = 0.0
+    for k in range(m):
+        for j, a in enumerate(alphabet):
+            span = min(a + width - 1, width) - a
+            step = log_probs[k, j]
+            forward[k + 1, a:a + span] = np.logaddexp(forward[k + 1, a:a + span],
+                                                      forward[k, 1:1 + span] + step)
+            candidate = best[k, 1:1 + span] + step
+            better = candidate > best[k + 1, a:a + span]
+            best[k + 1, a:a + span][better] = candidate[better]
+            choice[k + 1, a:a + span][better] = j
+        forward[k + 1, ~inside[k + 1]] = best[k + 1, ~inside[k + 1]] = -np.inf
+    log_z, log_x = float(forward[m, 0]), float(best[m, 0])
+    if log_z == -np.inf:
+        return None
+    arities = []
+    state = 0
+    for k in range(m, 0, -1):
+        a = alphabet[int(choice[k, state])]
+        arities.append(a)
+        state = state + 1 - a
+    log_tail = math.log(tail) if tail > 0 else -math.inf
+    risk = max(0.0, 1.0 - math.exp(log_x - float(np.logaddexp(log_z, log_tail))))
+    return Banded(tuple(reversed(arities)), risk, log_x >= log_tail, changes, 2 * half + 1)
+
+
+@dataclass(frozen=True)
 class FormulaSample:
     words: tuple[str, ...]
     text: str

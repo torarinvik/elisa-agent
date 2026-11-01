@@ -878,13 +878,30 @@ guarantees.
    coverage and error among answered formulas match per-step exact
    decoding within sampling noise, because only the climb order changes.
 
+**Banded decoding, prediction 1** (NumPy reference, `η = 10⁻⁴`, 100 test
+formulas per row, noise 0.1, readers calibrated on 100 validation formulas):
+
+| rung | depth | words | same answer | certified exact | `j` mean, max | `W` max | risk slack max, mean |
+|---|---:|---:|---:|---:|---|---:|---|
+| bottom | 4 | 36 | 100 | 100 | 3.4, 8 | 29 | 5.9e-3, 9.3e-5 |
+| bottom | 6 | 142 | 100 | 99 | 5.7, 11 | 41 | 2.9e-2, 5.4e-4 |
+| bottom | 8 | 575 | 100 | 90 | 11.5, 18 | 69 | 0.38, 1.1e-2 |
+| top | 4 | 36 | 100 | 100 | 2.7, 7 | 25 | 1.2e-4, 2.3e-5 |
+| top | 6 | 142 | 100 | 100 | 4.2, 8 | 29 | 3.0e-3, 1.3e-4 |
+| top | 8 | 575 | 100 | 98 | 7.1, 11 | 41 | 0.11, 1.9e-3 |
+
+Every banded answer equals the exact one, including the formulas the
+certificate leaves open. The slack prediction fails: the slack is bounded by
+`U_j / Z_band`, not by `η`, and `Z` (the weight of all parseable sequences) is
+far below 1 at depth 8. A slack chosen in absolute terms is too loose there.
+The top rung needs `j ≈ 7` at depth 8, as THEORY §23.3 predicted for `S = 0.71`.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in
 NumPy: the 744k operations of §23.5 at about one per nanosecond. The
 operation count per step is unchanged, still about seven top-rung word
 readings, so banding and splitting (§23.2–23.4) would still cut it 26-fold.
-They are not yet implemented.
 
 The `S` values of THEORY §23.3 come from the measured top-rung value 0.71 at
 depth 8 (§19.9), scaled by word count to depths 6 and 4.

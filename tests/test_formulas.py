@@ -11,7 +11,7 @@ torch = pytest.importorskip("torch")
 from nca.abi import Contract, Manifest
 from nca import formulas
 from nca.formulas import (ARITY, VOCABULARY, Decoded, FormulaDataset, corrupt, decode,
-                          decode_reference, evaluate, formula, parse)
+                          decode_banded, decode_reference, evaluate, formula, parse)
 from nca.ladder import Decision, Rung, ladder, refine, risk
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, FORMULA_TEXT, READER, EditReader,
@@ -254,6 +254,24 @@ def test_decoder_matches_enumeration(decoder: Callable[..., Decoded | None]) -> 
             np.testing.assert_allclose(decoded.marginals, marginals, atol=1e-9)
             union = sum(1 - probs[k, a] for k, a in enumerate(decoded.arities))
             assert decoded.risk(np.log(probs), ARITY_ORDER) <= union + 1e-9
+
+
+@pytest.mark.parametrize("slack", [1e-1, 1e-4])
+def test_banded_decoder_is_certified(slack: float) -> None:
+    """``NCA.banded_risk_le``: the banded risk bounds the exact risk of the
+    banded answer, and the exactness certificate implies the exact answer."""
+    rng = np.random.default_rng(5)
+    for m in range(1, 9):
+        for _ in range(20):
+            probs = rng.dirichlet(np.full(3, 0.5), size=m)
+            exact = decode_reference(np.log(probs), ARITY_ORDER)
+            banded = decode_banded(np.log(probs), ARITY_ORDER, slack)
+            if banded is None:
+                continue
+            assert exact is not None and parse(list(banded.arities)) is not None
+            assert exact.risk(np.log(probs), ARITY_ORDER, banded.arities) <= banded.risk + 1e-9
+            if banded.exact:
+                assert banded.arities == exact.arities
 
 
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")

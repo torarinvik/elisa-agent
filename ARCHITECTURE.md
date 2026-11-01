@@ -34,7 +34,7 @@ run the Python tests with `uv run pytest`.
 | §20 Higher-order experts, budgets | `Slots`, `Continuation` | `modules.combinators`, `optimize`, `kernel` |
 | §21 Decoding by the format | `Decoding` | `formulas.decode`, `native.decoding` |
 | §22 Abstaining early | `Detection` | `selective` (`floors`), `ladder` |
-| §23 Efficient decoding | `Banding` | `native.decoding` (exact passes only) |
+| §23 Efficient decoding | `Banding` | `formulas.decode_banded` (reference), `native.decoding` (exact passes) |
 | §24 When the prior is wrong | `Misspecification` | not implemented |
 | §25 Climbing order and stopping | `Stopping` | `ladder.stopping_rule` |
 | §26 Composing cascades | `Composition` | not implemented |
