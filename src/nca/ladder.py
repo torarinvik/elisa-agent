@@ -330,11 +330,47 @@ def charge_per_cost(index: int, charge: float, cost: float) -> float:
     """Rank a current charge by the declared cost of its next invocation.
 
     This is a heuristic, not a guarantee that the charge will fall. A free
-    invocation takes priority; ties preserve the existing item order.
+    invocation takes priority. ``refine`` resolves rounded-score ties by
+    comparing the exact binary64 ratios, then preserves item order on equality.
     """
     if not math.isfinite(cost) or cost < 0:
         raise ValueError("next invocation cost must be finite and nonnegative")
     return math.inf if cost == 0 else charge / cost
+
+
+def _ratio_greater(a: float, b: float, c: float, d: float) -> bool:
+    """Compare a/b > c/d exactly for finite nonnegative a,c and positive b,d."""
+    if b == d:
+        return a > c
+    an, ad = a.as_integer_ratio()
+    bn, bd = b.as_integer_ratio()
+    cn, cd = c.as_integer_ratio()
+    dn, dd = d.as_integer_ratio()
+    return an * bd * cd * dn > cn * dd * ad * bn
+
+
+def _cost_aware_choice(open_: Sequence[int], charges: dict[int, float],
+                       ladders: Sequence[Sequence[Rung]], levels: Sequence[int]) -> int:
+    """First maximum ratio; only rounded ties need exact integer arithmetic."""
+    chosen = open_[0]
+    best_charge = best_cost = best_score = 0.0
+    have_best = False
+    for i in open_:
+        charge = float(charges[i])
+        cost = float(ladders[i][levels[i] + 1].cost)
+        score = charge_per_cost(i, charge, cost)
+        better = not have_best
+        if have_best:
+            if cost == 0:
+                better = best_cost != 0
+            elif best_cost != 0:
+                better = (score > best_score or
+                          (score == best_score and
+                           _ratio_greater(charge, cost, best_charge, best_cost)))
+        if better:
+            chosen, best_charge, best_cost, best_score = i, charge, cost, score
+            have_best = True
+    return chosen
 
 
 def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
@@ -454,6 +490,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             break
         if priority is None:
             i = max(open_, key=charges.__getitem__)
+        elif priority is charge_per_cost:
+            i = _cost_aware_choice(open_, charges, ladders, levels)
         else:
             def score(i: int) -> float:
                 value = priority(i, float(charges[i]), float(ladders[i][levels[i] + 1].cost))

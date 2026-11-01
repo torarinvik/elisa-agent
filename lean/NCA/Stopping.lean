@@ -33,6 +33,11 @@ theorem positive_target_preserves_order {a b δ : ℝ} (hδ : 0 < δ) :
     a / δ < b / δ ↔ a < b := by
   exact div_lt_div_iff_of_pos_right hδ
 
+/-- For positive costs, cross-products preserve the ordering of two ratios. -/
+theorem charge_cost_ratio_order {a b c d : ℝ} (hb : 0 < b) (hd : 0 < d) :
+    c / d < a / b ↔ c * b < a * d := by
+  exact div_lt_div_iff₀ hd hb
+
 /-- First state accepted by a stopping policy on a finite trace. -/
 def firstStoppingState {α : Type*} (p : α → Bool) : List α → Option α
   | [] => none

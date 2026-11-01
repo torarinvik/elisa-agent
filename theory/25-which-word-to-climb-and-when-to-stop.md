@@ -54,6 +54,10 @@ not in general implement its threshold rule.
 The generic controller can instead accept a caller-supplied priority based
 on the item, current charge, and next invocation cost. One available
 heuristic ranks charge per declared cost, treating free invocations first.
+For positive binary64 costs, the controller compares the rounded quotients
+first; when those tie, it compares the exact represented input ratios using
+cross-products of integers. This distinguishes overflow and underflow ties
+and preserves input order for genuinely equal ratios.
 The charge is only a proxy for the unknown reduction, so this is not an
 optimality guarantee. Each selected answer must still meet the same bound;
 the conditional error-bound premise must hold for the states selected by

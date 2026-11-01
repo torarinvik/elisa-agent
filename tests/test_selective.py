@@ -84,6 +84,39 @@ def test_climb_priorities_are_generic_and_validate_scores() -> None:
     assert result.cost == 4.0 and indices == [0, 1]
 
 
+def test_cost_aware_priority_resolves_rounded_ratio_ties() -> None:
+    from nca.ladder import _cost_aware_choice, _ratio_greater, charge_per_cost
+
+    bottom = Rung(constant("bottom", (0.4, 0.6), 1.0))
+
+    def select(charges: list[float], costs: list[float]) -> int:
+        ladders = [[bottom, Rung(constant(f"top-{i}", (0.1, 0.9), cost))]
+                   for i, cost in enumerate(costs)]
+        return _cost_aware_choice(list(range(len(costs))), dict(enumerate(charges)),
+                                  ladders, [0] * len(costs))
+
+    assert select([0.2, 0.4], [5e-324, 5e-324]) == 1  # Both divide to infinity.
+    assert select([1e-200, 1e-100], [1e300, 1e300]) == 1  # Both divide to zero.
+    assert select([0.25, 0.5], [0.5, 1.0]) == 0  # Exact ties stay stable.
+    assert select([0.4, 0.0], [5e-324, 0.0]) == 1  # Free beats an overflow.
+    with pytest.raises(ValueError, match="cost"):
+        select([0.4, 0.0], [0.0, -1.0])
+    first = Rung(constant("first", (0.2, 0.8), 1.0))
+    second = Rung(constant("second", (0.4, 0.6), 1.0))
+    top = Rung(constant("top", (0.001, 0.999), 5e-324))
+    result = refine([0, 0], [[first, top], [second, top]], 0.3,
+                    priority=charge_per_cost)
+    assert not result.abstained
+    assert result.readings[0][0] == pytest.approx(0.2)
+    assert result.readings[1][0] == pytest.approx(0.001)
+    rng = random.Random(413)
+    for _ in range(200):
+        a, b, c, d = [math.ldexp(rng.uniform(0.5, 1.0), rng.randint(-1070, 1023))
+                      for _ in range(4)]
+        assert _ratio_greater(a, b, c, d) == (Fraction(a) / Fraction(b) >
+                                               Fraction(c) / Fraction(d))
+
+
 def test_cost_aware_priority_can_also_spend_more() -> None:
     from nca.ladder import charge_per_cost
 

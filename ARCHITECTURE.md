@@ -227,6 +227,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `cost_ge_of_ratio` | `Stopping` |
 | [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `fractional_ratio_bound_strict` | `Stopping` |
 | [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `selective_risk_le_selected` | `Selective` |
+| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `charge_cost_ratio_order` | `Stopping` |
 | [25.2](theory/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
 | [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
 | [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
