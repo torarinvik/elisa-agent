@@ -1781,3 +1781,22 @@ def test_observation_rejects_complex_weights(output) -> None:
         rung.observe(None)
     with pytest.raises(ValueError, match="real-valued"):
         rung.observe_ranked(None)
+
+
+@pytest.mark.parametrize("output", [
+    ("0.9", "0.1"),
+    np.array(["0.9", "0.1"]),
+    np.array(["0.9", 0.1], dtype=object),
+    np.array([b"0.9", 0.1], dtype=object),
+])
+def test_observation_rejects_text_weights(output) -> None:
+    rung = Rung(constant("text-weights", output, 1.0))
+    for observe in (rung.observe, rung.observe_ranked):
+        with pytest.raises(ValueError, match="real-valued"):
+            observe(None)
+
+
+def test_observation_accepts_numeric_object_weights() -> None:
+    values = np.array([Decimal("0.6"), Fraction(2, 5)], dtype=object)
+    observation = Rung(constant("numeric-object-weights", values, 1.0)).observe_ranked(None)
+    assert observation.weights == pytest.approx((0.6, 0.4))

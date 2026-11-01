@@ -267,9 +267,9 @@ class Rung:
             except (TypeError, ValueError, RuntimeError):
                 raw = None
             if raw is not None:
-                if (raw.dtype.kind == "c" or
+                if (raw.dtype.kind not in "biufO" or
                         (raw.dtype.kind == "O" and any(
-                            isinstance(x, (complex, np.complexfloating)) or
+                            isinstance(x, (str, bytes, complex, np.complexfloating)) or
                             (isinstance(x, torch.Tensor) and x.is_complex()) for x in raw.flat))):
                     raise ValueError("expert output must contain real-valued weights")
                 try:
