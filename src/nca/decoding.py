@@ -176,7 +176,29 @@ class Banded:
     changes: int
     width: int
 
+def _tail_mass_blocks(
+        log_probs: np.ndarray, reference: Sequence[int],
+) -> tuple[tuple[float, float], np.ndarray, int] | None:
+    native = getattr(_NATIVE, "tail_block_summary", None)
+    if native is None or len(reference) == 0:
+        return None
+    width = log_probs.shape[1]
+    if width == 0:
+        return None
+    block_size = math.isqrt(max(1, len(reference) // width)) + 1
+    count = (len(reference) - 1) // block_size + 1
+    blocks = np.empty(2 * count, dtype=np.float64)
+    out = native(np.ascontiguousarray(log_probs, dtype=np.float64).reshape(-1),
+                 np.asarray(reference, dtype=np.int64), blocks, block_size, -1)
+    if len(out) != 2:
+        return None
+    return (float(out[0]), float(out[1])), blocks, block_size
+
+
 def _tail_mass_summary(log_probs: np.ndarray, reference: Sequence[int]) -> tuple[float, float]:
+    block_summary = _tail_mass_blocks(log_probs, reference)
+    if block_summary is not None:
+        return block_summary[0]
     native = getattr(_NATIVE, "tail_mass_summary", None)
     if native is not None:
         off, factor = native(np.ascontiguousarray(log_probs, dtype=np.float64).reshape(-1),
@@ -620,22 +642,20 @@ class CertifiedSplit:
         self.arity_bound = int(max(alphabet))
         self.cover_half = max(max(c, len(self.log_probs) - k - c)
                               for k, c in enumerate(self.centre))
-        self._tail_summary: tuple[float, float] | None = _tail_mass_summary(
-            self.log_probs, self.reference)
-        log_off, log_factor = self._tail_summary
-        self.changes = _initial_band_changes(log_off, slack, len(self.log_probs), log_factor)
         self._tail_blocks: np.ndarray | None = None
         self._tail_block_size = math.isqrt(max(1, len(self.log_probs) // len(self.alphabet))) + 1
         self._tail_block_kernel = getattr(_NATIVE, "tail_block_summary", None)
-        if (self._tail_block_kernel is not None and self.changes <= len(self.log_probs)
-                and self.arity_bound * (self.changes - 1) < self.cover_half):
-            count = (len(self.log_probs) - 1) // self._tail_block_size + 1
-            blocks = np.empty(2 * count, dtype=np.float64)
-            summary = self._tail_block_kernel(self.log_probs.reshape(-1), self.reference, blocks,
-                                             self._tail_block_size, -1)
-            if len(summary) == 2:
-                self._tail_blocks = blocks
-                self._tail_summary = float(summary[0]), float(summary[1])
+        block_summary = _tail_mass_blocks(self.log_probs, self.reference)
+        if block_summary is None:
+            self._tail_summary: tuple[float, float] | None = _tail_mass_summary(
+                self.log_probs, self.reference)
+        else:
+            self._tail_summary, self._tail_blocks, self._tail_block_size = block_summary
+        log_off, log_factor = self._tail_summary
+        self.changes = _initial_band_changes(log_off, slack, len(self.log_probs), log_factor)
+        if (self.changes > len(self.log_probs)
+                or self.arity_bound * (self.changes - 1) >= self.cover_half):
+            self._tail_blocks = None
         self.rebuilds = 0
         self.log_upper: float | None = None
         self.split = self._build()

@@ -68,6 +68,9 @@ weight contribute nothing; if no off-reference weight is positive, that row's
 off-reference mass is zero. Regrouping
 floating-point additions can change rounding and does not provide
 outward-rounded bounds.
+The native cursor reuses its initial block summaries for later row updates;
+standalone band selection uses the same grouping so both start from the same
+floating-point summary.
 When a banded risk rounds to zero, a full format pass separately sums the
 selected sequence and every other accepted sequence. Normalizing the two
 parts recovers small model risks that disappear when subtracting nearly

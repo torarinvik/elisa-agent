@@ -161,14 +161,17 @@ def test_native_tail_blocks_match_fresh_summary_after_updates(block_size: int) -
     reference = rng.integers(0, 4, size=m, dtype=np.int64)
     blocks = np.empty(2 * ((m - 1) // block_size + 1), dtype=np.float64)
     actual = native(rows.reshape(-1), reference, blocks, block_size, -1)
-    np.testing.assert_allclose(actual, decoding._tail_mass_summary(rows, reference), atol=1e-13)
+    np.testing.assert_allclose(actual, decoding._NATIVE.tail_mass_summary(rows.reshape(-1), reference),
+                               atol=1e-13)
     for k in (0, 1, 15, 30, 15):
         rows[k] = np.log(rng.dirichlet(np.ones(4)))
         actual = native(rows.reshape(-1), reference, blocks, block_size, k)
-        np.testing.assert_allclose(actual, decoding._tail_mass_summary(rows, reference), atol=1e-13)
+        np.testing.assert_allclose(actual, decoding._NATIVE.tail_mass_summary(rows.reshape(-1), reference),
+                                   atol=1e-13)
     rows[15] = [-np.inf] * 4
     actual = native(rows.reshape(-1), reference, blocks, block_size, 15)
-    np.testing.assert_allclose(actual, decoding._tail_mass_summary(rows, reference), atol=1e-13)
+    np.testing.assert_allclose(actual, decoding._NATIVE.tail_mass_summary(rows.reshape(-1), reference),
+                               atol=1e-13)
 
 
 def test_native_tail_blocks_reject_invalid_shapes() -> None:
@@ -202,7 +205,7 @@ def test_native_tail_blocks_preserve_tiny_and_tolerated_mass() -> None:
         assert Decimal.from_float(bound) >= true_tail
     rows[0] = [0.0, -1000.0]
     off, factor = native(rows.reshape(-1), reference, blocks, block_size, 0)
-    fresh = decoding._tail_mass_summary(rows, reference)
+    fresh = decoding._NATIVE.tail_mass_summary(rows.reshape(-1), reference)
     np.testing.assert_allclose([off, factor], fresh, atol=1e-13)
 
 
@@ -289,7 +292,7 @@ def test_native_tail_blocks_remain_stable_across_many_updates() -> None:
         k = int(rng.integers(m))
         rows[k] = choices[int(rng.integers(len(choices)))]
         actual = native(rows.reshape(-1), reference, blocks, block_size, k)
-        expected = decoding._tail_mass_summary(rows, reference)
+        expected = decoding._NATIVE.tail_mass_summary(rows.reshape(-1), reference)
         np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-13)
 
 
@@ -657,19 +660,54 @@ def test_banded_cursor_reuses_tail_summary_until_row_update(
     monkeypatch.setattr(decoding, "_tail_mass_summary", counted_summary)
     cursor = decoding.CertifiedSplit(rows)
     assert cursor.arity_bound * (cursor.changes - 1) < cursor.cover_half
-    assert calls == 1
+    initial_calls = 1 if cursor._tail_blocks is None else 0
+    assert calls == initial_calls
     assert cursor.normalizer() is not None
     assert cursor.normalizer() is not None
-    assert calls == 1
+    assert calls == initial_calls
     updated = np.log(np.array([0.00002, 0.99996, 0.00002]))
     rows[2] = updated
     upper = cursor.climb_normalizer(2, updated)
-    expected_calls = 2 if reference_only or cursor._tail_blocks is None else 1
+    expected_calls = initial_calls + (1 if cursor._tail_blocks is None else 0)
     assert upper is not None and calls == expected_calls
     exact = decoding.decode_reference(rows)
     assert exact is not None and upper >= exact.log_z - 1e-12
     assert cursor.normalizer() == pytest.approx(upper)
     assert calls == expected_calls
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_initial_cursor_band_matches_standalone_near_thresholds(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.tile([0.02, 0.97, 0.01], (12, 1)))
+    rows[-1] = np.log([0.97, 0.02, 0.01])
+    reference = np.argmax(rows, axis=1)
+    log_off, log_factor = decoding._tail_mass_summary(rows, reference)
+    for changes in range(1, 8):
+        threshold = math.exp(decoding._band_log_tail(log_off, changes, log_factor))
+        for slack in (math.nextafter(threshold, 0.0), threshold,
+                      math.nextafter(threshold, 1.0)):
+            if 0 < slack < 1:
+                expected, _ = decoding.band_changes(rows, reference, slack)
+                assert decoding.CertifiedSplit(rows, slack=slack).changes == expected
+
+
+def test_tail_summary_uses_older_native_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    native = getattr(decoding._NATIVE, "tail_mass_summary", None)
+    if native is None:
+        pytest.skip("native tail summary kernel is not built")
+
+    class OlderNative:
+        tail_mass_summary = staticmethod(native)
+
+    monkeypatch.setattr(decoding, "_NATIVE", OlderNative())
+    rows = np.log(np.array([[0.2, 0.8], [0.7, 0.3]]))
+    reference = np.array([1, 0], dtype=np.int64)
+    assert decoding._tail_mass_blocks(rows, reference) is None
+    assert decoding._tail_mass_summary(rows, reference) == pytest.approx(
+        native(rows.reshape(-1), reference))
 
 
 def test_banded_cursor_recovers_if_block_update_fails() -> None:
