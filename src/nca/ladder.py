@@ -319,7 +319,11 @@ class Rung:
             union, positions = _layout(key)
             entry = {union[i]: k for k, part in enumerate(positions) for i in part}
             inside = torch.isin(labels, torch.tensor(union))
-            targets = torch.tensor([entry[int(y)] for y in labels[inside]])
+            if not bool(inside.any()):
+                if len(positions) == 1:
+                    return 1.0  # A single entry has no decision ambiguity.
+                raise ValueError("cannot fit decision temperature without matching held-out labels")
+            targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long)
             self.temperatures[key] = self._fit(log[inside][:, union], targets, positions)
         return self.temperatures[key]
 

@@ -94,7 +94,11 @@ exceeds `1 − max p` (Theorem 16.4), so the bound only tightens.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs
-whose label is among its classes.
+whose label is among its classes. If a calibrated rung has no matching labels,
+a decision with multiple entries has no fitted restricted temperature and is
+rejected. A decision with only one entry has zero conditional decision risk
+regardless of temperature. An entirely uncalibrated rung's default temperature
+is a numerical convention, not evidence of calibration.
 
 **Practice queue.** Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with

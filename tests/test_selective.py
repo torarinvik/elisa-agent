@@ -1667,3 +1667,16 @@ def test_refinement_rechecks_mutable_decision_after_observer_change() -> None:
     refine([0, 0], [[low, high], [low, high]], 0.2,
            classes=[mutable, None], observe=observe)
     assert bounds[:2] == pytest.approx([0.5, 0.6])
+
+
+def test_restricted_temperature_requires_matching_held_out_labels() -> None:
+    rung = Rung(constant("no-matching-labels", (0.5, 0.49, 0.01), 1.0))
+    rung.calibrate([0, 0], torch.tensor([0, 0]))
+    for action in (lambda: rung.temperature((1, 2)),
+                   lambda: rung.risk(rung.observe_ranked(None), (1, 2)),
+                   lambda: rung.distribution(rung.observe(None), (1, 2))):
+        with pytest.raises(ValueError, match="without matching held-out labels"):
+            action()
+    assert (1, 2) not in rung.temperatures
+    assert rung.risk(rung.observe_ranked(None), ((1, 2),)) == 0.0
+    assert rung.distribution(rung.observe(None), ((1, 2),)).tolist() == [1.0]
