@@ -339,3 +339,28 @@ def test_element_certificate_keeps_independent_reading_snapshots() -> None:
     callback([torch.tensor([0.2, 0.8])], lambda i, d: 0.1, plain)
     callback([torch.tensor([0.7, 0.3])], lambda i, d: 0.1, distribution)
     assert snapshots[-1][0] == pytest.approx((0.7, 0.3))
+
+
+def test_element_floor_maps_current_readings_and_fixed_items() -> None:
+    from nca.selective import element_floor
+
+    observed: list[Any] = []
+
+    class Consumer:
+        def floor(self, readings: list[Any], risk: Any, fixed: frozenset[int]) -> float:
+            observed.append((readings, fixed))
+            return sum(risk(i, None) for i in fixed)
+
+    floor = element_floor(Consumer(), [(1, 0), (3, 0)], 4)
+    assert floor is not None
+    readings = [torch.tensor([0.4, 0.6]), torch.tensor([0.7, 0.3])]
+    result = floor(readings, lambda i, d: (i + 1) * 0.1, frozenset({1}))
+    assert result == pytest.approx(0.2)
+    assert observed[0][1] == frozenset({3})
+    assert observed[0][0][0] is None
+    assert observed[0][0][1] == pytest.approx((0.4, 0.6))
+    assert observed[0][0][3] == pytest.approx((0.7, 0.3))
+    readings[1] = torch.tensor([0.2, 0.8])
+    floor(readings, lambda i, d: 0.1, frozenset({1}))
+    assert observed[-1][0][3] == pytest.approx((0.2, 0.8))
+    assert observed[0][0][3] == pytest.approx((0.7, 0.3))

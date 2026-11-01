@@ -25,5 +25,5 @@ line-length = 100
 [tool.ruff.lint]
 # Every function is fully type-annotated (Any is allowed where values are opaque);
 # no unused imports or variables.
-select = ["ANN", "E731", "F401", "F841"]
+select = ["ANN", "E731", "F401", "F821", "F841"]
 ignore = ["ANN401"]

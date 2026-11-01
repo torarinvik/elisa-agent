@@ -1404,6 +1404,20 @@ bounds (to displayed 1e-8) and declared costs agreed. This small controlled
 comparison supports retaining the cache, but does not establish general
 coverage or timing guarantees. Per-item revision scanning remains full-length.
 
+**Declared-floor regression repaired.** Review of the adapter cache found
+that its original edit had also replaced the floor adapter's conversion loop,
+leaving undefined certificate-only variables there. Earlier tests exercised
+floors directly but missed this adapter path. The floor adapter now restores
+independent conversion of current readings. A regression checks source/index
+mapping, fixed items, successive reading changes and retained snapshots.
+Ruff `F821` is now enabled permanently; its full source/test check passes.
+
+Native tests: 123 pass; fallback: 110 pass, 13 native-only skips. A
+floor-enabled run of the familiar three depth-8 formulas completes, answering
+the same two inputs and returning bounds 0.95262571, 0.04221094 and
+0.04836281 (rounded). This is a correctness repair, with no timing gain
+claimed and no change to the floor or risk theorems.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

@@ -195,13 +195,9 @@ def element_floor(consumer: Module, items: Sequence[tuple[int, int]],
 
     def floor(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
               fixed: frozenset[int]) -> float:
-        revision = getattr(distribution, "revision", None)
-        for j, ((i, _), value) in enumerate(zip(items, readings)):
-            version = revision(j) if revision is not None else None
-            if version is None or revisions.get(i) != version:
-                elements[i] = tuple(value.tolist())
-                if version is not None:
-                    revisions[i] = version
+        elements: list[Any] = [None] * count
+        for (i, _), value in zip(items, readings):
+            elements[i] = tuple(value.tolist())
         return declared(elements, lambda i, d: risk(position[i], d),
                         frozenset(items[j][0] for j in fixed))
 

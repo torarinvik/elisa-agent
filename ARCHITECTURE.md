@@ -515,3 +515,9 @@ lists, preserving earlier snapshots. Without revision metadata it refreshes
 all tuples and clears revision history; returning to revision-aware calls
 therefore cannot reuse values from an unversioned callback. This uses the
 same revision invariant as calibrated state (Theorem 23.12).
+
+The floor adapter has no distribution/revision argument and independently
+converts current readings on each call. It does not share the certificate
+adapter's tuple cache. Tests cover mapping fixed item indices back to source
+elements, changed readings and snapshot independence. Ruff's `F821` check
+rejects undefined names throughout source and tests.
