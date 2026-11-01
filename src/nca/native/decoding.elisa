@@ -269,6 +269,19 @@ def certificate_words(ops: view[i64], full: view[f64], shape: view[f64]) -> darr
     right: darray[i64] = [children[2 * k + 1] for k in 0..<ops.len.i64()]
     return certificate(ops, left[0:left.count], right[0:right.count], full, shape)
 
+# Argmax within each row's declared group. Strict comparison keeps the first
+# class on ties. Group ids are supplied by the caller, not tied to a vocabulary.
+def grouped_argmax(scores: view[f64], groups: view[i64], decisions: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    width: i64 = groups.len.i64()
+    return
+        for k in 0..<decisions.len.i64() |result: darray[i64] = [-1 for _ in 0..<decisions.len.i64()]| -> result:
+            result[k] <-
+                for c in 0..<width |chosen: i64 = -1, best: f64 = log(0.0)| -> chosen:
+                    continue if groups[c] != decisions[k]
+                    if chosen < 0 or scores[k * width + c] > best:
+                        chosen <- c
+                        best <- scores[k * width + c]
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -278,3 +291,4 @@ export pymodule decoding:
     fn certificate
     fn parse_tree
     fn certificate_words
+    fn grouped_argmax

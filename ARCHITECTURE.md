@@ -457,3 +457,9 @@ result, which the account rejects. Child arrays remain native and are passed
 as borrowed slices. The Python child-list route remains the fallback when
 this export is absent. Existing format and certificate theorems cover the
 composition; neither decoding weights nor certificate tie rules change.
+
+`native.decoding.grouped_argmax` performs row-wise selection within supplied
+class groups. `FormulaEvaluator.words` uses it after arity decoding; group ids
+and scores are arguments, so the kernel is independent of the vocabulary.
+Strict score comparison preserves the first class on ties, matching the
+reference restricted argmax of §21.5. The Python loop remains the fallback.

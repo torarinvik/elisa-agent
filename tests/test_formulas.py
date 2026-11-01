@@ -576,3 +576,17 @@ def test_fused_native_certificate() -> None:
     for ops in ([], [3, 0], [0, 0]):
         assert native(np.array(ops, dtype=np.int64), np.zeros(len(ops)),
                       np.zeros(len(ops))) == []
+
+
+def test_native_grouped_argmax_preserves_first_class_ties() -> None:
+    native = getattr(formulas._NATIVE, "grouped_argmax", None)
+    if native is None:
+        pytest.skip("native grouped argmax is not built")
+    rng = np.random.default_rng(29)
+    groups = np.array([7, 2, 7, 2, 9, 2], dtype=np.int64)
+    decisions = rng.choice([2, 7, 9], size=100).astype(np.int64)
+    for scores in (rng.normal(size=(100, 6)), np.zeros((100, 6)),
+                   np.full((100, 6), -np.inf)):
+        expected = [max((c for c, g in enumerate(groups) if g == d), key=row.__getitem__)
+                    for row, d in zip(scores, decisions)]
+        assert native(scores.reshape(-1), groups, decisions) == expected

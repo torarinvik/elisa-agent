@@ -1204,6 +1204,20 @@ without a stale override, and all 110 project tests pass. The separate
 `.view()` method-lowering limitation has not been repaired; explicit slices
 and implicit owned-array arguments cover the current kernel use case.
 
+**Native grouped argmax.** The remaining per-word restricted argmax loop
+now runs in Elisa. The generic kernel accepts class group ids, row scores
+and row decisions. Tests compare 100 rows for random normal scores, zero
+scores and negative-infinity scores, including nonconsecutive group ids and
+first-class ties. All 111 native tests pass; disabling native execution gives
+105 passes and six native-only skips.
+
+On 575 prepared score rows, seed 29, 1,000 calls took 0.1245 s using the
+former `max(ARITY_DECISION[d], key=row.__getitem__)` loop and 0.0029 s through
+the native export. Input preparation and class-to-word conversion are excluded,
+so this is a selection microbenchmark rather than a full-refinement speedup.
+The operation is the existing restricted identity decision of §21.5; no new
+risk assumption or mathematical algorithm is introduced.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
