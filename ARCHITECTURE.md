@@ -544,3 +544,9 @@ unchanged, and feasible audit budgets use the existing fixed-sequence test.
 The Lean obstruction theorem covers the zero-error power inequality; the
 binomial bound's monotonicity in errors is used as its standard statistical
 property, not newly formalized here.
+
+For feasible audit budgets, `logic.shifted` computes checking outcomes lazily
+in the fit-half-determined order. It stops at the first rejected candidate
+and chooses maximum coverage only among the accepted prefix. Fit-half
+candidate evaluation remains complete, and the order never changes in
+response to checking labels. This implements §17.5's existing stopping rule.

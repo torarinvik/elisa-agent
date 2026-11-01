@@ -188,8 +188,13 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
                 if certification_possible(args.audit, delta, args.alpha):
                     order = certification_order(
                         [outcomes(route, ladders, fit, delta / lam) for lam in INFLATIONS], args.alpha)
-                    stats = [outcomes(route, ladders, check, delta / lam) for lam in INFLATIONS]
-                    accepted = certify(stats, delta, args.alpha, order)
+                    stats: dict[int, tuple[int, int]] = {}
+                    accepted = []
+                    for i in order:
+                        stats[i] = outcomes(route, ladders, check, delta / INFLATIONS[i])
+                        if not certify([stats[i]], delta, args.alpha):
+                            break
+                        accepted.append(i)
                     chosen = max(accepted, key=lambda i: stats[i][0], default=None)
                 for control, lam in (("none", 1.0),
                                      ("risk", None if chosen is None else INFLATIONS[chosen])):

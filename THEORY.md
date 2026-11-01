@@ -705,7 +705,11 @@ order, and stop at the first one not declared safe. By Theorem 17.5:
 with no correction for the number of candidates and no monotonicity
 assumption. Since the event covers *every* accepted candidate at once, any
 accepted candidate may be deployed, and in particular the one answering the
-most audit expressions. If none is accepted, the system abstains on
+most audit expressions. Checking-sample predictions need only be computed
+for this tested prefix: candidates after the first failure cannot enter the
+accepted set. Omitting their evaluations leaves both the selected policy and
+the validity argument unchanged, provided the order was already fixed without
+checking labels. If none is accepted, the system abstains on
 everything.
 
 **Choosing the order.** The guarantee requires only that the order not

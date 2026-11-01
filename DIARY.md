@@ -1472,6 +1472,22 @@ was skipped exactly; the single timing pair includes warm-up effects and
 is not a general speedup estimate. No neural hot loop was added in Python:
 the saving comes from avoiding executions proved unable to certify.
 
+**Lazy fixed-sequence checking.** Feasible audit budgets previously
+computed all checking candidates before applying the fixed-sequence stop.
+The runner now evaluates the predetermined order only until the first
+failure. A controlled regression uses order `[2,0,1,3,4,5,6]`, passes index 2,
+fails index 0, and confirms no later checking candidate runs; the selected
+inflation stays 1.5. Native tests: 126 pass; fallback: 113 pass, 13 skips.
+
+On depth 4, target 5%, shifted noise 0.2, 60 audit examples per half,
+100 evaluation examples (test seed 6), eager execution took 1.54477 s and
+lazy execution 0.87301 s. Readers shared the existing checkpoint and
+calibration on 100 depth-4 validation formulas, noise 0.1, seed 0. Both
+reported uncontrolled coverage 0.85 with one error and no certified policy.
+This single ordered timing pair includes warm-up effects. The invariant is
+that checking work after the first failure is removed without changing the
+accepted prefix, not a universal speedup factor.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

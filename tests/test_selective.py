@@ -395,3 +395,33 @@ def test_impossible_audit_skips_candidate_evaluations(monkeypatch: pytest.Monkey
                            draws=1, audit=20, targets=[0.05, 0.01], alpha=0.1)
     logic.shifted(None, {}, args)
     assert calls == [3, 3]
+
+
+def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.MonkeyPatch,
+                                                       capsys: pytest.CaptureFixture[str]) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+
+    calls: list[tuple[int, float]] = []
+
+    def outcomes(route: Any, ladders: Any, samples: Any, delta: float) -> tuple[int, int]:
+        calls.append((len(samples), delta))
+        if len(calls) <= 8:  # Seven fit candidates, then the first checking candidate.
+            assert len(samples) == 60
+            return 60, 0
+        if len(calls) == 9:
+            assert len(samples) == 60
+            return 60, 20
+        assert len(samples) == 3
+        return 3, 0
+
+    monkeypatch.setattr(logic, "outcomes", outcomes)
+    monkeypatch.setattr(logic, "certification_order", lambda candidates, alpha: [2, 0, 1, 3, 4, 5, 6])
+    args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
+                           draws=1, audit=60, targets=[0.05], alpha=0.1)
+    logic.shifted(None, {}, args)
+    assert len(calls) == 11
+    assert calls[7][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
+    assert calls[8][1] == pytest.approx(0.05 / logic.INFLATIONS[0])
+    assert calls[-1][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
+    assert "risk   1.5" in capsys.readouterr().out
