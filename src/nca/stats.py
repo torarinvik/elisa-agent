@@ -1,9 +1,12 @@
-"""Confidence intervals for reported accuracies and paired differences."""
+"""Confidence intervals for reported accuracies and paired differences, and
+count tests against predicted probabilities."""
 
 from __future__ import annotations
 
 import math
 from typing import Sequence
+
+import numpy as np
 
 Z95 = 1.959963984540054
 
@@ -64,3 +67,16 @@ def clopper_pearson_upper(k: int, n: int, alpha: float) -> float:
         else:
             high = mid
     return low
+
+
+def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tuple[float, float]:
+    """``P(X >= observed)`` and ``P(X <= observed)`` for ``X`` a sum of
+    independent Bernoulli variables with the given probabilities (clipped to
+    ``[0, 1]``). If each event's probability is only bounded above by its
+    entry, the first is still a valid one-sided p-value for an excess."""
+    pmf = np.zeros(len(probabilities) + 1)
+    pmf[0] = 1.0
+    for n, p in enumerate(np.clip(probabilities, 0.0, 1.0), start=1):
+        pmf[1:n + 1] = pmf[1:n + 1] * (1 - p) + pmf[:n] * p
+        pmf[0] *= 1 - p
+    return float(pmf[observed:].sum()), float(pmf[:observed + 1].sum())

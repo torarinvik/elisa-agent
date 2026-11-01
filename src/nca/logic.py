@@ -7,9 +7,9 @@ calibrating the readers' ladder on the words of validation formulas. For each
 depth and target δ it compares the evaluator's risk accounts (``ACCOUNTS``):
 static demand (every word decided fully), its certificate, and the
 certificate crediting error detection by Markov's inequality or by pairs
-(§19). It reports coverage, error among answered
-formulas, mean bound among answered, error when forced to answer, and compute
-per formula.
+(§19), and decoding by the format (§21). It reports coverage, error among
+answered formulas, mean bound among answered, error when forced to answer, and
+compute per formula.
 
 With ``--floors`` every system also runs with early abstention by the
 evaluator's floor (§22.3), checking that the answers are identical and
@@ -25,6 +25,13 @@ With ``--shift ν`` formulas in use have noise ν instead, and the risk control
 of §17 (``nca.ladder.certify``) is applied to one account (``--account``)
 with audits drawn at that noise.
 
+With ``--premises`` it tests the premises of §21.8 on bottom-rung readings
+instead, at the calibration noise and at ``--shift`` if given: calibration of
+the decoded arity sequence's posterior risk ``R``, the pairs premise of §19
+(formulas with at least two arity failures against ``Σ e₂``), and joint
+failures of adjacent and distant word pairs against the products of their
+risks.
+
     uv run --extra vision python -m nca.logic --reader checkpoints/words.pt
 """
 
@@ -34,30 +41,34 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from nca.abi import TypeId
 from nca.certify import INFLATIONS
-from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words, parse
+from nca.formulas import (ARITY, VOCABULARY, FormulaDataset, FormulaSample, decode,
+                          labeled_words, parse)
 from nca.ladder import Rung, State, Stop, certification_order, certify, stopping_rule
 from nca.modules.symbols import BOOLEAN
-from nca.modules.words import (WORD_DISTRIBUTION, CharReader, EditReader, FormulaEvaluator,
-                               FORMULA_TEXT, Tokenizer)
+from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
+                               EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer)
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
 from nca.selective import Answer, build_ladders, solve
-from nca.stats import wilson
+from nca.stats import poisson_binomial_tails, wilson
 
 
-ACCOUNTS = {"static": (False, "none"), "certificate": (True, "none"),
-            "markov": (True, "markov"), "pairs": (True, "pairs")}
-"""Evaluator settings compared: short-circuit certificates, and credit for
-error detection (§19)."""
+ACCOUNTS = {"static": (False, "none", False), "certificate": (True, "none", False),
+            "markov": (True, "markov", False), "pairs": (True, "pairs", False),
+            "correction": (True, "none", True)}
+"""Evaluator settings compared: short-circuit certificates, credit for error
+detection (§19), and decoding by the format (§21)."""
 
 
-def library(reader: Path, short_circuit: bool, detection: str = "none") -> list[Module]:
+def library(reader: Path, short_circuit: bool, detection: str = "none",
+            decoding: bool = False) -> list[Module]:
     return [Tokenizer(), EditReader(), CharReader.load(reader),
-            FormulaEvaluator(short_circuit, detection)]
+            FormulaEvaluator(short_circuit, detection, decoding)]
 
 
 def certificate_leaves(sample: FormulaSample) -> int:
@@ -112,7 +123,7 @@ def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
               args: argparse.Namespace) -> None:
     extra = (f" {'abst kFLOPs':>11s} {'floor kFLOPs':>12s} {'floor abst':>10s} {'same':>5s}"
              if args.floors else "")
-    print(f"{'depth':>5s} {'words':>6s} {'system':>13s} {'coverage':>9s} "
+    print(f"{'depth':>5s} {'words':>6s} {'system':>18s} {'coverage':>9s} "
           f"{'error answered [95% CI]':>27s} {'mean bound':>11s} {'error forced':>13s} "
           f"{'kFLOPs':>8s}" + extra)
     top = max(len(rungs) for rungs in ladders.values())
@@ -126,7 +137,7 @@ def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
             systems |= {f"{name} δ={delta:g}": (name, delta, 0) for name in args.accounts}
         for system, (name, delta, start) in systems.items():
             answers = run(routes[name], ladders, samples, delta, start)
-            line = (f"{depth:5d} {words:6.1f} {system.replace('certificate', 'cert'):>13s} "
+            line = (f"{depth:5d} {words:6.1f} {system.replace('certificate', 'cert'):>18s} "
                     + summary(answers, samples))
             if args.floors:
                 early = run(routes[name], ladders, samples, delta, start, floors=True)
@@ -190,6 +201,73 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
                           + f" {str(rate <= delta):>5s}", flush=True)
 
 
+def arities(words: Sequence[str]) -> list[int]:
+    return [ARITY[VOCABULARY.index(w)] for w in words]
+
+
+def premises(rung: Rung, args: argparse.Namespace) -> None:
+    """The count tests of §21.8 on ``rung``'s readings."""
+    decoder = FormulaEvaluator(decode=True)
+    near = 10
+    for noise in (args.noise, *(() if args.shift is None else (args.shift,))):
+        for depth in args.depths:
+            dataset = FormulaDataset("test", args.samples, depth, noise, args.seed, args.xor)
+            risks: list[float] = []
+            wrong: list[bool] = []
+            pairs: list[float] = []
+            doubled = 0
+            failures = predicted = 0.0
+            joint = {"adjacent": 0, "distant": 0}
+            expected = {"adjacent": 0.0, "distant": 0.0}
+            for index in range(len(dataset)):
+                sample = dataset.sample(index)
+                logs = [rung.observe(w) for w in sample.text.split(" ")]
+                readings = [tuple(rung.reading(log).tolist()) for log in logs]
+                calibrated = np.log(np.clip(np.array(
+                    [rung.distribution(log, ARITY_DECISION).tolist() for log in logs]),
+                    1e-300, None))
+                truth = arities(sample.words)
+                posterior = decode(calibrated, ARITY_ORDER)
+                assert posterior is not None
+                chosen = arities(decoder.words(readings))
+                risks.append(posterior.risk(calibrated, ARITY_ORDER, chosen))
+                wrong.append(chosen != truth)
+                rho = np.array([rung.risk(log, ARITY_DECISION) for log in logs])
+                read = arities(FormulaEvaluator().words(readings))
+                failed = np.array([a != t for a, t in zip(read, truth)])
+                doubled += int(failed.sum() >= 2)
+                pairs.append(float((rho.sum() ** 2 - (rho ** 2).sum()) / 2))
+                failures += float(failed.sum())
+                predicted += float(rho.sum())
+                close = sum(float(rho[:-g] @ rho[g:]) for g in range(1, near) if g < len(rho))
+                expected["adjacent"] += float(rho[:-1] @ rho[1:])
+                expected["distant"] += pairs[-1] - close
+                where = np.flatnonzero(failed)
+                gaps = np.abs(where[:, None] - where[None, :])[np.triu_indices(len(where), 1)]
+                joint["adjacent"] += int((gaps == 1).sum())
+                joint["distant"] += int((gaps >= near).sum())
+            observed = sum(wrong)
+            above, below = poisson_binomial_tails(observed, risks)
+            print(f"noise {noise:g} depth {depth}: decoded arity sequence wrong {observed} "
+                  f"of {len(wrong)}, predicted Σ R = {sum(risks):.1f} "
+                  f"(P(X ≥ obs) = {above:.3g}, P(X ≤ obs) = {below:.3g})")
+            edges = (0.0, 1e-3, 1e-2, 0.1, 1.0 + 1e-9)
+            for low, high in zip(edges, edges[1:]):
+                chosen_bin = [i for i, r in enumerate(risks) if low <= r < high]
+                if chosen_bin:
+                    print(f"  R in [{low:g}, {min(high, 1.0):g}): {len(chosen_bin):5d} formulas, "
+                          f"mean R {np.mean([risks[i] for i in chosen_bin]):.4f}, "
+                          f"wrong {np.mean([wrong[i] for i in chosen_bin]):.4f}")
+            above, _ = poisson_binomial_tails(doubled, [min(1.0, e) for e in pairs])
+            print(f"  ≥ 2 arity failures: {doubled} formulas, Σ e₂ = {sum(pairs):.1f} "
+                  f"(P(X ≥ obs) = {above:.3g}); arity failures {failures:.0f}, "
+                  f"Σ ρ = {predicted:.1f}")
+            for kind in joint:
+                print(f"  {kind} joint failures: {joint[kind]}, Σ ρᵢρⱼ = {expected[kind]:.2f}, "
+                      f"ratio {joint[kind] / expected[kind]:.2f} against marginal ratio² "
+                      f"{(failures / predicted) ** 2:.2f}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reader", type=Path, default=Path("checkpoints/words.pt"))
@@ -213,12 +291,13 @@ def main() -> None:
     parser.add_argument("--fit", type=int, default=200, help="formulas to fit the rule")
     parser.add_argument("--lambdas", type=float, nargs="+",
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
+    parser.add_argument("--premises", action="store_true", help="test the premises of §21.8")
     args = parser.parse_args()
 
     routes = {}
-    for name, (short_circuit, detection) in ACCOUNTS.items():
-        route = plan_stable(library(args.reader, short_circuit, detection), (FORMULA_TEXT,),
-                            BOOLEAN)
+    for name, (short_circuit, detection, decoding) in ACCOUNTS.items():
+        route = plan_stable(library(args.reader, short_circuit, detection, decoding),
+                            (FORMULA_TEXT,), BOOLEAN)
         assert route is not None
         routes[name] = route
     words, labels = labeled_words(FormulaDataset("validation", args.calibration, 4, args.noise,
@@ -228,6 +307,9 @@ def main() -> None:
     print(f"{WORD_DISTRIBUTION}: " + ", ".join(
         f"{r.module.manifest.module_id} (cost {r.cost:g}, T={r.temperature():.2f})"
         for r in ladders[WORD_DISTRIBUTION]))
+    if args.premises:
+        premises(ladders[WORD_DISTRIBUTION][0], args)
+        return
 
     print(f"{'depth':>5s} {'leaves':>7s} {'certificate leaves: mean':>25s} {'max':>5s} "
           f"{'bound 2^⌈d/2⌉':>14s}")

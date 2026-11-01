@@ -2259,6 +2259,109 @@ risk cannot reach the target and abstain, rather than climb (§22).
 4. **Compute.** Decoding adds about 1% to a top-rung pass. Climbs go to
    words that are likely wrong given the format, so fewer are needed.
 
+### 21.11 Results
+
+`nca.logic` with the setup of §18.10 and §19.9: the same readers,
+calibration and 300 test formulas per depth. The correction account decodes
+in `FormulaEvaluator(decode=True)`. The answered formula is decoded from the
+readings' arity masses, and the certificate evaluates that same formula
+under the calibrated arity distributions (premise P), so the bound concerns
+exactly the answer given.
+
+Coverage, with compute in kFLOPs per formula in brackets, and error when
+forced to answer:
+
+| depth | δ | pairs (§19) | correction | forced error: pairs / correction |
+|---:|---:|---:|---:|---:|
+| 2 | 0.2 | 0.980 (23) | 1.000 (6) | 0.020 / 0 |
+| 2 | 0.01 | 0.970 (32) | 0.990 (14) | 0.023 / 0 |
+| 4 | 0.2 | 0.973 (124) | 0.997 (38) | 0.027 / 0.003 |
+| 4 | 0.05 | 0.963 (162) | 0.993 (51) | 0.027 / 0.003 |
+| 4 | 0.01 | 0.937 (274) | 0.973 (132) | 0.037 / 0.003 |
+| 6 | 0.2 | 0.817 (2833) | 0.937 (1046) | 0.163 / 0.010 |
+| 6 | 0.05 | 0.707 (4497) | 0.870 (2063) | 0.217 / 0.013 |
+| 6 | 0.01 | 0.557 (6764) | 0.727 (4211) | 0.223 / 0.013 |
+
+At depth 8 the correction account did not finish within the time limit
+(see the end of this section), so depth 8 has no row here.
+
+No answered formula was wrong under any account. The mean bound among
+answered formulas at `δ = 0.2` is 0.0031 at depth 4 and 0.030 at depth 6,
+against 0.0059 and 0.048 for pairs.
+
+**Shift**, noise 0.2 in use with the correction account, audits as in §18.10
+(two audit draws, which chose the same `λ`; the third was not run):
+
+| depth | δ | uncontrolled: coverage, error answered | risk control: λ | coverage | error answered |
+|---:|---:|---|---|---|---|
+| 6 | 0.2 | 0.750, 0.049 | 0.5 | 0.893 | 0.071 |
+| 6 | 0.05 | 0.523, 0.006 | 0.5 | 0.627 | 0.027 |
+
+Pairs answered 0.410 and 0.257 of these formulas uncontrolled (§19.9).
+Depth 8 under shift was not run, for the same cost reason as below.
+
+**Premise tests** (§21.8), bottom rung, 1000 test formulas per row. `O` is the
+number of formulas whose decoded arity sequence is wrong, compared with
+`Σ R`. `O₂` is the number with at least two per-word arity failures,
+compared with `Σ e₂`. The last column is the observed number of per-word
+arity failures over the predicted `Σ ρ`:
+
+| noise | depth | `O` | `Σ R` | `P(X ≤ O)` | `O₂` | `Σ e₂` | failures / `Σ ρ` |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0.1 | 4 | 5 | 7.8 | 0.13 | 7 | 11.8 | 0.45 |
+| 0.1 | 6 | 55 | 78.5 | 10⁻⁴ | 36 | 218 | 0.41 |
+| 0.1 | 8 | 349 | 516 | 10⁻³⁹ | 312 | 3481 | 0.43 |
+| 0.2 | 4 | 34 | 42.1 | 0.05 | 29 | 116 | 0.53 |
+| 0.2 | 6 | 305 | 360 | 10⁻⁶ | 299 | 1864 | 0.57 |
+| 0.2 | 8 | 939 | 961 | 3·10⁻⁴ | 953 | 31359 | 0.58 |
+
+`P(X ≥ O)` is at least 0.95 in every row, so `R` never underestimates.
+Binned by `R`, formulas with `R < 0.01` (about 1600 in all) had no wrong
+decoded sequence. In `[0.01, 0.1)` the observed rate is 0.014–0.022 against
+mean `R` 0.023–0.057. In `[0.1, 1)` it is 0.33–0.43 against 0.43–0.57.
+
+Joint failures of word pairs at least 10 words apart, over the predicted
+`Σ ρᵢρⱼ`, match the square of the marginal ratio in five of six rows: 0.16
+against 0.17, 0.18 against 0.18, 0.33 against 0.28, 0.33 against 0.32, and
+0.33 against 0.34. That is, failures are independent at their actual rates.
+The exception is depth 4 at noise 0.1, with 7 joint failures where
+independence at the observed rates predicts 1.3. Adjacent pairs fail
+together no more often than independence predicts: 42 joint failures in
+all, against about 50.
+
+Against the predictions of §21.10:
+
+1. **Coverage: confirmed** at depths 2–6. Correction answers 99–100% of
+   formulas at depths 2 and 4. At depth 6 it lifts coverage over pairs by
+   0.12–0.17 at every target, for example from 0.707 to 0.870 at
+   `δ = 0.05`.
+2. **Error when forced: confirmed, strongly.** The decoded formula is wrong
+   on 1.0–1.3% of depth-6 formulas, against 16–22% for per-word readings,
+   and on 0.3% at depth 4 against 2.7–3.7%. Most per-word errors are arity
+   errors that the format corrects.
+3. **Validity: confirmed so far, and the premise test says why.** No
+   answered formula was wrong. Under shift, the error among answered
+   formulas stayed within `δ`, uncontrolled and with risk control. `R` is
+   calibrated or conservative in every row and never significantly too
+   small. Its conservatism comes from the per-word arity risks, which
+   overstate the failure rate about twofold (column 8), not from the
+   format. The pairs premise of §19, tested for the first time, holds in its
+   testable consequence: `O₂` stays far below `Σ e₂` in every row. Failures
+   of distant words are independent at their actual rates in five of six
+   settings. The one excess, 7 against 1.3 at depth 4, was still absorbed by
+   the conservative risks (7 ≤ 11.8).
+4. **Compute: confirmed.** Correction spends 1.6–3.8 times less than pairs
+   at depths 2–6. At depth 2 it needs barely more than the bottom rung (6
+   against 5 kFLOPs), because it rarely climbs.
+
+**Decoding cost per climb.** The account reruns the exact dynamic program
+after every climb, at about 30 ms per decode at depth 8 in the Python
+implementation. With hundreds of climbs per formula, a depth-8 evaluation
+with all targets ran for over an hour. Its FLOP count is small (§21.4), but
+it repeats the whole recursion where one word changed. This is the
+motivation for §23's banded, incremental decoding: update only the forward
+and backward messages around the climbed word.
+
 ## 22. Abstaining early
 
 ### 22.1 The most expensive outcome

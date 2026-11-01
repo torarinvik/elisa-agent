@@ -139,6 +139,15 @@ class Rung:
         union, positions = _layout(decision_key(classes))
         return risk(torch.softmax(log[union] / self.temperature(classes), dim=-1), positions)
 
+    def distribution(self, log: torch.Tensor, classes: Decision = None) -> torch.Tensor:
+        """Calibrated probabilities of the decision's entries: each entry's
+        share of the classes it ranges over, under the decision's temperature."""
+        if classes is None:
+            return self.reading(log)
+        union, positions = _layout(decision_key(classes))
+        reading = torch.softmax(log[union] / self.temperature(classes), dim=-1)
+        return torch.stack([reading[part].sum() for part in positions])
+
     @staticmethod
     def _fit(log: torch.Tensor, labels: torch.Tensor,
              entries: Sequence[Sequence[int]] | None = None) -> float:
@@ -183,12 +192,13 @@ def risk(reading: torch.Tensor, classes: Decision = None) -> float:
     return 1.0 - (mass[chosen].sum() / mass.sum()).item()
 
 
-Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float]],
-                       dict[int, float] | None]
-"""``certificate(readings, risk)``: a risk account for the current readings,
-each charged item's charge, computed with ``risk(i, decision)``; the charges
-sum to a bound on the answer's error probability. ``None`` if the readings
-determine no answer."""
+Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float],
+                        Callable[[int, Decision], torch.Tensor]], dict[int, float] | None]
+"""``certificate(readings, risk, distribution)``: a risk account for the
+current readings, each charged item's charge, computed with
+``risk(i, decision)`` and the calibrated entry probabilities
+``distribution(i, decision)``; the charges sum to a bound on the answer's
+error probability. ``None`` if the readings determine no answer."""
 
 
 Floor = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float], frozenset[int]],
@@ -229,6 +239,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     logs: list[torch.Tensor] = [torch.empty(0)] * len(values)
     readings: list[torch.Tensor] = [torch.empty(0)] * len(values)
     risks: dict[tuple[int, int, DecisionKey], float] = {}
+    distributions: dict[tuple[int, int, DecisionKey], torch.Tensor] = {}
     cost = 0.0
 
     def climb(i: int) -> None:
@@ -244,13 +255,19 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             risks[key] = ladders[i][levels[i]].risk(logs[i], decision)
         return risks[key]
 
+    def item_distribution(i: int, decision: Decision) -> torch.Tensor:
+        key = (i, levels[i], decision_key(decision))
+        if key not in distributions:
+            distributions[key] = ladders[i][levels[i]].distribution(logs[i], decision)
+        return distributions[key]
+
     for i in range(len(values)):
         climb(i)
         while levels[i] < min(start, len(ladders[i]) - 1):
             levels[i] += 1
             climb(i)
     while True:
-        account = (certificate(readings, item_risk) if certificate is not None
+        account = (certificate(readings, item_risk, item_distribution) if certificate is not None
                    else {i: item_risk(i, d) for i, d in enumerate(decisions)})
         if account is None:
             charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf

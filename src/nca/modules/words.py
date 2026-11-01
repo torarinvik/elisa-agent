@@ -10,7 +10,8 @@
 * ``FormulaEvaluator``: word distributions to the formula's truth value. It
   declares a certificate (§18.5): every word's arity decision, and the full
   decision of the words its least-risk valid certificate evaluates, charged
-  optionally with credit for the format's error detection (§19).
+  optionally with credit for the format's error detection (§19), or, when
+  decoding, the posterior risk of the corrected arity sequence (§21).
 
 Train the character reader with::
 
@@ -29,7 +30,8 @@ from torch import nn
 
 from nca.abi import Contract, Manifest, seq_type
 from nca.efficiency import network_flops
-from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words, parse
+from nca.formulas import (ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, decode,
+                          labeled_words, parse)
 from nca.ladder import Decision
 from nca.modules.symbols import BOOLEAN
 
@@ -47,6 +49,9 @@ READER = Contract((NOISY_WORD,), WORD_DISTRIBUTION)
 ARITY_DECISION: tuple[tuple[int, ...], ...] = tuple(
     tuple(c for c, a in enumerate(ARITY) if a == arity) for arity in sorted(set(ARITY)))
 """The grouped decision a parser needs of every word: its arity."""
+
+ARITY_ORDER: tuple[int, ...] = tuple(sorted(set(ARITY)))
+"""The arity of each entry of ``ARITY_DECISION``."""
 
 DETECTION = ("none", "markov", "pairs")
 
@@ -167,22 +172,46 @@ class FormulaEvaluator:
     words are not positively correlated). Evaluated words are then charged
     only the risk of their decision restricted to their arity group.
 
+    ``decode=True`` corrects instead of refusing (§21): the arity sequence is
+    the most probable parseable one under the readings' arity masses, and each
+    word the most probable class of its decoded arity group, so every reading
+    is answered. The certificate decodes the same readings the same way, so the
+    answer is exactly the formula its bound is about; it then charges the
+    posterior probability ``R`` that this arity sequence is wrong, under the
+    *calibrated* arity distributions and the format (premise P), shared among
+    the words in proportion to their posterior arity risks, plus each evaluated
+    word's restricted risk.
+
     Its ``floor`` (§22.3) bounds every account refinement can still reach
     from the words whose readings are fixed: the smaller of their full and
-    arity risks (certificate account), their full risks (static account), or ``min(S / 2, e₂)`` over them
-    (detection accounts, ``NCA.detection_account_mono``).
+    arity risks (certificate account), their full risks (static account), or
+    ``min(S / 2, e₂)`` over them (detection accounts,
+    ``NCA.detection_account_mono``). Decoding has only the trivial floor 0,
+    since a later climb can change the decoded sequence.
     """
 
-    def __init__(self, short_circuit: bool = True, detection: str = "none") -> None:
+    def __init__(self, short_circuit: bool = True, detection: str = "none",
+                 decode: bool = False) -> None:
         assert detection in DETECTION
         self.short_circuit = short_circuit
         self.detection = detection
+        self.decode = decode
         self.manifest = Manifest("nca.logic.formula-evaluator", "1.0.0",
                                  Contract((seq_type(WORD_DISTRIBUTION),), BOOLEAN))
 
-    @staticmethod
-    def words(readings: Sequence[Sequence[float]]) -> list[str]:
-        return [VOCABULARY[int(np.argmax(r))] for r in readings]
+    def words(self, readings: Sequence[Sequence[float]]) -> list[str]:
+        """The words read: each word's most probable class, or, when decoding,
+        the most probable class within its decoded arity group."""
+        if not self.decode:
+            return [VOCABULARY[int(np.argmax(r))] for r in readings]
+        masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
+                           for r in readings])
+        with np.errstate(divide="ignore"):
+            decoded = decode(np.log(masses), ARITY_ORDER)
+        if decoded is None:
+            return [VOCABULARY[int(np.argmax(r))] for r in readings]
+        return [VOCABULARY[max(ARITY_DECISION[a], key=r.__getitem__)]
+                for r, a in zip(readings, decoded.arities)]
 
     def invoke(self, readings: Sequence[Sequence[float]]) -> bool | None:
         words = self.words(readings)
@@ -228,13 +257,40 @@ class FormulaEvaluator:
             stack += kids if choice[k] == "both" else [kids[choice[k] == "right"]]
         return found
 
+    def corrected(self, words: Sequence[str], children: Sequence[Sequence[int]],
+                  risk: Callable[[int, Decision], float],
+                  distribution: Callable[[int, Decision], torch.Tensor],
+                  ) -> dict[int, float] | None:
+        """The correction account (§21.5–21.6) of the decoded ``words``."""
+        n = len(words)
+        calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
+                                  for k in range(n)]).double()
+        log_probs = calibrated.clamp_min(1e-300).log().numpy()
+        posterior = decode(log_probs, ARITY_ORDER)
+        if posterior is None:
+            return None
+        arities = [ARITY[VOCABULARY.index(w)] for w in words]
+        sequence_risk = posterior.risk(log_probs, ARITY_ORDER, arities)
+        misread = [1.0 - posterior.marginals[k, ARITY_ORDER.index(a)]
+                   for k, a in enumerate(arities)]
+        total = sum(misread)
+        shares = [sequence_risk * r / total if total > 0 else sequence_risk / n for r in misread]
+        within = [risk(k, ARITY_DECISION[a]) for k, a in enumerate(arities)]
+        kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
+                else set(range(n)))
+        return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
+
     def certificate(self, readings: Sequence[Sequence[float]],
-                    risk: Callable[[int, Decision], float]) -> dict[int, float] | None:
+                    risk: Callable[[int, Decision], float],
+                    distribution: Callable[[int, Decision], torch.Tensor],
+                    ) -> dict[int, float] | None:
         words = self.words(readings)
         children = parse([ARITY[VOCABULARY.index(w)] for w in words])
         if children is None:
             return None
         n = len(words)
+        if self.decode:
+            return self.corrected(words, children, risk, distribution)
         arity = [risk(k, ARITY_DECISION) for k in range(n)]
         if self.detection == "none":
             full = [risk(k, None) for k in range(n)]
@@ -254,6 +310,8 @@ class FormulaEvaluator:
 
     def floor(self, readings: Sequence[Sequence[float]], risk: Callable[[int, Decision], float],
               fixed: frozenset[int]) -> float:
+        if self.decode:
+            return 0.0
         if self.detection == "none":
             if not self.short_circuit:
                 return sum(risk(k, None) for k in fixed)

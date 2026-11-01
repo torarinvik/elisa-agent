@@ -1,4 +1,5 @@
 import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,10 +9,11 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nca.abi import Contract, Manifest
-from nca.formulas import ARITY, VOCABULARY, FormulaDataset, corrupt, evaluate, formula, parse
+from nca.formulas import (ARITY, VOCABULARY, FormulaDataset, corrupt, decode, evaluate, formula,
+                          parse)
 from nca.ladder import Decision, Rung, ladder, refine, risk
 from nca.modules.symbols import BOOLEAN
-from nca.modules.words import (ARITY_DECISION, FORMULA_TEXT, READER, EditReader,
+from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, FORMULA_TEXT, READER, EditReader,
                                FormulaEvaluator, Tokenizer, edit_distance)
 from nca.planner import plan_stable
 from nca.selective import build_ladders, solve
@@ -19,6 +21,10 @@ from nca.selective import build_ladders, solve
 
 def one_hot(words: list[str]) -> list[tuple[float, ...]]:
     return [tuple(float(w == v) for v in VOCABULARY) for w in words]
+
+
+def no_distribution(k: int, decision: Decision) -> torch.Tensor:
+    raise AssertionError("not needed by this account")
 
 
 def test_channel_and_prefix_parsing() -> None:
@@ -112,13 +118,14 @@ def test_certificate_is_least_risk() -> None:
         def weight(k: int, decision: Decision) -> float:
             return float(full[k] if decision is None else shape[k])
 
-        account = FormulaEvaluator().certificate(one_hot(words), weight)
+        account = FormulaEvaluator().certificate(one_hot(words), weight, no_distribution)
         assert account is not None
         chosen = sum(account.values())
         best = min(sum(full[k] if k in c else shape[k] for k in range(len(words)))
                    for c in certificates(words, 0, children))
         assert chosen == pytest.approx(best)
-        static = FormulaEvaluator(short_circuit=False).certificate(one_hot(words), weight)
+        static = FormulaEvaluator(short_circuit=False).certificate(one_hot(words), weight,
+                                                                  no_distribution)
         assert static is not None
         assert chosen <= sum(static.values()) + 1e-9
 
@@ -138,10 +145,11 @@ def test_refine_climbs_only_demanded_items() -> None:
                     Constant(Manifest("sure", "1.0.0", contract, cost=10.0), (0.01, 0.99))],
                    contract)
     result = refine([0, 0, 0], [rungs] * 3, delta=0.05,
-                    certificate=lambda readings, risk: {0: risk(0, None)})
+                    certificate=lambda readings, risk, distribution: {0: risk(0, None)})
     assert result.cost == pytest.approx(3 * 1.0 + 10.0)
     assert result.bound == pytest.approx(0.01, abs=1e-6) and not result.abstained
-    assert refine([0], [rungs], 0.05, certificate=lambda readings, risk: None).abstained
+    assert refine([0], [rungs], 0.05,
+                  certificate=lambda readings, risk, distribution: None).abstained
 
 
 def test_solve_short_circuits_noisy_formulas() -> None:
@@ -180,8 +188,10 @@ def test_detection_accounts() -> None:
         return arity[k] if decision == ARITY_DECISION else within[k]
 
     total = sum(arity)
-    markov = FormulaEvaluator(detection="markov").certificate(one_hot(words), risk)
-    pairs = FormulaEvaluator(detection="pairs").certificate(one_hot(words), risk)
+    markov = FormulaEvaluator(detection="markov").certificate(one_hot(words), risk,
+                                                              no_distribution)
+    pairs = FormulaEvaluator(detection="pairs").certificate(one_hot(words), risk,
+                                                            no_distribution)
     assert markov is not None and pairs is not None
     # "and" is true, so both children are evaluated; "or" reads true and keeps
     # its cheaper absorbing child, "true" (within risk 0.3 against 0.4).
@@ -210,6 +220,106 @@ def test_floors_bound_every_account() -> None:
         for short_circuit, detection in ((False, "none"), (True, "none"), (True, "markov"),
                                          (True, "pairs")):
             evaluator = FormulaEvaluator(short_circuit, detection)
-            account = evaluator.certificate(one_hot(words), risk)
+            account = evaluator.certificate(one_hot(words), risk, no_distribution)
             assert account is not None
             assert evaluator.floor(one_hot(words), risk, fixed) <= sum(account.values()) + 1e-12
+
+
+def parseable(m: int) -> list[tuple[int, ...]]:
+    return [a for a in itertools.product(ARITY_ORDER, repeat=m) if parse(list(a)) is not None]
+
+
+def test_decoder_matches_enumeration() -> None:
+    """``NCA.dpSum_eq``, ``NCA.dpMax_ge`` and ``NCA.dpMax_attained`` against
+    every arity sequence, with ``NCA.accepts_iff_codes`` as the language."""
+    rng = np.random.default_rng(4)
+    for m in range(1, 9):
+        for _ in range(10):
+            probs = rng.dirichlet(np.full(3, 0.5), size=m)
+            decoded = decode(np.log(probs), ARITY_ORDER)
+            weights = {a: float(np.prod([probs[k, a_k] for k, a_k in enumerate(a)]))
+                       for a in parseable(m)}
+            if not weights:
+                assert decoded is None
+                continue
+            assert decoded is not None and parse(list(decoded.arities)) is not None
+            z = sum(weights.values())
+            assert decoded.log_z == pytest.approx(np.log(z))
+            assert weights[decoded.arities] == pytest.approx(max(weights.values()))
+            marginals = np.zeros((m, 3))
+            for a, w in weights.items():
+                marginals[np.arange(m), list(a)] += w / z
+            np.testing.assert_allclose(decoded.marginals, marginals, atol=1e-9)
+            union = sum(1 - probs[k, a] for k, a in enumerate(decoded.arities))
+            assert decoded.risk(np.log(probs), ARITY_ORDER) <= union + 1e-9
+
+
+def accepted(arities: Sequence[int]) -> bool:
+    """The counter automaton of ``NCA.await`` from one awaited subformula."""
+    state: int | None = 1
+    for a in arities:
+        state = state - 1 + a if state is not None and state >= 1 else None
+    return state == 0
+
+
+def test_parse_accepts_exactly_the_automaton_language() -> None:
+    """``NCA.accepts_iff_codes``: parseable arity sequences are the counter
+    automaton's words, and the decoder searches exactly these."""
+    for m in range(1, 9):
+        assert {a for a in itertools.product(ARITY_ORDER, repeat=m) if accepted(a)} == \
+            set(parseable(m))
+
+
+def test_decoding_agrees_with_parseable_readings() -> None:
+    rng = np.random.default_rng(5)
+    for _ in range(100):
+        words = random_formula(rng, int(rng.integers(1, 4)))
+        readings = [tuple(r) for r in rng.dirichlet(np.full(len(VOCABULARY), 0.3), size=len(words))]
+        readings = [tuple(0.5 * np.array(r) + 0.5 * np.array(h)) for r, h in
+                    zip(readings, one_hot(words))]
+        masses = [[sum(r[c] for c in g) for g in ARITY_DECISION] for r in readings]
+        per_word = [ARITY_ORDER[int(np.argmax(m))] for m in masses]
+        if parse(per_word) is None:
+            continue
+        decoded = FormulaEvaluator(decode=True).words(readings)
+        assert [ARITY[VOCABULARY.index(w)] for w in decoded] == per_word
+        assert FormulaEvaluator(decode=True).invoke(readings) == FormulaEvaluator().invoke(readings)
+
+
+def test_decoding_corrects_a_single_wrong_arity() -> None:
+    words = "and or true false not false".split()
+    readings = one_hot(words)
+    wrong = list(readings[4])
+    wrong[VOCABULARY.index("not")], wrong[VOCABULARY.index("or")] = 0.4, 0.6
+    readings[4] = tuple(wrong)
+    assert FormulaEvaluator().invoke(readings) is None
+    assert FormulaEvaluator(decode=True).invoke(readings) == evaluate(words)
+
+
+def test_correction_account() -> None:
+    rng = np.random.default_rng(6)
+    words = "and or true false not false".split()
+    readings = [tuple(0.6 * np.array(h) + 0.4 * np.array(r)) for h, r in
+                zip(one_hot(words), rng.dirichlet(np.ones(len(VOCABULARY)), size=len(words)))]
+    within = rng.random(len(words)) * 0.1
+
+    def masses(k: int, decision: Decision) -> torch.Tensor:
+        assert decision == ARITY_DECISION
+        return torch.tensor([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+
+    def risk(k: int, decision: Decision) -> float:
+        return float(within[k])
+
+    evaluator = FormulaEvaluator(decode=True)
+    account = evaluator.certificate(readings, risk, masses)
+    assert account is not None
+    decoded = evaluator.words(readings)
+    log_probs = np.log(np.array([masses(k, ARITY_DECISION).tolist() for k in range(len(words))]))
+    posterior = decode(log_probs, ARITY_ORDER)
+    assert posterior is not None
+    sequence_risk = posterior.risk(log_probs, ARITY_ORDER,
+                                   [ARITY[VOCABULARY.index(w)] for w in decoded])
+    children = parse([ARITY[VOCABULARY.index(w)] for w in decoded])
+    assert children is not None
+    kept = FormulaEvaluator.evaluated(decoded, children, within, [0.0] * len(words))
+    assert sum(account.values()) == pytest.approx(sequence_risk + sum(within[k] for k in kept))
