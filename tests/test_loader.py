@@ -121,7 +121,10 @@ def test_pruned_memoized_planner_matches_lean_reference() -> None:
         modules = random_library(rng, rng.randint(0, 10), types)
         available = tuple(rng.sample(types, rng.randint(1, 2)))
         goal = rng.choice(types + ["seq[t0]", "seq[t1]"])
-        assert plan(modules, available, goal, 4) == reference_plan(modules, available, goal, 4)
+        expected = next((route for depth in range(1, 5)
+                         if (route := reference_plan(modules, available, goal, depth)) is not None),
+                        None)
+        assert plan(modules, available, goal, 4) == expected
 
 
 def test_route_aware_eviction_keeps_shared_experts() -> None:

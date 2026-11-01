@@ -55,6 +55,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [1.1](theory/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
 | [1.2](theory/01-types-and-contracts.md) | `WellTyped.subst` | `Terms` |
 | [2.1](theory/02-planning.md) | `plan_sound` | `Planner` |
+| [2.1](theory/02-planning.md) | `planShallow_sound` | `Routing` |
 | [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
 | [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
 | [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |
@@ -67,7 +68,9 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
+| [3.2](theory/03-routing-stability.md) | `planShallow_complete`, `planShallowStable_sound`, `planShallowStable_complete` | `Routing` |
 | [3.3](theory/03-routing-stability.md) | `planStable_append` | `Routing` |
+| [3.3](theory/03-routing-stability.md) | `planShallowStable_append` | `Routing` |
 | [4.1](theory/04-compositional-reliability.md) | `composition_error_le_sum` | `Reliability` |
 | [4.2](theory/04-compositional-reliability.md) | `composition_success_ge_prod` | `Reliability` |
 | [5.1](theory/05-reliability-under-distribution-shift.md) | `composition_error_le_shifted` | `Shift` |

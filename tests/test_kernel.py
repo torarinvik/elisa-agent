@@ -92,8 +92,8 @@ def test_workspace_rejects_unknown_parents() -> None:
         Workspace().post(Message(INT, 1, "x", parents=("msg:missing",)))
 
 
-def test_stable_routing_matches_lean_counterexample() -> None:
-    # Mirrors NCA.plan_not_stable: installing make1 reroutes the plain planner.
+def test_shallow_planner_and_stable_routing() -> None:
+    # A new longer detour does not beat a shallower existing route.
     need1 = fn("need1", ["t1"], "t0", lambda x: x)
     from2 = fn("from2", ["t2"], "t0", lambda x: x)
     make1 = fn("make1", ["t2"], "t1", lambda x: x)
@@ -101,9 +101,15 @@ def test_stable_routing_matches_lean_counterexample() -> None:
 
     before = plan([need1, from2], avail, "t0")
     after = plan([need1, from2, make1], avail, "t0")
-    assert before.module is from2 and after.module is need1
+    assert before.module is from2 and after.module is from2
 
     assert plan_stable([need1, from2, make1], avail, "t0") == before
+
+    # A newly installed shallower route can still reroute the plain planner.
+    before = plan([need1, make1], avail, "t0")
+    after = plan([need1, make1, from2], avail, "t0")
+    assert before.module is need1 and after.module is from2
+    assert plan_stable([need1, make1, from2], avail, "t0") == before
 
 
 def test_map_applies_elementwise_composition() -> None:

@@ -94,4 +94,51 @@ theorem planStable_append {lib : List (Contract Ty)} (extra : List (Contract Ty)
   exact firstSome_congr fun k hk => by
     rw [List.take_append_of_le_length (by simp at hk; omega)]
 
+/-- Search depth limits in increasing order, preserving contract order at each depth. -/
+def planShallow (lib : List (Contract Ty)) (avail : List Ty) (n : Nat) (t : Ty) :
+    Option (Plan Ty) :=
+  firstSome (fun depth => plan lib avail depth t) (List.range (n + 1))
+
+theorem planShallow_sound {lib : List (Contract Ty)} {avail : List Ty} {n : Nat}
+    {t : Ty} {p : Plan Ty} (h : planShallow lib avail n t = some p) :
+    WellTyped lib avail p t := by
+  obtain ⟨depth, _, hd⟩ := firstSome_spec h
+  exact plan_sound _ depth avail t p hd
+
+theorem planShallow_complete {lib : List (Contract Ty)} {avail : List Ty} {n : Nat}
+    {t : Ty} (h : Derivable lib avail n t) : (planShallow lib avail n t).isSome := by
+  apply firstSome_isSome (a := n) (by simp)
+  exact plan_complete h
+
+/-- Prefer the earliest successful library prefix, then the shallowest depth. -/
+def planShallowStable (lib : List (Contract Ty)) (avail : List Ty) (n : Nat) (t : Ty) :
+    Option (Plan Ty) :=
+  firstSome (fun k => planShallow (lib.take k) avail n t) (List.range (lib.length + 1))
+
+theorem planShallowStable_sound {lib : List (Contract Ty)} {avail : List Ty} {n : Nat}
+    {t : Ty} {p : Plan Ty} (h : planShallowStable lib avail n t = some p) :
+    WellTyped lib avail p t := by
+  obtain ⟨k, _, hk⟩ := firstSome_spec h
+  exact WellTyped.mono (fun _ hc => List.mem_of_mem_take hc) (planShallow_sound hk)
+
+theorem planShallowStable_complete {lib : List (Contract Ty)} {avail : List Ty} {n : Nat}
+    {t : Ty} (h : Derivable lib avail n t) : (planShallowStable lib avail n t).isSome := by
+  apply firstSome_isSome (a := lib.length) (by simp)
+  simpa using planShallow_complete h
+
+theorem planShallowStable_append {lib : List (Contract Ty)} (extra : List (Contract Ty))
+    {avail : List Ty} {n : Nat} {t : Ty} (h : (planShallowStable lib avail n t).isSome) :
+    planShallowStable (lib ++ extra) avail n t = planShallowStable lib avail n t := by
+  unfold planShallowStable at h ⊢
+  have hrange : List.range ((lib ++ extra).length + 1) =
+      List.range (lib.length + 1) ++
+        (List.range extra.length).map (lib.length + 1 + ·) := by
+    rw [show (lib ++ extra).length + 1 = (lib.length + 1) + extra.length by
+      simp; omega, List.range_add]
+  rw [hrange, firstSome_append_of_isSome _ (by
+    rwa [firstSome_congr fun k hk => by
+      rw [List.take_append_of_le_length (by simp at hk; omega)]])]
+  exact firstSome_congr fun k hk => by
+    rw [List.take_append_of_le_length (by simp at hk; omega)]
+
 end NCA

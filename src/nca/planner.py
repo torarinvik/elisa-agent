@@ -1,10 +1,10 @@
 """Symbolic capability planners.
 
-``plan`` mirrors ``NCA.plan`` (``lean/NCA/Planner.lean``), proved sound and
-complete. ``plan_stable`` mirrors ``NCA.planStable`` (``lean/NCA/Routing.lean``),
-which is additionally proved stable: installing modules never changes the
-route of an already solvable task. ``NCA.plan_not_stable`` shows ``plan``
-alone lacks that property.
+The depth-bounded search mirrors ``NCA.plan`` (``lean/NCA/Planner.lean``).
+``plan`` tries increasing depths, as in ``NCA.planShallow``. ``plan_stable``
+uses the earliest successful library prefix, as in ``NCA.planShallowStable``,
+which is proved stable: installing modules never changes the route of an
+already solvable task. Shallow planning alone lacks that property.
 
 Available types are an ordered sequence, as in the Lean model, because their
 order determines the order in which ``map`` candidates are tried.
@@ -429,6 +429,16 @@ def map_candidates(index: ProducerIndex, available: Sequence[TypeId], fuel: int)
     return list(dict.fromkeys(found))
 
 
+def _shallow(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
+             fuel: int, required: frozenset[int] = frozenset()) -> Plan | None:
+    """Try depth limits in order, retaining installation order within a limit."""
+    for depth in range(1, fuel + 1):
+        route = _plan(index, limit, available, goal, depth, required=required)
+        if route is not None:
+            return route
+    return None
+
+
 def plan(
     modules: Sequence[Module],
     available: Sequence[TypeId],
@@ -439,11 +449,11 @@ def plan(
     """Backward-chain from ``goal`` to ``available`` types within ``fuel`` depth,
     using every available input whose position is in ``required``.
 
-    Modules are tried in installation order; the first that yields a complete
-    plan wins. A sequence goal with no producing module is planned by mapping
-    an elementwise plan over a source sequence.
+    Prefer the lowest depth at which a plan is found; within that depth,
+    modules are tried in installation order. A sequence goal with no producing
+    module is planned by mapping an elementwise plan over a source sequence.
     """
-    return _plan(ProducerIndex(modules), len(modules), available, goal, fuel, None, required)
+    return _shallow(ProducerIndex(modules), len(modules), available, goal, fuel, required)
 
 
 def plan_stable(
@@ -465,9 +475,10 @@ def plan_stable_indexed(
     """``plan_stable`` by binary search over the prefix length.
 
     Correct because planning success is monotone in the prefix
-    (``NCA.plan_prefix_mono``): ``O(log n)`` planner calls instead of ``n + 1``.
+    (``NCA.plan_prefix_mono``): ``O(log n)`` depth-bounded checks, followed by
+    increasing-depth search within the earliest successful prefix.
     A route found earlier on the same index is returned as it is: installing
-    modules never changes a route (``NCA.planStable_append``, Theorem 3.3).
+    modules never changes a route (``NCA.planShallowStable_append``).
     """
     key = (tuple(available), goal, fuel)
     found = index.routes.get(key)
@@ -482,7 +493,7 @@ def plan_stable_indexed(
                 low = middle + 1
             else:
                 high = middle
-        route = _plan(index, low, available, goal, fuel)
+        route = _shallow(index, low, available, goal, fuel)
         index.routes[key] = (low, route)
     else:
         index.routes[key] = (index.size, None)

@@ -307,6 +307,11 @@ def test_slot_inputs_are_addressed_by_position_and_relevant_ones_are_used() -> N
     cheapest = plan_min(modules, available, INT, 3, fuel=5, required=frozenset({0}))
     assert cheapest is not None and cheapest[0] == route and run(cheapest[0]) == 7
 
+    # Earlier generic producers must not wrap a valid fold in redundant adds.
+    reordered = [add, zero, fold]
+    shallow = plan(reordered, available, INT, fuel=5, required=frozenset({0}))
+    assert shallow == route and run(shallow) == 7
+
 
 def test_map_sources_made_by_polymorphic_producers_are_found() -> None:
     """A sequence that only a polymorphic producer makes is a ``map`` source:

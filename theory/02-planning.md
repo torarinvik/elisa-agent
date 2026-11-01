@@ -19,6 +19,11 @@ of depth at most `n` exists (for `map`, with `a` a candidate element type).
 **Theorem 2.2 (completeness).** `Derivable lib avail n t` implies
 `plan lib avail n t` succeeds.
 
+The depth-bounded search above is used at increasing bounds from `1` to `n`.
+The first success has the smallest successful depth bound, with installation
+order breaking ties within that bound. This changes which valid route is
+selected but preserves soundness and completeness at the maximum bound.
+
 **Type checking.** `infer lib avail p`
 computes the type a plan produces: `given t` needs `t ∈ avail`; `apply c ps`
 needs `c ∈ lib` and the argument types to equal `c.inputs`; `map a body src`
