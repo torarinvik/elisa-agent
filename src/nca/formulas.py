@@ -222,18 +222,35 @@ class ArityPrior:
                 raise ValueError("evidence rows must be normalized log probabilities")
         if np.any(np.isneginf(base) & np.isfinite(posterior)):
             raise ValueError("posterior support must lie within base support")
-        denominator = self.decode(base)
-        if denominator is None:
+        denominator = self.log_normalizer(base)
+        if denominator == -math.inf:
             raise ValueError("candidate prior has zero mass under the base")
-        numerator = self.decode(posterior)
-        return -math.inf if numerator is None else numerator.log_z - denominator.log_z
+        return self.log_normalizer(posterior) - denominator
 
-    def decode(self, log_probs: np.ndarray) -> Decoded | None:
-        """Sum, maximize and marginalize reading weight times prior weight."""
+    def _rows(self, log_probs: np.ndarray) -> np.ndarray:
         rows = np.asarray(log_probs, dtype=np.float64)
         if (rows.ndim != 2 or rows.shape[1] != len(self.alphabet)
                 or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
             raise ValueError("requires finite or -inf log weights over the prior alphabet")
+        return rows
+
+    def log_normalizer(self, log_probs: np.ndarray) -> float:
+        """Total accepted log weight, using two native state rows when available."""
+        rows = self._rows(log_probs)
+        if not len(rows):
+            return -math.inf
+        native = getattr(_NATIVE, "prior_normalizer", None)
+        if native is not None:
+            return float(native(np.ascontiguousarray(rows).reshape(-1),
+                                np.asarray(self.alphabet, dtype=np.int64),
+                                self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                                self.log_final, self.start))
+        result = self.decode(rows)
+        return -math.inf if result is None else result.log_z
+
+    def decode(self, log_probs: np.ndarray) -> Decoded | None:
+        """Sum, maximize and marginalize reading weight times prior weight."""
+        rows = self._rows(log_probs)
         m, width = rows.shape
         if not m:
             return None

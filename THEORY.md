@@ -2458,6 +2458,11 @@ zero evidence. Neither case justifies substituting a finite epsilon.
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
 
+**Evidence-only evaluation.** Each normalizer is a sum-product computation;
+maximum backtracking and posterior marginals are unnecessary. Retaining only
+the previous and next forward rows uses O(number of states) working space,
+independent of sequence length, with the same transition work per pass.
+
 **What evidence rewards.** `−log Z_e(π)` rewards small support: an Occam
 term. `log Z_e(q)` penalizes supports that exclude sequences the readings
 favor. A prior that excludes the truth loses evidence on every formula

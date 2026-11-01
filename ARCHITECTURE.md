@@ -717,5 +717,9 @@ identity under the supplied posterior relation and nonzero normalizers. The
 API checks normalized probability rows and posterior/base support, rejects
 zero base mass, and returns negative infinity for zero posterior mass. It
 does not establish that calibrated reader scores satisfy a shared likelihood
-model. No automatic prior selector is installed yet; this first implementation
-also computes unused maxima and marginals via the existing decoder.
+model. No automatic prior selector is installed yet. `log_normalizer` uses Elisa
+`prior_normalizer` for the sum-product pass with two reusable state rows;
+`log_evidence` calls it for both arguments. The transition recurrence matches
+`pdpSum_eq`; it retains the full decoder as a reference fallback when the
+normalizer export is absent. Empty reading arrays follow the decoder
+convention of no accepted formula.

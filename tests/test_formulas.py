@@ -829,6 +829,7 @@ def test_weighted_prior_decode_matches_exhaustive_sequences(
             continue
         assert posterior is not None
         assert posterior.log_z == pytest.approx(log_z, abs=1e-10)
+        assert prior.log_normalizer(rows) == posterior.log_z
         assert posterior.arities == candidates[int(np.argmax(scores))]
         probabilities = np.exp(scores - log_z)
         expected = np.array([[sum(p for selected, p in zip(candidates, probabilities)
@@ -1227,3 +1228,25 @@ def test_normalized_evidence_distinguishes_complete_and_unary_shapes(
         else:
             assert narrow_evidence == -np.inf
             assert np.isfinite(broad_evidence)
+
+
+def test_native_prior_evidence_does_not_decode_unused_outputs(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(formulas._NATIVE, "prior_normalizer", None) is None:
+        pytest.skip("native prior normalizer is not built")
+    prior = formulas.height_prior(3)
+    rng = np.random.default_rng(101)
+    for size in (1, 2, 7, 8, 15, 16):
+        rows = np.log(rng.dirichlet(np.ones(3), size=size))
+        decoded = prior.decode(rows)
+        expected = -np.inf if decoded is None else decoded.log_z
+        assert prior.log_normalizer(rows) == expected
+    assert prior.log_normalizer(np.empty((0, 3))) == -np.inf
+    assert prior.log_normalizer(np.full((2, 3), -np.inf)) == -np.inf
+
+    def no_decode(*args: Any) -> Any:
+        raise AssertionError("evidence must not compute maxima or marginals")
+
+    monkeypatch.setattr(formulas.ArityPrior, "decode", no_decode)
+    rows = np.log(np.full((3, 3), 1 / 3))
+    assert prior.log_evidence(rows, rows) == 0.0
