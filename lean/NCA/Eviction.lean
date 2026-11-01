@@ -54,6 +54,12 @@ theorem demanded_missing_le {S D R : Finset E} (hD : D ⊆ R) :
     bytes w (D \ S) ≤ bytes w (R \ S) :=
   bytes_mono (sdiff_subset_sdiff hD le_rfl)
 
+/-- A pinned subset and another route expert fit whenever the route fits. -/
+theorem pinned_next_fits {P R : Finset E} {e : E} {budget : ℕ}
+    (hP : P ⊆ R) (he : e ∈ R) (hR : bytes w R ≤ budget) :
+    bytes w (P ∪ {e}) ≤ budget :=
+  le_trans (bytes_mono (union_subset hP (singleton_subset_iff.mpr he))) hR
+
 /-- **Route-aware transitions load exactly the missing experts.** -/
 theorem routeAware_load {S R K : Finset E} (hK : K ⊆ S) :
     (R ∪ K) \ S = R \ S := by

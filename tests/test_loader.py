@@ -449,6 +449,25 @@ def test_deferred_pins_reserve_expert_identity_and_budget() -> None:
     assert store.resident_bytes == 2
 
 
+def test_deferred_route_fits_in_any_invocation_order() -> None:
+    rng = random.Random(711)
+    for _ in range(100):
+        sizes = [rng.randrange(1, 5) for _ in range(rng.randrange(1, 9))]
+        store = ExpertStore(sum(sizes))
+        def expert(name: str, size: int) -> LazyExpert:
+            return LazyExpert(Manifest(name, "1", Contract((), name)), placeholder, size, store)
+        outsider = expert("outsider", store.budget)
+        outsider.invoke()
+        route_experts = [expert(f"route-{i}", size) for i, size in enumerate(sizes)]
+        route = Apply(route_experts[0], tuple(Apply(e, ()) for e in route_experts[1:]))
+        store.prepare(route, eager=False)
+        rng.shuffle(route_experts)
+        for current in route_experts:
+            current.invoke()
+            assert store.resident_bytes <= store.budget
+        assert set(store.resident) == {e.manifest.ref for e in route_experts}
+
+
 def test_failed_eager_preparation_restores_pending_pins() -> None:
     store = ExpertStore(2)
     manifest = Manifest("pending", "1", Contract((), "output"))

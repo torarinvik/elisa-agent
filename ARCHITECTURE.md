@@ -91,6 +91,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [12.12](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_switch` | `Eviction` |
 | [12.13](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_repeat` | `Eviction` |
 | [12.15](theory/12-lazy-loading-and-scalable-discovery.md) | `demanded_missing_le` | `Eviction` |
+| [12.16](theory/12-lazy-loading-and-scalable-discovery.md) | `pinned_next_fits` | `Eviction` |
 | [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
 | [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
 | [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |

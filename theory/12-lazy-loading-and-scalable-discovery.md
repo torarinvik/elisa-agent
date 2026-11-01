@@ -56,6 +56,7 @@ within a byte budget; serving a route with working set `R` moves it to some
 | 12.13 | serving a resident route loads nothing |
 | 12.14 | if `bytes(R)` exceeds the budget, no resident set within budget can serve `R` |
 | 12.15 | for a demanded subset `D ⊆ R`, `bytes(D \\ S) ≤ bytes(R \\ S)` |
+| 12.16 | if `P ⊆ R`, `e ∈ R`, and `bytes(R) ≤ budget`, then `bytes(P ∪ {e}) ≤ budget` |
 
 By Theorem 12.13, repeating a resident route incurs no loading cost. Grouping
 independent tasks by route reduces route changes, although the resulting byte
@@ -70,5 +71,9 @@ if its invoked experts form `D ⊆ R`, Theorem 12.15 bounds the missing bytes
 for `D` by those for `R`. Eager preparation of `R` can therefore load experts
 that execution never invokes. Dynamic requests can invoke experts outside the
 original route, so their working set must be considered separately.
+For deferred preparation, Theorem 12.16 ensures that the already-resident
+route pins and any next route expert fit together. This assumes fixed sizes,
+unchanged route pins, and that non-route residents can be evicted; a loader
+can still fail for reasons unrelated to the declared memory budget.
 
 [Theory index](../THEORY.md)
