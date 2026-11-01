@@ -171,6 +171,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [20.5](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_sound` | `Continuation` |
 | [20.6](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_spent` | `Continuation` |
 | [20.7](theory/20-higher-order-experts-and-budgeted-requests.md) | `Prog.runB_le` | `Continuation` |
+| [20.8](theory/20-higher-order-experts-and-budgeted-requests.md) | `choice_cost_le` | `Slots` |
 | [21.1](theory/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
@@ -306,6 +307,13 @@ swaps an implementation under the same contract and drops cached plans. The
 rebuilding it only on uninstallation. The `Kernel` keeps one index per set of
 modules excluded by a request chain. `Module`, the protocol every expert
 implements, is part of the ABI (`nca.abi`).
+
+Values of the core type constructors (THEORY §20.7) have fixed
+representations, so experts by different authors agree on them: `seq[a]` is
+a sequence, `pair[a,b]` a pair, `unit` is `()`, and `either[l,r]` is an
+`abi.Choice` carrying the alternative's index and value.
+`modules.combinators.Case` and `Fold` are the polymorphic eliminators of
+choices and sequences.
 
 ## 5. Reliability under distribution shift
 

@@ -166,6 +166,17 @@ def elem_type(type_id: TypeId) -> TypeId | None:
     return None
 
 
+@dataclass(frozen=True)
+class Choice:
+    """A value of type ``either[l,r]``: alternative ``index`` (0 for ``l``, 1 for
+    ``r``) carrying ``value`` (THEORY §20.7). The other core constructors are
+    represented by Python values: ``seq[a]`` by a sequence, ``pair[a,b]`` by a
+    pair, and ``unit`` by ``()``."""
+
+    index: int
+    value: Any
+
+
 Slot = tuple[tuple[TypeId, ...], TypeId]
 """A sub-goal ``inputs ⇒ output`` that the kernel fills with a plan."""
 

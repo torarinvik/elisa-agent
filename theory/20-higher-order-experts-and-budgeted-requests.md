@@ -189,4 +189,59 @@ The two termination arguments coexist:
 | chain exclusion (§14) | chain length by library size | forbidden |
 | budget | total cost by the budget | allowed |
 
+## 20.7 Control flow
+
+The kernel has no control-flow primitives. Control flow is the use of data,
+and each way of using data is a higher-order expert: an **eliminator** of a
+type constructor, with one slot per case of the data.
+
+- **Choice.** A value of type `either(l, r)` is one of two alternatives. Its
+  eliminator `case` has contract `either(l, r) → b` with slots `[l] ⇒ b` and
+  `[r] ⇒ b`. It calls the slot of the alternative it receives, once.
+- **Iteration.** A value of type `seq(a)` is a finite list. Its eliminator
+  `fold` has contract `seq(a), s → s` with slot `[s, a] ⇒ s`. It calls the
+  slot once per element, threading the state.
+- **Recursion of unknown depth.** A budgeted request (§20.6) asks the
+  expert's own question again on smaller data. The budget bounds its total
+  cost.
+
+Conditionals are choices: `bool` is `either(unit, unit)`, and an optional
+value is `either(unit, a)`. Products `pair(a, b)` need no eliminator beyond
+the experts that read them. With polymorphic contracts (§1.2, §2.1–2.2), one
+`case` and one `fold` serve every type. Their variables are determined by
+the data they receive and by the goal. Like any expert, they can be replaced,
+and a contributor can add an eliminator for a new type constructor without
+changing the kernel.
+
+**What plans can express.** Plans built from experts with `case` and `fold`
+terminate on every input, since each call of an eliminator calls its slots
+finitely often. Their worst-case cost is known before they run (Theorem
+20.3, with `N = L` for `fold`). Budgeted requests add general recursion and
+trade that up-front bound for the budget's.
+
+**Cost of a choice.** `case` calls one slot per invocation, but which one
+depends on the data. Declaring `ν = 1` for each slot charges both branches,
+which overestimates the cost and keeps budgets sound.
+
+**Theorem 20.8 (choice).** An invocation that calls exactly one of its
+slots, slot `i`, costs `κ + cost(fᵢ) ≤ κ + maxⱼ cost(fⱼ) ≤ κ + Σⱼ cost(fⱼ)`.
+
+So the maximum over branches is a tighter worst case, and the sum declared
+by `ν = 1` per slot remains sound.
+
+**Types underdetermine fillings.** A slot whose inputs include its output
+type, such as `fold`'s `[s, a] ⇒ s`, is always filled by the projection
+onto `s`, which ignores the element. That plan is well-typed, so planning by
+type alone cannot tell a meaningful step from the trivial one. A step is
+determined either by a state type that says more, as `running-total(int)`
+says more than `int`, or by a filling given explicitly and admitted by type
+checking (§2). Eliminators whose slots do not contain their output, like
+`case` with `l ≠ b`, are not affected.
+
+**Search.** An eliminator's output is a bare variable, so it is a candidate
+for every goal. Pattern search then enumerates every value of the eliminated
+type it can derive, and every way of filling the slots. Without further
+pruning, installing `case` and `fold` makes every failing goal pay for that
+enumeration.
+
 [Theory index](../THEORY.md)

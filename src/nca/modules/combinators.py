@@ -13,6 +13,10 @@
   (``NCA.cascade_error_eq``), not a sum over them, so it declares
   ``assess``: on audit inputs, the cost and error of the cascade for given
   fillings, which the Pareto planner uses in place of the additive formula.
+* ``Case`` and ``Fold``: the eliminators of choices and sequences (§20.7),
+  polymorphic so that one of each serves every type. ``Case`` calls the slot
+  of the alternative it receives; ``Fold`` calls its slot once per element,
+  threading the state.
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ from typing import Any
 
 import torch
 
-from nca.abi import Calls, Contract, Manifest, Message, SequenceDemand, TypeId, seq_type
+from nca.abi import Calls, Choice, Contract, Manifest, Message, SequenceDemand, TypeId, seq_type
 from nca.optimize import Option
 from nca.planner import Apply, Given, Plan, output_type
 from nca.runtime import execute
@@ -47,6 +51,27 @@ class MapExpert:
         n = len(values)
         return [body(v, demand=outer.element(i, n) if isinstance(outer, SequenceDemand) else outer)
                 for i, v in enumerate(values)]
+
+
+class Case:
+    manifest = Manifest("nca.case", "1.0.0",
+                        Contract(("either[?l,?r]",), "?b", ((("?l",), "?b"), (("?r",), "?b"))),
+                        cost=0.0, calls=(Calls(1.0), Calls(1.0)))
+
+    def invoke(self, left: Callable[..., Any], right: Callable[..., Any], value: Choice) -> Any:
+        branch = (left, right)[value.index]
+        return branch(value.value, demand=getattr(branch, "outer", None))
+
+
+class Fold:
+    manifest = Manifest("nca.fold", "1.0.0",
+                        Contract(("seq[?a]", "?s"), "?s", ((("?s", "?a"), "?s"),)),
+                        cost=0.0, calls=(Calls(per_element=1.0),))
+
+    def invoke(self, step: Callable[..., Any], items: Sequence[Any], state: Any) -> Any:
+        for item in items:
+            state = step(state, item)
+        return state
 
 
 def embed_maps(plan: Plan) -> Plan:

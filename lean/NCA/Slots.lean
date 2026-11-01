@@ -254,4 +254,28 @@ end
 
 end Embedding
 
+section Choice
+
+theorem le_foldr_max_nat : ∀ {l : List Nat} {i : Nat} (hi : i < l.length), l[i] ≤ l.foldr max 0
+  | a :: l, 0, _ => by simp
+  | a :: l, i + 1, hi => by
+    simp only [List.getElem_cons_succ, List.foldr_cons]
+    exact le_max_of_le_right (le_foldr_max_nat (by simpa using hi))
+
+theorem foldr_max_le_sum : ∀ l : List Nat, l.foldr max 0 ≤ l.sum
+  | [] => le_refl 0
+  | a :: l => by
+    simp only [List.foldr_cons, List.sum_cons]
+    have := foldr_max_le_sum l
+    omega
+
+/-- **Choice.** An invocation that calls exactly one slot, slot `i`, costs at
+most its own cost plus the dearest slot's, which is at most its own cost plus
+every slot's: charging each slot once stays a sound worst case. -/
+theorem choice_cost_le (κ : Nat) (costs : List Nat) {i : Nat} (hi : i < costs.length) :
+    κ + costs[i] ≤ κ + costs.foldr max 0 ∧ κ + costs.foldr max 0 ≤ κ + costs.sum :=
+  ⟨Nat.add_le_add_left (le_foldr_max_nat hi) κ, Nat.add_le_add_left (foldr_max_le_sum costs) κ⟩
+
+end Choice
+
 end NCA

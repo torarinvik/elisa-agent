@@ -5,9 +5,10 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from nca.abi import Contract, Manifest, Message, parse_type, type_variables
+from nca.abi import Choice, Contract, Manifest, Message, parse_type, type_variables
 from nca.optimize import plan_min
 from nca.index import ProducerIndex
+from nca.modules.combinators import Case, Fold
 from nca.planner import Apply, Given, Map, Plan, plan, plan_stable, plan_stable_indexed
 from nca.registry import Registry
 from nca.router import infer
@@ -528,3 +529,46 @@ def test_registry_index_survives_installation_replacement_and_removal() -> None:
                 assert kept == fresh
                 if kept is not None:
                     assert infer(registry.modules(), available, kept) == goal
+
+
+def test_case_and_fold_are_planned_as_generic_eliminators() -> None:
+    """One ``Case`` and one ``Fold`` serve every type (THEORY §20.7): the
+    planner instantiates ``Case`` from the data and the goal, a choice runs
+    only the branch it selects, and a fold plan type-checks and runs."""
+    calls: list[str] = []
+
+    def double(x: int) -> str:
+        calls.append("double")
+        return f"2x={2 * x}"
+
+    def report(e: str) -> str:
+        calls.append("report")
+        return f"bad {e}"
+
+    parse = fn("parse", [TEXT], f"either[{INT},err.v1]",
+               lambda s: Choice(0, int(s)) if s.isdigit() else Choice(1, s))
+    modules = [Case(), parse, fn("double", [INT], "out.v1", double),
+               fn("report", ["err.v1"], "out.v1", report)]
+    route = plan(modules, (TEXT,), "out.v1")
+    assert isinstance(route, Apply) and route.module is modules[0]
+    assert route.binding == (("b", "out.v1"), ("l", INT), ("r", "err.v1"))
+    assert infer(modules, (TEXT,), route) == "out.v1"
+    for text, expected, branch in (("21", "2x=42", "double"), ("zz", "bad zz", "report")):
+        calls.clear()
+        workspace = Workspace()
+        message = Message(TEXT, text, "input")
+        workspace.post(message)
+        assert execute(route, {TEXT: message}, workspace, budget=10).payload == expected
+        assert calls == [branch]
+
+    total = "total.v1"
+    fold, zero, add = (Fold(), fn("zero", [TEXT], total, lambda _: 0),
+                       fn("add", [total, INT], total, lambda s, x: s + x))
+    route = Apply(fold, (Given(f"seq[{INT}]"), Apply(zero, (Given(TEXT),))),
+                  (Apply(add, (Given(total), Given(INT))),), (("a", INT), ("s", total)))
+    assert infer([fold, zero, add], (f"seq[{INT}]", TEXT), route) == total
+    workspace = Workspace()
+    items, text = Message(f"seq[{INT}]", [1, 2, 3], "input"), Message(TEXT, "", "input")
+    workspace.post(items)
+    workspace.post(text)
+    assert execute(route, {f"seq[{INT}]": items, TEXT: text}, workspace, budget=10).payload == 6
