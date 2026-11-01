@@ -32,6 +32,12 @@ omit [DecidableEq E] in
 theorem bytes_mono {s t : Finset E} (h : s ⊆ t) : bytes w s ≤ bytes w t :=
   sum_le_sum_of_subset h
 
+/-- No resident set within budget can serve a route whose working set exceeds it. -/
+omit [DecidableEq E] in
+theorem oversized_route_infeasible {R S : Finset E} {budget : ℕ}
+    (hR : R ⊆ S) (hS : bytes w S ≤ budget) : bytes w R ≤ budget :=
+  le_trans (bytes_mono hR) hS
+
 /-- **Lower bound.** Any transition serving `R` loads the route's missing experts. -/
 theorem load_lower_bound {S S' R : Finset E} (hR : R ⊆ S') :
     bytes w (R \ S) ≤ bytes w (S' \ S) :=
