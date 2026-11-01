@@ -270,6 +270,23 @@ theorem foldl_await_none : ∀ l : List ℕ, l.foldl await none = none
   | [] => rfl
   | _ :: l => foldl_await_none l
 
+/-- Every successful counter run conserves pending slots plus consumed words. -/
+theorem await_balance : ∀ (l : List ℕ) (start finish : ℕ),
+    l.foldl await (some start) = some finish → start + l.sum = finish + l.length
+  | [], start, finish, h => by simpa using h
+  | _ :: l, 0, _, h => by simp [await, foldl_await_none] at h
+  | a :: l, start + 1, finish, h => by
+    simp only [List.foldl_cons, await] at h
+    have ih := await_balance l (start + a) finish h
+    simp only [List.sum_cons, List.length_cons]
+    omega
+
+/-- A complete prefix sequence has exactly one fewer child edge than words. -/
+theorem accepted_arity_sum (l : List ℕ) (h : l.foldl await (some 1) = some 0) :
+    l.sum + 1 = l.length := by
+  have balance := await_balance l 1 0 h
+  omega
+
 /-- Concatenated arity sequences of `n` formulas are accepted from `n`
 awaited subformulas. -/
 theorem codes_accepted : ∀ fs : List (Formula ω),

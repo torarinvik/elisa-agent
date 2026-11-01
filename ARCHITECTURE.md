@@ -204,6 +204,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [21.1](theory/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
+| [21.3](theory/21-decoding-by-the-format.md) | `await_balance`, `accepted_arity_sum` | `Decoding` |
 | [21.4](theory/21-decoding-by-the-format.md) | `dpSum_eq` | `Decoding` |
 | [21.5](theory/21-decoding-by-the-format.md) | `dpMax_ge` | `Decoding` |
 | [21.6](theory/21-decoding-by-the-format.md) | `dpMax_attained`, `tiedChoice_eq_min`, `tiedChoice_comm`, `arity_exceeds_state_bound`, `counter_growth_bound` | `Decoding` |
@@ -295,6 +296,8 @@ before using an unchecked finite-range fast path (`log_weight_sum_bound` in
 `NCA.Decoding`). Both restrict states to the requested band.
 `Split` validates row dimensions, word indices and band bounds before native
 calls; an absent positive-weight path yields an empty trace.
+The prefix parser uses Elisa's general-arity `parse_tree_generic` when
+available, with an iterative Python fallback; both reject noninteger arities.
 
 `stats.elisa` computes the Poisson-binomial count recurrence (§21.8) in place;
 `bernoulliStep_zero` and `bernoulliStep_succ` in `NCA.Decoding` state its steps.

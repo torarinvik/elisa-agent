@@ -16,33 +16,63 @@ from nca.priors import (Decoded, _generic_format_sequence_risk as _format_sequen
 _NATIVE = load("decoding")
 
 
+def _valid_arities(arities: Sequence[int]) -> bool:
+    return all(isinstance(a, (int, np.integer)) and a >= 0 for a in arities)
+
+
+def _format_inputs(log_probs: np.ndarray, alphabet: Sequence[int]) -> np.ndarray:
+    if not len(alphabet) or not _valid_arities(alphabet) or len(set(alphabet)) != len(alphabet):
+        raise ValueError("alphabet must contain distinct nonnegative arities")
+    rows = np.asarray(log_probs, dtype=np.float64)
+    if (rows.ndim != 2 or rows.shape[1] != len(alphabet)
+            or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
+        raise ValueError("rows must contain log probabilities or finite log weights for each arity")
+    return rows
+
+
 def parse(arities: Sequence[int]) -> list[list[int]] | None:
-    """Parse a prefix formula, using the native binary-arity parser when built."""
+    """Parse a prefix formula, using a native parser when available."""
+    if not _valid_arities(arities):
+        return None
     native = getattr(_NATIVE, "parse_tree", None)
     if native is not None and all(a in (0, 1, 2) for a in arities):
         result = native(np.asarray(arities, dtype=np.int64))
         return ([[c for c in result[2 * k:2 * k + 2] if c >= 0]
                  for k in range(len(arities))] if result else None)
+    generic = getattr(_NATIVE, "parse_tree_generic", None)
+    if generic is not None:
+        if any(a > len(arities) - 1 for a in arities):
+            return None
+        result = generic(np.asarray(arities, dtype=np.int64))
+        if not result:
+            return None
+        offset = len(arities) + 1
+        return [result[offset + result[k]:offset + result[k + 1]] for k in range(len(arities))]
     return parse_reference(arities)
 
 def parse_reference(arities: Sequence[int]) -> list[list[int]] | None:
     """Children of each word of a prefix formula, by position; ``None`` if the
     arities do not form exactly one formula."""
-    children: list[list[int]] = [[] for _ in arities]
-
-    def subtree(k: int) -> int:
-        end = k + 1
-        for _ in range(arities[k]):
-            if end >= len(arities):
-                raise ValueError("formula ends early")
-            children[k].append(end)
-            end = subtree(end)
-        return end
-
-    try:
-        return children if arities and subtree(0) == len(arities) else None
-    except ValueError:
+    if not len(arities) or not _valid_arities(arities):
         return None
+    children: list[list[int]] = [[] for _ in arities]
+    pending: list[tuple[int, int]] = []
+    for k, value in enumerate(arities):
+        if k:
+            if not pending:
+                return None
+            parent, remaining = pending[-1]
+            children[parent].append(k)
+            if remaining == 1:
+                pending.pop()
+            else:
+                pending[-1] = (parent, remaining - 1)
+        count = int(value)
+        if count > len(arities) - k - 1:
+            return None
+        if count:
+            pending.append((k, count))
+    return children if not pending else None
 
 def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
     """Decode an arity sequence from per-word arity log-probabilities
@@ -51,12 +81,11 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
     word of arity ``a`` read while ``n ≥ 1`` are awaited leaves ``n − 1 + a``;
     the sequence is accepted when none remain at its end. ``None`` if no
     parseable sequence has positive weight. The alphabet must be nonempty and
-    contain nonnegative arities.
+    contain distinct nonnegative integer arities.
 
     Uses the native kernel ``nca.native.decoding`` when it is built, and
     ``decode_reference`` otherwise; the two agree to rounding."""
-    if not len(alphabet) or any(a < 0 for a in alphabet):
-        raise ValueError("alphabet must contain nonnegative arities")
+    log_probs = _format_inputs(log_probs, alphabet)
     if _NATIVE is None or len(log_probs) == 0:
         return decode_reference(log_probs, alphabet)
     m = len(log_probs)
@@ -86,8 +115,7 @@ def _checked_log_sum(left: np.ndarray | float, right: np.ndarray | float) -> np.
 def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
     """``decode`` in NumPy: the dynamic programs in log space, with all states
     ``n ≤ m − k`` that can still be completed at position ``k``."""
-    if not len(alphabet) or any(a < 0 for a in alphabet):
-        raise ValueError("alphabet must contain nonnegative arities")
+    log_probs = _format_inputs(log_probs, alphabet)
     m = len(log_probs)
     if m == 0:
         return None
@@ -201,8 +229,7 @@ def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
     ``band_changes`` and widens until the tail bound is at most ``slack``
     times the band's weight, so the risk is within ``slack`` of the exact one
     (THEORY §23.3). ``None`` if no parseable sequence has positive weight."""
-    if not len(alphabet) or len(set(alphabet)) != len(alphabet) or any(a < 0 for a in alphabet):
-        raise ValueError("alphabet must contain distinct nonnegative arities")
+    log_probs = _format_inputs(log_probs, alphabet)
     if not 0 < slack < 1:
         raise ValueError("slack must be strictly between zero and one")
     if (log_probs.ndim != 2 or log_probs.shape[1] != len(alphabet)

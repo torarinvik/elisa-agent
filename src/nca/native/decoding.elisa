@@ -870,6 +870,31 @@ def parse_tree(arities: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Pan
                 depth += 1
     return result if remaining == 0 else []
 
+# Parse general arities into offsets followed by contiguous child indices.
+def parse_tree_generic(arities: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    m: i64 = arities.len.i64()
+    return [] if m == 0
+    offsets: darray[i64] = [0 for _ in 0..<(m + 1)]
+    for k in 0..<m:
+        arity: i64 = arities[k]
+        return [] if arity < 0 or arity > m - 1 - offsets[k]
+        offsets[k + 1] <- offsets[k] + arity
+    return [] if offsets[m] != m - 1
+    result, remaining =
+        for k in 0..<m |result: darray[i64] = [offsets[i] if i <= m else 0 for i in 0..<(2 * m)], parents: darray[i64] = [0 for _ in 0..<m], missing: darray[i64] = [0 for _ in 0..<m], depth: i64 = 0| -> (result, depth):
+            if k > 0:
+                return [] if depth == 0
+                parent: i64 = parents[depth - 1]
+                slot: i64 = m + 1 + offsets[parent] + arities[parent] - missing[depth - 1]
+                result[slot] <- k
+                missing[depth - 1] <- missing[depth - 1] - 1
+                depth <- depth - 1 if missing[depth - 1] == 0 else depth
+            if arities[k] > 0:
+                parents[depth] <- k
+                missing[depth] <- arities[k]
+                depth += 1
+    return result if remaining == 0 else []
+
 # Keep child slots native between parsing and certificate selection.
 def certificate_words(ops: view[i64], full: view[f64], shape: view[f64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     arities: darray[i64] = [0 if ops[k] < 2 else 1 if ops[k] == 2 else 2 for k in 0..<ops.len.i64()]
@@ -1099,6 +1124,7 @@ export pymodule decoding:
     fn trace
     fn certificate
     fn parse_tree
+    fn parse_tree_generic
     fn certificate_words
     fn row_argmax
     fn partition_group_ids

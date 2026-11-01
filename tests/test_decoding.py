@@ -963,11 +963,55 @@ def test_native_decode_matches_reference_for_general_arities(alphabet) -> None:
                 np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
 
 
-@pytest.mark.parametrize("alphabet", [(), (0, -1)])
-@pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_rejects_empty_or_negative_arity_alphabet(decoder, alphabet) -> None:
+@pytest.mark.parametrize("alphabet", [(), (0, -1), (0, 1.5), (0, 1.0), (0, 0)])
+@pytest.mark.parametrize("decoder", [decode, decode_reference, decode_banded])
+def test_decode_rejects_invalid_arity_alphabet(decoder, alphabet) -> None:
     with pytest.raises(ValueError, match="nonnegative arities"):
         decoder(np.zeros((2, len(alphabet))), alphabet)
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference, decode_banded])
+@pytest.mark.parametrize("rows", [np.zeros(3), np.zeros((2, 2)), np.full((2, 3), np.nan),
+                                  np.full((2, 3), np.inf)])
+def test_decode_rejects_malformed_rows(decoder, rows) -> None:
+    with pytest.raises(ValueError, match="rows must"):
+        decoder(rows, (0, 1, 2))
+
+
+@pytest.mark.parametrize("parser", [parse, decoding.parse_reference])
+@pytest.mark.parametrize("arities", [(-1,), (0.0,), (1.5, 0), (1, -1)])
+def test_parse_rejects_noninteger_or_negative_arities(parser, arities) -> None:
+    assert parser(arities) is None
+
+
+@pytest.mark.parametrize("parser", [parse, decoding.parse_reference])
+def test_parse_handles_deep_general_arity_without_recursion(parser) -> None:
+    depth = 1500
+    arities = np.array([1] * depth + [3, 0, 0, 0], dtype=np.int64)
+    children = parser(arities)
+    assert children is not None
+    assert children[0] == [1]
+    assert children[depth] == [depth + 1, depth + 2, depth + 3]
+
+
+def test_generic_native_parser_matches_reference_exhaustively() -> None:
+    native = getattr(decoding._NATIVE, "parse_tree_generic", None)
+    if native is None:
+        pytest.skip("native generic parser is not built")
+    for m in range(1, 7):
+        for arities in itertools.product((0, 1, 2, 3), repeat=m):
+            result = native(np.asarray(arities, dtype=np.int64))
+            actual = ([result[m + 1 + result[k]:m + 1 + result[k + 1]]
+                       for k in range(m)] if result else None)
+            assert actual == decoding.parse_reference(arities)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_generic_parser_handles_unbounded_impossible_arity(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    assert parse((10**100, 0)) is None
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0)])

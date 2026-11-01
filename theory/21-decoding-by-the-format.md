@@ -59,6 +59,11 @@ So `L_m` is exactly the set of length-`m` words the automaton accepts. The
 decoded sequence is therefore always a formula, and every formula is a
 candidate.
 
+For any nonnegative arities, not only binary ones, a successful counter run
+conserves `start + Σ arities = finish + words read`. In particular a complete
+sequence of `m` words has `m − 1` child edges. That count is necessary but
+not sufficient: the counter must also remain positive before every word.
+
 ## 21.4 Decoding by dynamic programming
 
 For any deterministic automaton and position-wise weights `wₖ`, define the
