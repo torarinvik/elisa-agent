@@ -62,6 +62,19 @@ theorem selective_risk_le_available (p q b : X → ℝ) (available : X → Prop)
   calc p x * q x ≤ p x * δ := mul_le_mul_of_nonneg_left ((hq x h.1).trans h.2) (hp x)
     _ = δ * p x := mul_comm _ _
 
+/-- Composing upper-bounding additions bounds the exact real sum. -/
+theorem upper_fold_ge (add : ℝ → ℝ → ℝ) (xs : List ℝ) (initial : ℝ)
+    (upper : ∀ a x, a + x ≤ add a x) :
+    initial + xs.sum ≤ xs.foldl add initial := by
+  induction xs generalizing initial with
+  | nil => simp
+  | cons x rest ih =>
+      simp only [List.foldl_cons, List.sum_cons]
+      calc
+        initial + (x + rest.sum) = (initial + x) + rest.sum := by rw [add_assoc]
+        _ ≤ add initial x + rest.sum := by linarith [upper initial x]
+        _ ≤ rest.foldl add (add initial x) := ih _
+
 variable {I : Type} [DecidableEq I]
 
 /-- Bound plus priced compute after refining the symbols in `T`. -/

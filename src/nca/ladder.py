@@ -212,6 +212,22 @@ class Refinement:
     available: bool = True
 
 
+def _upper_sum(values: Sequence[float]) -> float:
+    """Bound the exact sum of nonnegative binary64 inputs from above."""
+    native = getattr(_NATIVE, "upper_sum", None)
+    if native is not None:
+        return float(native(np.asarray(values, dtype=np.float64)))
+    total = 0.0
+    for x in values:
+        rounded = total + float(x)
+        if math.isinf(rounded):
+            return rounded
+        part = rounded - total
+        residual = (total - (rounded - part)) + (float(x) - part)
+        total = math.nextafter(rounded, math.inf) if residual > 0.0 else rounded
+    return total
+
+
 def risk(reading: torch.Tensor, classes: Decision = None) -> float:
     """Error probability of the decision over ``classes`` (all if ``None``):
     one minus the share of the chosen entry, the one holding the most
@@ -356,10 +372,9 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
                 or not 0 <= i < len(values)
                 or not math.isfinite(charge) or charge < 0 for i, charge in charges.items())):
             raise ValueError("certificate charges must have valid item indices and finite nonnegative values")
-        try:
-            bound = math.inf if account is None else math.fsum(charges.values())
-        except OverflowError as exc:
-            raise ValueError("certificate charges must have a finite total") from exc
+        bound = math.inf if account is None else _upper_sum(list(charges.values()))
+        if account is not None and not math.isfinite(bound):
+            raise ValueError("certificate charges must have a finite total")
         available = account is not None
         if observe is not None:
             observe(Refinement(list(readings), cost, bound,

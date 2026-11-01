@@ -24,6 +24,12 @@ require the error-bound premise only on those available inputs. An unavailable
 certificate is not an accepted bound, even if an implementation uses infinity
 as a sentinel and the requested threshold is also infinite.
 
+For exact real charges, an accumulator that begins at zero and replaces each
+addition by any value at least as large as the exact sum of its operands is
+an upper bound on the total, by induction over the charges. This statement
+does not establish that a particular floating-point implementation satisfies
+the per-addition premise or that the charges themselves bound real errors.
+
 So the efficient policy is local: refine a glyph when its expected bound
 reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
 trade compute for reliability.

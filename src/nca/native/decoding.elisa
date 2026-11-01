@@ -14,6 +14,19 @@
 extern exp(x: f64) -> f64
 extern log(x: f64) -> f64
 extern log1p(x: f64) -> f64
+extern nextafter(x: f64, y: f64) -> f64
+
+# Sum finite nonnegative binary64 values, rounding each inexact addition up.
+def upper_add(total: f64, x: f64) -> f64:
+    rounded: f64 = total + x
+    part: f64 = rounded - total
+    residual: f64 = (total - (rounded - part)) + (x - part)
+    return nextafter(rounded, -log(0.0)) if residual > 0.0 else rounded
+
+def upper_sum(values: view[f64]) -> f64 can[Abort.Panic]:
+    return
+        for i in 0..<values.len.i64() |total: f64 = 0.0| -> total:
+            total <- upper_add(total, values[i])
 
 # Log weights may contain negative infinity but not NaN or positive infinity.
 def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
@@ -689,6 +702,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return 1.0 - probabilities[groups[top]]
 
 export pymodule decoding:
+    fn upper_sum
     fn prior_partition
     fn valid_log_weights
     fn normalized_rows_fast

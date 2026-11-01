@@ -1,6 +1,8 @@
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 import math
+import random
 from typing import Any
 
 import numpy as np
@@ -218,8 +220,24 @@ def test_refinement_preserves_small_charges_in_total() -> None:
                2: 0.4537584643973063}
     target = math.nextafter(math.fsum(charges.values()), -math.inf)
     result = refine([0] * 3, [[rung]] * 3, target, certificate=lambda *_: charges)
-    assert result.bound == math.fsum(charges.values())
+    assert result.bound >= math.fsum(charges.values())
     assert result.bound > target and result.abstained
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_upper_sum_bounds_exact_binary64_sum(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import nca.ladder as ladder_module
+
+    if reference:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rng = random.Random(321)
+    samples = [[0.0, 0.0], [1.0, 1e-300], [float.fromhex("0x0.0000000000001p-1022")]]
+    samples.extend([[math.ldexp(rng.random(), rng.randint(-1070, 200))
+                     for _ in range(rng.randrange(30))] for _ in range(300)])
+    for values in samples:
+        actual = ladder_module._upper_sum(values)
+        exact = sum(map(Fraction.from_float, values), Fraction())
+        assert math.isfinite(actual) and Fraction.from_float(actual) >= exact
 
 
 @pytest.mark.parametrize("target", [float("nan"), -1.0])
