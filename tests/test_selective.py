@@ -243,8 +243,7 @@ def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
     for values in rng.dirichlet(np.ones(4), size=12):
         ordinary = Rung(constant("unambiguous", tuple(values), 1.0))
         ranked = ordinary.observe_ranked(None)
-        for decision in (None, ((0, 2), (1, 3)), ((0,), (1,), (2, 3)),
-                         ((0, 2), (1, 2), (3,))):
+        for decision in (None, ((0, 2), (1, 3)), ((0,), (1,), (2, 3))):
             assert ordinary.risk(ranked, decision) == pytest.approx(
                 ordinary.risk(ranked.logits, decision), abs=1e-14)
 
@@ -574,13 +573,29 @@ def test_risk_preserves_tiny_alternative_mass(reference: bool,
         assert rung.risk(logits, classes) == pytest.approx(expected, rel=1e-13, abs=0)
 
 
-def test_overlapping_decision_retains_existing_risk_semantics() -> None:
+@pytest.mark.parametrize("decision", [((0, 1), (1, 2)), ((0, 0), (1,)),
+                                      ((), (0,)), (), ((-1,), (0,)), ((True,), (0,))])
+def test_grouped_decision_rejects_invalid_partitions(decision) -> None:
     from nca.ladder import risk
 
-    reading = torch.tensor([0.5, 0.3, 0.2], dtype=torch.float64)
-    mass = reading[[0, 1, 1, 2]]
-    expected = 1.0 - (mass[[0, 1]].sum() / mass.sum()).item()
-    assert risk(reading, ((0, 1), (1, 2))) == expected
+    reading = torch.tensor([0.6, 0.4, 0.0], dtype=torch.float64)
+    rung = Rung(constant("partition-validation", (0.6, 0.4, 0.0), 1.0))
+    for action in (lambda: risk(reading, decision),
+                   lambda: rung.risk(rung.observe(None), decision),
+                   lambda: rung.risk(rung.observe_ranked(None), decision),
+                   lambda: rung.distribution(rung.observe(None), decision)):
+        with pytest.raises(ValueError, match="nonempty partition"):
+            action()
+
+
+def test_grouped_decision_rejects_boolean_indices_after_cached_integer_partition() -> None:
+    from nca.ladder import risk
+
+    reading = torch.tensor([0.6, 0.4])
+    risk(reading, ((1,), (0,)))
+    for decision in (((True,), (0,)), ([True], [0])):
+        with pytest.raises(ValueError, match="nonempty partition"):
+            risk(reading, decision)
 
 
 def test_restricted_decision_gets_its_own_temperature() -> None:

@@ -823,8 +823,9 @@ CPU observations and partitioned groups, selecting and charging in one call. It 
 class selected from the ranked weights or numerical reading, rather than
 choosing the group with greatest total mass. Full-class risk uses singleton groups.
 It sums the other groups' weights directly instead of subtracting the chosen
-probability from one. The PyTorch risk path uses the same formulation for
-partitions; overlapping decisions retain their existing behavior.
+probability from one. The PyTorch risk path uses the same formulation. Decision groups must be a
+nonempty partition of distinct nonnegative class indices; overlapping and
+repeated classes are rejected.
 PyTorch remains the fallback under the same device/gradient restrictions as
 grouped distribution. When finite alternative logits underflow, both paths
 recover their aggregate in log space and retain a positive binary64 sentinel

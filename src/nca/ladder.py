@@ -73,8 +73,14 @@ def decision_key(decision: Decision) -> DecisionKey:
         return None
     if (type(decision) is tuple and
             all(type(entry) is int or type(entry) is tuple for entry in decision)):
-        return decision
-    return tuple(e if isinstance(e, int) else tuple(e) for e in decision)
+        key = decision
+    else:
+        key = tuple(e if isinstance(e, int) else tuple(e) for e in decision)
+    if any(type(c) is not int for entry in key
+           for c in (entry if isinstance(entry, tuple) else (entry,))):
+        raise ValueError("decision groups must form a nonempty partition of nonnegative class indices")
+    return key
+
 
 
 @cache
@@ -82,15 +88,17 @@ def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[lis
     """The classes a decision ranges over, and each entry's positions among them."""
     parts = [[e] if isinstance(e, int) else list(e) for e in key]
     union = [c for part in parts for c in part]
+    if (not parts or any(not part for part in parts)
+            or any(isinstance(c, bool) or not isinstance(c, int) or c < 0 for c in union)
+            or len(set(union)) != len(union)):
+        raise ValueError("decision groups must form a nonempty partition of nonnegative class indices")
     return union, [[union.index(c) for c in part] for part in parts]
 
 
 @cache
-def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray | None:
+def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
     """Read-only native group metadata for a partitioned decision."""
     union, positions = _layout(key)
-    if sorted(k for part in positions for k in part) != list(range(len(union))):
-        return None
     groups = np.empty(len(union), dtype=np.int64)
     for entry, part in enumerate(positions):
         groups[part] = entry
@@ -300,17 +308,16 @@ class Rung:
             key = decision_key(classes) if classes is not None else tuple(range(len(log)))
             _, positions = _layout(key)
             groups = _group_ids(key)
-            if groups is not None:
-                ordering = (np.asarray(ranked.weights, dtype=np.float64) if ranked is not None else
-                            probabilities.double().numpy())
-                logits = log.double().numpy()
-                if classes is None:
-                    logits = np.ascontiguousarray(logits)
-                    ordering = np.ascontiguousarray(ordering)
-                else:
-                    logits, ordering = logits[union], ordering[union]
-                return float(native_reading(logits, ordering, groups, len(positions),
-                                            self.temperature(classes)))
+            ordering = (np.asarray(ranked.weights, dtype=np.float64) if ranked is not None else
+                        probabilities.double().numpy())
+            logits = log.double().numpy()
+            if classes is None:
+                logits = np.ascontiguousarray(logits)
+                ordering = np.ascontiguousarray(ordering)
+            else:
+                logits, ordering = logits[union], ordering[union]
+            return float(native_reading(logits, ordering, groups, len(positions),
+                                        self.temperature(classes)))
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
@@ -320,9 +327,8 @@ class Rung:
             key = decision_key(classes) if classes is not None else tuple(range(len(log)))
             union, positions = _layout(key)
             groups = _group_ids(key)
-            if groups is not None:
-                return float(native(log[union].double().numpy(), groups, len(positions),
-                                    self.temperature(classes), selected))
+            return float(native(log[union].double().numpy(), groups, len(positions),
+                                self.temperature(classes), selected))
         if classes is None:
             values, positions = log, None
         else:
@@ -332,7 +338,7 @@ class Rung:
         temperature = self.temperature(classes)
         result = risk(torch.softmax(_temperature_scores(values, temperature), dim=-1),
                       positions, _top=selected)
-        if result != 0.0 or (classes is not None and _group_ids(key) is None):
+        if result != 0.0:
             return result
         # A float32 softmax can erase probabilities that fit in binary64.
         scores = values.double()
@@ -365,8 +371,7 @@ class Rung:
         union, positions = _layout(decision_key(classes))
         native = getattr(_NATIVE, "calibrated_groups", None)
         groups = _group_ids(decision_key(classes))
-        if (native is not None and log.device.type == "cpu" and not log.requires_grad
-                and groups is not None):
+        if native is not None and log.device.type == "cpu" and not log.requires_grad:
             values = native(log[union].double().numpy(), groups,
                             len(positions), self.temperature(classes))
             return torch.tensor(values, dtype=log.dtype)
@@ -462,8 +467,6 @@ def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = 
     mass = reading[union]
     top = int(mass.argmax()) if _top is None else union.index(_top)
     chosen = next(part for part in positions if top in part)
-    if _group_ids(key) is None:
-        return 1.0 - (mass[chosen].sum() / mass.sum()).item()
     selected = set(chosen)
     outside = [i for i in range(len(union)) if i not in selected]
     return (mass[outside].sum() / mass.sum()).item()

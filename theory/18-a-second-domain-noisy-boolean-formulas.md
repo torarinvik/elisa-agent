@@ -84,8 +84,10 @@ first kind chooses among the groups `{true, false}`, `{not}` and
 `{and, or, xor}`.
 
 **Definition.** A *grouped decision* is a partition `G` of a set `C` of a
-reading's classes. Given a reading `p`, it chooses the group `g*` that
-contains the most probable class of `C`. Its risk is
+reading's classes. The groups are nonempty and pairwise disjoint: repeating a
+class would count its mass more than once and invalidate the risk calculation.
+Given a reading `p`, the decision chooses the group `g*` that contains the most
+probable class of `C`. Its risk is
 
 > `1 − p(g*) / p(C)`,
 
