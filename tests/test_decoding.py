@@ -350,6 +350,30 @@ def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
     np.testing.assert_allclose(result.marginals, reference.marginals)
 
 
+def test_native_decode_preserves_partially_underflowed_paths() -> None:
+    rows = np.array([[-np.inf, 0.0, -750.0], [0.0, -740.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    result = decode(rows, ARITY_ORDER)
+    reference = decode_reference(rows, ARITY_ORDER)
+    assert result is not None and reference is not None
+    assert result.arities == reference.arities
+    assert result.log_z == pytest.approx(reference.log_z, abs=1e-12)
+    np.testing.assert_allclose(result.marginals, reference.marginals, rtol=1e-12, atol=0)
+
+
+def test_native_decode_retries_when_normal_weights_have_underflowing_product() -> None:
+    native = getattr(decoding._NATIVE, "decode", None)
+    if native is None:
+        pytest.skip("native decoder is not built")
+    rows = np.array([[-np.inf, 0.0, -400.0], [-400.0, -400.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    assert native(rows.reshape(-1), np.asarray(ARITY_ORDER, dtype=np.int64))[0] <= -1e300
+    actual, reference = decode(rows, ARITY_ORDER), decode_reference(rows, ARITY_ORDER)
+    assert actual is not None and reference is not None
+    assert actual.log_z == pytest.approx(reference.log_z, abs=1e-12)
+    np.testing.assert_allclose(actual.marginals, reference.marginals, rtol=1e-12, atol=0)
+
+
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0), (0, 3), (0, 2**63 - 1)])
 def test_native_log_decoder_matches_reference_on_extreme_tied_rows(alphabet) -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
