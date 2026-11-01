@@ -7,7 +7,7 @@ import pytest
 
 from nca.abi import Contract, Manifest, Message, parse_type, type_variables
 from nca.optimize import plan_min
-from nca.planner import Apply, Given, Map, Plan, plan, plan_stable
+from nca.planner import Apply, Given, Map, Plan, ProducerIndex, plan, plan_stable
 from nca.registry import Registry
 from nca.router import infer
 from nca.runtime import BudgetExceeded, execute
@@ -464,3 +464,30 @@ def test_free_variable_planning_is_sound_and_complete_against_instances() -> Non
                 through_free += free_used(found)
                 assert infer(modules, available, found) == goal
     assert planned > 100 and through_free > 30
+
+
+def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skipping ``map`` candidates that the closure oracle rejects, found
+    through the backward index, returns exactly the unpruned plan (Theorem
+    12.7)."""
+    rng = np.random.default_rng(3)
+    names = [f"t{i}.v1" for i in range(6)]
+    types = [*names, *(f"seq[{t}]" for t in names), *(f"seq[seq[{t}]]" for t in names[:2])]
+    cases = []
+    for trial in range(150):
+        modules = [fn(f"m{k}-{trial}", [str(t) for t in rng.choice(types, size=int(rng.integers(0, 3)))],
+                      str(rng.choice(types)), lambda *x: x) for k in range(int(rng.integers(2, 9)))]
+        if rng.random() < 0.3:
+            modules.insert(int(rng.integers(len(modules) + 1)),
+                           fn(f"sort-{trial}", ["seq[?a]"], "seq[?a]", lambda x: x))
+        if rng.random() < 0.3:
+            modules.insert(int(rng.integers(len(modules) + 1)),
+                           fn(f"length-{trial}", ["seq[?a]"], "t5.v1", len))
+        available = tuple(str(t) for t in rng.choice(types, size=int(rng.integers(1, 3))))
+        cases += [(modules, available, str(goal)) for goal in rng.choice(types, size=6)]
+    pruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
+    monkeypatch.setattr(ProducerIndex, "may_derive", lambda *_: True)
+    monkeypatch.setattr(ProducerIndex, "sources", lambda *_: None)
+    unpruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
+    assert pruned == unpruned
+    assert sum(isinstance(p, Map) for p in pruned) > 20

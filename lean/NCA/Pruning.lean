@@ -17,7 +17,8 @@ namespace NCA
 variable {Ty : Type} [DecidableEq Ty] [SeqTypes Ty]
 open SeqTypes
 
-/-- Planning that skips producers with an input the oracle rejects. -/
+/-- Planning that skips producers with an input the oracle rejects, and `map`
+candidates whose body goal or source the oracle rejects. -/
 def planPruned (lib : List (Contract Ty)) (reach : List Ty → Ty → Bool) :
     List Ty → Nat → Ty → Option (Plan Ty)
   | _, 0, _ => none
@@ -31,9 +32,11 @@ def planPruned (lib : List (Contract Ty)) (reach : List Ty → Ty → Bool) :
       match elem? t with
       | none => none
       | some e => firstSome (fun a =>
-          match planPruned lib reach [a] n e, planPruned lib reach avail n (seq a) with
-          | some body, some src => some (.map a body src)
-          | _, _ => none) (elemCandidates lib avail)
+          if reach [a] e = true ∧ reach avail (seq a) = true then
+            match planPruned lib reach [a] n e, planPruned lib reach avail n (seq a) with
+            | some body, some src => some (.map a body src)
+            | _, _ => none
+          else none) (elemCandidates lib avail)
 
 /-- A reachability oracle is sound if it accepts every derivable type. -/
 def SoundOracle (lib : List (Contract Ty)) (reach : List Ty → Ty → Bool) : Prop :=
@@ -49,23 +52,36 @@ theorem planPruned_eq {lib : List (Contract Ty)} {reach : List Ty → Ty → Boo
     have ih := planPruned_eq hreach n
     have ih' : ∀ A, planPruned lib reach A n = plan lib A n := fun A => funext (ih A)
     simp only [planPruned, plan, ih']
-    congr 2
-    apply firstSome_congr
-    intro c _
-    by_cases ho : c.output = t
-    · by_cases hall : c.inputs.all (reach avail) = true
-      · simp [ho, hall]
-      · simp only [ho, hall, if_true]
-        cases hr : traverse (plan lib avail n) c.inputs with
-        | none => rfl
-        | some ps =>
-          exfalso
-          apply hall
-          rw [List.all_eq_true]
-          intro i hi
-          exact hreach avail n i (traverse_forall
-            (fun i q hq => plan_derivable lib n avail i q hq) hr i hi)
-    · simp [ho]
+    congr 1
+    congr 1
+    · apply firstSome_congr
+      intro c _
+      by_cases ho : c.output = t
+      · by_cases hall : c.inputs.all (reach avail) = true
+        · simp [ho, hall]
+        · simp only [ho, hall, if_true]
+          cases hr : traverse (plan lib avail n) c.inputs with
+          | none => rfl
+          | some ps =>
+            exfalso
+            apply hall
+            rw [List.all_eq_true]
+            intro i hi
+            exact hreach avail n i (traverse_forall
+              (fun i q hq => plan_derivable lib n avail i q hq) hr i hi)
+      · simp [ho]
+    · funext _
+      cases elem? t with
+      | none => rfl
+      | some e =>
+        apply firstSome_congr
+        intro a _
+        by_cases hg : reach [a] e = true ∧ reach avail (seq a) = true
+        · rw [if_pos hg]; rfl
+        · rw [if_neg hg]
+          cases hb : plan lib [a] n e <;> cases hs : plan lib avail n (seq a) <;> try rfl
+          exact absurd ⟨hreach _ _ _ (plan_derivable lib n [a] e _ hb),
+            hreach _ _ _ (plan_derivable lib n avail _ _ hs)⟩ hg
 
 /-- Forward closure of the available types under installed contracts, with
 sequence types treated as always reachable. -/

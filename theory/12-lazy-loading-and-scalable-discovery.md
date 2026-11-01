@@ -28,7 +28,11 @@ rather than search paths.
 **Reachability pruning.** Dormant producers of a
 relevant type, whose inputs nothing can supply, are dead ends the planner would
 otherwise explore. `planPruned` skips producers with an input rejected by a
-reachability oracle `reach`. An oracle is *sound* if it accepts every derivable
+reachability oracle `reach`. It also skips each `map` candidate element `a`
+whose body goal `e` the oracle rejects from `[a]`, or whose source `seq a` it
+rejects from the available types. Without this, a sequence goal tries every
+element type produced anywhere in the library, and a failing one costs time
+quadratic in the library. An oracle is *sound* if it accepts every derivable
 type.
 
 | Theorem | Statement |

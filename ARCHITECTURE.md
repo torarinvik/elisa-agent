@@ -270,7 +270,15 @@ backtracking over earlier inputs' alternatives. Applications are kept open
 bindings and slots; a candidate that leaves a variable undetermined is skipped
 as ambiguous. Ground sub-goals go through the memoized planner, pattern goals
 are not memoized, and pruning by the forward closure ignores inputs with
-variables. `optimize.plan_min` and `plan_pareto` do not yet consider contracts
+variables.
+
+`map` candidates are pruned by the same closure oracle
+(`ProducerIndex.may_derive`, THEORY §12): an element `a` is tried only if the
+body goal may be derived from `[a]`. `ProducerIndex.sources` finds a superset of
+those elements by searching backward from the body goal through producers'
+inputs, so a sequence goal visits only candidates that can lead to its element
+type instead of every element type in the library. Candidate lists are cached
+per available types and library prefix. `optimize.plan_min` and `plan_pareto` do not yet consider contracts
 with free variables.
 
 ## 5. Reliability under distribution shift
