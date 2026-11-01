@@ -56,7 +56,7 @@ def embed_maps(plan: Plan) -> Plan:
         return plan
     if isinstance(plan, Apply):
         return Apply(plan.module, tuple(embed_maps(a) for a in plan.args),
-                     tuple(embed_maps(f) for f in plan.slots))
+                     tuple(embed_maps(f) for f in plan.slots), plan.binding)
     body = embed_maps(plan.body)
     return Apply(MapExpert(plan.element, output_type(body)), (embed_maps(plan.source),), (body,))
 

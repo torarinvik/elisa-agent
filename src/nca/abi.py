@@ -108,6 +108,22 @@ def substitute(term: Term, binding: Mapping[str, Term]) -> Term:
     return App(term.name, tuple(substitute(a, binding) for a in term.args))
 
 
+def match_type(pattern: Term, ground: Term, binding: dict[str, Term]) -> bool:
+    """Extend ``binding`` so that ``pattern`` instantiates to ``ground``; ``False``
+    if no extension does. On success the bound variables are exactly those of
+    ``pattern`` not bound before (THEORY §2.1)."""
+    if isinstance(pattern, Var):
+        bound = binding.setdefault(pattern.name, ground)
+        return bound == ground
+    return (isinstance(ground, App) and pattern.name == ground.name
+            and len(pattern.args) == len(ground.args)
+            and all(match_type(p, g, binding) for p, g in zip(pattern.args, ground.args)))
+
+
+Binding = tuple[tuple[str, TypeId], ...]
+"""A substitution, as its variables (sorted) and the types bound to them."""
+
+
 @functools.lru_cache(maxsize=65536)
 def seq_type(element: TypeId) -> TypeId:
     """The type of finite sequences of ``element``."""
@@ -140,9 +156,41 @@ class Contract:
             if canonical_type(type_id) != type_id:
                 raise ValueError(f"type {type_id!r} is not in canonical form "
                                  f"{canonical_type(type_id)!r}")
-            if type_variables(parse_type(type_id)):
-                raise ValueError(f"type {type_id!r} has variables, which planning does not "
-                                 "instantiate")
+        unbound = frozenset().union(
+            *(type_variables(parse_type(t)) for t in (*self.inputs, *(
+                t for inputs, output in self.slots for t in (*inputs, output))))
+        ) - type_variables(parse_type(self.output))
+        if unbound:
+            raise ValueError(f"contract is not range-restricted: variables {sorted(unbound)} "
+                             "do not occur in its output")
+
+    @functools.cached_property
+    def polymorphic(self) -> bool:
+        """Whether the contract has type variables (THEORY §1.2)."""
+        return bool(type_variables(parse_type(self.output)))
+
+    def instance(self, binding: Binding) -> Contract:
+        """The contract with ``binding`` substituted."""
+        if not binding:
+            return self
+        terms = {name: parse_type(t) for name, t in binding}
+
+        def bind(type_id: TypeId) -> TypeId:
+            return format_type(substitute(parse_type(type_id), terms))
+
+        return Contract(tuple(bind(t) for t in self.inputs), bind(self.output),
+                        tuple((tuple(bind(t) for t in inputs), bind(output))
+                              for inputs, output in self.slots))
+
+    def producing(self, goal: TypeId) -> Binding | None:
+        """The binding of the unique instance whose output is the ground type
+        ``goal`` (THEORY §2.1, Theorem 2.4), or ``None`` if there is none."""
+        if not self.polymorphic:
+            return () if self.output == goal else None
+        binding: dict[str, Term] = {}
+        if not match_type(parse_type(self.output), parse_type(goal), binding):
+            return None
+        return tuple(sorted((name, format_type(t)) for name, t in binding.items()))
 
 
 @dataclass(frozen=True)

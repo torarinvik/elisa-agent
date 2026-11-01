@@ -175,6 +175,7 @@ def execute(
         if remaining == 0:
             raise BudgetExceeded(f"budget of {budget} invocations exhausted")
         manifest = node.module.manifest
+        contract = node.contract
         if funds is not None:
             if manifest.cost > funds:
                 raise BudgetExceeded(f"cost budget of {cost_budget} exhausted")
@@ -182,19 +183,19 @@ def execute(
         remaining -= 1
         workspace.spent += manifest.cost
         fillings = [filling(sub, inputs, manifest.ref, chain, demand)
-                    for sub, (inputs, _) in zip(node.slots, manifest.contract.slots, strict=True)]
+                    for sub, (inputs, _) in zip(node.slots, contract.slots, strict=True)]
         payload = node.module.invoke(*fillings, *(a.payload for a in args))
         parents = tuple(a.message_id for a in args)
         if isinstance(payload, Generator):
             payload = resume(payload, manifest.module_id, manifest.ref, parents, chain)
         if isinstance(payload, Request):
-            output = manifest.contract.output
+            output = contract.output
             if payload.type_id != output:
                 raise UnresolvedRequest(
                     f"{manifest.ref} requested {payload.type_id}, not its output {output}")
             pending = Pending(payload, manifest.module_id, manifest.ref, output, parents, chain)
             return Message(output, pending, manifest.ref, parents)
-        result = Message(manifest.contract.output, payload, manifest.ref, parents)
+        result = Message(contract.output, payload, manifest.ref, parents)
         workspace.post(result)
         return result
 

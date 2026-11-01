@@ -57,6 +57,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.1](theory/02-planning.md) | `plan_sound` | `Planner` |
 | [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
 | [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
+| [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |
 | [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
@@ -248,8 +249,16 @@ type variable. Manifests carry type ids as text, so they stay plain data for any
 language. `parse_type` and `format_type` convert between text and terms
 (`Var`, `App`), `substitute` applies a substitution, and `seq_type` and
 `elem_type` build and take apart sequence types. A `Contract` rejects types that
-are malformed or not in canonical form, and, until planning instantiates them,
-types with variables.
+are malformed or not in canonical form, and contracts that are not
+range-restricted (THEORY §2.1). `Contract.producing(goal)` matches the output
+against a ground goal and returns the binding of the one instance producing it;
+`Contract.instance` substitutes a binding. The planners (`planner`, and
+`optimize.plan_min` and `plan_pareto`) record that binding in `Apply.binding`,
+and `Apply.contract` is the applied instance, which `router.infer` checks and
+the runtime uses for message types. `ProducerIndex` keeps polymorphic producers
+apart from those indexed by exact output type and merges both in installation
+order; its forward closure counts every type a polymorphic producer has an
+instance for as reachable, so pruning stays sound.
 
 ## 5. Reliability under distribution shift
 

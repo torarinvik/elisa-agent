@@ -12,14 +12,19 @@ order determines the order in which ``map`` candidates are tried.
 A module whose contract declares slots (a higher-order expert, ``NCA.HPlan``)
 is applied with one plan per slot, planned as a sub-goal whose only available
 inputs are the slot's inputs, like a ``map`` body.
+
+A polymorphic contract is applied at the one instance whose output is the goal
+(THEORY §2.1, ``NCA.Contract.subst_determined``), found by matching.
 """
 
 from __future__ import annotations
 
+import heapq
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Sequence, Union
 
-from nca.abi import TypeId, elem_type, seq_type
+from nca.abi import Binding, Contract, TypeId, elem_type, seq_type
 from nca.registry import Module
 
 
@@ -34,6 +39,13 @@ class Apply:
     args: tuple["Plan", ...]
     slots: tuple["Plan", ...] = ()
     """One plan per slot of the module's contract, each from the slot's inputs."""
+    binding: Binding = ()
+    """The instance of a polymorphic contract that is applied (THEORY §2.1)."""
+
+    @property
+    def contract(self) -> Contract:
+        """The applied instance of the module's contract."""
+        return self.module.manifest.contract.instance(self.binding)
 
 
 @dataclass(frozen=True)
@@ -53,12 +65,14 @@ def output_type(node: Plan) -> TypeId:
     if isinstance(node, Given):
         return node.type_id
     if isinstance(node, Apply):
-        return node.module.manifest.contract.output
+        return node.contract.output
     return seq_type(output_type(node.body))
 
 
 def elem_candidates(modules: Sequence[Module], available: Sequence[TypeId]) -> list[TypeId]:
-    outputs = [m.manifest.contract.output for m in modules]
+    """Element types of the available sequence types and of the ground sequence
+    types modules produce, in that order."""
+    outputs = [m.manifest.contract.output for m in modules if not m.manifest.contract.polymorphic]
     return [e for t in (*available, *outputs) if (e := elem_type(t)) is not None]
 
 
@@ -74,22 +88,63 @@ class ProducerIndex:
         self.size = len(modules)
         self.outputs = [m.manifest.contract.output for m in modules]
         self.producers: dict[TypeId, list[tuple[int, Module]]] = {}
+        self.generic: list[tuple[int, Module]] = []
+        """Producers with polymorphic contracts, which may produce any instance."""
         self.sequence_outputs: list[tuple[int, TypeId]] = []
         self.needs: list[frozenset[TypeId]] = []
         self.consumers: dict[TypeId, list[int]] = {}
         self.unconditional: list[int] = []
         self._reach_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[TypeId]] = {}
+        self._cover_cache: dict[tuple[TypeId, int], bool] = {}
         for position, module in enumerate(modules):
             contract = module.manifest.contract
+            needs = frozenset(i for i in contract.inputs if elem_type(i) is None)
+            self.needs.append(needs)
+            if contract.polymorphic:
+                self.generic.append((position, module))
+                continue
             self.producers.setdefault(contract.output, []).append((position, module))
             if elem_type(contract.output) is not None:
                 self.sequence_outputs.append((position, contract.output))
-            needs = frozenset(i for i in contract.inputs if elem_type(i) is None)
-            self.needs.append(needs)
             for input_type in needs:
                 self.consumers.setdefault(input_type, []).append(position)
             if not needs:
                 self.unconditional.append(position)
+
+    def candidates(self, goal: TypeId, limit: int) -> Iterator[tuple[int, Module, Binding]]:
+        """Producers of ``goal`` among the first ``limit`` modules, in installation
+        order, each with the binding of its unique instance producing ``goal``
+        (THEORY §2.1)."""
+        exact = self.producers.get(goal, ())
+        if not self.generic or self.generic[0][0] >= limit:
+            for position, module in exact:
+                if position >= limit:
+                    return
+                yield position, module, ()
+            return
+        merged = heapq.merge(((p, m, ()) for p, m in exact if p < limit),
+                             ((p, m, None) for p, m in self.generic if p < limit),
+                             key=lambda item: item[0])
+        for position, module, binding in merged:
+            if binding is None:
+                binding = module.manifest.contract.producing(goal)
+                if binding is None:
+                    continue
+            yield position, module, binding
+
+    def covered(self, type_id: TypeId, limit: int) -> bool:
+        """Whether a polymorphic producer among the first ``limit`` modules has
+        an instance producing ``type_id``."""
+        key = (type_id, limit)
+        if key not in self._cover_cache:
+            self._cover_cache[key] = any(m.manifest.contract.producing(type_id) is not None
+                                         for p, m in self.generic if p < limit)
+        return self._cover_cache[key]
+
+    def satisfiable(self, needs: frozenset[TypeId], reach: frozenset[TypeId], limit: int) -> bool:
+        """Whether every need may be derivable: reachable, or produced by an
+        instance of a polymorphic producer."""
+        return all(t in reach or self.covered(t, limit) for t in needs)
 
     def reachable(self, available: Sequence[TypeId], limit: int) -> frozenset[TypeId]:
         """Forward closure of ``available`` under the first ``limit`` contracts.
@@ -97,7 +152,9 @@ class ProducerIndex:
         Mirrors ``NCA.Closure``: sequence types count as always reachable, so a
         contract fires once all its non-sequence inputs are reachable. Horn-clause
         propagation touches only contracts consuming reachable types, so dormant
-        modules elsewhere in the library cost nothing.
+        modules elsewhere in the library cost nothing. Types that a polymorphic
+        producer has an instance for count as reachable too, which keeps the
+        closure an over-approximation of the derivable types.
         """
         key = (tuple(available), limit)
         if key in self._reach_cache:
@@ -105,6 +162,11 @@ class ProducerIndex:
         reach = set(available)
         queue = list(available)
         remaining: dict[int, int] = {}
+        if any(p < limit for p, _ in self.generic):
+            for t in self.consumers:
+                if t not in reach and self.covered(t, limit):
+                    reach.add(t)
+                    queue.append(t)
 
         def fire(position: int) -> None:
             output = self.outputs[position]
@@ -166,18 +228,22 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
     if goal in available:
         return Given(goal)
     reach = index.reachable(available, limit)
-    for position, module in index.producers.get(goal, ()):
-        if position >= limit:
-            break
-        if not index.needs[position] <= reach:
-            continue
-        contract = module.manifest.contract
+    for position, module, binding in index.candidates(goal, limit):
+        if binding:
+            contract = module.manifest.contract.instance(binding)
+            needs = frozenset(i for i in contract.inputs if elem_type(i) is None)
+            if not index.satisfiable(needs, reach, limit):
+                continue
+        else:
+            contract = module.manifest.contract
+            if not index.needs[position] <= reach:
+                continue
         args = _plan_all(index, limit, [(available, t) for t in contract.inputs], fuel, memo)
         if args is None:
             continue
         slots = _plan_all(index, limit, list(contract.slots), fuel, memo)
         if slots is not None:
-            return Apply(module, args, slots)
+            return Apply(module, args, slots, binding)
     element_goal = elem_type(goal)
     if element_goal is None:
         return None

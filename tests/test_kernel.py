@@ -1,11 +1,15 @@
+import itertools
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+import numpy as np
 import pytest
 
-from nca.abi import Contract, Manifest, Message
-from nca.planner import Apply, Given, Map, plan, plan_stable
+from nca.abi import Contract, Manifest, Message, parse_type, type_variables
+from nca.optimize import plan_min
+from nca.planner import Apply, Given, Map, Plan, plan, plan_stable
 from nca.registry import Registry
+from nca.router import infer
 from nca.runtime import BudgetExceeded, execute
 from nca.workspace import Workspace
 
@@ -233,8 +237,6 @@ def test_slots_are_planned_and_called_through_the_kernel() -> None:
         def invoke(self, step: Callable[[int], int], value: int) -> tuple[int, int]:
             return step(value), step(-value)
 
-    from nca.router import infer
-
     inc = fn("inc", [INT], "int.next.v1", lambda x: x + 1)
     modules = [Both(), fn("parse-int", [TEXT], INT, int), inc]
     route = plan_stable(modules, (TEXT,), PAIR)
@@ -306,3 +308,91 @@ def test_extending_registry_supports_an_unrelated_task_without_rerouting() -> No
                    Workspace(), budget=4).payload == "C,G"
     registry.uninstall("music-describe")
     assert plan_stable(registry.modules(), ("music.notes.v1",), "music.description.v1") is None
+
+
+def test_polymorphic_contracts_are_instantiated_by_the_goal() -> None:
+    """A generic module is planned at the instance its goal selects, checked,
+    and executed with the instance's types."""
+    dup = fn("dup", ["?a"], "pair[?a,?a]", lambda x: (x, x))
+    swap = fn("swap", ["pair[?a,?b]"], "pair[?b,?a]", lambda p: (p[1], p[0]))
+    tag = fn("tag", [INT], "pair[int.v1,text.v1]", lambda x: (x, str(x)))
+    modules = [dup, swap, tag]
+    route = plan(modules, (INT,), "pair[text.v1,int.v1]")
+    assert isinstance(route, Apply) and route.module is swap
+    assert route.binding == (("a", INT), ("b", TEXT))
+    assert infer(modules, (INT,), route) == "pair[text.v1,int.v1]"
+    assert infer(modules, (INT,), Apply(swap, route.args, (), (("a", TEXT), ("b", INT)))) is None
+    assert infer(modules, (INT,), Apply(swap, route.args, (), (("a", INT),))) is None
+    workspace = Workspace()
+    message = Message(INT, 7, "input")
+    workspace.post(message)
+    result = execute(route, {INT: message}, workspace, budget=10)
+    assert (result.type_id, result.payload) == ("pair[text.v1,int.v1]", ("7", 7))
+    doubled = plan(modules, (TEXT,), "pair[text.v1,text.v1]")
+    assert isinstance(doubled, Apply) and doubled.module is dup
+    assert plan(modules, (TEXT,), "pair[text.v1,int.v1]") is None
+    assert plan_stable(modules, (INT,), "pair[text.v1,int.v1]") == route
+    cheapest = plan_min(modules, (INT,), "pair[text.v1,int.v1]", length=1)
+    assert cheapest is not None and cheapest[0] == Apply(
+        swap, (Apply(tag, (Given(INT),)),), (), (("a", INT), ("b", TEXT)))
+
+
+def _ground_terms(depth: int) -> list[str]:
+    terms = ["c0.v1", "c1.v1", "c2.v1"]
+    for _ in range(depth):
+        terms = sorted({*terms, *(f"box[{t}]" for t in terms),
+                        *(f"pair[{a},{b}]" for a in terms for b in terms)})
+    return terms
+
+
+def test_polymorphic_planning_equals_planning_with_instances() -> None:
+    """Planning with range-restricted contracts returns exactly the plan found
+    over their instances, each placed at its contract's position (Theorem 2.4:
+    a goal selects at most one instance per contract). With fuel 3, goals of
+    depth at most 2 and inputs of depth at most 1, every instance a plan can
+    use binds one variable to a term of depth at most 2, or two variables to
+    terms of depth at most 1."""
+    rng = np.random.default_rng(1)
+    universe, wide = _ground_terms(1), _ground_terms(2)
+    generic = [("dup", ["?a"], "pair[?a,?a]"), ("swap", ["pair[?a,?b]"], "pair[?b,?a]"),
+               ("box", ["?a"], "box[?a]"), ("unbox", ["box[?a]", "c0.v1"], "?a")]
+    for trial in range(40):
+        specs = [(f"m{k}", [str(rng.choice(universe))], str(rng.choice(universe)))
+                 for k in range(int(rng.integers(2, 6)))]
+        specs += [generic[i] for i in rng.permutation(len(generic))[:int(rng.integers(1, 5))]]
+        order = rng.permutation(len(specs))
+        modules = [fn(f"{specs[i][0]}-{trial}", specs[i][1], specs[i][2], lambda *x: x)
+                   for i in order]
+        instances: list[Fn] = []
+        origin: dict[int, tuple[str, tuple[tuple[str, str], ...]]] = {}
+        for module in modules:
+            contract = module.manifest.contract
+            names = sorted(type_variables(parse_type(contract.output)))
+            for values in itertools.product(wide if len(names) == 1 else universe,
+                                            repeat=len(names)):
+                binding = tuple(zip(names, values))
+                copy = Fn(Manifest(module.manifest.module_id, "1.0.0",
+                                   contract.instance(binding)), module.fn)
+                instances.append(copy)
+                origin[id(copy)] = (module.manifest.module_id, binding)
+
+        def shape(node: Plan, generic_plan: bool) -> Any:
+            if isinstance(node, Given):
+                return node.type_id
+            if isinstance(node, Map):
+                return ("map", node.element, shape(node.body, generic_plan),
+                        shape(node.source, generic_plan))
+            key = ((node.module.manifest.module_id, node.binding) if generic_plan
+                   else origin[id(node.module)])
+            return (key, tuple(shape(a, generic_plan) for a in node.args))
+
+        available = (str(rng.choice(universe)), "c0.v1")
+        near = [f"box[{available[0]}]", f"pair[{available[0]},{available[0]}]",
+                f"pair[c0.v1,{available[0]}]", f"box[box[{available[0]}]]"]
+        for goal in [*rng.choice(wide, size=30), *near]:
+            found = plan(modules, available, str(goal), fuel=3)
+            expected = plan(instances, available, str(goal), fuel=3)
+            assert (found is None) == (expected is None)
+            if found is not None and expected is not None:
+                assert shape(found, True) == shape(expected, False)
+                assert infer(modules, available, found) == goal

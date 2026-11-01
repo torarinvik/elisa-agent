@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-from nca.abi import TypeId, seq_type
+from nca.abi import TypeId, canonical_type, parse_type, seq_type, type_variables
 from nca.planner import Apply, Given, Plan, plan_stable
 from nca.registry import Module
 
@@ -25,9 +25,9 @@ def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) ->
     if isinstance(node, Given):
         return node.type_id if node.type_id in available else None
     if isinstance(node, Apply):
-        contract = node.module.manifest.contract
-        if not any(m is node.module for m in modules):
+        if not any(m is node.module for m in modules) or not _instantiates(node):
             return None
+        contract = node.contract
         arg_types = [infer(modules, available, arg) for arg in node.args]
         if len(node.slots) != len(contract.slots) or any(
                 infer(modules, inputs, filling) != output
@@ -39,6 +39,20 @@ def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) ->
     if body is None or source != seq_type(node.element):
         return None
     return seq_type(body)
+
+
+def _instantiates(node: Apply) -> bool:
+    """Whether ``node.binding`` binds exactly the variables of the module's
+    contract, each to a ground type in canonical form."""
+    names = [name for name, _ in node.binding]
+    if (frozenset(names) != type_variables(parse_type(node.module.manifest.contract.output))
+            or len(names) != len(set(names))):
+        return False
+    try:
+        return all(canonical_type(t) == t and not type_variables(parse_type(t))
+                   for _, t in node.binding)
+    except ValueError:
+        return False
 
 
 class Router:

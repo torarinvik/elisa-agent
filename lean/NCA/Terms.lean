@@ -33,6 +33,33 @@ theorem subst_app (σ : Nat → Term) (f : String) (ts : List Term) :
   rw [List.map_map]
   rfl
 
+/-- Variable `n` occurs in a term. -/
+inductive Occurs (n : Nat) : Term → Prop
+  | var : Occurs n (.var n)
+  | app {f : String} {ts : List Term} {t : Term} : t ∈ ts → Occurs n t → Occurs n (.app f ts)
+
+/-- Substitutions that agree on a term agree on every variable occurring in it. -/
+theorem subst_agree {σ τ : Nat → Term} {n : Nat} :
+    {t : Term} → Occurs n t → subst σ t = subst τ t → σ n = τ n
+  | _, .var, h => by
+    rw [subst, subst] at h
+    exact h
+  | _, .app (ts := ts) ht hn, h => by
+    rw [subst_app, subst_app] at h
+    injection h with _ hmap
+    exact subst_agree hn (List.map_inj_left.mp hmap _ ht)
+
+/-- Substitutions that agree on every variable of a term agree on the term. -/
+theorem subst_congr (σ τ : Nat → Term) :
+    (t : Term) → (∀ n, Occurs n t → σ n = τ n) → subst σ t = subst τ t
+  | .var n, h => by
+    rw [subst, subst]
+    exact h n .var
+  | .app f ts, h => by
+    rw [subst_app, subst_app]
+    congr 1
+    exact List.map_congr_left fun t ht => subst_congr σ τ t fun n hn => h n (.app ht hn)
+
 end Term
 
 /-- The argument of a `seq` term. -/
@@ -71,6 +98,22 @@ theorem Term.subst_seq (σ : Nat → Term) (a : Term) :
 /-- A contract with its types substituted. -/
 def Contract.subst (σ : Nat → Term) (c : Contract Term) : Contract Term :=
   { id := c.id, inputs := c.inputs.map (Term.subst σ), output := Term.subst σ c.output }
+
+/-- Every variable of the inputs occurs in the output. -/
+def Contract.RangeRestricted (c : Contract Term) : Prop :=
+  ∀ n, (∃ t ∈ c.inputs, Term.Occurs n t) → Term.Occurs n c.output
+
+/-- **Instances are determined by their output.** Two instances of a
+range-restricted contract with the same output are the same instance, so a
+ground goal selects at most one instance of each contract. -/
+theorem Contract.subst_determined {σ τ : Nat → Term} (c : Contract Term)
+    (hc : c.RangeRestricted) (h : Term.subst σ c.output = Term.subst τ c.output) :
+    Contract.subst σ c = Contract.subst τ c := by
+  have agree : ∀ n, Term.Occurs n c.output → σ n = τ n := fun n hn => Term.subst_agree hn h
+  unfold Contract.subst
+  rw [h]
+  congr 1
+  exact List.map_congr_left fun t ht => Term.subst_congr σ τ t fun n hn => agree n (hc n ⟨t, ht, hn⟩)
 
 /-- A plan with every type in it substituted. -/
 def Plan.subst (σ : Nat → Term) : Plan Term → Plan Term

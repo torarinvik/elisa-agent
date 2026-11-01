@@ -64,15 +64,17 @@ def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeI
         elif n > 0:
             candidates: list[tuple[Plan, float]] = []
             for module in modules:
-                contract = module.manifest.contract
-                if contract.output != t:
+                binding = module.manifest.contract.producing(t)
+                if binding is None:
                     continue
+                contract = module.manifest.contract.instance(binding)
                 subs = [search(avail, i, n - 1) for i in contract.inputs]
                 fills = [search(inputs, out, n - 1) for inputs, out in contract.slots]
                 if all(s is not None for s in subs) and all(f is not None for f in fills):
                     calls = slot_calls(module.manifest, length, expected)
                     candidates.append((
-                        Apply(module, tuple(s[0] for s in subs), tuple(f[0] for f in fills)),
+                        Apply(module, tuple(s[0] for s in subs), tuple(f[0] for f in fills),
+                              binding),
                         module.manifest.cost + sum(c * f[1] for c, f in zip(calls, fills))
                         + sum(s[1] for s in subs)))
             element_goal = elem_type(t)
@@ -131,9 +133,10 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
         options: list[Option] = []
         for module in modules:
             manifest = module.manifest
-            if manifest.contract.output != t:
+            binding = manifest.contract.producing(t)
+            if binding is None:
                 continue
-            contract = manifest.contract
+            contract = manifest.contract.instance(binding)
             fronts = [search(avail, i, n - 1) for i in contract.inputs]
             fills = [search(inputs, out, n - 1) for inputs, out in contract.slots]
             calls = slot_calls(manifest, length, expected)
@@ -144,7 +147,8 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
                     sum(c * f.error for c, f in zip(calls, filled))))
                 for combo in product(*fronts):
                     options.append(Option(
-                        Apply(module, tuple(o.plan for o in combo), tuple(f.plan for f in filled)),
+                        Apply(module, tuple(o.plan for o in combo), tuple(f.plan for f in filled),
+                              binding),
                         manifest.cost + slot_cost + sum(o.cost for o in combo),
                         errors.get(manifest.ref, 0.0) + slot_error
                         + sum(o.error for o in combo)))
