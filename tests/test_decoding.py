@@ -1089,6 +1089,35 @@ def test_banded_split_packs_rows_around_nonzero_states(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+def test_ragged_split_alternates_updates_across_empty_and_live_paths(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(277)
+    m = 11
+    rows = np.log(rng.dirichlet(np.ones(3), size=m))
+    centre = [1]
+    for arity in [2] * 5 + [0] * 6:
+        centre.append(centre[-1] + arity - 1)
+    split = decoding.Split(rows, (0, 1, 2), centre, 0)
+    for step in range(80):
+        k = (0, m - 1, int(rng.integers(m)))[step % 3]
+        rows[k] = np.log(rng.dirichlet(np.ones(3)))
+        if step % 4 == 0:
+            rows[k, :] = -np.inf
+        actual = split.climb(k, rows[k])
+        expected = decoding._banded_passes(rows, (0, 1, 2), centre, 0)
+        if expected is None:
+            assert actual == (-math.inf, -math.inf)
+            assert split.best(k) == (-math.inf, ())
+        else:
+            assert actual == pytest.approx(expected[:2])
+            weight, arities = split.best(k)
+            assert weight == pytest.approx(expected[1])
+            assert parse(arities) is not None
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3)])
 def test_packed_split_matches_independently_enumerated_bands(
         reference_only: bool, alphabet: tuple[int, ...], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1149,6 +1178,30 @@ def test_banded_split_falls_back_with_older_native_kernel(monkeypatch: pytest.Mo
     assert split._native is None
     assert expected is not None
     assert split.scores(2, rows[2]) == pytest.approx(expected[:2])
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_cursors_copy_fortran_input_to_contiguous_private_rows(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.asfortranarray(np.log(np.tile([0.00001, 0.99998, 0.00001], (15, 1))))
+    rows[-1] = np.log([0.99998, 0.00001, 0.00001])
+    assert rows.flags.f_contiguous and not rows.flags.c_contiguous
+    split = decoding.Split(rows)
+    cursor = decoding.CertifiedSplit(rows)
+    for owned in (split.log_probs, cursor.log_probs, cursor.split.log_probs):
+        assert owned.flags.c_contiguous
+        assert np.shares_memory(owned, owned.reshape(-1))
+        assert not np.shares_memory(owned, rows)
+    update = np.log([0.00002, 0.99996, 0.00002])
+    rows[3] = update
+    actual_z, _ = split.climb(3, update)
+    upper = cursor.climb_normalizer(3, update)
+    expected = decoding.decode_reference(rows)
+    assert expected is not None and upper is not None
+    assert actual_z == pytest.approx(expected.log_z)
+    assert upper >= expected.log_z - 1e-12
 
 
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")

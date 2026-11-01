@@ -368,7 +368,7 @@ class Split:
 
     def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
                  centre: Sequence[int] | None = None, half: int | None = None) -> None:
-        self.log_probs = np.array(log_probs, dtype=np.float64)
+        self.log_probs = np.array(log_probs, dtype=np.float64, order="C")
         self.alphabet = tuple(alphabet)
         if (self.log_probs.ndim != 2 or not self.alphabet
                 or self.log_probs.shape[1] != len(self.alphabet)
@@ -599,7 +599,7 @@ class CertifiedSplit:
                  slack: float = 1e-4) -> None:
         if not 0 < slack < 1:
             raise ValueError("slack must be strictly between zero and one")
-        self.log_probs = np.array(log_probs, dtype=np.float64)
+        self.log_probs = np.array(log_probs, dtype=np.float64, order="C")
         self.alphabet = tuple(alphabet)
         if (self.log_probs.ndim != 2 or not len(self.log_probs)
                 or self.log_probs.shape[1] != len(alphabet) or not self.alphabet

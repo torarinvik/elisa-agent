@@ -285,7 +285,9 @@ and `trace_ragged`, the banded cursor of §23.4
 returns no sequence when the maximum is unreachable):
 `formulas.Split` keeps the forward and backward tables in NumPy arrays and the
 kernel recomputes rows in place through `mutable view[f64]` parameters, which
-borrow the arrays' writable buffers. Sum and max tables use log weights in
+borrow the arrays' writable buffers. Cursors copy input weights into row-major
+storage so native calls can borrow a flat view without copying the matrix.
+Sum and max tables use log weights in
 both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.
 Both paths reject non-finite results of finite log-weight additions during
