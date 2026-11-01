@@ -240,6 +240,26 @@ def certificate(ops: view[i64], left: view[i64], right: view[i64], full: view[f6
                 if right[k] >= 0:
                     found[right[k]] <- 1
 
+# Parse arities 0, 1, 2 into two child slots per word; empty means invalid.
+def parse_tree(arities: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    m: i64 = arities.len.i64()
+    return [] if m == 0
+    result, remaining =
+        for k in 0..<m |result: darray[i64] = [-1 for _ in 0..<(2 * m)], parents: darray[i64] = [0 for _ in 0..<m], missing: darray[i64] = [0 for _ in 0..<m], depth: i64 = 0| -> (result, depth):
+            return [] if arities[k] < 0 or arities[k] > 2
+            if k > 0:
+                return [] if depth == 0
+                parent: i64 = parents[depth - 1]
+                slot: i64 = 2 * parent + (0 if result[2 * parent] < 0 else 1)
+                result[slot] <- k
+                missing[depth - 1] <- missing[depth - 1] - 1
+                depth <- depth - 1 if missing[depth - 1] == 0 else depth
+            if arities[k] > 0:
+                parents[depth] <- k
+                missing[depth] <- arities[k]
+                depth += 1
+    return result if remaining == 0 else []
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -247,3 +267,4 @@ export pymodule decoding:
     fn scores
     fn trace
     fn certificate
+    fn parse_tree

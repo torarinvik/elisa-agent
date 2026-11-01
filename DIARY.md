@@ -1137,6 +1137,20 @@ and word selection 0.247 s. These are profiled single runs rather than a
 controlled runtime benchmark. Parsing and word-selection marshaling are
 now the clearest remaining full-sequence work for a subsequent native port.
 
+**Native prefix parsing.** The explicit-stack Elisa parser matches the
+reference on every arity sequence of lengths 0–7 over `{0,1,2}` (3,280
+cases), including incomplete and trailing-word inputs. A 2,001-word unary
+chain also parses without the reference's recursion-depth limitation. The
+implementation follows the prefix-format characterization (21.1–21.3),
+with no change in the accepted binary-arity language.
+
+On a 570-word depth-8 formula (seed 27), 1,000 parses took 0.0711 s in
+the reference and 0.0686 s through the native wrapper. This single-run
+microbenchmark shows only a marginal gain: child-list reconstruction remains
+in Python. Passing native child arrays directly to certificate selection is
+the next experiment, to avoid the round trip. The kernel rebuilt without a
+stale override using the matched provenance environment recorded above.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

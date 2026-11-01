@@ -443,3 +443,10 @@ preference. `FormulaEvaluator.evaluated` marshals opcodes and child indices to
 Elisa; `evaluated_reference` remains the Python recurrence and fallback when
 the native module or this export is absent. This implements the existing
 certificate soundness and minimum-weight results (18.3–18.5).
+
+`formulas.parse` uses native `parse_tree` for arities 0–2. It returns the
+same child lists as `parse_reference`, with invalid inputs returning `None`.
+The Elisa parser maintains an explicit parent stack, avoiding recursion depth
+limits. Other arities and installations without the export use the reference.
+The native result has two child slots per node; Python currently rebuilds
+lists before certificate selection marshals them back into native arrays.

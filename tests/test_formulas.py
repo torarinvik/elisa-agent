@@ -544,3 +544,15 @@ def test_native_certificate_matches_reference_including_ties() -> None:
                                 (np.zeros(len(words)), np.zeros(len(words)))):
                 assert FormulaEvaluator.evaluated(words, kids, full, shape) == (
                     FormulaEvaluator.evaluated_reference(words, kids, full, shape))
+
+
+def test_native_parser_matches_reference() -> None:
+    if getattr(formulas._NATIVE, "parse_tree", None) is None:
+        pytest.skip("native parser is not built")
+    for size in range(8):
+        for arities in itertools.product(range(3), repeat=size):
+            assert parse(arities) == formulas.parse_reference(arities)
+    # A deep valid unary chain exceeds Python's recursive parser's stack.
+    result = parse([1] * 2000 + [0])
+    assert result is not None and len(result) == 2001
+    assert result[0] == [1] and result[-1] == []

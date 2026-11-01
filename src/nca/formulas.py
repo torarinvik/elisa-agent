@@ -79,6 +79,16 @@ def formula(depth: int, rng: np.random.Generator, xor: float = 0.0,
 
 
 def parse(arities: Sequence[int]) -> list[list[int]] | None:
+    """Parse a prefix formula, using the native binary-arity parser when built."""
+    native = getattr(_NATIVE, "parse_tree", None)
+    if native is not None and all(a in (0, 1, 2) for a in arities):
+        result = native(np.asarray(arities, dtype=np.int64))
+        return ([[c for c in result[2 * k:2 * k + 2] if c >= 0]
+                 for k in range(len(arities))] if result else None)
+    return parse_reference(arities)
+
+
+def parse_reference(arities: Sequence[int]) -> list[list[int]] | None:
     """Children of each word of a prefix formula, by position; ``None`` if the
     arities do not form exactly one formula."""
     children: list[list[int]] = [[] for _ in arities]
