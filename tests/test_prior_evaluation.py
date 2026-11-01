@@ -461,3 +461,26 @@ def test_prior_account_uses_current_risk_between_marginal_refreshes(
         assert oracle is not None
         assert sum(account.values()) == pytest.approx(
             oracle.risk(np.log(calibrated), ARITY_ORDER, selected), abs=1e-12)
+
+
+def test_prior_change_refreshes_allocation_priorities() -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    rng = np.random.default_rng(1620)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
+    calibrated = rng.dirichlet(np.ones(3), size=9)
+    distribution = Distribution(lambda k, d: torch.tensor(calibrated[k]), lambda k: 0)
+    current = [priors.height_prior(4)]
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=lambda n: current[0])
+    state = CorrectionState()
+    def risk(k: int, d: Decision) -> float:
+        return 0.0
+    assert evaluator.certificate(readings, risk, distribution, state) is not None
+    previous_priorities = state.priorities
+    current[0] = priors.format_prior(9)
+    actual = evaluator.certificate(readings, risk, distribution, state)
+    fresh = evaluator.certificate(readings, risk, distribution)
+    assert actual is not None and fresh is not None
+    assert state.priorities is not previous_priorities
+    assert actual == pytest.approx(fresh)

@@ -591,7 +591,8 @@ class FormulaEvaluator:
             if prior is None:
                 return None
             state.steps += len(invalidated)
-            if state.priorities is None or state.steps >= math.isqrt(n):
+            if (state.priorities is None or state.risk_prior is not prior
+                    or state.steps >= math.isqrt(n)):
                 posterior = prior.decode(log_probs)
                 if posterior is None:
                     return None

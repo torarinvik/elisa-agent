@@ -477,10 +477,11 @@ risks. `certificate_session` creates a cursor and priorities owned by one solve;
 `element_certificate` creates that session through an optional generic hook.
 State is reset when its evaluator, decoder mode, or input length changes.
 The correction account updates changed cursor rows and refreshes marginal
-priorities every `isqrt(m)` changed rows. Sequence and within-certificate
-risks are reused only while their relevant inputs remain unchanged. The raw
-answer cursor reuses its trace on unchanged readings; changed readings still
-require incremental decoding and per-word distribution preparation.
+priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
+and within-certificate risks are reused only while their relevant inputs
+remain unchanged. The raw answer cursor reuses its trace on unchanged
+readings; changed readings still require incremental decoding and per-word
+distribution preparation.
 
 `Distribution.revision(i)` identifies the item's rung within one refinement
 run. The run fixes observations and calibration, so the rung identifies both.
