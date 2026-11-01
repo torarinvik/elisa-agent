@@ -701,5 +701,11 @@ termination. `BoundedShape`, `bounded_shape_length` and
 bound and complete-shape inclusion. Exhaustive tests check the Python
 transition constructor against an independent grammar; the constructor is
 not extracted from Lean. Numerical decoding uses the existing Elisa kernel.
-It can be supplied through a generic evaluator prior provider; a dedicated
-height-prior expert and CLI choice are not yet installed.
+`HeightBoundedPrior(height)` exposes the same typed length-to-prior contract
+as the complete expert, with the fixed height encoded in its module ID.
+`logic --prior height --prior-height D` installs it into the evaluator slot.
+The height is explicit rather than inferred from audit labels; constants use
+height zero. The CLI requires a nonnegative height and rejects structural
+priors combined with the format-only banding option. Input lengths beyond
+the bound's support retain the same automaton, whose decoding returns no
+accepted sequence.

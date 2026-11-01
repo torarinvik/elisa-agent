@@ -1970,6 +1970,16 @@ universal ordering or deployment certification; historical timings are not
 a controlled speed comparison. A generic provider supplies this prior to
 the evaluator; dedicated typed expert and CLI installation remain pending.
 
+**Typed height expert and CLI.** `HeightBoundedPrior(D)` now supplies the
+existing length-to-prior contract, with D encoded in the module ID.
+`--prior height --prior-height D` installs it into the evaluator slot; no
+audit labels choose D. The typed runtime test accepts nested unary structure
+that the complete-tree prior excludes, checks height zero and impossible
+lengths, and validates length arguments. A real-reader CLI run exercises the
+route. Four invalid CLI combinations (missing/negative height, height without
+the height prior, and structural banding) are rejected before reader load.
+Native suite: 162 passes; fallback: 147 passes, 15 skips. Lean and Ruff pass.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

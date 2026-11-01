@@ -1142,3 +1142,27 @@ def test_height_prior_posterior_matches_enumerated_shapes(
         assert posterior.log_z == pytest.approx(np.logaddexp.reduce(scores), abs=1e-12)
         assert parse(posterior.arities) is not None
     assert prior.decode(np.zeros((8, 3))) is None
+
+
+def test_height_expert_fills_evaluator_slot_with_relaxed_support() -> None:
+    from nca.abi import Message, seq_type
+    from nca.modules.words import HeightBoundedPrior, PriorFormulaEvaluator, WORD_DISTRIBUTION
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    expert = HeightBoundedPrior(2)
+    assert expert.manifest.module_id != HeightBoundedPrior(1).manifest.module_id
+    route = plan_stable([expert, PriorFormulaEvaluator()],
+                        (seq_type(WORD_DISTRIBUTION),), BOOLEAN)
+    assert route is not None
+    readings = one_hot("not not true".split())
+    result = execute(route, {seq_type(WORD_DISTRIBUTION): Message(
+        seq_type(WORD_DISTRIBUTION), readings, "input")}, Workspace(), budget=2)
+    assert result.payload is True
+    assert expert.invoke(3).log_weight((1, 1, 0)) == 0.0
+    assert formulas.complete_prior(3).log_weight((1, 1, 0)) == -np.inf
+    assert expert.invoke(8).decode(np.zeros((8, 3))) is None
+    assert HeightBoundedPrior(0).invoke(1).log_weight((0,)) == 0.0
+    for invalid in (0, -1, 1.5):
+        with pytest.raises(ValueError):
+            expert.invoke(invalid)

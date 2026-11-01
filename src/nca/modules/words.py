@@ -34,7 +34,7 @@ from torch import nn
 from nca.abi import Calls, Contract, Manifest, seq_type
 from nca.efficiency import network_flops
 from nca.formulas import (ALPHABET, ARITY, VOCABULARY, ArityPrior, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
-                          complete_prior, labeled_words, parse, sequence_log_weight)
+                          complete_prior, height_prior, labeled_words, parse, sequence_log_weight)
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
 
@@ -73,6 +73,20 @@ class CompleteTreePrior:
     def invoke(self, length: int) -> ArityPrior:
         prior = complete_prior(length)
         return self._empty if prior is None else prior
+
+
+class HeightBoundedPrior:
+    """Independent prior expert with an explicit edge-height budget (§27.7)."""
+
+    def __init__(self, height: int) -> None:
+        self.prior = height_prior(height)
+        self.manifest = Manifest(f"nca.logic.height-prior.{height}", "1.0.0",
+                                 Contract((FORMULA_LENGTH,), ARITY_PRIOR))
+
+    def invoke(self, length: int) -> ArityPrior:
+        if not isinstance(length, int) or length < 1:
+            raise ValueError("length must be a positive integer")
+        return self.prior
 
 
 READER = Contract((NOISY_WORD,), WORD_DISTRIBUTION)

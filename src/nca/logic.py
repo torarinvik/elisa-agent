@@ -53,7 +53,7 @@ from nca.ladder import (Rung, State, Stop, certification_order, certification_po
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
-                               CompleteTreePrior, PriorFormulaEvaluator)
+                               CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator)
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
 from nca.selective import Answer, build_ladders, solve, solve_many
@@ -69,9 +69,16 @@ detection (§19), and decoding by the format (§21)."""
 
 def library(reader: Path, short_circuit: bool, detection: str = "none",
             decoding: bool = False, band_slack: float | None = None,
-            prior: Callable[[int], ArityPrior | None] | None = None) -> list[Module]:
+            prior: Callable[[int], ArityPrior | None] | None = None,
+            prior_height: int | None = None) -> list[Module]:
     modules: list[Module] = [Tokenizer(), EditReader(), CharReader.load(reader)]
-    if decoding and prior is complete_prior:
+    if prior_height is not None and prior is not None:
+        raise ValueError("choose either a height bound or a prior provider")
+    if decoding and prior_height is not None:
+        if band_slack is not None:
+            raise ValueError("height prior cannot yet be combined with banding")
+        modules.extend([HeightBoundedPrior(prior_height), PriorFormulaEvaluator(short_circuit)])
+    elif decoding and prior is complete_prior:
         if band_slack is not None:
             raise ValueError("complete prior cannot yet be combined with banding")
         modules.extend([CompleteTreePrior(), PriorFormulaEvaluator(short_circuit)])
@@ -308,8 +315,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reader", type=Path, default=Path("checkpoints/words.pt"))
     parser.add_argument("--band-slack", type=float, help="certified band slack for answer selection and calibrated risk")
-    parser.add_argument("--prior", choices=("format", "complete"), default="format",
+    parser.add_argument("--prior", choices=("format", "complete", "height"), default="format",
                         help="structural prior for correction accounts (premise diagnostics remain format-only)")
+    parser.add_argument("--prior-height", type=int, help="edge-height budget required by --prior height")
     parser.add_argument("--noise", type=float, default=0.1)
     parser.add_argument("--xor", type=float, default=0.0)
     parser.add_argument("--calibration", type=int, default=100, help="validation formulas")
@@ -332,13 +340,19 @@ def main() -> None:
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
-    if args.prior == "complete" and args.band_slack is not None:
-        parser.error("--prior complete cannot yet be combined with --band-slack")
+    if args.prior == "height":
+        if args.prior_height is None or args.prior_height < 0:
+            parser.error("--prior height requires a nonnegative --prior-height")
+    elif args.prior_height is not None:
+        parser.error("--prior-height requires --prior height")
+    if args.prior != "format" and args.band_slack is not None:
+        parser.error("structural priors cannot yet be combined with --band-slack")
     prior = complete_prior if args.prior == "complete" else None
 
     routes = {}
     for name, (short_circuit, detection, decoding) in ACCOUNTS.items():
-        route = plan_stable(library(args.reader, short_circuit, detection, decoding, args.band_slack, prior),
+        route = plan_stable(library(args.reader, short_circuit, detection, decoding, args.band_slack, prior,
+                                    args.prior_height),
                             (FORMULA_TEXT,), BOOLEAN)
         assert route is not None
         routes[name] = route
@@ -346,7 +360,8 @@ def main() -> None:
                                                  args.seed, args.xor))
     ladders = build_ladders(library(args.reader, True), routes["certificate"],
                             {WORD_DISTRIBUTION: (words, torch.from_numpy(labels))})
-    print(f"correction prior: {args.prior}", flush=True)
+    print(f"correction prior: {args.prior}" + (f" (height {args.prior_height})"
+          if args.prior_height is not None else ""), flush=True)
     print(f"{WORD_DISTRIBUTION}: " + ", ".join(
         f"{r.module.manifest.module_id} (cost {r.cost:g}, T={r.temperature():.2f})"
         for r in ladders[WORD_DISTRIBUTION]))
