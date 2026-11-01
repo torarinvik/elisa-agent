@@ -102,6 +102,18 @@ def decision_key(decision: Decision) -> DecisionKey:
 
 
 
+def _fixed_decision(decision: Decision) -> bool:
+    """Whether a decision cannot change while refinement is running."""
+    if decision is None or type(decision) is range:
+        return True
+    if type(decision) is not tuple:
+        return False
+    try:
+        return _immutable_decision_key(id(decision), decision) is decision
+    except TypeError:
+        return False
+
+
 @lru_cache(maxsize=128)
 def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[list[int]]]:
     """The classes a decision ranges over, and each entry's positions among them."""
@@ -720,8 +732,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         while levels[i] < min(start, len(ladders[i]) - 1):
             levels[i] += 1
             climb(i)
-    default_account = ({i: item_risk(i, None) for i in range(len(values))}
-                       if certificate is None and classes is None else None)
+    default_account = ({i: item_risk(i, decision) for i, decision in enumerate(decisions)}
+                       if certificate is None and all(map(_fixed_decision, decisions)) else None)
     while True:
         account = (certificate(readings, item_risk, current_distribution) if certificate is not None
                    else default_account if default_account is not None
@@ -777,7 +789,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         levels[i] += 1
         climb(i)
         if default_account is not None:
-            default_account[i] = item_risk(i, None)
+            default_account[i] = item_risk(i, decisions[i])
     return Refinement(readings, cost, bound, not available or bound > delta, available)
 
 

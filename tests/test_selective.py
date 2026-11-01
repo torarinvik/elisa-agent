@@ -1613,7 +1613,7 @@ def test_incremental_default_account_matches_explicit_decisions(ranked, with_flo
                    [reading.tolist() for reading in s.readings]) for s in snapshots]
         return result.cost, result.bound, result.abstained, states, trace
 
-    assert run(None) == run([None] * 5)
+    assert run(None) == run([[0, 1] for _ in range(5)])
 
 
 @pytest.mark.parametrize("classes,ladders", [([None], 2), ([None] * 3, 2), (None, 1), (None, 3)])
@@ -1637,3 +1637,33 @@ def test_refinement_rejects_empty_ladder_before_invocation() -> None:
     rung = Rung(constant("present", (0.5, 0.5), 1.0))
     with pytest.raises(ValueError, match="one nonempty ladder per value"):
         refine([0, 0], [[rung], []], 0.5)
+
+
+@pytest.mark.parametrize("decision", [(0, 1), range(2), ((0,), (1,))])
+def test_incremental_fixed_decisions_match_mutable_reference(decision) -> None:
+    low = Rung(constant("fixed-low", (0.55, 0.45), 1.0))
+    high = Rung(constant("fixed-high", (0.9, 0.1), 2.0))
+    ladders = [[low, high]] * 4
+
+    def run(decisions):
+        trace = []
+        result = refine([0] * 4, ladders, 0.01, classes=decisions, trace=trace)
+        return result.cost, result.bound, result.abstained, trace
+
+    assert run([decision] * 4) == run([list(decision) for _ in range(4)])
+
+
+def test_refinement_rechecks_mutable_decision_after_observer_change() -> None:
+    low = Rung(constant("mutable-low", (0.5, 0.5), 1.0))
+    high = Rung(constant("mutable-high", (0.9, 0.1), 2.0))
+    mutable = [0]
+    bounds = []
+
+    def observe(state):
+        bounds.append(state.bound)
+        if len(bounds) == 1:
+            mutable.append(1)
+
+    refine([0, 0], [[low, high], [low, high]], 0.2,
+           classes=[mutable, None], observe=observe)
+    assert bounds[:2] == pytest.approx([0.5, 0.6])
