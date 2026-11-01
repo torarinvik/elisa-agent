@@ -1623,6 +1623,23 @@ Profiling confirms maximum traces fell to 605; the 605 normalizer-only calls
 took 0.01680 s cumulatively. The native suite passes 141 tests, fallback
 128 with 13 skips; Lean and Ruff pass.
 
+**Fused selected-answer validation.** Risk scoring previously constructed
+children solely to validate a selected arity sequence, then separately
+reduced its log weights. Elisa now performs counter acceptance, alphabet
+membership and ordered log-weight accumulation together. Empty output denotes
+invalid syntax or dimensions; a valid zero-weight sequence returns `[-inf]`.
+The existing `accepts_iff_codes` proof supplies the acceptance characterization.
+Exhaustive comparison with the reference parser covers all 3,279 sequences
+of lengths one through seven, with reordered alphabet and position-dependent
+weights, plus malformed dimensions, empty and invalid arities, absent alphabet
+entries and zero weight.
+
+A warmed tree/fused/fused/tree comparison on the same three depth-8 formulas
+took 0.47220/0.42158/0.41649/0.47209 s, with exactly identical Answers. This
+is about an 11% reduction in this small end-to-end comparison, not evidence
+of a universal speedup. Native tests: 142 passes; fallback: 128 passes and
+14 skips. Lean and Ruff pass. No compiler changes were needed.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

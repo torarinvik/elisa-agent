@@ -774,3 +774,28 @@ def test_normalizer_only_updates_bound_risk_without_tracing(
     assert cursor.climb_normalizer(0, np.full(3, -np.inf)) is None
     with pytest.raises(ValueError, match="successful result"):
         cursor.sequence_risk(selected)
+
+
+def test_native_accepted_log_weight_matches_prefix_parser() -> None:
+    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    if native is None:
+        pytest.skip("native accepted sequence weight is not built")
+    rng = np.random.default_rng(47)
+    alphabet = np.array([2, 0, 1], dtype=np.int64)
+    for size in range(1, 8):
+        rows = rng.normal(size=(size, 3))
+        for selected in itertools.product(range(3), repeat=size):
+            actual = native(rows.reshape(-1), alphabet, np.array(selected, dtype=np.int64))
+            if formulas.parse_reference(selected) is None:
+                assert actual == []
+            else:
+                expected = sum(rows[k, list(alphabet).index(a)] for k, a in enumerate(selected))
+                assert actual == [expected]
+    assert native(np.array([-np.inf]), np.array([0], dtype=np.int64),
+                  np.array([0], dtype=np.int64)) == [-np.inf]
+    for selected, alphabet_values, weights in (([], [0], []), ([0], [], []),
+                                               ([0], [0], []), ([-1], [0], [0.0]),
+                                               ([3], [3], [0.0]), ([1, 0], [0], [0.0, 0.0])):
+        assert native(np.array(weights, dtype=np.float64),
+                      np.array(alphabet_values, dtype=np.int64),
+                      np.array(selected, dtype=np.int64)) == []

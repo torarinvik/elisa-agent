@@ -587,13 +587,22 @@ class CertifiedSplit:
         and relative slack apply independently of which accepted answer is scored
         (THEORY §23.3). This is a model bound, not a floating-point enclosure.
         """
-        if len(arities) != len(self.log_probs) or parse(arities) is None:
+        if len(arities) != len(self.log_probs):
             raise ValueError("sequence must be a complete prefix formula of matching length")
-        if any(a not in self.alphabet for a in arities):
-            raise ValueError("sequence contains an arity outside the alphabet")
+        native = getattr(_NATIVE, "accepted_log_weight", None)
+        if native is not None:
+            accepted = native(self.log_probs.reshape(-1),
+                              np.asarray(self.alphabet, dtype=np.int64),
+                              np.asarray(arities, dtype=np.int64))
+            if not accepted:
+                raise ValueError("sequence must be accepted by the arity alphabet")
+            weight = float(accepted[0])
+        else:
+            if parse(arities) is None or any(a not in self.alphabet for a in arities):
+                raise ValueError("sequence must be accepted by the arity alphabet")
+            weight = sequence_log_weight(self.log_probs, self.alphabet, arities)
         if self.log_upper is None:
             raise ValueError("requires a successful result for the current rows")
-        weight = sequence_log_weight(self.log_probs, self.alphabet, arities)
         return max(0.0, float(-np.expm1(min(0.0, weight - self.log_upper))))
 
     def _replace(self, k: int, row: np.ndarray) -> tuple[float, float]:

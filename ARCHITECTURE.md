@@ -592,7 +592,12 @@ same upper normalizer, even outside the band. `normalizer` and
 `climb_normalizer` certify that bound without requiring or tracing a maximum;
 the calibrated account uses these while raw answer selection uses `result`
 and `climb` (the existing `banded_risk_le`
-and `banded_risk_slack` proofs apply). Failed updates invalidate this bound. It validates
+and `banded_risk_slack` proofs apply). The native `accepted_log_weight` kernel
+validates the selected prefix sequence with a pending-subformula counter and
+sums its log weights in one pass, without constructing children. The counter
+corresponds to `await` and `accepts_iff_codes` in `NCA/Decoding.lean`; invalid
+sequences return an empty result, distinct from a valid zero-weight sequence.
+Failed updates invalidate this bound. It validates
 probability row mass and arities 0–2; zero accepted mass returns `None`.
 The evaluator can opt into this wrapper for raw answer selection. Storage remains full-sized
 arrays with restricted active bands, and floating-point enclosure is not

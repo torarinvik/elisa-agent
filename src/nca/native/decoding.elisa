@@ -311,6 +311,26 @@ def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
             return log(0.0) if column < 0
             total += log_probs[k * width + column]
 
+# Validate a complete binary prefix formula and sum its selected log weights.
+# Empty output denotes invalid shape or syntax; [-inf] is a valid zero-weight answer.
+def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    m: i64 = selected.len.i64()
+    return [] if width == 0 or m == 0 or log_probs.len.i64() != m * width
+    pending, total =
+        for k in 0..<m |pending: i64 = 1, total: f64 = 0.0| -> (pending, total):
+            arity: i64 = selected[k]
+            return [] if pending == 0 or arity < 0 or arity > 2
+            column: i64 =
+                for c in 0..<width |found: i64 = -1| -> found:
+                    if alphabet[c] == arity:
+                        found <- c
+                        break
+            return [] if column < 0
+            pending <- pending - 1 + arity
+            total += log_probs[k * width + column]
+    return [total] if pending == 0 else []
+
 # Stable temperature-scaled softmax, summed into caller-declared groups.
 def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     largest: f64 =
@@ -344,5 +364,6 @@ export pymodule decoding:
     fn grouped_argmax
     fn risk_shares
     fn sequence_log_weight
+    fn accepted_log_weight
     fn calibrated_groups
     fn calibrated_risk
