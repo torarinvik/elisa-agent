@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+import numpy as np
 import pytest
 
-from nca.abi import Contract, Manifest
+from nca.abi import (App, Contract, Manifest, Term, Var, canonical_type, elem_type, format_type,
+                     parse_type, seq_type, substitute)
 from nca.planner import Apply, Given, Map
 from nca.router import Router, infer, sign_test
 
@@ -67,3 +69,35 @@ def test_sign_test() -> None:
     accept, _ = sign_test(better, current)
     assert not accept
     assert sign_test(current, current) == (False, 1.0)
+
+
+def random_term(rng: np.random.Generator, depth: int) -> Term:
+    if depth == 0 or rng.random() < 0.3:
+        return Var(f"v{rng.integers(3)}") if rng.random() < 0.3 else App(f"ns.c{rng.integers(3)}.v1")
+    name = "seq" if rng.random() < 0.4 else f"ns.k{rng.integers(3)}.v2"
+    return App(name, tuple(random_term(rng, depth - 1) for _ in range(int(rng.integers(1, 3)))))
+
+
+def test_type_terms_round_trip_and_substitution_commutes_with_seq() -> None:
+    """Canonical text denotes its term exactly, and substitution commutes with
+    the sequence former (the premise of Theorem 1.2)."""
+    rng = np.random.default_rng(0)
+    for _ in range(500):
+        term = random_term(rng, 4)
+        text = format_type(term)
+        assert parse_type(text) == term
+        assert elem_type(seq_type(text)) == text
+        binding = {f"v{i}": random_term(rng, 2) for i in range(3)}
+        assert (substitute(parse_type(seq_type(text)), binding)
+                == parse_type(seq_type(format_type(substitute(term, binding)))))
+
+
+def test_malformed_and_noncanonical_types_are_rejected() -> None:
+    assert canonical_type(" pair[ a.v1 , seq[b.v1] ] ") == "pair[a.v1,seq[b.v1]]"
+    for bad in ("", "seq[", "seq[]", "a]", "a b", "seq[a]]", "pair[a,]", "[a]", "a$"):
+        with pytest.raises(ValueError):
+            parse_type(bad)
+    with pytest.raises(ValueError, match="canonical"):
+        Contract(("pair[a.v1, b.v1]",), C)
+    with pytest.raises(ValueError, match="variables"):
+        Contract(("seq[?a]",), "seq[?a]")

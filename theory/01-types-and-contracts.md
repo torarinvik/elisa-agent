@@ -29,4 +29,45 @@ only installed contracts `lib` and available inputs `avail`, and produces `t`.
 well-typed under `lib` is well-typed under `lib'`. Installing modules never
 invalidates an existing valid composition.
 
+## 1.1 Type terms
+
+Types are first-order terms. Fix a set of **constructors**, each a name with
+an arity. A name is qualified by a namespace and a version, so names chosen
+independently by different authors never coincide. Terms are built from
+constructors and **type variables**:
+
+> `t ::= α | C(t₁, …, tₙ)`, with `C` of arity `n`.
+
+A term without variables is **ground**. Constants are constructors of arity
+0, and `seq` is the constructor of arity 1 with `elem?(seq(t)) = t`. Since
+distinct constructors build distinct terms and every constructor is injective
+in its arguments, `elem?` satisfies the specification above, and terms are an
+instance of `Ty`.
+
+Compatibility stays equality of terms. A *subtyping* relation would claim
+that every value of one type is a valid value of another. That is a property
+of representations, which no contract can check and an author can claim
+wrongly, and one wrong claim would change the meaning of every route that
+crosses it. Conversions are instead modules: an **adapter** with contract
+`A → B` is planned, accounted for and replaced by evidence (§8) like any other
+module. Values cross versions and namespaces only through adapters.
+
+## 1.2 Substitution
+
+A **substitution** `σ` maps type variables to terms. It acts on a term by
+replacing each variable, `σ(C(t₁, …, tₙ)) = C(σt₁, …, σtₙ)`, and on contracts,
+plans and lists of types pointwise.
+
+**Theorem 1.2 (typing is stable under substitution).** If
+`WellTyped lib avail p t`, then `WellTyped σ(lib) σ(avail) σ(p) σ(t)`.
+
+The proof is by induction on the typing derivation. The only fact it needs
+beyond the pointwise action is `σ(seq(a)) = seq(σa)`. A composition built
+over type variables is therefore valid at every instantiation of them: a
+generic composition is checked once and holds for every type it is used at.
+
+A contract with variables is **polymorphic** and stands for the set of its
+instances `σ(c)`. A module that sorts sequences, for instance, declares
+`seq(α) → seq(α)` once instead of once per element type.
+
 [Theory index](../THEORY.md)

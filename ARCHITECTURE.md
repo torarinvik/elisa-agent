@@ -12,7 +12,7 @@ run the Python tests with `uv run pytest`.
 
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
 |---|---|---|
-| [§1 Types and contracts](theory/01-types-and-contracts.md) | `Contract` | `abi`, `registry` |
+| [§1 Types and contracts](theory/01-types-and-contracts.md) | `Contract`, `Terms` | `abi`, `registry` |
 | [§2 Planning](theory/02-planning.md) | `Planner`, `Check` | `planner.plan`, `router.infer` |
 | [§3 Routing stability](theory/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
 | [§4 Compositional reliability](theory/04-compositional-reliability.md) | `Reliability` | |
@@ -53,6 +53,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | THEORY.md | Lean name | File |
 |---|---|---|
 | [1.1](theory/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
+| [1.2](theory/01-types-and-contracts.md) | `WellTyped.subst` | `Terms` |
 | [2.1](theory/02-planning.md) | `plan_sound` | `Planner` |
 | [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
 | [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
@@ -240,7 +241,15 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 
 ## 1. Types and contracts
 
-Type ids are strings and `seq[t]` is the sequence type (`nca.abi.seq_type`).
+A type id is the canonical text of a type term (`nca.abi.TypeId`): a constructor
+name with its namespace and version, optionally applied to bracketed,
+comma-separated argument types, as in `seq[digit.distribution.v1]`; `?a` is a
+type variable. Manifests carry type ids as text, so they stay plain data for any
+language. `parse_type` and `format_type` convert between text and terms
+(`Var`, `App`), `substitute` applies a substitution, and `seq_type` and
+`elem_type` build and take apart sequence types. A `Contract` rejects types that
+are malformed or not in canonical form, and, until planning instantiates them,
+types with variables.
 
 ## 5. Reliability under distribution shift
 

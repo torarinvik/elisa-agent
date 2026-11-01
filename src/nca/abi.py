@@ -2,28 +2,124 @@
 
 from __future__ import annotations
 
+import functools
 import itertools
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 TypeId = str
-"""Versioned semantic type, e.g. ``"digit.distribution.v1"``.
+"""A semantic type in its canonical text form (THEORY §1.1): a constructor
+name, optionally applied to argument types, as in ``"digit.distribution.v1"``
+or ``"seq[digit.distribution.v1]"``. Names carry their namespace and version.
+Variables (``"?a"``) stand for any type.
 
 Two values are compatible only if their type ids are equal; byte shape alone
-never implies compatibility.
+never implies compatibility. Conversions between types are modules.
 """
 
 
+@dataclass(frozen=True)
+class Var:
+    """A type variable."""
+
+    name: str
+
+
+@dataclass(frozen=True)
+class App:
+    """A constructor applied to argument types; a constant has none."""
+
+    name: str
+    args: tuple[Term, ...] = ()
+
+
+Term = Var | App
+"""A type term (THEORY §1.1)."""
+
+_TOKEN = re.compile(r"\s*(\??[A-Za-z0-9_][A-Za-z0-9_./-]*|[\[\],])")
+
+
+@functools.lru_cache(maxsize=65536)
+def parse_type(type_id: TypeId) -> Term:
+    """The term ``type_id`` denotes; ``ValueError`` if it is not well formed."""
+    tokens: list[str] = []
+    position = 0
+    text = type_id.rstrip()
+    while position < len(text):
+        match = _TOKEN.match(text, position)
+        if match is None:
+            raise ValueError(f"malformed type {type_id!r} at {position}")
+        tokens.append(match.group(1))
+        position = match.end()
+
+    def term(i: int) -> tuple[Term, int]:
+        if i >= len(tokens) or tokens[i] in "[],":
+            raise ValueError(f"malformed type {type_id!r}: expected a name")
+        name = tokens[i]
+        if name.startswith("?"):
+            return Var(name[1:]), i + 1
+        if i + 1 >= len(tokens) or tokens[i + 1] != "[":
+            return App(name), i + 1
+        args = []
+        i += 2
+        while True:
+            arg, i = term(i)
+            args.append(arg)
+            if i < len(tokens) and tokens[i] == ",":
+                i += 1
+            elif i < len(tokens) and tokens[i] == "]":
+                return App(name, tuple(args)), i + 1
+            else:
+                raise ValueError(f"malformed type {type_id!r}: expected ',' or ']'")
+
+    result, end = term(0)
+    if end != len(tokens):
+        raise ValueError(f"malformed type {type_id!r}: trailing input")
+    return result
+
+
+def format_type(term: Term) -> TypeId:
+    """The canonical text form of ``term``."""
+    if isinstance(term, Var):
+        return f"?{term.name}"
+    if not term.args:
+        return term.name
+    return f"{term.name}[{','.join(format_type(a) for a in term.args)}]"
+
+
+def canonical_type(type_id: TypeId) -> TypeId:
+    """``type_id`` in canonical form, without whitespace."""
+    return format_type(parse_type(type_id))
+
+
+def type_variables(term: Term) -> frozenset[str]:
+    """The variables occurring in ``term``."""
+    if isinstance(term, Var):
+        return frozenset((term.name,))
+    return frozenset().union(*(type_variables(a) for a in term.args))
+
+
+def substitute(term: Term, binding: Mapping[str, Term]) -> Term:
+    """``term`` with each bound variable replaced (THEORY §1.2)."""
+    if isinstance(term, Var):
+        return binding.get(term.name, term)
+    return App(term.name, tuple(substitute(a, binding) for a in term.args))
+
+
+@functools.lru_cache(maxsize=65536)
 def seq_type(element: TypeId) -> TypeId:
     """The type of finite sequences of ``element``."""
-    return f"seq[{element}]"
+    return format_type(App("seq", (parse_type(element),)))
 
 
+@functools.lru_cache(maxsize=65536)
 def elem_type(type_id: TypeId) -> TypeId | None:
     """The element type if ``type_id`` is a sequence type, else ``None``."""
-    if type_id.startswith("seq[") and type_id.endswith("]"):
-        return type_id[4:-1]
+    term = parse_type(type_id)
+    if isinstance(term, App) and term.name == "seq" and len(term.args) == 1:
+        return format_type(term.args[0])
     return None
 
 
@@ -37,6 +133,16 @@ class Contract:
     output: TypeId
     slots: tuple[Slot, ...] = ()
     """Sub-goals the module calls as functions (higher-order experts, ``NCA.HContract``)."""
+
+    def __post_init__(self) -> None:
+        for type_id in (*self.inputs, self.output,
+                        *(t for inputs, output in self.slots for t in (*inputs, output))):
+            if canonical_type(type_id) != type_id:
+                raise ValueError(f"type {type_id!r} is not in canonical form "
+                                 f"{canonical_type(type_id)!r}")
+            if type_variables(parse_type(type_id)):
+                raise ValueError(f"type {type_id!r} has variables, which planning does not "
+                                 "instantiate")
 
 
 @dataclass(frozen=True)
