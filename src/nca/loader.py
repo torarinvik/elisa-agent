@@ -136,6 +136,8 @@ class ExpertStore:
         self._make_room(expert.size)
         start = time.perf_counter()
         implementation = expert.load()
+        if not callable(getattr(implementation, "invoke", None)):
+            raise TypeError(f"loader for {key} must return an implementation with an invoke method")
         self.stats.load_seconds += time.perf_counter() - start
         self.stats.loads += 1
         self.stats.loaded_bytes += expert.size

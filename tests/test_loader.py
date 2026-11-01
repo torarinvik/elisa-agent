@@ -21,6 +21,12 @@ class Fn:
         return self.fn(*inputs)
 
 
+
+def placeholder() -> Fn:
+    manifest = Manifest("placeholder", "1", Contract((), "placeholder"))
+    return Fn(manifest, lambda: None)
+
+
 def random_library(rng: random.Random, size: int, types: list[str]) -> list[Fn]:
     modules = []
     for i in range(size):
@@ -215,9 +221,9 @@ def test_failed_load_releases_partial_route_pins() -> None:
     store = ExpertStore(2)
     def make(name: str, loader: Callable[[], Any]) -> LazyExpert:
         return LazyExpert(Manifest(name, "1", Contract((), name)), loader, 1, store)
-    previous = make("previous", lambda: object())
+    previous = make("previous", placeholder)
     store.prepare(Apply(previous, ()))
-    partial = make("partial", lambda: object())
+    partial = make("partial", placeholder)
     def fail() -> Any:
         raise RuntimeError("load failed")
     broken = make("broken", fail)
@@ -225,7 +231,7 @@ def test_failed_load_releases_partial_route_pins() -> None:
         store.prepare(Apply(partial, (Apply(broken, ()),)))
     assert store.pinned == frozenset()
     assert list(store.resident) == ["partial@1"]
-    extra = make("extra", lambda: object())
+    extra = make("extra", placeholder)
     store.acquire(extra)
     assert store.resident_bytes <= 2
 
@@ -234,10 +240,10 @@ def test_failed_route_preserves_only_surviving_old_pins() -> None:
     store = ExpertStore(3)
     def expert(name: str, loader: Callable[[], Any]) -> LazyExpert:
         return LazyExpert(Manifest(name, "1", Contract((), name)), loader, 1, store)
-    shared = expert("shared", lambda: object())
-    old_only = expert("old", lambda: object())
+    shared = expert("shared", placeholder)
+    old_only = expert("old", placeholder)
     store.prepare(Apply(shared, (Apply(old_only, ()),)))
-    partial = expert("partial", lambda: object())
+    partial = expert("partial", placeholder)
     def fail() -> Any:
         raise RuntimeError("load failed")
     broken = expert("broken", fail)
@@ -295,3 +301,13 @@ def test_failed_acquire_preserves_evictable_residents() -> None:
     with pytest.raises(MemoryError, match="pinned experts"):
         incoming.invoke()
     assert (list(store.resident), store.resident_bytes, store.stats.evictions) == before
+
+
+def test_invalid_loaded_implementation_is_not_cached() -> None:
+    store = ExpertStore(1)
+    manifest = Manifest("bad", "1", Contract((), "output"))
+    expert = LazyExpert(manifest, lambda: object(), 1, store)
+    with pytest.raises(TypeError, match="must return an implementation with an invoke method"):
+        expert.invoke()
+    assert not store.resident and store.resident_bytes == 0
+    assert store.stats.loads == 0 and store.stats.loaded_bytes == 0
