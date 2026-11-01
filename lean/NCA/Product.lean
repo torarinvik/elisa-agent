@@ -348,6 +348,43 @@ theorem partitionBoundary_assoc {S : Type} [Fintype S]
   funext j
   exact partitionCompose_assoc _ _ _
 
+/-- The state-preserving empty segment. -/
+def partitionBoundaryIdentity {S : Type} [DecidableEq S] (i j : S) : ℝ × ℝ :=
+  if i = j then (1, 0) else (0, 0)
+
+theorem partitionSum_single {S : Type} [Fintype S] [DecidableEq S]
+    (index : S) (value : ℝ × ℝ) :
+    partitionSum (fun i => if i = index then value else (0, 0)) = value := by
+  apply Prod.ext
+  · simp only [partitionSum, apply_ite, Finset.sum_ite_eq', Finset.mem_univ, if_true]
+  · simp only [partitionSum, apply_ite, Finset.sum_ite_eq', Finset.mem_univ, if_true]
+
+/-- Empty boundary segments are left and right identities. -/
+theorem partitionBoundary_identity {S : Type} [Fintype S] [DecidableEq S]
+    (a : S → S → ℝ × ℝ) (start finish : S) :
+    partitionBoundaryCompose partitionBoundaryIdentity a start finish = a start finish ∧
+    partitionBoundaryCompose a partitionBoundaryIdentity start finish = a start finish := by
+  constructor
+  · change partitionSum (fun i => partitionCompose (partitionBoundaryIdentity start i) (a i finish)) = _
+    have h (i : S) : partitionCompose (partitionBoundaryIdentity start i) (a i finish) =
+        if i = start then a start finish else (0, 0) := by
+      by_cases hi : i = start
+      · subst i
+        simp [partitionBoundaryIdentity, partitionCompose]
+      · have hs : start ≠ i := Ne.symm hi
+        simp [partitionBoundaryIdentity, partitionCompose, hi, hs]
+    simp_rw [h]
+    exact partitionSum_single start (a start finish)
+  · change partitionSum (fun i => partitionCompose (a start i) (partitionBoundaryIdentity i finish)) = _
+    have h (i : S) : partitionCompose (a start i) (partitionBoundaryIdentity i finish) =
+        if i = finish then a start finish else (0, 0) := by
+      by_cases hi : i = finish
+      · subst i
+        simp [partitionBoundaryIdentity, partitionCompose]
+      · simp [partitionBoundaryIdentity, partitionCompose, hi]
+    simp_rw [h]
+    exact partitionSum_single finish (a start finish)
+
 /-- A one-symbol factor product is the factor raised to its occurrence count. -/
 theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
     (symbols.map (fun a => if a = key then factor else 1)).prod =
