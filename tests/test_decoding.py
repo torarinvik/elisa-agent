@@ -206,6 +206,28 @@ def test_native_tail_blocks_preserve_tiny_and_tolerated_mass() -> None:
     np.testing.assert_allclose([off, factor], fresh, atol=1e-13)
 
 
+def test_native_tail_blocks_remain_stable_across_many_updates() -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rng = np.random.default_rng(271)
+    m, block_size = 137, 9
+    choices = np.array([[0.0, -40.0, -1000.0, -np.inf],
+                        [0.0, math.log(5e-13), -np.inf, -np.inf],
+                        [-np.inf] * 4,
+                        np.log([0.7, 0.2, 0.1, 1e-20])])
+    rows = np.tile(choices[0], (m, 1))
+    reference = np.zeros(m, dtype=np.int64)
+    blocks = np.empty(2 * ((m - 1) // block_size + 1))
+    native(rows.reshape(-1), reference, blocks, block_size, -1)
+    for _ in range(3000):
+        k = int(rng.integers(m))
+        rows[k] = choices[int(rng.integers(len(choices)))]
+        actual = native(rows.reshape(-1), reference, blocks, block_size, k)
+        expected = decoding._tail_mass_summary(rows, reference)
+        np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-13)
+
+
 @pytest.mark.parametrize("shift", [0.0, -40.0])
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_risk_retains_tiny_accepted_alternative(

@@ -260,28 +260,29 @@ def tail_block_summary(log_probs: view[f64], reference: view[i64], blocks: mutab
     return [] if width == 0
     count: i64 = (m - 1) / block_size + 1
     return [] if blocks.len.i64() / 2 != count or blocks.len.i64() % 2 != 0
-    for b in 0..<count:
-            if index == -1 or index / block_size == b:
-                start: i64 = b * block_size
-                remaining: i64 = m - start
-                stop: i64 = start + (block_size if block_size < remaining else remaining)
-                for k in start..<stop:
-                    return [] if reference[k] < 0 or reference[k] >= width
-                off, block_scale, _ =
-                    for k in start..<stop |off: f64 = log(0.0), block_scale: f64 = 0.0, block_correction: f64 = 0.0| -> (off, block_scale, block_correction):
-                        row, next_off =
-                            for j in 0..<width |row: f64 = log(0.0), next_off: f64 = off| -> (row, next_off):
-                                reading: f64 = log_probs[k * width + j]
-                                row <- log_add(row, reading)
-                                next_off <- log_add(next_off, reading) if j != reference[k] else next_off
-                        off <- next_off
-                        excess: f64 = row if row > 0.0 else 0.0
-                        adjusted: f64 = excess - block_correction
-                        next: f64 = block_scale + adjusted
-                        block_correction <- (next - block_scale) - adjusted
-                        block_scale <- next
-                blocks[b * 2] <- off
-                blocks[b * 2 + 1] <- block_scale
+    first: i64 = 0 if index == -1 else index / block_size
+    end: i64 = count if index == -1 else first + 1
+    for b in first..<end:
+        start: i64 = b * block_size
+        remaining: i64 = m - start
+        stop: i64 = start + (block_size if block_size < remaining else remaining)
+        for k in start..<stop:
+            return [] if reference[k] < 0 or reference[k] >= width
+        off, block_scale, _ =
+            for k in start..<stop |off: f64 = log(0.0), block_scale: f64 = 0.0, block_correction: f64 = 0.0| -> (off, block_scale, block_correction):
+                row, next_off =
+                    for j in 0..<width |row: f64 = log(0.0), next_off: f64 = off| -> (row, next_off):
+                        reading: f64 = log_probs[k * width + j]
+                        row <- log_add(row, reading)
+                        next_off <- log_add(next_off, reading) if j != reference[k] else next_off
+                off <- next_off
+                excess: f64 = row if row > 0.0 else 0.0
+                adjusted: f64 = excess - block_correction
+                next: f64 = block_scale + adjusted
+                block_correction <- (next - block_scale) - adjusted
+                block_scale <- next
+        blocks[b * 2] <- off
+        blocks[b * 2 + 1] <- block_scale
     total, scale, _ =
         for b in 0..<count |total: f64 = log(0.0), scale: f64 = 0.0, correction: f64 = 0.0| -> (total, scale, correction):
             total <- log_add(total, blocks[b * 2])
