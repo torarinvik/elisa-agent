@@ -683,6 +683,20 @@ def grouped_masses(scores: view[f64], groups: view[i64], entries: i64) -> darray
                 result[cell] <- total
     return [result[i] + correction[i] for i in 0..<(m * entries)]
 
+# Expand a validated partition's group sizes into per-class group IDs.
+def partition_group_ids(lengths: view[i64], size: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    return [] if size < 0
+    result: darray[i64] = [0 for _ in 0..<size]
+    offset: darray[i64] = [0]
+    for group in 0..<lengths.len.i64():
+        length: i64 = lengths[group]
+        return [] if length <= 0 or length > size - offset[0]
+        for i in offset[0]..<(offset[0] + length):
+            result[i] <- group
+        offset[0] <- offset[0] + length
+    return [] if offset[0] != size
+    return result
+
 # First maximum in each row, matching NumPy's first-NaN behavior as well.
 def row_argmax(scores: view[f64], width: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     return [] if width <= 0 or scores.len.i64() % width != 0
@@ -839,6 +853,7 @@ export pymodule decoding:
     fn parse_tree
     fn certificate_words
     fn row_argmax
+    fn partition_group_ids
     fn grouped_argmax
     fn grouped_masses
     fn risk_shares

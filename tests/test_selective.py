@@ -1519,3 +1519,20 @@ def test_decision_metadata_cache_eviction_preserves_results() -> None:
     assert _layout(first) == expected_layout
     assert np.array_equal(_group_ids(first), expected_groups)
     assert np.array_equal(_native_indices(first), expected_indices)
+
+
+def test_native_partition_group_ids_match_reference(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "partition_group_ids", None)
+    if native is None:
+        pytest.skip("native partition kernel is not built")
+    assert native(np.array([2, 1, 3], dtype=np.int64), 6) == [0, 0, 1, 2, 2, 2]
+    assert native(np.array([2, 0], dtype=np.int64), 2) == []
+    assert native(np.array([2, 2], dtype=np.int64), 3) == []
+    key = ((7, 3), 2, (9, 5, 1))
+    actual = ladder_module._group_ids.__wrapped__(key)
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    expected = ladder_module._group_ids.__wrapped__(key)
+    assert np.array_equal(actual, expected)
+    assert not actual.flags.writeable

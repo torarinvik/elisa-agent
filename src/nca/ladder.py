@@ -110,9 +110,15 @@ def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[lis
 def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
     """Read-only native group metadata for a partitioned decision."""
     union, positions = _layout(key)
-    groups = np.empty(len(union), dtype=np.int64)
-    for entry, part in enumerate(positions):
-        groups[part] = entry
+    native = getattr(_NATIVE, "partition_group_ids", None)
+    if native is not None:
+        lengths = np.fromiter((len(part) for part in positions), dtype=np.int64,
+                              count=len(positions))
+        groups = np.asarray(native(lengths, len(union)), dtype=np.int64)
+    else:
+        groups = np.empty(len(union), dtype=np.int64)
+        for entry, part in enumerate(positions):
+            groups[part] = entry
     groups.setflags(write=False)
     return groups
 
