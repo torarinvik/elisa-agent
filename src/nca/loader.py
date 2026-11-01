@@ -12,6 +12,8 @@ until the next ``prepare``. Distinct live wrappers with the same reference
 are rejected while an implementation is resident, and conflicting wrappers
 in one route are rejected before the store changes. Use distinct versions
 for distinct implementations when provenance must distinguish them.
+Loaders must not mutate or acquire experts from their own store while loading;
+they may use other stores.
 Every transition that serves a route loads at
 least its missing experts, and this one loads exactly those
 (``NCA.routeAware_optimal``), so experts shared by consecutive routes are
@@ -47,6 +49,7 @@ class StoreStats:
 
 class ExpertStore:
     def __init__(self, budget: int | None = None) -> None:
+        self._loading = False
         self.budget = budget
         self._resident: OrderedDict[str, tuple[Any, int]] = OrderedDict()
         self._resident_bytes = 0
@@ -60,6 +63,7 @@ class ExpertStore:
 
     @budget.setter
     def budget(self, value: int | None) -> None:
+        self._check_not_loading()
         if value is not None and (isinstance(value, bool) or not isinstance(value, Integral) or value < 0):
             raise ValueError("store budget must be a nonnegative integer or None")
         if value is not None and hasattr(self, "_resident") and self.resident_bytes > value:
@@ -81,6 +85,7 @@ class ExpertStore:
         On load failure, keep only surviving old pins; evictions and successful
         partial loads are not rolled back.
         """
+        self._check_not_loading()
         experts: dict[str, LazyExpert] = {}
         for expert in route_experts(route):
             key = expert.manifest.ref
@@ -125,6 +130,7 @@ class ExpertStore:
             self.stats.evictions += 1
 
     def acquire(self, expert: LazyExpert) -> Any:
+        self._check_not_loading()
         key = expert.manifest.ref
         if key in self._resident:
             if self._owners[key] is not expert:
@@ -135,9 +141,13 @@ class ExpertStore:
             raise MemoryError(f"{key} ({expert.size} B) exceeds the store budget")
         self._make_room(expert.size)
         start = time.perf_counter()
-        implementation = expert.load()
-        if not callable(getattr(implementation, "invoke", None)):
-            raise TypeError(f"loader for {key} must return an implementation with an invoke method")
+        self._loading = True
+        try:
+            implementation = expert.load()
+            if not callable(getattr(implementation, "invoke", None)):
+                raise TypeError(f"loader for {key} must return an implementation with an invoke method")
+        finally:
+            self._loading = False
         self.stats.load_seconds += time.perf_counter() - start
         self.stats.loads += 1
         self.stats.loaded_bytes += expert.size
@@ -147,6 +157,10 @@ class ExpertStore:
         self._owners[key] = expert
         self.stats.peak_bytes = max(self.stats.peak_bytes, self.resident_bytes)
         return implementation
+
+    def _check_not_loading(self) -> None:
+        if self._loading:
+            raise RuntimeError("expert loaders cannot re-enter their own store")
 
 
 class LazyExpert:

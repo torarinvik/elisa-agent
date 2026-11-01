@@ -311,3 +311,40 @@ def test_invalid_loaded_implementation_is_not_cached() -> None:
         expert.invoke()
     assert not store.resident and store.resident_bytes == 0
     assert store.stats.loads == 0 and store.stats.loaded_bytes == 0
+
+
+@pytest.mark.parametrize("operation", ["acquire", "prepare", "budget"])
+def test_loader_cannot_reenter_own_store(operation: str) -> None:
+    store = ExpertStore(1)
+    manifest = Manifest("nested", "1", Contract((), "output"))
+    nested = LazyExpert(manifest, placeholder, 1, store)
+
+    def load() -> Fn:
+        if operation == "acquire":
+            store.acquire(nested)
+        elif operation == "prepare":
+            store.prepare(Apply(nested, ()))
+        else:
+            store.budget = 0
+        return placeholder()
+
+    outer = LazyExpert(Manifest("outer", "1", Contract((), "output")), load, 1, store)
+    with pytest.raises(RuntimeError, match="cannot re-enter"):
+        outer.invoke()
+    assert not store.resident and store.resident_bytes == 0 and store.budget == 1
+    assert store.stats.loads == 0
+    store.acquire(nested)
+    assert store.resident_bytes == 1
+
+
+def test_loader_can_use_another_store() -> None:
+    outer_store, inner_store = ExpertStore(1), ExpertStore(1)
+    inner = LazyExpert(Manifest("inner", "1", Contract((), "output")),
+                       placeholder, 1, inner_store)
+    def load() -> Fn:
+        inner_store.acquire(inner)
+        return placeholder()
+    outer = LazyExpert(Manifest("outer", "1", Contract((), "output")),
+                       load, 1, outer_store)
+    outer_store.acquire(outer)
+    assert outer_store.resident_bytes == inner_store.resident_bytes == 1
