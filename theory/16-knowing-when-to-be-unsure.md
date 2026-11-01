@@ -62,8 +62,14 @@ binary64 snapshot of the original weights; its `top` operation uses those
 weights for any supplied class subset. For positive temperature, the exact
 power transform is strictly increasing, and division by a common positive
 normalizer preserves its order. This is a building block for carrying
-ordering information. The selective controller and its consumers do not yet
-use this interface, so their decision-ordering limitation remains.
+ordering information. `Rung.risk` accepts a ranked observation and charges
+the group containing the original highest-weight class; its tensor-only form
+continues to use logits. In unequal groups, a tiny difference in the leading
+weights can change the group risk substantially because other classes add
+mass to one group. Numerical probabilities returned by `reading` can still
+tie: a consumer using ranked risk must select with the same retained ordering.
+The selective controller and its consumers do not yet use
+ranked observations, so their decision-ordering limitation remains.
 
 For independent known reductions, the priced objective has a local threshold
 rule: refine when the reduction pays for its cost. Sweeping `λ` explores a

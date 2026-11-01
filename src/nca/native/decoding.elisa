@@ -770,15 +770,10 @@ def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temper
         for k in 0..<weights.count |result: darray[f64] = [0.0 for _ in 0..<entries]| -> result:
             result[groups[k]] <- result[groups[k]] + weights[k] / total
 
-# Risk belongs to the group containing the most probable individual class.
-def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
-    top: i64 =
-        for k in 0..<logits.len.i64() |top: i64 = 0| -> top:
-            top <- k if logits[k] > logits[top] else top
-    chosen: i64 = groups[top]
+def risk_at_anchor(logits: view[f64], groups: view[i64], chosen: i64, temperature: f64, largest: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
     total, outside =
         for i in 0..<logits.len.i64() |total: f64 = 0.0, outside: f64 = 0.0| -> (total, outside):
-            weight: f64 = exp((logits[i] - logits[top]) / temperature)
+            weight: f64 = exp((logits[i] - largest) / temperature)
             total += weight
             outside += weight if groups[i] != chosen else 0.0
     result: f64 = outside / total
@@ -790,8 +785,24 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     scaled: f64 =
         for i in 0..<logits.len.i64() |sum: f64 = 0.0| -> sum:
             sum += exp((logits[i] - largest_outside) / temperature) if groups[i] != chosen else 0.0
-    recovered: f64 = exp((largest_outside - logits[top]) / temperature + log(scaled) - log(total))
+    recovered: f64 = exp((largest_outside - largest) / temperature + log(scaled) - log(total))
     return nextafter(0.0, 1.0) if recovered == 0.0 else recovered
+
+# Risk for a caller-selected class in a caller-declared partition.
+def calibrated_risk_at(logits: view[f64], groups: view[i64], entries: i64, temperature: f64, top: i64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    return log(-1.0) if top < 0 or top >= logits.len.i64() or groups.len.i64() != logits.len.i64()
+    largest: f64 =
+        for k in 0..<logits.len.i64() |largest: f64 = log(0.0)| -> largest:
+            largest <- logits[k] if logits[k] > largest else largest
+    return risk_at_anchor(logits, groups, groups[top], temperature, largest)
+
+# The legacy path selects the first largest individual logit.
+def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    return log(-1.0) if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64()
+    top: i64 =
+        for k in 0..<logits.len.i64() |top: i64 = 0| -> top:
+            top <- k if logits[k] > logits[top] else top
+    return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
     fn observation_logs
@@ -824,3 +835,4 @@ export pymodule decoding:
     fn accepted_log_weight
     fn calibrated_groups
     fn calibrated_risk
+    fn calibrated_risk_at

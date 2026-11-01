@@ -233,17 +233,40 @@ class Rung:
             self.temperatures[key] = self._fit(log[inside][:, union], targets, positions)
         return self.temperatures[key]
 
-    def reading(self, log: torch.Tensor) -> torch.Tensor:
+    def reading(self, log: torch.Tensor | RankedObservation) -> torch.Tensor:
+        """Numerical probabilities; ranked ordering remains on the observation."""
+        if isinstance(log, RankedObservation):
+            log = log.logits
         return torch.softmax(log / self.temperature(), dim=-1)
 
-    def risk(self, log: torch.Tensor, classes: Decision = None) -> float:
-        """Calibrated error probability of the decision over ``classes``."""
-        native = getattr(_NATIVE, "calibrated_risk", None)
+    def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> float:
+        """Calibrated error probability of the decision over ``classes``.
+
+        A ranked observation chooses the winning class by its original weights;
+        a tensor retains the legacy logit-based choice. Consumers must use the
+        same ranked choice: the numerical reading can still contain ties.
+        """
+        ranked = log if isinstance(log, RankedObservation) else None
+        if ranked is not None:
+            log = ranked.logits
+            temperature = self.temperature(classes)
+            if not math.isfinite(temperature) or temperature <= 0:
+                raise ValueError("ranked risk requires a positive finite temperature")
+        selected = None
+        if ranked is not None:
+            union = (list(range(len(log))) if classes is None else
+                     _layout(decision_key(classes))[0])
+            selected = union.index(ranked.top(union))
+        native = getattr(_NATIVE, "calibrated_risk_at" if ranked is not None
+                         else "calibrated_risk", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
             key = decision_key(classes) if classes is not None else tuple(range(len(log)))
             union, positions = _layout(key)
             groups = _group_ids(key)
             if groups is not None:
+                if selected is not None:
+                    return float(native(log[union].double().numpy(), groups, len(positions),
+                                        self.temperature(classes), selected))
                 return float(native(log[union].double().numpy(), groups, len(positions),
                                     self.temperature(classes)))
         if classes is None:
@@ -253,12 +276,12 @@ class Rung:
             union, positions = _layout(key)
             values = log[union]
         temperature = self.temperature(classes)
-        result = risk(torch.softmax(values / temperature, dim=-1), positions)
+        result = risk(torch.softmax(values / temperature, dim=-1), positions, _top=selected)
         if result != 0.0 or (classes is not None and _group_ids(key) is None):
             return result
         # A float32 softmax can erase probabilities that fit in binary64.
         scores = values.double() / temperature
-        top = int(scores.argmax())
+        top = int(scores.argmax()) if selected is None else selected
         chosen = (next(part for part in positions if top in part)
                   if positions is not None else [top])
         outside = [i for i in range(len(scores)) if i not in chosen]
@@ -273,9 +296,11 @@ class Rung:
         recovered = math.exp(float(log_outside - torch.logsumexp(scores, dim=0)))
         return math.nextafter(0.0, 1.0) if recovered == 0.0 else recovered
 
-    def distribution(self, log: torch.Tensor, classes: Decision = None) -> torch.Tensor:
+    def distribution(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> torch.Tensor:
         """Calibrated probabilities of the decision's entries: each entry's
         share of the classes it ranges over, under the decision's temperature."""
+        if isinstance(log, RankedObservation):
+            log = log.logits
         if classes is None:
             return self.reading(log)
         union, positions = _layout(decision_key(classes))
@@ -363,17 +388,17 @@ def _lower_sum(values: Sequence[float]) -> float:
     return total
 
 
-def risk(reading: torch.Tensor, classes: Decision = None) -> float:
+def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = None) -> float:
     """Error probability of the decision over ``classes`` (all if ``None``):
     the share outside the entry holding the most probable class listed."""
     if classes is None:
-        top = int(reading.argmax())
+        top = int(reading.argmax()) if _top is None else _top
         outside = torch.cat((reading[:top], reading[top + 1:]))
         return (outside.sum() / reading.sum()).item()
     key = decision_key(classes)
     union, positions = _layout(key)
     mass = reading[union]
-    top = int(mass.argmax())
+    top = int(mass.argmax()) if _top is None else union.index(_top)
     chosen = next(part for part in positions if top in part)
     if _group_ids(key) is None:
         return 1.0 - (mass[chosen].sum() / mass.sum()).item()

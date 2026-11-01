@@ -140,6 +140,12 @@ theorem monotone_normalized_rank (f : ℝ → ℝ) (hf : StrictMono f)
   rw [div_lt_div_iff_of_pos_right ht]
   exact hf.lt_iff_lt
 
+/-- Choosing different groups can change risk by more than the gap between
+their leading classes, because the groups can contain other mass. -/
+theorem asymmetric_group_risk {x y z : ℝ} (ht : 0 < x + y + z)
+    (h : y < x + z) : y / (x + y + z) < (x + z) / (x + y + z) := by
+  exact (div_lt_div_iff_of_pos_right ht).2 h
+
 /-- Bound plus priced compute after refining the symbols in `T`. -/
 def refinedObjective (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) : ℝ :=
   ∑ i ∈ S, r i - ∑ i ∈ T, β i + lam * ∑ i ∈ T, κ i

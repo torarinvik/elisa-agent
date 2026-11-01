@@ -213,6 +213,43 @@ def test_ranked_observation_retains_original_restricted_order(native, monkeypatc
 
 
 @pytest.mark.parametrize("native", [False, True])
+def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_at", None) is None:
+        pytest.skip("native ranked risk is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    low = 1e-300
+    high = math.nextafter(low, math.inf)
+    rung = Rung(constant("ranked-risk", (1.0, low, high, 1e-301), 1.0))
+    observed = rung.observe_ranked(None)
+    groups = ((1, 3), (2,))
+    assert observed.top([1, 3, 2]) == 2
+    assert rung.risk(observed, groups) == pytest.approx(11 / 21, abs=1e-14)
+    assert rung.risk(observed.logits, groups) == pytest.approx(10 / 21, abs=1e-14)
+    assert torch.equal(rung.reading(observed), rung.reading(observed.logits))
+    assert torch.equal(rung.distribution(observed, groups),
+                       rung.distribution(observed.logits, groups))
+    # Consumers can select with the same retained ordering.
+    assert observed.top([1, 2]) == 2
+    arbitrary = ladder_module.RankedObservation(torch.tensor([1000.0, -1000.0]), (0.1, 0.9))
+    assert rung.risk(arbitrary, ((0,), (1,))) == 1.0
+    for temperature in (0.0, -1.0, math.inf, math.nan):
+        rung.temperatures[None] = temperature
+        with pytest.raises(ValueError, match="positive finite temperature"):
+            rung.risk(observed)
+    rng = np.random.default_rng(416)
+    for values in rng.dirichlet(np.ones(4), size=12):
+        ordinary = Rung(constant("unambiguous", tuple(values), 1.0))
+        ranked = ordinary.observe_ranked(None)
+        for decision in (None, ((0, 2), (1, 3)), ((0,), (1,), (2, 3)),
+                         ((0, 2), (1, 2), (3,))):
+            assert ordinary.risk(ranked, decision) == pytest.approx(
+                ordinary.risk(ranked.logits, decision), abs=1e-14)
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("weights", [(), (0.0, 0.0), (-0.1, 1.0),
                                       (float("nan"), 1.0), (float("inf"), 1.0),
                                       (float("-inf"), 1.0), ((0.1, 0.9),), 1.0])
