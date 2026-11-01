@@ -55,7 +55,8 @@ Only the current left cell and the two preceding rows are needed, so three
 cyclic rows use O(|y|) memory and O(|x|·|y|) time.
 The recurrence is symmetric in the two strings, so the shorter string can
 be used for the rows, reducing working memory to O(min(|x|, |y|)).
-Empty-prefix distances are their lengths, identical prefixes have distance zero, and
+Empty-prefix distances are their lengths and need no table. Identical prefixes
+have distance zero, and
 D(i,j)≤max(i,j), since substitutions plus insertions/deletions suffice.
 The reader uses p(w) proportional to exp(−D(|x|,|w|)); this symbolic score
 is not itself a calibrated channel likelihood.

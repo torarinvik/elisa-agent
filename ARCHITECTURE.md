@@ -162,6 +162,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [17.5](theory/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `grouped_risk_le` | `Certificate` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_symmetric` | `Edit` |
+| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_empty_left`, `osa_empty_right` | `Edit` |
 | [18.2](theory/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le` | `Certificate` |
 | [18.2](theory/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le_support` | `Certificate` |
 | [18.3](theory/18-a-second-domain-noisy-boolean-formulas.md) | `cert_sound` | `Certificate` |

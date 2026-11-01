@@ -59,3 +59,15 @@ def test_native_edit_handles_unequal_lengths_in_both_orders() -> None:
         expected = words._edit_distance_reference(a, b)
         assert words.edit_distance(a, b) == expected
         assert words.edit_distance(b, a) == expected
+
+
+def test_native_edit_empty_inputs_and_batch() -> None:
+    native = words._EDIT_NATIVE
+    if getattr(native, "edit_distances", None) is None:
+        pytest.skip("requires the native edit kernel")
+    empty = np.array([], dtype=np.int64)
+    text = np.array([ord("🙂")] * 100_000, dtype=np.int64)
+    assert native.edit_distance(empty, empty) == 0
+    assert native.edit_distance(empty, text) == len(text)
+    assert native.edit_distance(text, empty) == len(text)
+    assert native.edit_distances(empty, text, [0, 0, len(text)]) == [0, len(text)]
