@@ -71,6 +71,16 @@ this requires O(S + H_m + Σ_{k<m} (C_k + w H_k)) work, where C_k is the
 cleared interval width, H_k is the source interval width, and w is the
 alphabet size, with O(S) storage.
 
+The same envelope restriction applies to max-product: omitted unreachable
+candidates have weight zero, the identity for a maximum seeded at zero.
+Filtering those candidates preserves the maximum, even when their envelope
+has gaps. In log space, unreachable weight is negative infinity. For
+traceback, ascending state/symbol traversal and strict improvements retain
+the original predecessor on ties. Rolling-row clearing uses the same
+outside-envelope invariant. A dense predecessor table still costs O(mS)
+initialization and storage; interval scans reduce the subsequent transition
+work without removing that cost.
+
 ## 27.3 The contract
 
 A prior expert has the contract

@@ -135,6 +135,22 @@ theorem prior_support_sum {S : Type} [Fintype S] (forward backward : S → ℝ) 
   intro s _
   by_cases h : forward s = 0 <;> simp [h]
 
+private theorem max_fold_zero_le (values : List ℝ) : 0 ≤ values.foldr max 0 := by
+  induction values with
+  | nil => simp
+  | cons x xs ih => exact ih.trans (le_max_right _ _)
+
+/-- Removing unreachable (zero-weight) candidates preserves a maximum seeded at zero. -/
+theorem prior_support_max {S : Type} (states : List S) (weight : S → ℝ)
+    (active : S → Bool) (hzero : ∀ s, active s = false → weight s = 0) :
+    (states.map weight).foldr max 0 = ((states.filter active).map weight).foldr max 0 := by
+  induction states with
+  | nil => simp
+  | cons s states ih =>
+      cases hs : active s with
+      | false => simp [hs, hzero s hs, ih, max_eq_right (max_fold_zero_le _)]
+      | true => simp [hs, ih]
+
 /-- Forward support remains inside any envelope containing all live successors. -/
 theorem prior_step_zero_outside {S : Type} [Fintype S]
     (forward : S → ℝ) (weight : S → S → ℝ) (active next : Finset S)

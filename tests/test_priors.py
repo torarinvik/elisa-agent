@@ -291,7 +291,7 @@ def test_native_prior_best_does_not_compute_unused_posteriors(
     assert prior.best(np.zeros((3, 3))) == (2, 0, 0)
 
 
-def test_prior_normalizer_reuses_shrinking_and_gapped_state_ranges() -> None:
+def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
     # Successive supports alternate between a wide range with holes and one cell.
     # The two reusable rows must clear their old, sometimes wider envelopes.
     transitions = np.full((257, 3), -1, dtype=np.int64)
@@ -312,8 +312,10 @@ def test_prior_normalizer_reuses_shrinking_and_gapped_state_ranges() -> None:
         full = prior.decode(rows[:size])
         assert full is not None
         assert prior.log_normalizer(rows[:size]) == full.log_z
+        assert prior.best(rows[:size]) == full.arities
     # Once all prefixes die, stale values from either row must never reappear.
     rows[8] = -np.inf
     for size in range(9, len(rows) + 1):
         assert prior.decode(rows[:size]) is None
         assert prior.log_normalizer(rows[:size]) == -np.inf
+        assert prior.best(rows[:size]) is None

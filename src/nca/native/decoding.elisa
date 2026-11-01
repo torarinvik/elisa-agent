@@ -140,15 +140,19 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
     return [] if m == 0
-    rows, choice =
-        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (rows, choice):
+    rows, choice, bounds =
+        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start, start, 0, -1]| -> (rows, choice, bounds):
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            for state in 0..<states |rows|:
+            here_bound: i64 = (k % 2) * 2
+            next_bound: i64 = ((k + 1) % 2) * 2
+            for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:
                 rows[next + state] <- log(0.0)
-            for state in 0..<states |rows, choice|:
+            bounds[next_bound] <- states
+            bounds[next_bound + 1] <- -1
+            for state in bounds[here_bound]..<(bounds[here_bound + 1] + 1) |rows, choice, bounds|:
                 continue if rows[here + state] == log(0.0)
-                for j in 0..<width |rows, choice|:
+                for j in 0..<width |rows, choice, bounds|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
@@ -156,8 +160,10 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
                     if candidate > rows[next + target]:
                         rows[next + target] <- candidate
                         choice[(k + 1) * states + target] <- edge
+                        bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
+                        bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
     terminal: i64 =
-        for state in 0..<states |top: f64 = log(0.0), terminal: i64 = -1| -> terminal:
+        for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |top: f64 = log(0.0), terminal: i64 = -1| -> terminal:
             candidate: f64 = rows[(m % 2) * states + state] + final[state]
             if candidate > top:
                 top <- candidate

@@ -205,7 +205,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.3](theory/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
 | [27.4](theory/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
 | [27.5](theory/27-priors-as-experts.md) | `complete_shape_length` | `Decoding` |
-| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum`, `prior_step_zero_outside` | `Product` |
+| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum`, `prior_support_max`, `prior_step_zero_outside` | `Product` |
 | [27.7](theory/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
 | [27.8](theory/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
 | [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret` | `Product` |
@@ -863,7 +863,11 @@ full refreshes. Stateless calls remain a full-decode reference.
 `ArityPrior.best` uses Elisa `prior_best` for weighted maximum selection
 without normalizers or marginals. Prior-aware raw answer selection calls
 this path. It retains two maximum rows plus predecessor choices for
-traceback; state/symbol traversal and strict tie updates match the full
-native decoder. Without the export, the full decoder supplies the reference
+traceback. Each maximum row records an enclosing reachable-state interval,
+clearing only that row's old interval when it is reused. Source and terminal
+scans stay in ascending state order; symbol traversal and strict tie updates
+match the full native decoder. The support-pruning maximum identity is
+`prior_support_max` in `NCA/Product.lean` (§27.6). Dense predecessor
+initialization and storage still cost O(mS). Without the export, the full decoder supplies the reference
 fallback. The recurrences correspond to §27.2–27.3; tests cover weighted
 priors, uniform ties, empty support, and a guard against full decoding.
