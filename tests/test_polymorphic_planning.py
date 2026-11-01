@@ -531,6 +531,30 @@ def test_nested_pattern_prunes_only_unfillable_ground_slots() -> None:
                    for partial, _ in solutions) is expected
 
 
+def test_nested_slot_grounded_by_output_unification() -> None:
+    from nca import planner
+
+    nested = Fn(Manifest("nested", "1.0.0", Contract(
+        ("seq[?c]",), "pair[?a,?b]", ((("?a",), "missing.v1"),), ((0,),)),
+        calls=(Calls(1, 0),)), lambda *args: None)
+    provider = fn("provider", [INT], "missing.v1", lambda value: value)
+    pattern = App("pair", (parse_type(INT), Var("x")))
+    for modules, expected in (([nested], False), ([nested, provider], True)):
+        index = ProducerIndex(modules)
+        answers = planner._solutions(index, index.size, (f"seq[{TEXT}]",), pattern,
+                                     {}, 3, index.memo(index.size))
+        assert any(isinstance(partial, planner._Open) and partial.module is nested
+                   for partial, _ in answers) is expected
+    unresolved = Fn(Manifest("unresolved", "1.0.0", Contract(
+        ("seq[?c]",), "pair[?a,?b]", ((("?b",), "missing.v1"),)),
+        calls=(Calls(1, 0),)), lambda *args: None)
+    index = ProducerIndex([unresolved])
+    answers = planner._solutions(index, index.size, (f"seq[{TEXT}]",), pattern,
+                                 {}, 3, index.memo(index.size))
+    assert any(isinstance(partial, planner._Open) and partial.module is unresolved
+               for partial, _ in answers)
+
+
 def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     from nca import planner
 

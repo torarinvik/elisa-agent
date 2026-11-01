@@ -106,7 +106,8 @@ later bindings. If it has no filling at the required depth, the application
 can be rejected before searching its polymorphic inputs. Slots that still
 contain variables remain eligible for later instantiation.
 The same check applies to a nested pattern candidate when the slot is ground
-before that candidate is renamed and unified.
+before that candidate is renamed and unified, or when output unification
+makes every type in the slot ground.
 
 **Map sources.** With polymorphic contracts, the candidate element types of
 step 3 include the elements of the sequence types that instances produce, of

@@ -310,7 +310,8 @@ as ambiguous. Ground sub-goals go through the memoized planner, pattern goals
 are not memoized, and pruning by the forward closure ignores inputs with
 variables.
 Before expanding a nested candidate, `_solutions` rejects any ground slot
-that cannot be filled at the candidate's remaining depth.
+that cannot be filled at the candidate's remaining depth, including slots
+made ground by output unification.
 
 `NCA.Skel` (`lean/NCA/PatternSearch.lean`) models a plan skeleton and its
 equations, with each node's variables renamed by its path, as

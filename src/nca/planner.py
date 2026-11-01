@@ -307,6 +307,9 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
         extended = dict(binding)
         if not unify(goal, output, extended):
             continue
+        if (not isinstance(goal, Var) and module.manifest.contract.slots and
+                not _resolved_slots_possible(index, limit, module, renaming, extended, fuel, memo)):
+            continue
         names = tuple(renaming.items())
         for args, solved in _solve_inputs(index, limit, available, inputs, extended,
                                           fuel, memo):
@@ -455,6 +458,25 @@ def _ground_slots_possible(index: ProducerIndex, limit: int, module: Module,
 def _ground_slot_goals(contract: Contract) -> tuple[tuple[tuple[TypeId, ...], TypeId, frozenset[int]], ...]:
     return tuple((inputs, output, required) for inputs, output, required in slot_goals(contract)
                  if not any(type_variables(parse_type(t)) for t in (*inputs, output)))
+
+
+@lru_cache(maxsize=65536)
+def _slot_variables(contract: Contract) -> frozenset[str]:
+    return frozenset(v for inputs, output in contract.slots for t in (*inputs, output)
+                     for v in type_variables(parse_type(t)) if isinstance(v, str))
+
+
+def _resolved_slots_possible(index: ProducerIndex, limit: int, module: Module,
+                             renaming: dict[str, ScopedName], binding: dict[VarName, Term],
+                             fuel: int, memo: Memo) -> bool:
+    """Check slots made ground by unifying a candidate's output."""
+    ground = []
+    for name in _slot_variables(module.manifest.contract):
+        value = resolve(Var(renaming[name]), binding)
+        if not type_variables(value):
+            ground.append((name, format_type(value)))
+    return not ground or _ground_slots_possible(index, limit, module, tuple(sorted(ground)),
+                                                fuel, memo)
 
 
 def free_bindings(index: ProducerIndex, available: Sequence[TypeId], module: Module,
