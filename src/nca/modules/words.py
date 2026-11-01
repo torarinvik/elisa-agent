@@ -253,6 +253,7 @@ class CorrectionState:
     changed: tuple[int, ...] = ()
     revisions: tuple[int, ...] | None = None
     distribution_source: object | None = None
+    risk_source: object | None = None
     within: dict[tuple[int, int], float] = field(default_factory=dict)
     risk_prior: ArityPrior | None = None
     risk_arities: tuple[int, ...] | None = None
@@ -272,6 +273,7 @@ class CorrectionState:
             self.changed = ()
             self.revisions = None
             self.distribution_source = None
+            self.risk_source = None
             self.within.clear()
             self.risk_prior = None
             self.risk_arities = None
@@ -523,6 +525,10 @@ class FormulaEvaluator:
         if state is not None:
             if invalidated:
                 state.risk_value = None
+            risk_source = getattr(risk, "source", risk)
+            if state.risk_source is not risk_source:
+                state.within.clear()
+                state.risk_source = risk_source
             if self.prior is not None:
                 cached = state.prior_log_probs
             elif state.cursor is not None:

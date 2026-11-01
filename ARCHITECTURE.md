@@ -864,6 +864,8 @@ partition risk only for the same selected arities and prior object. Unversioned
 readings, changed revisions, and changed distribution sources force
 recomputation. Selective adapters carry the source identity through their
 wrappers, so revision numbers from unrelated sources are never conflated.
+Restricted-risk cache entries are also cleared when the risk callback source
+changes; adapters preserve that callback's source identity across calls.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.

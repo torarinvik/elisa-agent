@@ -168,6 +168,29 @@ def test_correction_session_invalidates_when_distribution_source_changes(use_pri
     assert switched == pytest.approx(fresh)
 
 
+@pytest.mark.parametrize("use_prior", [False, True])
+def test_correction_session_invalidates_when_risk_callback_changes(use_prior: bool) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False,
+                                 prior=formulas.format_prior if use_prior else None)
+    readings = one_hot(["and", "true", "false"])
+    masses = np.tile([0.6, 0.25, 0.15], (3, 1))
+    distribution = Distribution(lambda k, d: torch.tensor(masses[k]), lambda k: 0)
+    def low(k: int, d: Decision) -> float:
+        return 0.01
+    def high(k: int, d: Decision) -> float:
+        return 0.2
+    state = CorrectionState()
+    first = evaluator.certificate(readings, low, distribution, state)
+    switched = evaluator.certificate(readings, high, distribution, state)
+    fresh = evaluator.certificate(readings, high, distribution)
+    assert first is not None and switched is not None and fresh is not None
+    assert sum(first.values()) < sum(fresh.values())
+    assert switched == pytest.approx(fresh)
+
+
 @pytest.mark.parametrize("mode", ["format", "prior", "banded"])
 def test_correction_state_resets_when_formula_length_changes(mode: str) -> None:
     from nca.ladder import Distribution

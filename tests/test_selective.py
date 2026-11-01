@@ -319,11 +319,13 @@ def test_element_certificate_keeps_independent_reading_snapshots() -> None:
 
     snapshots: list[list[Any]] = []
     sources: list[object | None] = []
+    risk_sources: list[object | None] = []
 
     class Consumer:
         def certificate(self, readings: list[Any], risk: Any, distribution: Any) -> dict[int, float]:
             snapshots.append(readings)
             sources.append(getattr(distribution, "source", None))
+            risk_sources.append(getattr(risk, "source", None))
             return {0: 0.1}
 
     version = [0]
@@ -346,6 +348,11 @@ def test_element_certificate_keeps_independent_reading_snapshots() -> None:
     callback([torch.tensor([0.9, 0.1])], lambda i, d: 0.1, replacement)
     assert snapshots[-1][0] == pytest.approx((0.9, 0.1))
     assert sources[-1] is replacement.source
+    def risk(i: int, decision: Any) -> float:
+        return 0.1
+    callback([torch.tensor([0.9, 0.1])], risk, replacement)
+    callback([torch.tensor([0.9, 0.1])], risk, replacement)
+    assert risk_sources[-1] is risk_sources[-2] is risk
 
 
 def test_element_floor_maps_current_readings_and_fixed_items() -> None:

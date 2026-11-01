@@ -199,6 +199,16 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
     return [answer(selected.get(target, refined), target) for target in targets]
 
 
+@dataclass(frozen=True)
+class _MappedRisk:
+    callback: Callable[[int, Decision], float]
+    position: dict[int, int]
+    source: object
+
+    def __call__(self, i: int, decision: Decision) -> float:
+        return self.callback(self.position[i], decision)
+
+
 def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
                         count: int) -> Certificate | None:
     """The consumer's certificate over its elements, as one over refined items."""
@@ -237,7 +247,8 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
         revision = getattr(distribution, "revision", None)
         calibrated = (Distribution(mapped_distribution, lambda i: revision(position[i]), current_source)
                       if revision is not None else mapped_distribution)
-        chosen = declared(list(elements), lambda i, d: risk(position[i], d), calibrated)
+        mapped_risk = _MappedRisk(risk, position, getattr(risk, "source", risk))
+        chosen = declared(list(elements), mapped_risk, calibrated)
         return None if chosen is None else {position[i]: c for i, c in chosen.items()}
 
     return certificate
