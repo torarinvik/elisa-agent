@@ -1265,6 +1265,24 @@ Total risk was 0.20000000000000004 for the reference and
 full-refinement outcome and timing comparisons remain due because rounding
 may change ties in priority order.
 
+**Risk normalization in full refinement.** Six formulas each at depths 6
+and 8, test seed 2, noise 0.1 and target 0.05, used the existing reader and
+100 depth-4 validation calibration formulas. Only `risk_shares` was disabled
+for the reference runs; all other native kernels and caches stayed enabled.
+Order: reference, native, native, reference.
+
+| depth | reference seconds | native seconds | answered | wrong answered |
+|---|---|---|---:|---:|
+| 6 | 0.14651, 0.08948 | 0.07599, 0.07419 | 5/6 | 0 |
+| 8 | 1.72790, 1.72772 | 1.66052, 1.63495 | 3/6 | 0 |
+
+Values and abstentions agreed across the comparison; total declared costs
+were unchanged (15,755,178 at depth 6, 182,814,304 at depth 8). Maximum
+bound differences were 6.94e-18 and 3.33e-16. The slow first depth-6
+reference run indicates warm-up effects. The depth-8 pairs support a modest
+local runtime improvement of roughly 4–5%, with only two repeats. The
+sample does not establish general coverage or reliability equivalence.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
