@@ -2262,3 +2262,90 @@ zero-loss end.
 3. **Hard style.** Glyphs whose top-rung risk alone exceeds `δ` end
    refinement at once. That accounts for most of the compute saved on hard
    expressions.
+
+### 22.6 Results
+
+`refine` takes a consumer's `floor(readings, risk, fixed)`, or, for the
+default additive account, sums the fixed items' charges
+(`additive_floor`). `FormulaEvaluator.floor` implements §22.3. For the
+certificate account it charges each fixed word the smaller of its full and
+arity risks, because under separately fitted temperatures either may be the
+smaller (§18.3). A generic stopping rule (`nca.ladder.stopping_rule`) bins
+refinement states by `log₁₀(bound / δ)`. It abstains in a bin where the
+fraction of fitted states that went on to answer is below `λ` times their
+mean remaining cost.
+
+**Formulas** (`nca.logic --floors`, setup of §19.9): compute per formula in
+kFLOPs, without and with floors.
+
+| depth | δ | certificate | Markov | pairs |
+|---:|---:|---:|---:|---:|
+| 4 | 0.2 | 370 → 181 | 322 → 180 | 124 → 124 |
+| 4 | 0.05 | 608 → 132 | 559 → 96 | 162 → 128 |
+| 4 | 0.01 | 2719 → 1697 | 1158 → 247 | 274 → 193 |
+| 6 | 0.2 | 6721 → 2619 | 4798 → 2377 | 2833 → 2450 |
+| 6 | 0.05 | 11864 → 2876 | 8514 → 837 | 4497 → 2595 |
+| 6 | 0.01 | 14892 → 1738 | 13302 → 616 | 6764 → 2201 |
+| 8 | 0.2 | 58883 → 4127 | 54236 → 3545 | 45391 → 15542 |
+| 8 | 0.05 | 59800 → 728 | 59614 → 731 | 55227 → 3026 |
+| 8 | 0.01 | 59800 → 550 | 59800 → 547 | 59426 → 1612 |
+
+Every row answered the same formulas with the same values, all 27 of them.
+On abstained formulas the compute falls, for example, from 59,862 to 20,239
+(pairs, depth 8, `δ = 0.2`) and from 59,805 to 1,602 (pairs, depth 8,
+`δ = 0.01`).
+
+**Arithmetic** (`nca.selective --floors`, additive floor, 300 expressions
+per length): MFLOPs per expression.
+
+| glyphs | δ = 0.2 | δ = 0.05 | δ = 0.01 |
+|---:|---:|---:|---:|
+| 3 | 11.6 → 10.7 | 18.2 → 13.8 | 29.6 → 19.4 |
+| 15 | 114 → 70 | 232 → 84 | 424 → 106 |
+| 63 | 1785 → 328 | 2720 → 356 | 3204 → 367 |
+
+Answers are again identical in every row. With `--hard` (same library and
+calibration, hard-style test expressions), compute falls from 93 to 45 MFLOPs
+(3 glyphs, `δ = 0.2`), from 767 to 117 (15 glyphs, `δ = 0.01`) and from
+3227 to 339 (63 glyphs, every `δ`), with identical answers.
+
+**Predictive abstention** (pairs, depth 8, rule fitted on 150 validation
+formulas): coverage and kFLOPs per formula, compared with floors alone.
+
+| δ | floors | λ = 10⁻¹⁰ | λ = 10⁻⁸ | λ = 3·10⁻⁸ | λ = 10⁻⁷ |
+|---:|---|---|---|---|---|
+| 0.2 | 0.247, 15542 | 0.163, 1246 | 0.163, 1246 | 0.097, 651 | 0.043, 384 |
+| 0.05 | 0.080, 3026 | 0.050, 1064 | 0.000, 413 | 0.000, 377 | 0.000, 374 |
+
+No answered formula was wrong at any `λ`.
+
+Against the predictions of §22.5:
+
+1. **Identical answers: confirmed.** All 27 formula rows and all 9
+   arithmetic rows, plus the 9 hard-style rows, answered exactly the same
+   inputs with the same values.
+2. **Savings where abstention dominates: confirmed, and larger than
+   predicted.** At depth 8 compute falls 14× (certificate, `δ = 0.2`) to
+   109× (certificate and Markov, `δ = 0.01`), and 37× for pairs at
+   `δ = 0.01`. The prediction that about 140 words must be fixed was too
+   pessimistic. The controller climbs the riskiest words first, whose
+   top-rung arity risks are well above the average `10⁻³`. So the pairs floor
+   passes `δ = 0.01` after about a dozen climbs (1.6M FLOPs on abstained
+   formulas, against 0.37M for the bottom pass). The floor is weakest for
+   pairs at loose targets: `min(S_F / 2, e₂)` is quadratic in `S_F`, so at
+   depth 4 and `δ = 0.2` it never reaches `δ` and saves nothing.
+3. **Hard style: confirmed for compute, but calibration fails.** At 15 and
+   63 glyphs, floors cut compute by 6.5× and 9.5× at strict targets. They
+   cannot repair what hard style breaks. This library's recognizers are not
+   the normalized ones of §15, and its ladders are calibrated on the
+   standard style, so the error
+   among answered expressions is far above `δ` (0.40 at 3 glyphs,
+   `δ = 0.2`), the shift failure of §17. Floors make that failure cheap, not
+   correct.
+
+**Predictive abstention.** The frontier is coarse. With 150 fitted formulas
+most bins contain no state that went on to answer, so any `λ > 0` stops in
+them. Its first step is still useful: at `δ = 0.2` it keeps two thirds of
+the coverage (0.163 of 0.247) for one twelfth of the floors' compute (1.2M
+against 15.5M FLOPs). Every answer stays within its bound, as §22.2
+guarantees.

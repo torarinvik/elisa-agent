@@ -166,6 +166,11 @@ class FormulaEvaluator:
     ``ρ_k (S − ρ_k) / 2`` of the pairs bound (premise: failures at different
     words are not positively correlated). Evaluated words are then charged
     only the risk of their decision restricted to their arity group.
+
+    Its ``floor`` (§22.3) bounds every account refinement can still reach
+    from the words whose readings are fixed: the smaller of their full and
+    arity risks (certificate account), their full risks (static account), or ``min(S / 2, e₂)`` over them
+    (detection accounts, ``NCA.detection_account_mono``).
     """
 
     def __init__(self, short_circuit: bool = True, detection: str = "none") -> None:
@@ -246,6 +251,21 @@ class FormulaEvaluator:
         if self.detection == "pairs" and sum(pairs) < sum(shares):
             shares = pairs
         return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
+
+    def floor(self, readings: Sequence[Sequence[float]], risk: Callable[[int, Decision], float],
+              fixed: frozenset[int]) -> float:
+        if self.detection == "none":
+            if not self.short_circuit:
+                return sum(risk(k, None) for k in fixed)
+            # A word is charged its full or its arity risk; under separately
+            # fitted temperatures either may be the smaller (§18.3).
+            return sum(min(risk(k, None), risk(k, ARITY_DECISION)) for k in fixed)
+        arity = [risk(k, ARITY_DECISION) for k in fixed]
+        total = sum(arity)
+        markov = total / 2
+        if self.detection == "markov":
+            return markov
+        return min(markov, (total * total - sum(r * r for r in arity)) / 2)
 
 
 def main() -> None:

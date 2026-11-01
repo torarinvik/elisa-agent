@@ -26,6 +26,16 @@ calibrated risks the error among answered inputs is at most ``δ``
 (``NCA.selective_risk_le``), and refining where the bound falls most per unit
 of compute is the ``NCA.threshold_optimal`` rule; with a floor ``ρ`` per item,
 ``n`` items need ``n · ρ ≤ δ`` (``NCA.length_limit``).
+
+``refine`` may also abstain early (§22). A *floor* is a lower bound on every
+bound refinement can still reach, computed from the readings of *fixed*
+items, those at the top of their ladder. Once it exceeds ``δ`` refinement
+would end in abstention anyway, so abstaining at once changes no answer. A
+consumer declares its floor next to its certificate; for the default
+account, a sum of charges where fixed items' charges never change, the sum
+over fixed items is a floor (``additive_floor``). A *stopping rule* may
+abstain earlier still, from the state of refinement; it trades coverage for
+compute and never affects the answers given.
 """
 
 from __future__ import annotations
@@ -181,9 +191,31 @@ sum to a bound on the answer's error probability. ``None`` if the readings
 determine no answer."""
 
 
+Floor = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float], frozenset[int]],
+                 float]
+"""``floor(readings, risk, fixed)``: a lower bound on every bound refinement
+can reach while the readings of the items in ``fixed`` stay as they are."""
+
+
+@dataclass(frozen=True)
+class State:
+    """Refinement after a step: the bound, the summed charges of items that
+    can still climb, and the cost spent so far."""
+
+    bound: float
+    open_charge: float
+    cost: float
+
+
+Stop = Callable[[State], bool]
+"""A stopping rule: abstain now, given the state of refinement."""
+
+
 def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: float,
            start: int = 0, classes: Sequence[Decision] | None = None,
-           certificate: Certificate | None = None) -> Refinement:
+           certificate: Certificate | None = None, floor: Floor | None = None,
+           additive_floor: bool = False, stop: Stop | None = None,
+           trace: list[State] | None = None) -> Refinement:
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
     Every item starts at rung ``min(start, top)``, reading each rung below it.
@@ -226,13 +258,55 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             charges, bound = account, sum(account.values())
         if bound <= delta:
             break
+        fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))
+        if floor is not None and floor(readings, item_risk, fixed) > delta:
+            break
+        if (floor is None and certificate is None and additive_floor
+                and sum(charges[i] for i in fixed) > delta):
+            break
         open_ = [i for i in charges if levels[i] + 1 < len(ladders[i])]
         if not open_:
+            break
+        state = State(bound, sum(charges[i] for i in open_), cost)
+        if trace is not None:
+            trace.append(state)
+        if stop is not None and stop(state):
             break
         i = max(open_, key=charges.__getitem__)
         levels[i] += 1
         climb(i)
     return Refinement(readings, cost, bound, bound > delta)
+
+
+def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: float,
+                  lam: float, width: float = 0.25) -> Stop:
+    """A predictive stopping rule (§22.4), fitted on refinement runs of held-out
+    inputs, each its trace, whether it answered, and its final cost.
+
+    States are binned by ``log10(bound / delta)`` (unbounded states share a
+    bin). The rule abstains in a bin where the fraction of states that went on
+    to answer is below ``lam`` times their mean remaining cost: refinement
+    there buys less than ``lam`` coverage per unit of compute. Unseen bins
+    continue.
+    """
+    def key(state: State) -> float:
+        if not math.isfinite(state.bound):
+            return math.inf
+        return round(math.log10(max(state.bound, 1e-12) / delta) / width)
+
+    stats: dict[float, list[float]] = {}
+    for trace, answered, cost in runs:
+        for state in trace:
+            entry = stats.setdefault(key(state), [0.0, 0.0, 0.0])
+            entry[0] += answered
+            entry[1] += 1
+            entry[2] += cost - state.cost
+
+    def stop(state: State) -> bool:
+        entry = stats.get(key(state))
+        return entry is not None and entry[0] < lam * entry[2]
+
+    return stop
 
 
 def recalibrated(rungs: Sequence[Rung], values: Sequence[Any], labels: torch.Tensor,

@@ -189,3 +189,27 @@ def test_detection_accounts() -> None:
     assert sum(markov.values()) == pytest.approx(evaluated + total / 2)
     e2 = sum(a * b for a, b in itertools.combinations(arity, 2))
     assert sum(pairs.values()) == pytest.approx(evaluated + e2)
+
+
+def test_floors_bound_every_account() -> None:
+    """``FormulaEvaluator.floor`` never exceeds the account it bounds (§22.3),
+    whatever the risks of the open words."""
+    rng = np.random.default_rng(4)
+    for _ in range(200):
+        words = random_formula(rng, int(rng.integers(1, 4)))
+        n = len(words)
+        full, arity = rng.random(n) * 0.2, rng.random(n) * 0.1
+        within = rng.random(n) * 0.1
+        fixed = frozenset(int(k) for k in np.flatnonzero(rng.random(n) < 0.5))
+
+        def risk(k: int, decision: Decision) -> float:
+            if decision is None:
+                return float(full[k])
+            return float(arity[k] if decision == ARITY_DECISION else within[k])
+
+        for short_circuit, detection in ((False, "none"), (True, "none"), (True, "markov"),
+                                         (True, "pairs")):
+            evaluator = FormulaEvaluator(short_circuit, detection)
+            account = evaluator.certificate(one_hot(words), risk)
+            assert account is not None
+            assert evaluator.floor(one_hot(words), risk, fixed) <= sum(account.values()) + 1e-12
