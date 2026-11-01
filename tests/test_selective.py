@@ -1566,10 +1566,14 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
         first = risk(0, None)
         assert risk(0, None) == first
         assert distribution(0, None) is distribution(0, None)
+        for decision in ((0,), (1,)):
+            assert risk(0, decision) == risk(0, decision)
+            assert distribution(0, decision) is distribution(0, decision)
+        assert risk(0, None) == first
         seen.append(first)
         return {0: first}
 
     result = refine([0], [[low, high]], 0.1, certificate=certificate)
     assert seen == pytest.approx([0.5, 0.01])
     assert not result.abstained and result.cost == 3.0
-    assert [(r.risk_calls, r.distribution_calls) for r in (low, high)] == [(1, 1), (1, 1)]
+    assert [(r.risk_calls, r.distribution_calls) for r in (low, high)] == [(3, 3), (3, 3)]

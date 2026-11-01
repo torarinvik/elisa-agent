@@ -646,8 +646,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     levels = [0] * len(values)
     logs: list[torch.Tensor | RankedObservation] = [torch.empty(0)] * len(values)
     readings: list[Reading] = [torch.empty(0)] * len(values)
-    risks: list[dict[DecisionKey, float] | None] = [None] * len(values)
-    distributions: list[dict[DecisionKey, torch.Tensor] | None] = [None] * len(values)
+    risks: list[tuple[DecisionKey, float] | dict[DecisionKey, float] | None] = [None] * len(values)
+    distributions: list[tuple[DecisionKey, torch.Tensor] | dict[DecisionKey, torch.Tensor] | None] = [None] * len(values)
     cost = 0.0
 
     def climb(i: int) -> None:
@@ -665,21 +665,35 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     def item_risk(i: int, decision: Decision) -> float:
         key = decision_key(decision)
         cache = risks[i]
+        if isinstance(cache, tuple) and cache[0] == key:
+            return cache[1]
+        if isinstance(cache, dict) and key in cache:
+            return cache[key]
+        result = ladders[i][levels[i]].risk(
+            logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
         if cache is None:
-            cache = risks[i] = {}
-        if key not in cache:
-            cache[key] = ladders[i][levels[i]].risk(
-                logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
-        return cache[key]
+            risks[i] = (key, result)
+        elif isinstance(cache, tuple):
+            risks[i] = {cache[0]: cache[1], key: result}
+        else:
+            cache[key] = result
+        return result
 
     def item_distribution(i: int, decision: Decision) -> torch.Tensor:
         key = decision_key(decision)
         cache = distributions[i]
+        if isinstance(cache, tuple) and cache[0] == key:
+            return cache[1]
+        if isinstance(cache, dict) and key in cache:
+            return cache[key]
+        result = ladders[i][levels[i]].distribution(logs[i], decision)
         if cache is None:
-            cache = distributions[i] = {}
-        if key not in cache:
-            cache[key] = ladders[i][levels[i]].distribution(logs[i], decision)
-        return cache[key]
+            distributions[i] = (key, result)
+        elif isinstance(cache, tuple):
+            distributions[i] = {cache[0]: cache[1], key: result}
+        else:
+            cache[key] = result
+        return result
 
     current_distribution = Distribution(item_distribution, levels.__getitem__)
 
