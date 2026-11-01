@@ -544,6 +544,21 @@ def test_native_tail_search_matches_linear_reference(monkeypatch: pytest.MonkeyP
         assert actual == expected
 
 
+@pytest.mark.parametrize(("total", "slack", "length", "expected"), [
+    (0.01, 0.1, 5, 1),
+    (1.0, 0.01, 5, 5),
+    (1.0, 0.001, 5, 6),
+    (10.0, 0.1, 0, 1),
+])
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_tail_search_stops_at_first_or_last_possible_change(
+        total: float, slack: float, length: int, expected: int,
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    assert decoding._initial_band_changes(math.log(total), slack, length) == expected
+
+
 def test_native_log_decoder_signals_finite_log_weight_overflow() -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
     if native is None:

@@ -68,4 +68,39 @@ theorem bandPolynomial_threshold_suffix (factor mass threshold : ℝ)
   · exact hk
   · exact hbelow
 
+/-- A binary-search step preserves the failed lower and qualifying upper
+bounds for any predicate whose qualifying indices form a suffix. -/
+theorem threshold_search_step (p : ℕ → Prop) [DecidablePred p]
+    (suffix : ∀ a b, a ≤ b → p a → p b)
+    (low high : ℕ) (hgap : low + 1 < high)
+    (hlow : ¬p low) (hhigh : p high) :
+    let mid := low + (high - low) / 2
+    (low < mid ∧ mid < high) ∧
+    (if p mid then ¬p low ∧ p mid else ¬p mid ∧ p high) ∧
+    (∀ n ≤ low, ¬p n) ∧ (∀ n ≥ high, p n) := by
+  have hmid : low < low + (high - low) / 2 ∧
+      low + (high - low) / 2 < high := by omega
+  refine ⟨hmid, ?_, ?_, ?_⟩
+  · split <;> simp_all
+  · intro n hn hp
+    exact hlow (suffix n low hn hp)
+  · intro n hn
+    exact suffix high n hn hhigh
+
+/-- Either branch retains at most half of the old interval, rounded up. -/
+theorem threshold_search_shrinks (low high : ℕ) (h : low ≤ high) :
+    let mid := low + (high - low) / 2
+    mid - low ≤ (high - low + 1) / 2 ∧
+      high - mid ≤ (high - low + 1) / 2 := by
+  omega
+
+/-- Adjacent failed and qualifying bounds identify the first qualifying index. -/
+theorem threshold_search_adjacent (p : ℕ → Prop) (low high : ℕ)
+    (suffix : ∀ a b, a ≤ b → p a → p b)
+    (hgap : high = low + 1) (hlow : ¬p low) (hhigh : p high) :
+    p high ∧ ∀ n, n < high → ¬p n := by
+  refine ⟨hhigh, ?_⟩
+  intro n hn hp
+  exact hlow (suffix n low (by omega) hp)
+
 end NCA
