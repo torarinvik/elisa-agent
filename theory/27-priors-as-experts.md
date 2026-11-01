@@ -31,6 +31,15 @@ real-number identity; it does not itself bound floating-point error. The
 implementation sums selected and alternative paths separately in log space
 for prior-backed risk, then computes their normalized ratio.
 
+**Theorem 27.17 (combining path partitions).** Suppose two independent
+segments have selected masses `p`, `q` and alternative masses `a`, `b`.
+Their concatenation has selected mass `pq` and alternative mass
+`a(q + b) + pb`. The first term covers all alternatives in the left segment;
+the second covers a selected left segment and an alternative right segment.
+This composition is associative, with identity `(1, 0)`. Automaton segments
+must also retain their boundary states; the scalar identity alone does not
+prove a stateful incremental implementation or a floating-point error bound.
+
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format
 state `s` with a prior state `t`. Reading `a` moves to `(δ s a, ε t a)` with

@@ -216,6 +216,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
 | [27.15](theory/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |
 | [27.16](theory/27-priors-as-experts.md) | `risk_from_other_mass` | `Product` |
+| [27.17](theory/27-priors-as-experts.md) | `partitionCompose_assoc`, `partitionCompose_identity`, `partitionCompose_nonneg` | `Product` |
 
 ## Native kernels
 

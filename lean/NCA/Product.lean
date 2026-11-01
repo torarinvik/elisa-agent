@@ -254,6 +254,27 @@ theorem risk_from_other_mass (chosen other : ℝ) (h : chosen + other ≠ 0) :
   field_simp
   ring
 
+/-- Combine selected and alternative mass from independent segments. -/
+def partitionCompose (left right : ℝ × ℝ) : ℝ × ℝ :=
+  (left.1 * right.1, left.2 * (right.1 + right.2) + left.1 * right.2)
+
+/-- The composition is independent of how segments are parenthesized. -/
+theorem partitionCompose_assoc (a b c : ℝ × ℝ) :
+    partitionCompose (partitionCompose a b) c = partitionCompose a (partitionCompose b c) := by
+  apply Prod.ext <;> dsimp [partitionCompose] <;> ring
+
+/-- An empty segment contributes the multiplicative identity. -/
+theorem partitionCompose_identity (a : ℝ × ℝ) :
+    partitionCompose (1, 0) a = a ∧ partitionCompose a (1, 0) = a := by
+  constructor <;> apply Prod.ext <;> simp [partitionCompose]
+
+/-- Nonnegative segment masses remain nonnegative under composition. -/
+theorem partitionCompose_nonneg (a b : ℝ × ℝ)
+    (ha : 0 ≤ a.1 ∧ 0 ≤ a.2) (hb : 0 ≤ b.1 ∧ 0 ≤ b.2) :
+    0 ≤ (partitionCompose a b).1 ∧ 0 ≤ (partitionCompose a b).2 := by
+  exact ⟨mul_nonneg ha.1 hb.1,
+    add_nonneg (mul_nonneg ha.2 (add_nonneg hb.1 hb.2)) (mul_nonneg ha.1 hb.2)⟩
+
 /-- A one-symbol factor product is the factor raised to its occurrence count. -/
 theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
     (symbols.map (fun a => if a = key then factor else 1)).prod =
