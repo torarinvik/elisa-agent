@@ -241,6 +241,8 @@ class CorrectionState:
     """Per-solve cursor and priorities; never shared between formulas."""
 
     length: int | None = None
+    evaluator: FormulaEvaluator | None = None
+    decoder_config: tuple[bool, float | None, bool] | None = None
     answer_band: CertifiedSplit | None = None
     answer_band_result: Banded | None = None
     answer_cursor: Split | None = None
@@ -262,8 +264,10 @@ class CorrectionState:
     risk_value: float | None = None
     partition_cursor: PartitionCursor | None = None
 
-    def ensure_length(self, length: int) -> None:
-        if self.length is not None and self.length != length:
+    def ensure_length(self, length: int, evaluator: FormulaEvaluator) -> None:
+        config = evaluator.decode, evaluator.band_slack, evaluator.prior is not None
+        if self.length is not None and (self.length != length or self.evaluator is not evaluator
+                                        or self.decoder_config != config):
             self.answer_band = None
             self.answer_band_result = None
             self.answer_cursor = None
@@ -285,6 +289,8 @@ class CorrectionState:
             self.risk_value = None
             self.partition_cursor = None
         self.length = length
+        self.evaluator = evaluator
+        self.decoder_config = config
 
     def cached_risk(self, prior: ArityPrior | None, arities: Sequence[int],
                     calculate: Callable[[], float | None]) -> float | None:
@@ -370,7 +376,7 @@ class FormulaEvaluator:
         """The words read: each word's most probable class, or, when decoding,
         the most probable class within its decoded arity group."""
         if state is not None:
-            state.ensure_length(len(readings))
+            state.ensure_length(len(readings), self)
         if not self.decode:
             return [VOCABULARY[int(np.argmax(r))] for r in readings]
         if state is None or self.prior is not None:
@@ -530,7 +536,7 @@ class FormulaEvaluator:
         if self.band_slack is not None and state is None:
             state = CorrectionState()
         if state is not None:
-            state.ensure_length(n)
+            state.ensure_length(n, self)
         revision = getattr(distribution, "revision", None)
         source = getattr(distribution, "source", distribution)
         versions = tuple(revision(k) for k in range(n)) if revision is not None else None

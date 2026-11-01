@@ -380,6 +380,24 @@ def test_answer_cursor_reuses_trace_only_for_unchanged_readings(monkeypatch: pyt
     assert calls == 2
 
 
+def test_correction_state_resets_when_evaluator_or_decoder_mode_changes() -> None:
+    from nca.modules.words import CorrectionState
+
+    rng = np.random.default_rng(572)
+    exact = FormulaEvaluator(decode=True)
+    banded = FormulaEvaluator(decode=True, band_slack=1e-4)
+    with_prior = FormulaEvaluator(decode=True, prior=priors.format_prior)
+    state = CorrectionState()
+    for evaluator in (exact, banded, exact, with_prior, exact):
+        readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=15)
+        assert evaluator.words(readings, state) == evaluator.words(readings)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=15)
+    exact.band_slack = 1e-4
+    assert exact.words(readings, state) == exact.words(readings)
+    exact.band_slack = None
+    assert exact.words(readings, state) == exact.words(readings)
+
+
 def test_native_certificate_matches_reference_including_ties() -> None:
     from nca.modules import words as word_module
 
