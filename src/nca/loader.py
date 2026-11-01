@@ -27,6 +27,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from numbers import Integral
 from typing import Any, Callable
 
 from nca.abi import Manifest
@@ -50,6 +51,18 @@ class ExpertStore:
         self._owners: dict[str, LazyExpert] = {}
         self.pinned: frozenset[str] = frozenset()
         self.stats = StoreStats()
+
+    @property
+    def budget(self) -> int | None:
+        return self._budget
+
+    @budget.setter
+    def budget(self, value: int | None) -> None:
+        if value is not None and (isinstance(value, bool) or not isinstance(value, Integral) or value < 0):
+            raise ValueError("store budget must be a nonnegative integer or None")
+        if value is not None and hasattr(self, "resident") and self.resident_bytes > value:
+            raise ValueError("store budget cannot be less than resident bytes")
+        self._budget = None if value is None else int(value)
 
     @property
     def resident_bytes(self) -> int:
@@ -112,10 +125,16 @@ class LazyExpert:
 
     def __init__(self, manifest: Manifest, load: Callable[[], Any], size: int,
                  store: ExpertStore) -> None:
+        if isinstance(size, bool) or not isinstance(size, Integral) or size < 0:
+            raise ValueError("expert size must be a nonnegative integer")
         self.manifest = manifest
         self.load = load
-        self.size = size
+        self._size = int(size)
         self.store = store
+
+    @property
+    def size(self) -> int:
+        return self._size
 
     def invoke(self, *inputs: Any) -> Any:
         return self.store.acquire(self).invoke(*inputs)

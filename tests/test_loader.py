@@ -182,3 +182,30 @@ def test_unfit_route_does_not_evict_or_replace_existing_pins() -> None:
         store.prepare(Apply(huge, (Given("x"),)))
     assert (list(store.resident), store.pinned, store.stats.evictions) == before
     assert resident.invoke("ok") == "ok"
+
+
+@pytest.mark.parametrize("invalid", [-1, 0.5, float("nan"), float("inf"), True])
+def test_store_rejects_invalid_memory_accounting(invalid: Any) -> None:
+    with pytest.raises(ValueError, match="store budget"):
+        ExpertStore(invalid)
+    store = ExpertStore(1)
+    with pytest.raises(ValueError, match="store budget"):
+        store.budget = invalid
+    assert store.budget == 1
+    manifest = Manifest("sample", "1", Contract((), "output"))
+    with pytest.raises(ValueError, match="expert size"):
+        LazyExpert(manifest, lambda: None, invalid, store)
+    expert = LazyExpert(manifest, lambda: Fn(manifest, lambda: None), 0, store)
+    with pytest.raises(AttributeError):
+        expert.size = 2
+
+
+def test_budget_cannot_drop_below_resident_bytes() -> None:
+    store = ExpertStore(2)
+    manifest = Manifest("sample", "1", Contract((), "output"))
+    LazyExpert(manifest, lambda: Fn(manifest, lambda: None), 2, store).invoke()
+    with pytest.raises(ValueError, match="less than resident"):
+        store.budget = 1
+    assert store.budget == 2 and store.resident_bytes == 2
+    store.budget = None
+    assert store.budget is None
