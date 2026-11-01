@@ -195,6 +195,8 @@ class ExpressionParser:
             if reading is None:
                 result.append(max(choices, key=dist.__getitem__))
             else:
+                if not choices or len(reading.weights) < len(choices):
+                    raise ValueError("classes must contain valid class indices")
                 groups[kind].append((len(result), reading.weights[:len(choices)]))
                 result.append("")
         for kind, group in enumerate(groups):

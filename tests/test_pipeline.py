@@ -291,3 +291,19 @@ def test_batched_ranked_symbol_choices_match_fallback(monkeypatch) -> None:
     batched = parser.invoke(entries)
     monkeypatch.setattr(symbols, "_NATIVE", None)
     assert batched == parser.invoke(entries)
+
+
+def test_batched_ranked_symbol_choices_reject_short_weight_vectors(monkeypatch) -> None:
+    import nca.modules.symbols as symbols
+    from nca.ladder import RankedReading
+
+    if getattr(symbols._NATIVE, "row_argmax", None) is None:
+        pytest.skip("Elisa argmax kernel is not built")
+    reading = RankedReading((0.2,) * 5, (0.2,) * 5)
+    malformed = SymbolFuser().invoke(reading, None)
+    values = [malformed, None, malformed]
+    with pytest.raises(ValueError, match="valid class indices"):
+        ExpressionParser().invoke(values)
+    monkeypatch.setattr(symbols, "_NATIVE", None)
+    with pytest.raises(ValueError, match="valid class indices"):
+        ExpressionParser().invoke(values)
