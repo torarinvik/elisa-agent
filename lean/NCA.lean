@@ -28,3 +28,4 @@ import NCA.Banding
 import NCA.Misspecification
 import NCA.Stopping
 import NCA.Composition
+import NCA.Product
