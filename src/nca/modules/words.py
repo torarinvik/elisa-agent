@@ -62,6 +62,15 @@ ARITY_PRIOR = "logic.arity.prior.v1"
 """Weighted arity automaton, including the formula syntax restriction."""
 
 
+def _most_likely_words(readings: Sequence[Sequence[float]]) -> list[str]:
+    native = getattr(_NATIVE, "row_argmax", None)
+    if native is not None and len(readings):
+        scores = np.asarray(readings, dtype=np.float64)
+        if scores.ndim == 2 and scores.shape[1] == len(VOCABULARY):
+            return [VOCABULARY[i] for i in native(scores.reshape(-1), scores.shape[1])]
+    return [VOCABULARY[int(np.argmax(r))] for r in readings]
+
+
 class CompleteTreePrior:
     """Independent length-to-prior expert for complete binary skeletons (§27).
 
@@ -466,7 +475,7 @@ class FormulaEvaluator:
         if state is not None:
             state.ensure_length(len(readings), self)
         if not self.decode:
-            return [VOCABULARY[int(np.argmax(r))] for r in readings]
+            return _most_likely_words(readings)
         if state is None or self.prior is not None:
             masses = _arity_masses(readings)
             with np.errstate(divide="ignore"):
@@ -478,13 +487,13 @@ class FormulaEvaluator:
                 else:
                     arities = None if prior is None else prior.best(np.log(masses))
             if arities is None:
-                return [VOCABULARY[int(np.argmax(r))] for r in readings]
+                return _most_likely_words(readings)
             if state is not None:
                 state.answer_readings = np.asarray(readings, dtype=np.float64).copy()
         elif self.band_slack is not None:
             selected = self._banded_words(readings, state)
             if selected is None:
-                return [VOCABULARY[int(np.argmax(r))] for r in readings]
+                return _most_likely_words(readings)
             arities = selected
         else:
             current = np.asarray(readings, dtype=np.float64)
@@ -507,7 +516,7 @@ class FormulaEvaluator:
                 log_z, _ = (scored if scored is not None else
                             state.answer_cursor.scores(anchor, state.answer_cursor.log_probs[anchor]))
                 if not math.isfinite(log_z):
-                    return [VOCABULARY[int(np.argmax(r))] for r in readings]
+                    return _most_likely_words(readings)
                 _, state.answer_arities = state.answer_cursor.best(anchor)
             arities = state.answer_arities
         native = getattr(_NATIVE, "grouped_argmax", None)

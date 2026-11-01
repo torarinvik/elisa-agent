@@ -672,6 +672,18 @@ def grouped_masses(scores: view[f64], groups: view[i64], entries: i64) -> darray
                 result[cell] <- total
     return [result[i] + correction[i] for i in 0..<(m * entries)]
 
+# First maximum in each row, matching NumPy's first-NaN behavior as well.
+def row_argmax(scores: view[f64], width: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    return [] if width <= 0 or scores.len.i64() % width != 0
+    return
+        for k in 0..<(scores.len.i64() / width) |result: darray[i64] = [0 for _ in 0..<(scores.len.i64() / width)]| -> result:
+            top: i64 =
+                for c in 1..<width |top: i64 = 0| -> top:
+                    old: f64 = scores[k * width + top]
+                    value: f64 = scores[k * width + c]
+                    top <- c if old == old and (value != value or value > old) else top
+            result[k] <- top
+
 # Argmax within each row's declared group. Strict comparison keeps the first
 # class on ties. Group ids are supplied by the caller, not tied to a vocabulary.
 def grouped_argmax(scores: view[f64], groups: view[i64], decisions: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
@@ -782,6 +794,7 @@ export pymodule decoding:
     fn certificate
     fn parse_tree
     fn certificate_words
+    fn row_argmax
     fn grouped_argmax
     fn grouped_masses
     fn risk_shares

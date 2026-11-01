@@ -24,6 +24,27 @@ def one_hot(words: list[str]) -> list[tuple[float, ...]]:
     return [tuple(float(w == v) for v in VOCABULARY) for w in words]
 
 
+def test_batched_word_argmax_matches_reference(monkeypatch) -> None:
+    import nca.modules.words as words
+
+    native = getattr(words._NATIVE, "row_argmax", None)
+    if native is None:
+        pytest.skip("Elisa decoding kernel is not built")
+    rng = np.random.default_rng(412)
+    rows = rng.normal(size=(30, len(VOCABULARY)))
+    rows[0] = 0.0  # Ties choose the first class.
+    rows[1, 3] = np.nan
+    rows[1, 4] = np.nan  # NumPy chooses the first NaN.
+    rows[2] = -np.inf
+    expected = [VOCABULARY[int(np.argmax(row))] for row in rows]
+    assert words._most_likely_words(rows) == expected
+    assert words._most_likely_words([]) == []
+    assert list(native(np.array([], dtype=np.float64), 0)) == []
+    assert list(native(np.array([1.0], dtype=np.float64), 2)) == []
+    monkeypatch.setattr(words, "_NATIVE", None)
+    assert words._most_likely_words(rows) == expected
+
+
 def test_premise_diagnostic_handles_zero_expected_pairs(monkeypatch, capsys) -> None:
     from types import SimpleNamespace
     import nca.logic as logic
