@@ -27,6 +27,9 @@ most 1) and off-reference mass `ρₖ = Σ_{a ≠ rₖ} qₖ(a)`; let `S = Σₖ
 So the weight outside `j − 1` changes is at most `U_j = S^j / j!`. For
 `j = 2` this is `e₂` of §19.4. Here it is a statement about the decoding
 model's weights, so it needs no premise beyond (P).
+For `m` positions, the tail is exactly zero when `j > m`: two length-`m`
+sequences cannot differ at more than `m` positions. The search therefore
+need not continue past `m + 1`, even if the polynomial bound remains large.
 
 Numerically, off-reference mass is summed directly in log space, rather than
 subtracting the reference mass from a rounded row total. The tail comparison

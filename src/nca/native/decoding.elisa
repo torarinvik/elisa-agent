@@ -14,6 +14,7 @@
 extern exp(x: f64) -> f64
 extern log(x: f64) -> f64
 extern log1p(x: f64) -> f64
+extern lgamma(x: f64) -> f64
 extern nextafter(x: f64, y: f64) -> f64
 
 # Validate nonnegative finite weights and produce their floored logarithms.
@@ -239,6 +240,15 @@ def off_reference_log_mass(log_probs: view[f64], reference: view[i64]) -> f64 ca
             for j in 0..<width |total|:
                 continue if j == reference[k]
                 total <- log_add(total, log_probs[k * width + j])
+
+# Search only through the number of positions; beyond it the tail is empty.
+def initial_band_changes(log_off: f64, log_slack: f64, length: i64) -> i64:
+    return 1 if log_off == log(0.0)
+    for j in 1..<(length + 1):
+        estimate: f64 = j.f64() * log_off - lgamma((j + 1).f64())
+        return -1 if estimate == log(0.0) or estimate == -log(0.0) or estimate != estimate
+        return j if estimate <= log_slack
+    return length + 1
 
 # Separate the selected format path from all different accepted paths.
 def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -1112,6 +1122,7 @@ export pymodule decoding:
     fn decode
     fn decode_log
     fn off_reference_log_mass
+    fn initial_band_changes
     fn format_partition
     fn banded_format
     fn decode_prior

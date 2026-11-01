@@ -1,4 +1,5 @@
 import itertools
+import math
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -399,6 +400,50 @@ def test_finite_band_tail_overflow_is_not_treated_as_absent_mass() -> None:
     with pytest.raises(ValueError, match="band tail arithmetic is not finite"):
         decoding._band_log_tail(-1e308, 2)
     assert decoding._band_log_tail(-np.inf, 2) == -np.inf
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_band_tail_is_zero_beyond_number_of_words(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.full((3, 3), 1 / 3))
+    changes, tail = decoding.band_changes(rows, np.zeros(3, dtype=np.int64), 1e-4)
+    assert changes == 4 and tail == 0.0
+    exact = decode_reference(rows)
+    banded = decode_banded(rows)
+    cursor = decoding.CertifiedSplit(rows).result()
+    assert exact is not None and banded is not None and cursor is not None
+    assert banded.exact and cursor.exact
+    assert banded.risk == pytest.approx(exact.risk(rows, (0, 1, 2)), abs=1e-12)
+    assert cursor.risk == pytest.approx(exact.risk(rows, (0, 1, 2)), abs=1e-12)
+
+
+def test_band_tail_for_empty_input_is_zero() -> None:
+    assert decoding.band_changes(np.empty((0, 3)), [], 1e-4) == (1, 0.0)
+
+
+def test_native_tail_search_matches_reference_at_rounding_boundaries(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "initial_band_changes", None) is None:
+        pytest.skip("native band tail search is not built")
+    for length in (2, 3, 10, 50):
+        for total in (0.1, 0.5, 1.0, 3.0, 10.0):
+            log_off = math.log(total)
+            for changes in range(1, min(length, 30) + 1):
+                log_tail = decoding._band_log_tail(log_off, changes)
+                if not -740 < log_tail < 0:
+                    continue
+                threshold = math.exp(log_tail)
+                for slack in (math.nextafter(threshold, 0.0), threshold,
+                              math.nextafter(threshold, 1.0)):
+                    if not 0 < slack < 1:
+                        continue
+                    actual = decoding._initial_band_changes(log_off, slack, length)
+                    with monkeypatch.context() as patch:
+                        patch.setattr(decoding, "_NATIVE", None)
+                        expected = decoding._initial_band_changes(log_off, slack, length)
+                    assert actual == expected
 
 
 def test_native_log_decoder_signals_finite_log_weight_overflow() -> None:

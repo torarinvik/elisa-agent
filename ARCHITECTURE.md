@@ -217,7 +217,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [22.4](theory/22-abstaining-early.md) | `positive_target_preserves_order` | `Stopping` |
 | [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
 | [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
-| [23.3](theory/23-efficient-decoding.md) | `outside_le_tail` | `Banding` |
+| [23.3](theory/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length` | `Banding` |
 | [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval` | `Banding` |
 | [23.5](theory/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |
 | [23.6](theory/23-efficient-decoding.md) | `banded_risk_slack` | `Banding` |
@@ -965,6 +965,9 @@ Its band width uses the configured maximum arity, and its full-coverage
 threshold is precomputed from the fixed reference counters.
 It and `decode_banded` sum off-reference log masses using Elisa's
 `off_reference_log_mass`, with a NumPy fallback, and compare tails in log space.
+The initial tail search uses Elisa's `initial_band_changes` when available,
+stops at one more than the word count, and reconciles the crossing with the
+Python calculation to handle `lgamma` rounding differences.
 If a computed sequence risk rounds to zero, the generic Elisa
 `format_partition` separately accumulates selected and alternative paths;
 the fallback uses the same recurrence in NumPy. Both reject non-finite

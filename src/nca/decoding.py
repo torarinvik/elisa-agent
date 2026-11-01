@@ -195,17 +195,32 @@ def _band_log_tail(log_off: float, changes: int) -> float:
     return tail
 
 
-def _initial_band_changes(log_off: float, slack: float) -> int:
+def _initial_band_changes(log_off: float, slack: float, length: int) -> int:
+    log_slack = math.log(slack)
+    native = getattr(_NATIVE, "initial_band_changes", None)
+    if native is not None:
+        j = int(native(log_off, log_slack, length))
+        if j < 0:
+            raise ValueError("band tail arithmetic is not finite")
+        # libm lgamma and Python's implementation can round boundary cases
+        # differently. Preserve the reference decision at the crossing.
+        while j > 1 and _band_log_tail(log_off, j - 1) <= log_slack:
+            j -= 1
+        while j <= length and _band_log_tail(log_off, j) > log_slack:
+            j += 1
+        return j
     j = 1
-    while _band_log_tail(log_off, j) > math.log(slack):
+    while j <= length and _band_log_tail(log_off, j) > log_slack:
         j += 1
     return j
 
 
 
 def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) -> tuple[int, float]:
-    """The least ``j`` with ``S^j / j! ≤ slack``, where ``S`` is the summed
-    off-reference arity mass, and the tail bound ``U_j = S^j / j!``.
+    """The least ``j`` with ``S^j / j! ≤ slack``, capped at one more than
+    the number of rows, and a bound on the mass with at least ``j`` changes.
+    ``S`` is the summed off-reference arity mass. Beyond the row count the
+    tail is exactly zero.
     A positive tail below the floating-point range is returned as the smallest
     positive float; this calculation is not an outward-rounding guarantee."""
     if not 0 < slack < 1:
@@ -217,8 +232,8 @@ def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) 
             or any(j < 0 or j >= log_probs.shape[1] for j in reference)):
         raise ValueError("reference must index each valid log-probability row")
     log_off = _off_reference_log_mass(log_probs, reference)
-    j = _initial_band_changes(log_off, slack)
-    log_tail = _band_log_tail(log_off, j)
+    j = _initial_band_changes(log_off, slack, len(reference))
+    log_tail = -math.inf if j > len(reference) else _band_log_tail(log_off, j)
     tail = math.exp(log_tail)
     return j, math.nextafter(0.0, 1.0) if tail == 0.0 and math.isfinite(log_tail) else tail
 
@@ -242,14 +257,14 @@ def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
         return None
     reference = np.argmax(log_probs, axis=1)
     log_off = _off_reference_log_mass(log_probs, reference)
-    changes = _initial_band_changes(log_off, slack)
+    changes = _initial_band_changes(log_off, slack, m)
     centre = list(accumulate((int(alphabet[j]) - 1 for j in reference), initial=1))
     arity_bound = int(max(alphabet))
     while True:
         half = arity_bound * (changes - 1)
         full = all(c - half <= 0 and c + half >= m - k for k, c in enumerate(centre))
         passes = _banded_passes(log_probs, alphabet, centre, half)
-        log_tail = -math.inf if full else _band_log_tail(log_off, changes)
+        log_tail = -math.inf if full or changes > m else _band_log_tail(log_off, changes)
         if passes is not None and log_tail <= math.log(slack) + passes[0]:
             break
         if log_tail == -math.inf:
@@ -579,7 +594,7 @@ class CertifiedSplit:
         log_off = _off_reference_log_mass(self.log_probs, self.reference)
         while True:
             half = self.arity_bound * (self.changes - 1)
-            log_tail = (-math.inf if half >= self.cover_half
+            log_tail = (-math.inf if half >= self.cover_half or self.changes > len(self.log_probs)
                         else _band_log_tail(log_off, self.changes))
             log_z, log_x = (scores if scores is not None else
                             self.split.scores(k, self.log_probs[k]))

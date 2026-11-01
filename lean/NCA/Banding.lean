@@ -96,6 +96,15 @@ def diff : List α → List α → ℕ
   | a :: l, r :: rs => (if a = r then 0 else 1) + diff l rs
   | _, _ => 0
 
+/-- Two sequences cannot differ in more positions than the reference has. -/
+theorem diff_le_reference_length : ∀ (l r : List α), diff l r ≤ r.length
+  | [], _ => by simp [diff]
+  | _ :: _, [] => by simp [diff]
+  | a :: l, b :: r => by
+    have ih := diff_le_reference_length l r
+    simp only [diff, List.length_cons]
+    split <;> omega
+
 /-- Mass of the reference symbol `r` under `w`, over the alphabet. -/
 def onMass (w : α → ℝ) (r : α) : ℝ := ((as.filter (· = r)).map w).sum
 
@@ -107,6 +116,17 @@ def offMass (w : α → ℝ) (r : α) : ℝ := ((as.filter (· ≠ r)).map w).su
 def tail (ps : List ((α → ℝ) × α)) (j : ℕ) : ℝ :=
   ((words as ps.length).map fun l =>
     if j ≤ diff l (ps.map Prod.snd) then weightOf (ps.map Prod.fst) l else 0).sum
+
+/-- The tail beyond the number of positions is empty. -/
+theorem tail_above_length (ps : List ((α → ℝ) × α)) (j : ℕ) (h : ps.length < j) :
+    tail as ps j = 0 := by
+  unfold tail
+  have hz : ∀ l : List α, ¬j ≤ diff l (ps.map Prod.snd) := by
+    intro l
+    have bound := diff_le_reference_length l (ps.map Prod.snd)
+    simp only [List.length_map] at bound
+    omega
+  simp [hz]
 
 omit [DecidableEq α] in
 theorem sum_split (p : α → Prop) [DecidablePred p] (f : α → ℝ) : ∀ l : List α,
