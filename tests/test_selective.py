@@ -1577,3 +1577,16 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
     assert seen == pytest.approx([0.5, 0.01])
     assert not result.abstained and result.cost == 3.0
     assert [(r.risk_calls, r.distribution_calls) for r in (low, high)] == [(3, 3), (3, 3)]
+
+
+def test_decision_tuple_with_mutable_groups_is_not_stale() -> None:
+    from nca.ladder import decision_key
+
+    group = [0]
+    decision = (group, [1])
+    assert decision_key(decision) == ((0,), (1,))
+    group.append(2)
+    assert decision_key(decision) == ((0, 2), (1,))
+    group.append(True)
+    with pytest.raises(ValueError, match="nonempty partition"):
+        decision_key(decision)

@@ -68,14 +68,26 @@ most probable of the classes listed."""
 DecisionKey = tuple[int | tuple[int, ...], ...] | None
 
 
+@lru_cache(maxsize=128)
+def _immutable_decision_key(identity: int, decision: tuple) -> DecisionKey:
+    """Cache only tuples composed exclusively of immutable built-in integers."""
+    if all(type(entry) is int or
+           (type(entry) is tuple and all(type(c) is int for c in entry))
+           for entry in decision):
+        return decision
+    return None
+
+
 def decision_key(decision: Decision) -> DecisionKey:
     if decision is None:
         return None
-    if (type(decision) is tuple and
-            all(type(entry) is int or
-                (type(entry) is tuple and all(type(c) is int for c in entry))
-                for entry in decision)):
-        return decision
+    if type(decision) is tuple:
+        try:
+            key = _immutable_decision_key(id(decision), decision)
+            if key is not None:
+                return key
+        except TypeError:
+            pass  # A tuple may contain mutable, unhashable groups.
 
     def index(value: object) -> int:
         if isinstance(value, bool) or not isinstance(value, Integral):
@@ -87,6 +99,7 @@ def decision_key(decision: Decision) -> DecisionKey:
                      for e in decision)
     except TypeError as exc:
         raise ValueError("decision groups must form a nonempty partition of nonnegative class indices") from exc
+
 
 
 @lru_cache(maxsize=128)

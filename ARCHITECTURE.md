@@ -816,8 +816,10 @@ float32 arithmetic by rounding, requiring outcome checks on full runs.
 The native calibration group-id and class-index arrays are cached by the
 immutable decision key and marked read-only. Each metadata cache retains at most
 128 recently used decisions; this bounds entries rather than bytes. Evicted
-metadata is recomputed; group IDs are expanded by Elisa when available. The
-metadata contains only decision structure; calibration
+metadata is recomputed; group IDs are expanded by Elisa when available.
+Normalization of immutable built-in decision tuples is cached by identity;
+mutable groups are copied and validated on every use. The metadata contains
+only decision structure; calibration
 temperatures and observation values remain current. The revision-cache
 invariants (23.12, 23.15) apply to this deterministic metadata. Within a
 refinement run, risk and distribution caches retain only each item’s current
