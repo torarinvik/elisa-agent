@@ -1635,9 +1635,28 @@ That is an upper bound on `â`'s exact posterior risk, so every guarantee of
 `U_j`. So if `x ≥ U_j`, the banded `â` is a most probable parseable sequence
 overall, the same answer exact decoding gives.
 
-**Choosing `j`.** The bound tightens factorially. Given a slack `η`, take the
-least `j` with `S^j / j! ≤ η`. This is decided per formula from `S`, which
-is known before decoding. With `η = 10⁻⁴`:
+**Relative slack.** The charged risk exceeds the exact one by at most a
+fraction of the band's own weight.
+
+**Theorem 23.6.** If `x ≤ Z`, `0 < Z` and `Z_band ≤ Z ≤ Z_band + U`, then `(1 − x / (Z_band + U)) − (1 − x / Z) ≤ U / (Z_band + U)`.
+
+*Proof.* The difference is `x (Z_band + U − Z) / (Z (Z_band + U))`. The
+numerator's second factor is at most `U`, and `x / Z ≤ 1`.
+
+So a slack target must be relative: `U_j ≤ η · Z_band` gives a charged risk
+within `η` of the exact risk. An absolute target `U_j ≤ η` is not enough, since
+`Z`, the weight of all parseable sequences, can be far below 1 when many
+readings do not parse.
+
+**Choosing `j`.** `Z_band` is known only after the banded passes, so `j` is
+found by widening. Start from the least `j` with `S^j / j! ≤ η` (the band is
+then at least as wide as needed when `Z = 1`), run the passes, and increase
+`j` while `U_j > η · Z_band`. This terminates whenever `Z > 0`: widening never
+lowers `Z_band`, and once `2(j − 1) > m` the band covers every live state (the reference
+counter at position `k` lies in `[1 − k, 1 + k]`, live states in `[0, m − k]`).
+Then no sequence lies outside it, the tail term can be taken as 0, and the
+banded result is exact. Each widening costs one more banded pass.
+The starting `j` for `η = 10⁻⁴`:
 
 | `S` | `j` | band width `W` |
 |---:|---:|---:|
@@ -1651,7 +1670,7 @@ word count) and the order of magnitude of bottom-rung readings at depth 8.
 
 ### 23.4 Splitting at the climbed word
 
-**Theorem 23.6.** The sum over all sequences splits at any
+**Theorem 23.7.** The sum over all sequences splits at any
 position into prefixes, each weighted by the sum over suffixes from the state
 the prefix ends in. Grouping prefixes by their end state gives
 

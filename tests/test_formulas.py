@@ -258,8 +258,9 @@ def test_decoder_matches_enumeration(decoder: Callable[..., Decoded | None]) -> 
 
 @pytest.mark.parametrize("slack", [1e-1, 1e-4])
 def test_banded_decoder_is_certified(slack: float) -> None:
-    """``NCA.banded_risk_le``: the banded risk bounds the exact risk of the
-    banded answer, and the exactness certificate implies the exact answer."""
+    """``NCA.banded_risk_le`` and ``NCA.banded_risk_slack``: the banded risk
+    bounds the exact risk of the banded answer from above, within ``slack``,
+    and the exactness certificate implies the exact answer."""
     rng = np.random.default_rng(5)
     for m in range(1, 9):
         for _ in range(20):
@@ -267,9 +268,12 @@ def test_banded_decoder_is_certified(slack: float) -> None:
             exact = decode_reference(np.log(probs), ARITY_ORDER)
             banded = decode_banded(np.log(probs), ARITY_ORDER, slack)
             if banded is None:
+                assert exact is None
                 continue
             assert exact is not None and parse(list(banded.arities)) is not None
-            assert exact.risk(np.log(probs), ARITY_ORDER, banded.arities) <= banded.risk + 1e-9
+            exact_risk = exact.risk(np.log(probs), ARITY_ORDER, banded.arities)
+            assert exact_risk <= banded.risk + 1e-9
+            assert banded.risk <= exact_risk + slack + 1e-9
             if banded.exact:
                 assert banded.arities == exact.arities
 

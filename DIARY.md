@@ -896,6 +896,23 @@ certificate leaves open. The slack prediction fails: the slack is bounded by
 far below 1 at depth 8. A slack chosen in absolute terms is too loose there.
 The top rung needs `j ≈ 7` at depth 8, as THEORY §23.3 predicted for `S = 0.71`.
 
+**Relative slack** (THEORY §23.3, Theorem 23.6; same formulas and readers).
+Widening the band until `U_j ≤ η · Z_band`:
+
+| rung | depth | same answer | certified exact | `j` mean, max | `W` max | risk slack max, mean |
+|---|---:|---:|---:|---|---:|---|
+| bottom | 4 | 100 | 100 | 3.5, 9 | 33 | 9.4e-5, 2.6e-5 |
+| bottom | 6 | 100 | 100 | 6.3, 13 | 49 | 1.0e-4, 2.7e-5 |
+| bottom | 8 | 100 | 100 | 13.6, 22 | 85 | 7.5e-5, 2.1e-5 |
+| top | 4 | 100 | 100 | 2.7, 7 | 25 | 9.9e-5, 1.9e-5 |
+| top | 6 | 100 | 100 | 4.3, 9 | 33 | 1.0e-4, 2.7e-5 |
+| top | 8 | 100 | 100 | 8.1, 14 | 53 | 8.4e-5, 2.7e-5 |
+
+The slack stays below `η` everywhere, as Theorem 23.6 guarantees, and every
+answer is now certified exact. The price is a wider band: at depth 8 the top
+rung averages `j = 8.1` (`W ≈ 29`) against 7.1 before, and the bottom rung
+13.6. Prediction 1 of §23.6 holds with the slack read as relative.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

@@ -16,7 +16,8 @@ and `j! · e_j(ρ) ≤ (Σ ρ)^j` (`factorial_mul_esym_le`). A sequence within
 `j − 1` changes of the reference keeps its counter within `2 (j − 1)` of the
 reference's (`sum_sub_le_diff`), so a dynamic program restricted to that band
 sees every such sequence. Bounding the rest by the tail keeps the decoded
-sequence's risk an upper bound (`banded_risk_le`).
+sequence's risk an upper bound (`banded_risk_le`), within `U / (Zb + U)` of the
+exact risk (`banded_risk_slack`).
 
 **Splitting.** The sum over all sequences splits at any position into
 prefixes weighted by the sum over suffixes from where each prefix ends
@@ -253,6 +254,24 @@ theorem banded_risk_le {x Z Zb U : ℝ} (hx : 0 ≤ x) (hZ : 0 < Z) (h : Z ≤ Z
     1 - x / Z ≤ 1 - x / (Zb + U) := by
   have := div_le_div_of_nonneg_left hx hZ h
   linarith
+
+/-- **Relative slack.** The certified banded risk exceeds the exact risk by at
+most `U / (Zb + U)`: a tail bound small next to the band's weight costs little. -/
+theorem banded_risk_slack {x Z Zb U : ℝ} (hxZ : x ≤ Z) (hZ : 0 < Z)
+    (hb : Zb ≤ Z) (h : Z ≤ Zb + U) :
+    (1 - x / (Zb + U)) - (1 - x / Z) ≤ U / (Zb + U) := by
+  have hS : 0 < Zb + U := lt_of_lt_of_le hZ h
+  have key : x / Z - x / (Zb + U) = x / Z * ((Zb + U - Z) / (Zb + U)) := by
+    field_simp
+  have hq : x / Z ≤ 1 := (div_le_one hZ).mpr hxZ
+  have hr : 0 ≤ (Zb + U - Z) / (Zb + U) := div_nonneg (by linarith) hS.le
+  have hr' : (Zb + U - Z) / (Zb + U) ≤ U / (Zb + U) :=
+    div_le_div_of_nonneg_right (by linarith) hS.le
+  calc (1 - x / (Zb + U)) - (1 - x / Z) = x / Z * ((Zb + U - Z) / (Zb + U)) := by
+        linarith [key]
+    _ ≤ 1 * ((Zb + U - Z) / (Zb + U)) :=
+        mul_le_mul_of_nonneg_right hq hr
+    _ ≤ U / (Zb + U) := by linarith
 
 end Tail
 
