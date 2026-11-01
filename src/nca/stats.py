@@ -8,6 +8,10 @@ from typing import Sequence
 
 import numpy as np
 
+from nca.native import load
+
+_NATIVE = load("stats")
+
 Z95 = 1.959963984540054
 
 
@@ -87,9 +91,19 @@ def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tup
     independent Bernoulli variables with the given probabilities (clipped to
     ``[0, 1]``). If each event's probability is only bounded above by its
     entry, the first is still a valid one-sided p-value for an excess."""
+    clipped = np.clip(probabilities, 0.0, 1.0)
+    native = getattr(_NATIVE, "poisson_binomial_pmf", None)
+    if native is not None and clipped.ndim == 1:
+        pmf = np.asarray(native(np.ascontiguousarray(clipped, dtype=np.float64)), dtype=float)
+    else:
+        pmf = _poisson_binomial_pmf_reference(clipped)
+    return float(pmf[observed:].sum()), float(pmf[:observed + 1].sum())
+
+
+def _poisson_binomial_pmf_reference(probabilities: Sequence[float]) -> np.ndarray:
     pmf = np.zeros(len(probabilities) + 1)
     pmf[0] = 1.0
-    for n, p in enumerate(np.clip(probabilities, 0.0, 1.0), start=1):
+    for n, p in enumerate(probabilities, start=1):
         pmf[1:n + 1] = pmf[1:n + 1] * (1 - p) + pmf[:n] * p
         pmf[0] *= 1 - p
-    return float(pmf[observed:].sum()), float(pmf[:observed + 1].sum())
+    return pmf

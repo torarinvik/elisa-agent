@@ -146,6 +146,18 @@ theorem dpMax_attained : ∀ (ws : List (α → ℝ)) (s : σ),
 
 end Automaton
 
+/-- One Bernoulli event extends an existing count distribution. -/
+def bernoulliStep (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) : ℝ :=
+  (1 - p) * mass k + if k = 0 then 0 else p * mass (k - 1)
+
+theorem bernoulliStep_zero (mass : ℕ → ℝ) (p : ℝ) :
+    bernoulliStep mass p 0 = (1 - p) * mass 0 := by
+  simp [bernoulliStep]
+
+theorem bernoulliStep_succ (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) :
+    bernoulliStep mass p (k + 1) = (1 - p) * mass (k + 1) + p * mass k := by
+  simp [bernoulliStep]
+
 section Counter
 
 /-- The counter automaton of prefix notation. The state is the number of

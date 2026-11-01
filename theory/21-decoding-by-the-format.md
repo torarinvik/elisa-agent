@@ -178,6 +178,11 @@ distribution of that sum (two-sided), overall and in bins of `R`. It runs at
 the bottom rung, where errors are frequent enough to count, at depths 4 to
 8 and under the noise shift.
 
+The count distribution starts with mass 1 at zero. Adding an independent
+Bernoulli event of probability `p` changes mass `q(k)` to
+`(1-p)q(k) + p q(k-1)`, taking `q(-1) = 0`. Updating counts in descending
+order retains the previous masses needed for this recurrence.
+
 **The pairs premise of §19.** Let `O₂` be the number of formulas whose
 per-word reading has at least two arity failures. If failures are not
 positively correlated, `E[O₂] ≤ Σ_f e₂(f)`. A one-sided Poisson-binomial

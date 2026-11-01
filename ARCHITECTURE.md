@@ -260,6 +260,9 @@ borrow the arrays' writable buffers. With the kernel built, the sum tables are
 linear rows of total 1 with per-row log scales (`forward_scale`,
 `backward_scale`); without it, `Split` keeps them in log space.
 
+`stats.elisa` computes the Poisson-binomial count recurrence (§21.8) in place;
+`bernoulliStep_zero` and `bernoulliStep_succ` in `NCA.Decoding` state its steps.
+
 ## 1. Types and contracts
 
 A type id is the canonical text of a type term (`nca.abi.TypeId`): a constructor
