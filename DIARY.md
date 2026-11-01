@@ -1849,6 +1849,31 @@ compute does not imply lower wall time: the complete 1% run repeatedly
 executes a dense prior decoder and is slower. Typed planner integration,
 policy audits and incremental prior decoding remain outstanding.
 
+**CLI prior selection and deployment audit.** `logic --prior complete` now
+supplies the structural prior to correction routes; `format` remains the
+default. Noncorrection accounts are unchanged. Combining the complete prior
+with banding is rejected before reader loading, and output labels both the
+correction prior and the format-only scope of premise diagnostics. Native
+tests pass 153; fallback 139 with 14 skips; Ruff passes. Real CLI checks
+exercise selection and incompatible-option rejection.
+
+With calibration unchanged (100 depth-4 noise-0.1 validation formulas, seed
+6), the previously inspected depth-6 noise-0.2 seed-6 evaluation reproduces
+97 answers/3 errors at 5% and 77/1 at 1%. The 240-per-half seed-7 audit
+certifies neither target. These reused splits are development diagnostics.
+
+A fresh audit used seed 107 for its 240 fit and 240 check formulas; fresh
+evaluation used 100 seed-106 formulas, all at depth 6 and noise 0.2. Only
+the 5% target was tested on this fresh split. The fit-ordered fixed-sequence
+audit at alpha 0.1 selected inflation 4. Rechecking that policy on the
+checking half gives 186 answers and four errors, with one-sided
+Clopper–Pearson upper bound 0.04251614, below 0.05. Evaluation answered 81 with two
+errors (2.47%, Wilson interval [0.68%,8.56%]); the uncontrolled policy
+answered 96 with five errors (5.21%, [2.24%,11.62%]). This is one audit draw
+under the known synthetic generator, not evidence of repeated-audit validity
+or transfer to other formula families. Reader calibration stayed on seed-6
+validation throughout; neither new split was used to recalibrate it.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

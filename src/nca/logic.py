@@ -38,7 +38,7 @@ risks.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -46,8 +46,8 @@ import torch
 
 from nca.abi import TypeId
 from nca.certify import INFLATIONS
-from nca.formulas import (ARITY, VOCABULARY, FormulaDataset, FormulaSample, decode,
-                          labeled_words, parse)
+from nca.formulas import (ARITY, VOCABULARY, ArityPrior, FormulaDataset, FormulaSample, decode,
+                          complete_prior, labeled_words, parse)
 from nca.ladder import (Rung, State, Stop, certification_order, certification_possible, certify,
                         stopping_rule)
 from nca.modules.symbols import BOOLEAN
@@ -67,9 +67,10 @@ detection (§19), and decoding by the format (§21)."""
 
 
 def library(reader: Path, short_circuit: bool, detection: str = "none",
-            decoding: bool = False, band_slack: float | None = None) -> list[Module]:
+            decoding: bool = False, band_slack: float | None = None,
+            prior: Callable[[int], ArityPrior | None] | None = None) -> list[Module]:
     return [Tokenizer(), EditReader(), CharReader.load(reader),
-            FormulaEvaluator(short_circuit, detection, decoding, band_slack)]
+            FormulaEvaluator(short_circuit, detection, decoding, band_slack, prior if decoding else None)]
 
 
 def certificate_leaves(sample: FormulaSample) -> int:
@@ -299,6 +300,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reader", type=Path, default=Path("checkpoints/words.pt"))
     parser.add_argument("--band-slack", type=float, help="certified band slack for answer selection and calibrated risk")
+    parser.add_argument("--prior", choices=("format", "complete"), default="format",
+                        help="structural prior for correction accounts (premise diagnostics remain format-only)")
     parser.add_argument("--noise", type=float, default=0.1)
     parser.add_argument("--xor", type=float, default=0.0)
     parser.add_argument("--calibration", type=int, default=100, help="validation formulas")
@@ -321,10 +324,13 @@ def main() -> None:
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
+    if args.prior == "complete" and args.band_slack is not None:
+        parser.error("--prior complete cannot yet be combined with --band-slack")
+    prior = complete_prior if args.prior == "complete" else None
 
     routes = {}
     for name, (short_circuit, detection, decoding) in ACCOUNTS.items():
-        route = plan_stable(library(args.reader, short_circuit, detection, decoding, args.band_slack),
+        route = plan_stable(library(args.reader, short_circuit, detection, decoding, args.band_slack, prior),
                             (FORMULA_TEXT,), BOOLEAN)
         assert route is not None
         routes[name] = route
@@ -332,10 +338,12 @@ def main() -> None:
                                                  args.seed, args.xor))
     ladders = build_ladders(library(args.reader, True), routes["certificate"],
                             {WORD_DISTRIBUTION: (words, torch.from_numpy(labels))})
+    print(f"correction prior: {args.prior}", flush=True)
     print(f"{WORD_DISTRIBUTION}: " + ", ".join(
         f"{r.module.manifest.module_id} (cost {r.cost:g}, T={r.temperature():.2f})"
         for r in ladders[WORD_DISTRIBUTION]))
     if args.premises:
+        print("premise diagnostics: format prior", flush=True)
         for rung in ladders[WORD_DISTRIBUTION]:
             print(f"reader {rung.module.manifest.module_id}", flush=True)
             premises(rung, args)

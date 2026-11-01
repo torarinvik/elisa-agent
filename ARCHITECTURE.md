@@ -649,5 +649,9 @@ refuses certificates at unsupported lengths. The alphabet must be
 `ARITY_ORDER`, and the prior must include syntax constraints. Full native
 decoding refreshes prior marginals on every account call; the default format
 cursor and its revision caches remain unchanged. Prior decoding and format
-banding cannot yet be combined. A separate typed planner prior expert and
-CLI selection remain to be implemented.
+banding cannot yet be combined. `logic --prior complete` supplies the prior to correction routes, including
+selective and shifted-policy audit runs; other accounts remain unchanged.
+The CLI rejects combining this prior with banding before loading the reader,
+and labels the chosen correction prior. Premise diagnostics still explicitly
+report the format-only model. A separate typed planner prior expert remains
+to be implemented.
