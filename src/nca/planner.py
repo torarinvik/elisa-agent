@@ -385,5 +385,7 @@ def plan_stable_indexed(
             else:
                 high = middle
         route = _plan(index, low, available, goal, fuel)
-    index.routes[key] = (index.size, route)
+        index.routes[key] = (low, route)
+    else:
+        index.routes[key] = (index.size, None)
     return route

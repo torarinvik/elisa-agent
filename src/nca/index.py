@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import heapq
 import itertools
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from typing import TYPE_CHECKING
 
 from nca.abi import (Binding, Contract, Module, Term, TypeId, Var, elem_type, format_type,
@@ -60,7 +60,9 @@ class ProducerIndex:
         self._total_cache: dict[tuple[tuple[TypeId, ...], int], bool] = {}
         self._in_progress: set[tuple[tuple[TypeId, ...], int]] = set()
         self.routes: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[int, Plan | None]] = {}
-        """Stable routes found so far, each with the library size it was planned at."""
+        """Stable routes found so far, each with the length of the shortest
+        prefix it is planned with, or ``None`` with the library size at which
+        there was none."""
         for module in modules:
             self.append(module)
 
@@ -106,6 +108,49 @@ class ProducerIndex:
         entries[:] = [(p, module if p == position else m) for p, m in entries]
         self._memos.clear()
         self.routes.clear()
+
+    def without(self, positions: Collection[int]) -> ProducerIndex:
+        """An index of the modules other than those at ``positions``. Every
+        result cached for a library prefix before the first of them is kept,
+        since that prefix is unchanged (Theorem 12.18); only the modules after
+        it are indexed again. A stable route planned within that prefix stays
+        the route, and a goal without one still has none, since removing
+        modules never makes a goal derivable."""
+        first = min(positions, default=self.size)
+        index = ProducerIndex()
+        index.size = first
+        for name in ("outputs", "modules", "needs", "head_of"):
+            setattr(index, name, getattr(self, name)[:first])
+        for name in ("generic", "sequence_outputs"):
+            setattr(index, name, [e for e in getattr(self, name) if e[0] < first])
+        index.unconditional = [p for p in self.unconditional if p < first]
+        index.open_outputs = [p for p in self.open_outputs if p < first]
+        index.polymorphic = {p for p in self.polymorphic if p < first}
+        index.producers = {t: kept for t, entries in self.producers.items()
+                           if (kept := [e for e in entries if e[0] < first])}
+        index.consumers = {t: kept for t, entries in self.consumers.items()
+                           if (kept := [p for p in entries if p < first])}
+        index.heads = {h: kept for h, entries in self.heads.items()
+                       if (kept := [p for p in entries if p < first])}
+        for cache, kept in ((self._reach_cache, index._reach_cache),
+                            (self._cover_cache, index._cover_cache),
+                            (self._candidate_cache, index._candidate_cache),
+                            (self._source_cache, index._source_cache),
+                            (self._fired_cache, index._fired_cache),
+                            (self._seq_cache, index._seq_cache),
+                            (self._total_cache, index._total_cache)):
+            kept.update((key, value) for key, value in cache.items() if key[1] <= first)
+        index._memos = {limit: dict(memo) for limit, memo in self._memos.items()
+                        if limit <= first}
+        index.routes = {key: (length, route) for key, (length, route) in self.routes.items()
+                        if route is not None and length <= first}
+        removed = set(positions)
+        for position in range(first, self.size):
+            if position not in removed:
+                index.append(self.modules[position])
+        index.routes.update((key, (index.size, None)) for key, (size, route) in self.routes.items()
+                            if route is None and size == self.size)
+        return index
 
     def memo(self, limit: int) -> Memo:
         """Plans found with the first ``limit`` modules, kept across planning calls."""

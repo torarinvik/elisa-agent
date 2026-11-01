@@ -13,7 +13,7 @@ class Registry:
     module keeps its position. ``index`` is the planner's index of the
     installed modules, kept up to date: installation appends to it and keeps
     every cached planning result (THEORY §12, Theorem 12.18); uninstalling
-    rebuilds it.
+    keeps the results for the modules installed before the removed one.
     """
 
     def __init__(self) -> None:
@@ -37,8 +37,9 @@ class Registry:
         return old
 
     def uninstall(self, module_id: str) -> Module:
+        position = list(self._modules).index(module_id)
         module = self._modules.pop(module_id)
-        self.index = ProducerIndex(list(self._modules.values()))
+        self.index = self.index.without((position,))
         return module
 
     def modules(self) -> list[Module]:

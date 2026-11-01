@@ -310,7 +310,9 @@ def test_extending_registry_supports_an_unrelated_task_without_rerouting() -> No
 
 def test_registry_index_survives_installation_replacement_and_removal() -> None:
     """The registry's index, kept across installations with its cached plans,
-    plans exactly like an index built afresh at every step (Theorem 12.18)."""
+    plans exactly like an index built afresh at every step (Theorem 12.18).
+    Removal keeps the plans cached for the modules installed before the
+    removed one."""
     rng = np.random.default_rng(4)
     names = [f"t{i}.v1" for i in range(6)]
     types = [*names, *(f"seq[{t}]" for t in names)]
@@ -331,6 +333,8 @@ def test_registry_index_survives_installation_replacement_and_removal() -> None:
                 output = str(rng.choice(types))
                 if rng.random() < 0.2:
                     inputs, output = ["seq[?a]"], "seq[?a]"
+                elif rng.random() < 0.1:
+                    inputs, output = ["seq[?a]", "?s"], "?s"
                 registry.install(fn(f"m{step}-{trial}", inputs, output, lambda *x: x))
             for goal in goals:
                 kept = plan_stable_indexed(registry.index, available, goal, fuel=4)
@@ -338,3 +342,17 @@ def test_registry_index_survives_installation_replacement_and_removal() -> None:
                 assert kept == fresh
                 if kept is not None:
                     assert infer(registry.modules(), available, kept) == goal
+
+
+def test_uninstalling_keeps_plans_for_earlier_modules() -> None:
+    registry = Registry()
+    for k in range(3):
+        registry.install(fn(f"m{k}", [f"t{k}.v1"], f"t{k + 1}.v1", lambda x: x))
+    assert plan_stable_indexed(registry.index, ("t0.v1",), "t2.v1") is not None
+    cached = dict(registry.index.memo(2))
+    assert cached
+    registry.uninstall("m2")
+    assert registry.index.memo(2) == cached
+    registry.uninstall("m0")
+    assert not registry.index.memo(2)
+    assert plan_stable_indexed(registry.index, ("t0.v1",), "t2.v1") is None

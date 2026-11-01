@@ -34,8 +34,12 @@ for a prefix of length `k` depends only on the first `k` contracts.
 
 So plans, closures and candidate sets computed for a prefix stay valid when
 contracts are installed, and can be kept across planning calls instead of
-being rebuilt. Only removing a contract shifts later positions and
-invalidates them. Replacing an implementation under the same contract leaves
+being rebuilt. Removing the contract at position `k` shifts the later ones,
+but the first `k` contracts are a common prefix of the library before and
+after, so by Theorem 12.18 applied to both, results for prefixes of length at
+most `k` stay valid. A stable route whose shortest prefix has length at most
+`k` stays the route, and a goal that had no plan still has none, since
+derivability only grows with the library. Replacing an implementation under the same contract leaves
 every type-level result valid and changes only the plans that name it.
 
 **Reachability pruning.** Dormant producers of a

@@ -327,10 +327,13 @@ after the others, and every cached result (closures, candidate sets, plans in
 library prefix, so it stays valid (THEORY §12, Theorem 12.18). A stable route
 found earlier is returned without search, since installation never changes it
 (Theorem 3.3); a goal that had no route is planned again. `ProducerIndex.replace`
-swaps an implementation under the same contract and drops cached plans. The
-`Registry` keeps an index of its modules up to date (`Registry.index`),
-rebuilding it only on uninstallation. The `Kernel` keeps one index per set of
-modules excluded by a request chain. `Module`, the protocol every expert
+swaps an implementation under the same contract and drops cached plans.
+`ProducerIndex.without` removes modules, keeping every result cached for the
+prefix before the first removed one, the routes planned within it, and the
+goals known to have no route. The `Registry` keeps an index of its modules up
+to date (`Registry.index`) this way. The `Kernel` keeps one index per set of
+modules excluded by a request chain, each derived from the index of the whole
+library. `Module`, the protocol every expert
 implements, is part of the ABI (`nca.abi`).
 
 Values of the core type constructors (THEORY §20.7) have fixed
