@@ -149,10 +149,13 @@ class ArityPrior:
             return -math.inf
         native = getattr(_NATIVE, "prior_normalizer", None)
         if native is not None:
-            return float(native(np.ascontiguousarray(rows).reshape(-1),
-                                _native_alphabet(self.alphabet),
-                                self.transitions.reshape(-1), self.log_weights.reshape(-1),
-                                self.log_final, self.start))
+            result = float(native(np.ascontiguousarray(rows).reshape(-1),
+                                  _native_alphabet(self.alphabet),
+                                  self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                                  self.log_final, self.start))
+            if math.isnan(result) or result == math.inf:
+                raise ValueError("prior normalizer arithmetic is not finite")
+            return result
         result = self.decode(rows)
         return -math.inf if result is None else result.log_z
 
@@ -197,10 +200,21 @@ class ArityPrior:
             for state in range(states):
                 for j, target in enumerate(self.transitions[state]):
                     if target >= 0:
-                        weight = rows[k, j] + self.log_weights[state, j]
+                        reading = float(rows[k, j])
+                        edge_weight = float(self.log_weights[state, j])
+                        previous = float(forward[k, state])
+                        if -math.inf in (reading, edge_weight, previous):
+                            continue
+                        weight = reading + edge_weight
+                        if not math.isfinite(weight) or not math.isfinite(previous + weight):
+                            raise ValueError("prior normalizer arithmetic is not finite")
                         forward[k + 1, target] = np.logaddexp(
-                            forward[k + 1, target], forward[k, state] + weight)
-        log_z = float(np.logaddexp.reduce(forward[m] + self.log_final))
+                            forward[k + 1, target], previous + weight)
+        with np.errstate(over="ignore", invalid="ignore"):
+            terminal = forward[m] + self.log_final
+        if np.any(np.isfinite(forward[m]) & np.isfinite(self.log_final) & ~np.isfinite(terminal)):
+            raise ValueError("prior normalizer arithmetic is not finite")
+        log_z = float(np.logaddexp.reduce(terminal))
         if log_z == -math.inf:
             return None
         if not math.isfinite(log_z):

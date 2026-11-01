@@ -206,9 +206,11 @@ with zero base normalizer is undefined; zero posterior normalizer gives
 zero evidence. Neither case justifies substituting a finite epsilon.
 Numerical implementations must reject a computed NaN or positive infinity:
 overflow or invalid arithmetic does not establish positive finite mass. A
-computed negative infinity is treated as zero mass, though sufficiently
-negative finite values can also underflow to it; detecting every such case is
-not guaranteed by this check.
+computed negative infinity is treated as zero mass. The normalizer detects
+overflow in additions of reachable finite edge, reading, and final weights;
+this is conservative because an overflowing reachable prefix may not lead to
+an accepted sequence. It does not constitute a general floating-point error
+bound.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

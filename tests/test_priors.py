@@ -350,6 +350,24 @@ def test_normalizer_matches_full_decoder_for_sparse_weighted_automata() -> None:
         assert prior.log_normalizer(rows) == pytest.approx(expected, abs=1e-12)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("location", ["edge", "sequence", "final"])
+def test_normalizer_rejects_finite_negative_overflow(
+        reference: bool, location: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    weight = -1e308 if location in ("edge", "sequence") else 0.0
+    final = -1e308 if location == "final" else 0.0
+    rows = np.full((2 if location == "sequence" else 1, 1),
+                   -1e308 if location == "edge" else 0.0)
+    if location == "final":
+        rows[0, 0] = -1e308
+    prior = priors.ArityPrior((0,), np.array([[0]]), np.array([[weight]]), np.array([final]))
+    with pytest.raises(ValueError, match="normalizer.*finite"):
+        prior.log_normalizer(rows)
+    assert prior.log_normalizer(np.full_like(rows, -np.inf)) == -np.inf
+
+
 def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
     # Successive supports alternate between a wide range with holes and one cell.
     # The two reusable rows must clear their old, sometimes wider envelopes.

@@ -150,15 +150,24 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
-                    through: f64 = rows[here + state] + (log_probs[k * width + j] + prior[edge])
-                    continue if through == unreachable
+                    reading: f64 = log_probs[k * width + j]
+                    edge_weight: f64 = prior[edge]
+                    continue if reading == unreachable or edge_weight == unreachable
+                    weight: f64 = reading + edge_weight
+                    return log(-1.0) if weight == unreachable or weight == -unreachable
+                    through: f64 = rows[here + state] + weight
+                    return log(-1.0) if through == unreachable or through == -unreachable
                     existing: f64 = rows[next + target]
                     rows[next + target] <- through if existing == unreachable else log_add_present(existing, through)
                     bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
                     bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
     return
         for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |total: f64 = unreachable| -> total:
-            total <- log_add(total, rows[(m % 2) * states + state] + final[state])
+            last: f64 = rows[(m % 2) * states + state]
+            continue if last == unreachable or final[state] == unreachable
+            weighted: f64 = last + final[state]
+            return log(-1.0) if weighted == unreachable or weighted == -unreachable
+            total <- log_add(total, weighted)
 
 # Max-product and traceback only. Traversal and strict ties match decode_prior.
 def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
