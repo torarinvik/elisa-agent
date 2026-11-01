@@ -24,9 +24,10 @@ to several readings of the element. Nothing below is specific to glyphs:
   risks and the elements whose readings can no longer change, a lower bound
   on every bound refinement can still reach, so that refinement abstains as
   soon as it exceeds the target (§22);
-* a direct consumer may declare ``ranked_readings = True`` to receive
-  calibrated sequences with original-weight ordering via ``top(classes)``;
-  its certificate, floor and answer must use the same ordering;
+* a direct consumer or map-body fuser may declare ``ranked_readings = True``
+  to receive calibrated sequences with original-weight ordering via
+  ``top(classes)``; its decisions must use that ordering consistently with
+  the risk account;
 * a consumer may declare ``solve_session()`` to provide a per-solve module;
   its demand, certificate, floor and answer are used throughout that solve;
 * if the map's source offers ``alternatives`` and the consumer would read
@@ -223,7 +224,7 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                      floor, floors, stop_shared if stops is not None else stop, trace,
                      observe if len(targets) > 1 or stops is not None else None,
                      priority=priority,
-                     ranked=fuse is None and getattr(consumer, "ranked_readings", False))
+                     ranked=getattr(consumer if fuse is None else fuse, "ranked_readings", False))
 
     def answer(state: Refinement, target: float) -> Answer:
         inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]

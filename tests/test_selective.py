@@ -1273,3 +1273,35 @@ def test_ranked_shared_paths_keep_each_observation_snapshot() -> None:
     shared_stops = solve_stops(route, ladders, "a", 0.45, stops)
     assert [answer.value for answer in shared_stops] == [1, 2]
     assert shared_stops == [solve(route, ladders, "a", 0.45, stop=stop) for stop in stops]
+
+
+def test_ranked_fuser_and_legacy_fuser_match_their_risk_decisions() -> None:
+    class Fuser:
+        manifest = Manifest("ranked-fuser", "1", Contract(("dist",), "read"))
+        ranked_readings = True
+
+        def decision_classes(self, index, demand):
+            return ((1, 3), (2,))
+
+        def invoke(self, reading):
+            return reading.top([1, 3, 2])
+
+    class LegacyFuser(Fuser):
+        ranked_readings = False
+
+        def invoke(self, reading):
+            return max((1, 3, 2), key=reading.__getitem__)
+
+    low = 1e-300
+    reader = constant("fused-ranked-reader", (1.0, low, math.nextafter(low, math.inf), 1e-301),
+                      1.0, Contract(("ch",), "dist"))
+    ladders = {"dist": [Rung(reader)]}
+    ranked = plan_stable([Splitter(), reader, Fuser(), Joiner()], ("text",), "out")
+    legacy = plan_stable([Splitter(), reader, LegacyFuser(), Joiner()], ("text",), "out")
+    assert ranked is not None and legacy is not None
+    selected = solve(ranked, ladders, "a", 0.5)
+    old = solve(legacy, ladders, "a", 0.5)
+    assert selected.value == (2,) and selected.abstained
+    assert selected.bound == pytest.approx(11 / 21, abs=1e-14)
+    assert old.value == (1,) and not old.abstained
+    assert old.bound == pytest.approx(10 / 21, abs=1e-14)
