@@ -252,6 +252,8 @@ def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64]
 
 # Search only through the number of positions; beyond it the tail is empty.
 def initial_band_changes_scaled(log_off: f64, log_factor: f64, log_slack: f64, length: i64) -> i64:
+    # Reserve a representable sentinel for a tail beyond the final position.
+    return -1 if length < 0 or length == 9223372036854775807
     return 1 if log_off == log(0.0)
     return 1 if length == 0
     first: f64 = log_off + log_factor

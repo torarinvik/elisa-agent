@@ -94,6 +94,26 @@ theorem threshold_search_shrinks (low high : ℕ) (h : low ≤ high) :
       high - mid ≤ (high - low + 1) / 2 := by
   omega
 
+/-- Repeated worst-case interval widths when each step rounds half upward. -/
+def searchGap : ℕ → ℕ → ℕ
+  | 0, gap => gap
+  | steps + 1, gap => searchGap steps ((gap + 1) / 2)
+
+/-- An interval of at most `2^steps` becomes adjacent within `steps` steps. -/
+theorem searchGap_le_one (steps gap : ℕ) (h : gap ≤ 2 ^ steps) :
+    searchGap steps gap ≤ 1 := by
+  induction steps generalizing gap with
+  | zero => simp_all [searchGap]
+  | succ steps ih =>
+    simp only [searchGap]
+    apply ih
+    rw [pow_succ] at h
+    omega
+
+/-- A representable signed 64-bit interval reaches adjacency in 63 steps. -/
+theorem searchGap_i64 (gap : ℕ) (h : gap < 2 ^ 63) : searchGap 63 gap ≤ 1 :=
+  searchGap_le_one 63 gap (Nat.le_of_lt h)
+
 /-- Adjacent failed and qualifying bounds identify the first qualifying index. -/
 theorem threshold_search_adjacent (p : ℕ → Prop) (low high : ℕ)
     (suffix : ∀ a b, a ≤ b → p a → p b)

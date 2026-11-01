@@ -1,5 +1,7 @@
 import itertools
 import math
+import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from decimal import Decimal, localcontext
 from typing import Any
@@ -557,6 +559,24 @@ def test_tail_search_stops_at_first_or_last_possible_change(
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     assert decoding._initial_band_changes(math.log(total), slack, length) == expected
+
+
+def test_native_tail_search_handles_integer_length_limits() -> None:
+    if getattr(decoding._NATIVE, "initial_band_changes_scaled", None) is None:
+        pytest.skip("native band tail search is not built")
+    # Isolate the call: a regression in the sentinel calculation can trap.
+    code = (
+        "from nca.native.decoding import initial_band_changes_scaled as f; "
+        "print(f(0.0, 0.0, -1.0, 2**63 - 1), f(0.0, 0.0, -1.0, -1))"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "-1 -1"
+
+    log_off, slack = math.log(1e9), 1e-4
+    changes = decoding._initial_band_changes(log_off, slack, 2**63 - 2)
+    assert decoding._band_log_tail(log_off, changes) <= math.log(slack)
+    assert decoding._band_log_tail(log_off, changes - 1) > math.log(slack)
 
 
 def test_native_log_decoder_signals_finite_log_weight_overflow() -> None:
