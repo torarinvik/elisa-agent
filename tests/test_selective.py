@@ -1332,3 +1332,22 @@ def test_symbol_fuser_hands_ranked_order_to_parser() -> None:
 
     assert not fuser.ranked_readings_for(LegacyParser())
     assert fuser.ranked_readings_for(parser)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_extreme_temperature_preserves_tied_calibrated_readings(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("cold-equal", (0.5, 0.5), 1.0))
+    decision = ((0,), (1,))
+    rung.temperatures[None] = math.ulp(0.0)
+    rung.temperatures[ladder_module.decision_key(decision)] = math.ulp(0.0)
+    observation = rung.observe_ranked(None)
+    for value in (observation, observation.logits, observation.logits.float()):
+        assert rung.reading(value).tolist() == [0.5, 0.5]
+        assert rung.distribution(value, decision).tolist() == [0.5, 0.5]
+        assert rung.risk(value, decision) == 0.5

@@ -162,6 +162,14 @@ class RankedReading(Sequence[float]):
         return list(self.probabilities)
 
 
+def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
+    # Keep a positive binary64 temperature representable for lower-precision inputs.
+    if (log.is_floating_point() and log.dtype != torch.float64
+            and 0 < temperature < torch.finfo(log.dtype).tiny):
+        log = log.double()
+    return (log - log.max()) / temperature
+
+
 @dataclass
 class Rung:
     """An expert read through temperatures fitted on held-out labeled inputs:
@@ -264,7 +272,8 @@ class Rung:
             if not math.isfinite(temperature) or temperature <= 0:
                 raise ValueError("ranked reading requires a positive finite temperature")
             log = log.logits
-        return torch.softmax(log / temperature, dim=-1)
+        result = torch.softmax(_temperature_scores(log, temperature), dim=-1)
+        return result.to(log.dtype) if log.is_floating_point() else result
 
     def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> float:
         """Calibrated error probability of the decision over ``classes``.
@@ -303,11 +312,13 @@ class Rung:
             union, positions = _layout(key)
             values = log[union]
         temperature = self.temperature(classes)
-        result = risk(torch.softmax(values / temperature, dim=-1), positions, _top=selected)
+        result = risk(torch.softmax(_temperature_scores(values, temperature), dim=-1),
+                      positions, _top=selected)
         if result != 0.0 or (classes is not None and _group_ids(key) is None):
             return result
         # A float32 softmax can erase probabilities that fit in binary64.
-        scores = values.double() / temperature
+        scores = values.double()
+        scores = (scores - scores.max()) / temperature
         top = int(scores.argmax()) if selected is None else selected
         chosen = (next(part for part in positions if top in part)
                   if positions is not None else [top])
@@ -338,7 +349,10 @@ class Rung:
             values = native(log[union].double().numpy(), groups,
                             len(positions), self.temperature(classes))
             return torch.tensor(values, dtype=log.dtype)
-        reading = torch.softmax(log[union] / self.temperature(classes), dim=-1)
+        values = log[union]
+        reading = torch.softmax(_temperature_scores(values, self.temperature(classes)), dim=-1)
+        if log.is_floating_point():
+            reading = reading.to(log.dtype)
         return torch.stack([reading[part].sum() for part in positions])
 
     @staticmethod
