@@ -1733,6 +1733,22 @@ both the observation and its calibration; equality of raw observations
 alone is insufficient. Revisions are scoped to one refinement run, whose
 experts and calibration parameters remain fixed.
 
+**Theorem 23.13 (one-sided numerical allowance).** Let `q(x)` be the
+true error probability, `b(x)` a valid real-valued bound, and `b̂(x)` its
+numerical evaluation. Suppose `q(x) ≤ b(x) ≤ b̂(x) + ε(x)`. Answering only
+where `b̂(x) + ε(x) ≤ δ` bounds the weighted error among answered inputs
+by `δ` times their total weight, for any nonnegative input weights.
+This follows by applying selective risk to the upper envelope `b̂ + ε`.
+The allowance must be justified for the actual calculation; a maximum
+observed on finitely many examples does not establish the premise.
+
+**Threshold stability.** If two evaluations differ by at most `ε`, their
+answer/refuse decisions agree whenever the reference evaluation is either
+at most `δ − ε` or strictly greater than `δ + ε`. Between these margins,
+arbitrarily small numerical changes can change a threshold decision.
+This concerns numerical evaluation of a valid bound, separately from
+whether its statistical modeling assumptions hold.
+
 The decoded sequence must still be recovered after each step, to evaluate
 the formula and find `E`. It too is read from the split, without a sweep.
 

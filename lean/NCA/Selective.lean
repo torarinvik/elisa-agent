@@ -120,4 +120,25 @@ theorem priority_allocation_nonneg (h : X → ℝ) (R : ℝ)
 theorem revision_cache_eq {V Y : Type} (f : V → Y) {old current : V}
     (h : current = old) : f current = f old := congrArg f h
 
+/-- A certified upper envelope absorbs numerical underestimation before selection. -/
+theorem selective_risk_le_approx (p q b reported allowance : X → ℝ) (δ : ℝ)
+    (hp : ∀ x, 0 ≤ p x) (hq : ∀ x, q x ≤ b x)
+    (hround : ∀ x, b x ≤ reported x + allowance x) :
+    ∑ x ∈ univ.filter (fun x => reported x + allowance x ≤ δ), p x * q x ≤
+      δ * ∑ x ∈ univ.filter (fun x => reported x + allowance x ≤ δ), p x :=
+  selective_risk_le p q (fun x => reported x + allowance x) δ hp
+    (fun x => (hq x).trans (hround x))
+
+/-- Threshold decisions are stable outside the numerical uncertainty margin. -/
+theorem threshold_stable {reference reported allowance δ : ℝ}
+    (herror : |reported - reference| ≤ allowance)
+    (hmargin : reference + allowance ≤ δ ∨ δ + allowance < reference) :
+    (reported ≤ δ ↔ reference ≤ δ) := by
+  have hlo := (abs_le.mp herror).1
+  have hhi := (abs_le.mp herror).2
+  have hnonneg : 0 ≤ allowance := (abs_nonneg _).trans herror
+  rcases hmargin with h | h
+  · constructor <;> intro hsel <;> linarith
+  · constructor <;> intro hsel <;> linarith
+
 end NCA

@@ -1418,6 +1418,21 @@ the same two inputs and returning bounds 0.95262571, 0.04221094 and
 0.04836281 (rounded). This is a correctness repair, with no timing gain
 claimed and no change to the floor or risk theorems.
 
+**Numerical threshold margins (theory feedback).** The small bound
+changes in cross-backend experiments motivated Theorem 23.13 and the
+threshold-stability lemma. The new Lean proofs show that a certified
+one-sided allowance can be added to a reported bound before selection, and
+that two bounded-error evaluations agree outside the threshold margin.
+They do not establish a kernel-specific floating-point allowance.
+
+A three-class `(0.95,0.03,0.02)` float32 reading at temperature 1 gives
+PyTorch risk 0.04999995231628418 and native risk 0.049999998117887245.
+At their midpoint 0.04999997521708571, PyTorch answers and native refuses.
+At thresholds 0.04 and 0.06 both agree. This constructed boundary example
+shows why tiny empirical differences cannot prove decision invariance.
+No runtime guard or arbitrary epsilon was added: observed maxima are not
+certified error bounds, and a derived numerical envelope remains future work.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

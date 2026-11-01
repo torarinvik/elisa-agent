@@ -168,6 +168,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.8 | `dpMax_append` | `Banding` |
 | 23.9 | `sum_pair_dist` | `Banding` |
 | 23.10 | `stitch_attains` | `Banding` |
+| 23.13 | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
 | 23.12 | `revision_cache_eq` | `Selective` |
 | 23.11 | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
 | 24.1 | `reweighted_odds` | `Misspecification` |
@@ -521,3 +522,9 @@ converts current readings on each call. It does not share the certificate
 adapter's tuple cache. Tests cover mapping fixed item indices back to source
 elements, changed readings and snapshot independence. Ruff's `F821` check
 rejects undefined names throughout source and tests.
+
+The numerical allowance and threshold-margin results (23.13) specify how a
+future certified roundoff envelope would enter selective answering. They do
+not supply such an envelope for the kernels and do not change `refine`'s
+threshold. Model validity, numerical error certification and empirical
+cross-backend agreement remain separate obligations.
