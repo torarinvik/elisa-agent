@@ -2331,7 +2331,8 @@ all, against about 50.
 
 Against the predictions of §21.10:
 
-1. **Coverage: confirmed** at depths 2–6. Correction answers 99–100% of
+1. **Coverage: confirmed at depths 2–6; untested at depth 8,** the depth
+   the prediction was about. Correction answers 99–100% of
    formulas at depths 2 and 4. At depth 6 it lifts coverage over pairs by
    0.12–0.17 at every target, for example from 0.707 to 0.870 at
    `δ = 0.05`.
