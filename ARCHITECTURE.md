@@ -717,9 +717,23 @@ identity under the supplied posterior relation and nonzero normalizers. The
 API checks normalized probability rows and posterior/base support, rejects
 zero base mass, and returns negative infinity for zero posterior mass. It
 does not establish that calibrated reader scores satisfy a shared likelihood
-model. No automatic prior selector is installed yet. `log_normalizer` uses Elisa
+model. Prior selection is explicit rather than automatically installed. `log_normalizer` uses Elisa
 `prior_normalizer` for the sum-product pass with two reusable state rows;
 `log_evidence` calls it for both arguments. The transition recurrence matches
 `pdpSum_eq`; it retains the full decoder as a reference fallback when the
 normalizer export is absent. Empty reading arrays follow the decoder
 convention of no accepted formula.
+
+`formulas.select_prior` sums relative log evidence from unlabeled held-out
+reading matrices under length-indexed candidate providers and one shared base
+vector. It returns `PriorSelection` with the winning index, all scores and
+sample count. Exact ties keep the caller's declared order; unavailable
+lengths exclude a candidate. Invalid normalizers, incompatible alphabets,
+empty inputs, score overflow and no finite-evidence candidate are errors.
+`format_prior(length)` exposes the syntax-only counter through the same
+automaton interface for comparison.
+
+This is empirical maximization of §27.5, not a proof of reader likelihood
+assumptions or a confidence-aware tie test. It does not install the selected
+provider or certify an answering policy. Candidate order and calibration
+must be fixed before selection; deployment checking remains separate.

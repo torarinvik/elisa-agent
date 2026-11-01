@@ -1250,3 +1250,44 @@ def test_native_prior_evidence_does_not_decode_unused_outputs(
     monkeypatch.setattr(formulas.ArityPrior, "decode", no_decode)
     rows = np.log(np.full((3, 3), 1 / 3))
     assert prior.log_evidence(rows, rows) == 0.0
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_unlabeled_prior_selection_changes_with_shape_family(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    candidates = [formulas.format_prior, lambda length: formulas.height_prior(2),
+                  formulas.complete_prior]
+    base = np.log(np.full(3, 1 / 3))
+    for shape, winner in (((2, 0, 0), 2), ((1, 1, 0), 0)):
+        rows = np.full((3, 3), -np.inf)
+        for k, a in enumerate(shape):
+            rows[k, a] = 0.0
+        selected = formulas.select_prior(candidates, iter([rows, rows]), base)
+        assert selected.index == winner and selected.samples == 2
+        assert selected.scores[0] == selected.scores[1]  # Exact ties keep declared order.
+        for i, candidate in enumerate(candidates):
+            expected = 2 * candidate(3).log_evidence(rows, np.broadcast_to(base, rows.shape))
+            assert selected.scores[i] == expected
+        parsed = decode(rows)
+        prior = formulas.format_prior(3).decode(rows)
+        assert prior is not None and parsed is not None
+        assert prior.log_z == parsed.log_z and prior.arities == parsed.arities
+
+
+def test_prior_selection_rejects_missing_or_incompatible_evidence() -> None:
+    rows = np.log(np.full((3, 3), 1 / 3))
+    base = rows[0]
+    for candidates, readings in (([], [rows]), ([formulas.complete_prior], []),
+                                  ([lambda length: None], [rows])):
+        with pytest.raises(ValueError):
+            formulas.select_prior(candidates, readings, base)
+    selected = formulas.select_prior([lambda length: None, formulas.format_prior], [rows], base)
+    assert selected.index == 1 and selected.scores[0] == -np.inf
+    with pytest.raises(ValueError):
+        formulas.select_prior([formulas.format_prior], [np.zeros((3, 3))], base)
+    wrong = formulas.ArityPrior((2, 1, 0), np.zeros((1, 3), dtype=np.int64),
+                                np.zeros((1, 3)), np.zeros(1))
+    with pytest.raises(ValueError, match="alphabet"):
+        formulas.select_prior([lambda length: wrong], [rows], base)

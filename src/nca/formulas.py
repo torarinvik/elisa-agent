@@ -23,7 +23,7 @@ states (``NCA.dpSum_eq``, ``NCA.dpMax_ge``, ``NCA.dpMax_attained``).
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -299,6 +299,77 @@ class ArityPrior:
             selected.append(self.alphabet[j])
             state = int(self.transitions[state, j])
         return Decoded(tuple(selected), log_z, marginals, self)
+
+
+@lru_cache(maxsize=32)
+def format_prior(length: int) -> ArityPrior:
+    """Unit-weight prefix counter as a prior automaton for a fixed length."""
+    if not isinstance(length, int) or length < 1:
+        raise ValueError("length must be a positive integer")
+    states = length + 2
+    transitions = np.full((states, 3), -1, dtype=np.int64)
+    for state in range(1, states):
+        for arity in range(3):
+            if state - 1 + arity < states:
+                transitions[state, arity] = state - 1 + arity
+    final = np.full(states, -np.inf)
+    final[0] = 0.0
+    return ArityPrior((0, 1, 2), transitions, np.zeros((states, 3)), final, start=1)
+
+
+@dataclass(frozen=True)
+class PriorSelection:
+    index: int
+    scores: tuple[float, ...]
+    samples: int
+
+
+def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
+                 readings: Iterable[np.ndarray], log_base: np.ndarray,
+                 alphabet: Sequence[int] = (0, 1, 2)) -> PriorSelection:
+    """Empirical summed-evidence selection on unlabeled held-out readings.
+
+    Candidate order breaks exact ties and must be fixed before selection.
+    A provider returning None is unavailable at that length and is excluded.
+    A zero base normalizer is invalid, not zero evidence. This performs no
+    uncertainty test, risk certification, or automatic expert installation.
+    """
+    base = np.asarray(log_base, dtype=np.float64)
+    if (not candidates or base.shape != (len(alphabet),)
+            or np.any(np.isnan(base)) or np.any(base > 0)
+            or not np.isclose(np.exp(base).sum(), 1.0, rtol=0, atol=1e-12)):
+        raise ValueError("requires candidates and a normalized shared base vector")
+    scores = [0.0] * len(candidates)
+    count = 0
+    for observation in readings:
+        rows = np.asarray(observation, dtype=np.float64)
+        if rows.ndim != 2 or not len(rows) or rows.shape[1] != len(alphabet):
+            raise ValueError("readings must be nonempty matrices over the shared alphabet")
+        common = np.broadcast_to(base, rows.shape)
+        # Validate every observation even after some candidates become unavailable.
+        if (np.any(np.isnan(rows)) or np.any(rows > 0)
+                or not np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)
+                or np.any(np.isneginf(common) & np.isfinite(rows))):
+            raise ValueError("readings must be normalized and supported by the shared base")
+        for i, provider in enumerate(candidates):
+            if scores[i] == -math.inf:
+                continue
+            prior = provider(len(rows))
+            if prior is None:
+                scores[i] = -math.inf
+                continue
+            if prior.alphabet != tuple(alphabet):
+                raise ValueError("candidate alphabet must match the shared base")
+            evidence = prior.log_evidence(rows, common)
+            if math.isnan(evidence) or evidence == math.inf:
+                raise ValueError("candidate evidence must be finite or negative infinity")
+            scores[i] += evidence
+            if not math.isfinite(scores[i]) and math.isfinite(evidence):
+                raise ValueError("summed evidence overflow")
+        count += 1
+    if not count or not any(math.isfinite(score) for score in scores):
+        raise ValueError("requires observations and at least one finite-evidence candidate")
+    return PriorSelection(max(range(len(scores)), key=scores.__getitem__), tuple(scores), count)
 
 
 @lru_cache(maxsize=32)
