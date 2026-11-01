@@ -1088,6 +1088,56 @@ def test_banded_split_packs_rows_around_nonzero_states(
         assert parse(arities) is not None
 
 
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3)])
+def test_packed_split_matches_independently_enumerated_bands(
+        reference_only: bool, alphabet: tuple[int, ...], monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(274)
+    for m in range(1, 7):
+        for trial in range(8):
+            rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+            if trial < 4:
+                path = ([alphabet[-1]] + [1] * (m - alphabet[-1] - 1) +
+                        [0] * alphabet[-1]) if m > alphabet[-1] else [1] * (m - 1) + [0]
+                centre = [1]
+                for arity in path:
+                    centre.append(centre[-1] + arity - 1)
+            else:
+                centre = rng.integers(-1, m + 2, size=m + 1).tolist()
+            half = int(rng.integers(0, 4))
+            split = decoding.Split(rows, alphabet, centre, half)
+            k = int(rng.integers(m))
+            rows[k] = np.log(rng.dirichlet(np.ones(len(alphabet))))
+            actual_z, actual_best = split.climb(k, rows[k])
+            weights: dict[tuple[int, ...], float] = {}
+            for path in itertools.product(alphabet, repeat=m):
+                state = 1
+                valid = split.low[0] <= state <= split.high[0]
+                for i, arity in enumerate(path):
+                    if state < 1:
+                        valid = False
+                        break
+                    state += arity - 1
+                    if not split.low[i + 1] <= state <= split.high[i + 1]:
+                        valid = False
+                        break
+                if valid and state == 0:
+                    weights[path] = math.exp(sum(rows[i, alphabet.index(a)]
+                                                  for i, a in enumerate(path)))
+            if not weights:
+                assert actual_z == actual_best == -math.inf
+                assert split.best(k) == (-math.inf, ())
+            else:
+                assert actual_z == pytest.approx(math.log(math.fsum(weights.values())))
+                assert actual_best == pytest.approx(math.log(max(weights.values())))
+                traced_weight, traced = split.best(k)
+                assert traced in weights
+                assert traced_weight == pytest.approx(math.log(weights[traced]))
+                assert traced_weight == pytest.approx(actual_best)
+
+
 def test_banded_split_falls_back_with_older_native_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = np.log(np.tile([0.1, 0.8, 0.1], (5, 1)))
     expected = decoding._banded_passes(rows, (0, 1, 2), [1] * 5 + [0], 1)
