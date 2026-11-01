@@ -1496,3 +1496,26 @@ def test_native_restricted_risk_tracks_mutated_decisions() -> None:
     indices = ladder_module._native_indices(key)
     assert indices.tolist() == [0, 1, 2]
     assert not indices.flags.writeable
+
+
+def test_decision_metadata_cache_eviction_preserves_results() -> None:
+    from nca.ladder import _group_ids, _layout, _native_indices
+
+    caches = (_layout, _group_ids, _native_indices)
+    for cache in caches:
+        cache.cache_clear()
+    first = (0, (1, 2))
+    expected_layout = _layout(first)
+    expected_groups = _group_ids(first).copy()
+    expected_indices = _native_indices(first).copy()
+    capacity = _layout.cache_info().maxsize
+    assert capacity is not None
+    for i in range(capacity + 1):
+        key = (i + 3, (i + 4, i + 5))
+        for cache in caches:
+            cache(key)
+    for cache in caches:
+        assert cache.cache_info().currsize <= cache.cache_info().maxsize
+    assert _layout(first) == expected_layout
+    assert np.array_equal(_group_ids(first), expected_groups)
+    assert np.array_equal(_native_indices(first), expected_indices)

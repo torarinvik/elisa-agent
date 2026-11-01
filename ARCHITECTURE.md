@@ -813,7 +813,9 @@ groups and missing kernels. Double intermediates may differ from PyTorch's
 float32 arithmetic by rounding, requiring outcome checks on full runs.
 
 The native calibration group-id and class-index arrays are cached by the
-immutable decision key and marked read-only. It contains only decision structure; calibration
+immutable decision key and marked read-only. Each metadata cache retains at most
+128 recently used decisions; this bounds entries rather than bytes. Evicted
+metadata is recomputed. It contains only decision structure; calibration
 temperatures and observation values remain current. The revision-cache
 invariant (23.12) applies to this deterministic metadata. Gradient-bearing
 observations continue through PyTorch and retain differentiability.

@@ -47,7 +47,7 @@ import sys
 from numbers import Integral
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
-from functools import cache
+from functools import lru_cache
 from typing import Any, Literal, overload
 
 import numpy as np
@@ -89,8 +89,7 @@ def decision_key(decision: Decision) -> DecisionKey:
         raise ValueError("decision groups must form a nonempty partition of nonnegative class indices") from exc
 
 
-
-@cache
+@lru_cache(maxsize=128)
 def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[list[int]]]:
     """The classes a decision ranges over, and each entry's positions among them."""
     parts = [[e] if isinstance(e, int) else list(e) for e in key]
@@ -107,7 +106,7 @@ def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[lis
     return union, positions
 
 
-@cache
+@lru_cache(maxsize=128)
 def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
     """Read-only native group metadata for a partitioned decision."""
     union, positions = _layout(key)
@@ -118,7 +117,7 @@ def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
     return groups
 
 
-@cache
+@lru_cache(maxsize=128)
 def _native_indices(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
     """Read-only class indices for native restricted decisions."""
     indices = np.asarray(_layout(key)[0], dtype=np.int64)
