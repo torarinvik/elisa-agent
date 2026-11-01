@@ -1537,6 +1537,22 @@ including cost and bound. This single ordered timing pair includes warm-up
 effects; the observation reduction is directly counted. Audit fit-pass
 integration remains the next step, while checking keeps its lazy rejection.
 
+**Shared inference in audit fitting.** Fit-half counts now come from
+`outcomes_many`, using one `solve_many` trajectory per input. Checking still
+uses lazy candidate evaluation and irreversible rejection. The audit-order
+regression now verifies a single fit batch plus the unchanged checking prefix.
+Native suite: 130 passes; fallback: 117 passes and 13 skips.
+
+On 60 depth-4 fit formulas at noise 0.2, seed 7, all seven answer/error
+counts exactly matched independent solves: `(51,1),(52,1),(52,1),(54,1),
+(54,1),(57,1),(58,1)`. Readers used the existing checkpoint and calibration
+on 100 depth-4 validation formulas, noise 0.1, seed 0. In the corresponding
+60-per-half audit (evaluation seed 6, 100 formulas, target 5%), independent
+fit inference took 0.80717 s and shared fit inference 0.30237 s. Both
+reported uncontrolled coverage 0.85 with one error and no certified policy.
+The timing comparison followed count verification, so both paths had warm
+calibration; it remains one ordered pair, not a broad performance guarantee.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

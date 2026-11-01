@@ -55,7 +55,7 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer)
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
-from nca.selective import Answer, build_ladders, solve
+from nca.selective import Answer, build_ladders, solve, solve_many
 from nca.stats import clopper_pearson_upper, poisson_binomial_tails, wilson
 
 
@@ -97,6 +97,18 @@ def outcomes(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[F
                     and clopper_pearson_upper(wrong, len(samples), alpha) > reject_above):
                 break
     return answered, wrong
+
+
+def outcomes_many(route: Plan, ladders: dict[TypeId, list[Rung]],
+                  samples: Sequence[FormulaSample], targets: Sequence[float]) -> list[tuple[int, int]]:
+    """Fit-half counts for several policies sharing target-independent inference."""
+    counts = [[0, 0] for _ in targets]
+    for sample in samples:
+        for count, answer in zip(counts, solve_many(route, ladders, sample.text, targets)):
+            if not answer.abstained:
+                count[0] += 1
+                count[1] += answer.value != sample.value
+    return [(answered, wrong) for answered, wrong in counts]
 
 
 def run(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[FormulaSample],
@@ -192,7 +204,8 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
                 chosen = None
                 if certification_possible(args.audit, delta, args.alpha):
                     order = certification_order(
-                        [outcomes(route, ladders, fit, delta / lam) for lam in INFLATIONS], args.alpha)
+                        outcomes_many(route, ladders, fit, [delta / lam for lam in INFLATIONS]),
+                        args.alpha)
                     stats: dict[int, tuple[int, int]] = {}
                     accepted = []
                     for i in order:

@@ -564,7 +564,7 @@ binomial-bound monotonicity itself is not newly formalized here.
 `refine(..., observe=...)` optionally exposes every evaluated state, including
 initial and terminal states. Outer reading lists are independent; observers
 must treat tensors as read-only. This is the basis for shared-target inference
-under Theorem 17.8. Audit fitting does not yet use the hook. A future client
+under Theorem 17.8. Audit fitting uses the hook through `solve_many`. A future client
 should retain only selected target snapshots, rather than every trace state.
 Target-dependent floors/stopping must not be mixed into shared-path selection.
 
@@ -574,4 +574,10 @@ each answer through the same consumer chain, preserving the cost and bound
 of that policy's stopping state. Exhausted targets use the final state.
 `solve` shares the internal preparation/rendering path; its floor/stop options
 remain available. Multi-target calls exclude those options and require
-deterministic consumers. Audit fitting has not yet switched to this API.
+deterministic consumers. Audit fitting uses this API to share thresholds for each input.
+
+`logic.outcomes_many` accumulates fit-half answer/error counts from
+`solve_many` for all inflation thresholds. These counts determine the same
+candidate order as independent solves. Checking retains lazy candidate
+evaluation and irreversible-rejection stopping; its labels do not influence
+the fit trajectory or ordering.

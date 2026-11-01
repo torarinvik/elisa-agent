@@ -408,23 +408,32 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
     def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
                  **kwargs: Any) -> tuple[int, int]:
         calls.append((len(samples), delta))
-        if len(calls) <= 8:  # Seven fit candidates, then the first checking candidate.
+        if len(calls) == 1:  # First checking candidate.
             assert len(samples) == 60
             return 60, 0
-        if len(calls) == 9:
+        if len(calls) == 2:
             assert len(samples) == 60
             return 60, 20
         assert len(samples) == 3
         return 3, 0
 
+    fit_calls: list[int] = []
+
+    def fit_outcomes(route: Any, ladders: Any, samples: Any,
+                     targets: Any) -> list[tuple[int, int]]:
+        fit_calls.append(len(samples))
+        return [(60, 0) for _ in targets]
+
+    monkeypatch.setattr(logic, "outcomes_many", fit_outcomes)
     monkeypatch.setattr(logic, "outcomes", outcomes)
     monkeypatch.setattr(logic, "certification_order", lambda candidates, alpha: [2, 0, 1, 3, 4, 5, 6])
     args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
                            draws=1, audit=60, targets=[0.05], alpha=0.1)
     logic.shifted(None, {}, args)
-    assert len(calls) == 11
-    assert calls[7][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
-    assert calls[8][1] == pytest.approx(0.05 / logic.INFLATIONS[0])
+    assert fit_calls == [60]
+    assert len(calls) == 4
+    assert calls[0][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
+    assert calls[1][1] == pytest.approx(0.05 / logic.INFLATIONS[0])
     assert calls[-1][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
     assert "risk   1.5" in capsys.readouterr().out
 
