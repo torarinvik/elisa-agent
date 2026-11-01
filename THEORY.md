@@ -1689,6 +1689,13 @@ can stop at the relative-tail condition without establishing or tracing a
 maximum. This distinction permits one distribution to select an answer
 and another to bound that same answer’s posterior risk.
 
+The slack is pointwise at fixed readings and a fixed selected sequence.
+An adaptive controller may choose different refinements after its charges
+change, so the theorem does not bound the difference between final risks of
+two separately stopped runs. Nor does it correct a mismatch between the
+decoding model and the data distribution (§24): that requires appropriate
+model assumptions or a separate deployment audit (§17).
+
 So a slack target must be relative: `U_j ≤ η · Z_band` gives a charged risk
 within `η` of the exact risk. An absolute target `U_j ≤ η` is not enough, since
 `Z`, the weight of all parseable sequences, can be far below 1 when many

@@ -1640,6 +1640,30 @@ is about an 11% reduction in this small end-to-end comparison, not evidence
 of a universal speedup. Native tests: 142 passes; fallback: 128 passes and
 14 skips. Lean and Ruff pass. No compiler changes were needed.
 
+**Deployment audit of banded correction.** Exact and banded (slack 1e-4)
+policies were compared using the same reader, calibration on 100 depth-4
+validation formulas at noise 0.1 and seed 6, deployment noise 0.2, 240
+formulas per fit/check half, alpha 0.1 and 100 evaluation formulas. At depth
+4, one audit draw certified inflation 1 for the 5% target in both modes;
+evaluation answered 91 inputs with one error. Neither mode certified 1%.
+Uncontrolled evaluation at 1% answered 88 inputs without errors in both
+modes, which does not establish a 1% guarantee. End-to-end CLI times were
+3.16668 s exact and 3.52310 s banded; these include calibration and are not
+a warmed decoder microbenchmark.
+
+At depth 6, three fit/check draws (seeds 7–9) all rejected every candidate
+at both targets, for both modes. Their shared evaluation sample is the same
+100 seed-6 inputs, not three independent evaluation replicates. Uncontrolled
+5% policies both answered 76 with six errors (7.89%); at 1%, exact answered
+34 with three errors (8.82%), banded 33 with three errors (9.09%). The
+corresponding Wilson intervals were [3.67%,16.17%], [3.05%,22.96%] and
+[3.14%,23.57%]. Three-draw CLI times were 60.07776 s exact and 63.91724 s
+banded. This comparison provides no reason to enable banding by default.
+It also motivates keeping model approximation slack separate from reader
+calibration and prior mismatch: tighter numerical decoding alone cannot
+establish a deployment risk guarantee. These finite samples do not isolate
+which modeling assumption failed or prove repeated-audit validity.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
