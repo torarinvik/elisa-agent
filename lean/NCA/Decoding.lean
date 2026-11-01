@@ -1,0 +1,264 @@
+import Mathlib.Algebra.BigOperators.Ring.List
+import NCA.Detection
+
+/-!
+# Decoding by the format
+
+`NCA.Detection` uses the prefix format to *detect* errors: a reading whose
+arities do not parse is refused. The format can also *correct* them. The
+arity sequences of formulas are exactly the words a counter automaton
+accepts (`accepts_iff_codes`), so the most probable parseable arity
+sequence, and the total probability of all parseable ones, are computed by
+dynamic programs over the automaton's states.
+
+The dynamic programs are stated for any deterministic automaton and any
+position-wise weights: `dpSum` is the sum, and `dpMax` the maximum, of
+`score` over all sequences of the given length (`dpSum_eq`, `dpMax_ge`,
+`dpMax_attained`). With per-word arity probabilities as weights, `dpMax` is
+the probability of the decoded sequence and `dpSum` the normalizer `Z`; the
+decoded sequence is wrong with posterior probability `1 − dpMax / dpSum`,
+which never exceeds the union bound (`exact_risk_le_union`).
+-/
+
+namespace NCA
+
+section Automaton
+
+variable {σ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)
+
+/-- Every sequence of length `m` over the alphabet `as`. -/
+def words : ℕ → List (List α)
+  | 0 => [[]]
+  | m + 1 => (as.map fun a => (words m).map (a :: ·)).flatten
+
+/-- Product of position-wise weights along a sequence. -/
+def weightOf : List (α → ℝ) → List α → ℝ
+  | w :: ws, a :: l => w a * weightOf ws l
+  | _, _ => 1
+
+/-- A sequence's weight if the automaton, started at `s`, accepts it, else 0. -/
+def score (ws : List (α → ℝ)) (s : σ) (l : List α) : ℝ :=
+  if F (l.foldl δ s) then weightOf ws l else 0
+
+/-- Sum-product dynamic program over the automaton's states. -/
+def dpSum : List (α → ℝ) → σ → ℝ
+  | [], s => if F s then 1 else 0
+  | w :: ws, s => (as.map fun a => w a * dpSum ws (δ s a)).sum
+
+/-- Max-product dynamic program over the automaton's states. -/
+def dpMax : List (α → ℝ) → σ → ℝ
+  | [], s => if F s then 1 else 0
+  | w :: ws, s => (as.map fun a => w a * dpMax ws (δ s a)).foldr max 0
+
+theorem score_cons (w : α → ℝ) (ws : List (α → ℝ)) (s : σ) (a : α) (l : List α) :
+    score δ F (w :: ws) s (a :: l) = w a * score δ F ws (δ s a) l := by
+  unfold score
+  by_cases h : F (l.foldl δ (δ s a))
+  · rw [if_pos (show F ((a :: l).foldl δ s) from h), if_pos h]; rfl
+  · rw [if_neg (show ¬F ((a :: l).foldl δ s) from h), if_neg h, mul_zero]
+
+theorem score_nil (s : σ) : score δ F [] s [] = if F s then 1 else 0 := rfl
+
+omit [DecidablePred F] in
+theorem sum_flatten (L : List (List ℝ)) : L.flatten.sum = (L.map List.sum).sum := by
+  induction L with
+  | nil => rfl
+  | cons l L ih => simp [List.sum_append, ih]
+
+/-- **Sum-product.** The dynamic program sums the scores of all sequences. -/
+theorem dpSum_eq : ∀ (ws : List (α → ℝ)) (s : σ),
+    dpSum δ F as ws s = ((words as ws.length).map (score δ F ws s)).sum
+  | [], s => by simp only [dpSum, words, List.map_cons, List.map_nil, List.sum_cons,
+      List.sum_nil, add_zero, List.length_nil, score_nil]
+  | w :: ws, s => by
+    simp only [dpSum, words, List.length_cons, List.map_flatten, sum_flatten, List.map_map]
+    congr 1
+    refine List.map_congr_left fun a _ => ?_
+    rw [dpSum_eq ws (δ s a), ← List.sum_map_mul_left]
+    simp only [Function.comp_def, List.map_map, score_cons]
+
+theorem le_foldr_max {l : List ℝ} {x : ℝ} (hx : x ∈ l) : x ≤ l.foldr max 0 := by
+  induction l with
+  | nil => simp at hx
+  | cons y l ih =>
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact le_max_left _ _
+    · exact (ih hx).trans (le_max_right _ _)
+
+theorem foldr_max_mem (l : List ℝ) : l.foldr max 0 = 0 ∨ l.foldr max 0 ∈ l := by
+  induction l with
+  | nil => simp
+  | cons y l ih =>
+    simp only [List.foldr_cons, List.mem_cons]
+    rcases le_total y (l.foldr max 0) with h | h
+    · rw [max_eq_right h]; rcases ih with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (Or.inr h')
+    · rw [max_eq_left h]; exact Or.inr (Or.inl rfl)
+
+theorem dpMax_nonneg : ∀ (ws : List (α → ℝ)) (s : σ), 0 ≤ dpMax δ F as ws s
+  | [], s => by unfold dpMax; split <;> norm_num
+  | w :: ws, s => by
+    show 0 ≤ (as.map fun a => w a * dpMax δ F as ws (δ s a)).foldr max 0
+    induction (as.map fun a => w a * dpMax δ F as ws (δ s a)) with
+    | nil => simp
+    | cons y l ih => exact ih.trans (le_max_right _ _)
+
+/-- **Max-product, upper bound.** With nonnegative weights, no sequence
+scores more than the dynamic program. -/
+theorem dpMax_ge : ∀ (ws : List (α → ℝ)), (∀ w ∈ ws, ∀ a, 0 ≤ w a) →
+    ∀ (s : σ) (l : List α), l ∈ words as ws.length → score δ F ws s l ≤ dpMax δ F as ws s
+  | [], _, s, l, hl => by
+    simp only [List.length_nil, words, List.mem_singleton] at hl
+    subst hl
+    rw [score_nil]; rfl
+  | w :: ws, hw, s, l, hl => by
+    simp only [words, List.length_cons, List.mem_flatten, List.mem_map] at hl
+    obtain ⟨_, ⟨a, ha, rfl⟩, hl⟩ := hl
+    obtain ⟨l', hl', rfl⟩ := List.mem_map.mp hl
+    rw [score_cons]
+    have ih := dpMax_ge ws (fun v hv => hw v (List.mem_cons_of_mem _ hv)) (δ s a) l' hl'
+    calc w a * score δ F ws (δ s a) l'
+        ≤ w a * dpMax δ F as ws (δ s a) :=
+          mul_le_mul_of_nonneg_left ih (hw w List.mem_cons_self a)
+      _ ≤ _ := le_foldr_max (List.mem_map.mpr ⟨a, ha, rfl⟩)
+
+/-- **Max-product, attained.** Unless every sequence scores at most 0, some
+sequence of the right length scores exactly the dynamic program's value:
+tracing the maximizing choices back decodes it. -/
+theorem dpMax_attained : ∀ (ws : List (α → ℝ)) (s : σ),
+    dpMax δ F as ws s = 0 ∨ ∃ l ∈ words as ws.length, score δ F ws s l = dpMax δ F as ws s
+  | [], s => Or.inr ⟨[], by simp [words], by rw [score_nil]; rfl⟩
+  | w :: ws, s => by
+    rcases foldr_max_mem (as.map fun a => w a * dpMax δ F as ws (δ s a)) with h | h
+    · exact Or.inl (by simpa [dpMax] using h)
+    · obtain ⟨a, ha, hval⟩ := List.mem_map.mp h
+      rcases dpMax_attained ws (δ s a) with h0 | ⟨l, hl, hs⟩
+      · left
+        simp only [dpMax]
+        rw [← hval, h0, mul_zero]
+      · right
+        refine ⟨a :: l, ?_, ?_⟩
+        · simp only [words, List.length_cons]
+          exact List.mem_flatten.mpr ⟨_, List.mem_map.mpr ⟨a, ha, rfl⟩, List.mem_map.mpr ⟨l, hl, rfl⟩⟩
+        · simp only [dpMax]
+          rw [score_cons, hs, hval]
+
+end Automaton
+
+section Counter
+
+/-- The counter automaton of prefix notation. The state is the number of
+subformulas still to be read, `none` once the reading has ended early. A word
+of arity `a` replaces one awaited subformula by `a` new ones. -/
+def await : Option ℕ → ℕ → Option ℕ
+  | some (n + 1), a => some (n + a)
+  | _, _ => none
+
+variable {ω : Type}
+
+theorem await_code (f : Formula ω) : ∀ (n : ℕ) (l : List ℕ),
+    (code f ++ l).foldl await (some (n + 1)) = l.foldl await (some n) := by
+  induction f with
+  | const _ _ => intro n l; simp [code, await]
+  | not _ f ih => intro n l; simp only [code, List.cons_append, List.foldl_cons, await]; exact ih n l
+  | bin _ _ f g ihf ihg =>
+    intro n l
+    simp only [code, List.cons_append, List.foldl_cons, await, List.append_assoc]
+    rw [show n + 2 = (n + 1) + 1 by omega, ihf (n + 1), ihg n]
+
+/-- Every formula's arity sequence is accepted: read from one awaited
+subformula, it ends with none awaited. -/
+theorem code_accepted (f : Formula ω) : (code f).foldl await (some 1) = some 0 := by
+  simpa using await_code f 0 []
+
+theorem foldl_await_none : ∀ l : List ℕ, l.foldl await none = none
+  | [] => rfl
+  | _ :: l => foldl_await_none l
+
+/-- Concatenated arity sequences of `n` formulas are accepted from `n`
+awaited subformulas. -/
+theorem codes_accepted : ∀ fs : List (Formula ω),
+    ((fs.map code).flatten).foldl await (some fs.length) = some 0
+  | [] => rfl
+  | f :: fs => by
+    simp only [List.map_cons, List.flatten_cons, List.length_cons]
+    rw [await_code]
+    exact codes_accepted fs
+
+/-- **Accepted sequences are exactly the codes.** A sequence of arities at
+most 2, read from `n` awaited subformulas, ends with none awaited exactly
+when it is the concatenated arity sequence of `n` formulas. -/
+theorem accepts_iff_codes : ∀ (l : List ℕ), (∀ a ∈ l, a ≤ 2) → ∀ n : ℕ,
+    (l.foldl await (some n) = some 0 ↔
+      ∃ fs : List (Formula Unit), fs.length = n ∧ (fs.map code).flatten = l)
+  | [], _, n => by
+    constructor
+    · intro h
+      simp only [List.foldl_nil, Option.some.injEq] at h
+      exact ⟨[], by simp [h], rfl⟩
+    · rintro ⟨fs, rfl, hfl⟩
+      rw [← hfl]
+      exact codes_accepted fs
+  | a :: l, hl, n => by
+    have hl' : ∀ b ∈ l, b ≤ 2 := fun b hb => hl b (List.mem_cons_of_mem _ hb)
+    have ha : a ≤ 2 := hl a List.mem_cons_self
+    constructor
+    · intro h
+      obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := by
+        cases n with
+        | zero => simp [await, foldl_await_none] at h
+        | succ k => exact ⟨k, rfl⟩
+      simp only [List.foldl_cons, await] at h
+      obtain ⟨fs, hlen, hfl⟩ := (accepts_iff_codes l hl' (k + a)).mp h
+      rcases (by omega : a = 0 ∨ a = 1 ∨ a = 2) with rfl | rfl | rfl
+      · exact ⟨.const () true :: fs, by simp [hlen], by simp [code, hfl]⟩
+      · obtain ⟨f, fs, rfl⟩ : ∃ f fs', fs = f :: fs' := by
+          cases fs with
+          | nil => simp at hlen
+          | cons f fs' => exact ⟨f, fs', rfl⟩
+        exact ⟨.not () f :: fs, by simp at hlen ⊢; omega, by simp [code, ← hfl]⟩
+      · obtain ⟨f, g, fs, rfl⟩ : ∃ f g fs', fs = f :: g :: fs' := by
+          match fs with
+          | f :: g :: fs' => exact ⟨f, g, fs', rfl⟩
+          | [] => simp at hlen
+          | [_] => simp at hlen
+        exact ⟨.bin () .and f g :: fs, by simp at hlen ⊢; omega, by simp [code, ← hfl]⟩
+    · rintro ⟨fs, rfl, hfl⟩
+      rw [← hfl]
+      exact codes_accepted fs
+
+end Counter
+
+theorem prod_le_one : ∀ l : List ℝ, (∀ p ∈ l, 0 ≤ p ∧ p ≤ 1) → l.prod ≤ 1
+  | [], _ => by simp
+  | p :: l, h => by
+    have hp := h p List.mem_cons_self
+    have ih := prod_le_one l fun q hq => h q (List.mem_cons_of_mem _ hq)
+    have h0 : 0 ≤ l.prod := List.prod_nonneg fun q hq => (h q (List.mem_cons_of_mem _ hq)).1
+    simp only [List.prod_cons]
+    nlinarith
+
+/-- 1 − Π pₖ ≤ Σ (1 − pₖ) for probabilities `pₖ`. -/
+theorem one_sub_prod_le_sum : ∀ l : List ℝ, (∀ p ∈ l, 0 ≤ p ∧ p ≤ 1) →
+    1 - l.prod ≤ (l.map (1 - ·)).sum
+  | [], _ => by simp
+  | p :: l, h => by
+    have hp := h p List.mem_cons_self
+    have hl := fun q hq => h q (List.mem_cons_of_mem _ hq)
+    have ih := one_sub_prod_le_sum l hl
+    have h0 : 0 ≤ l.prod := List.prod_nonneg fun q hq => (hl q hq).1
+    have h1 : l.prod ≤ 1 := prod_le_one l hl
+    simp only [List.prod_cons, List.map_cons, List.sum_cons]
+    nlinarith
+
+/-- **Correction is no worse than the union bound.** The decoded sequence's
+posterior risk `1 − x / Z`, with `x` its weight and `0 < Z ≤ 1` the weight of all
+parseable sequences, is at most `1 − x`; with `x` a product of per-word
+probabilities, at most the sum of their complements (`one_sub_prod_le_sum`). -/
+theorem exact_risk_le_union {x Z : ℝ} (hx : 0 ≤ x) (hZ : Z ≤ 1) (hZ0 : 0 < Z) :
+    1 - x / Z ≤ 1 - x := by
+  have : x ≤ x / Z := by rw [le_div_iff₀ hZ0]; nlinarith
+  linarith
+
+end NCA

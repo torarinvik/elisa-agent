@@ -26,6 +26,12 @@ The identity of an evaluated word is then charged only for errors that keep
 its arity, whose joint probability is at most the risk of the decision
 restricted to the word's arity group (`joint_le_restricted`).
 `detected_error_le` assembles the bound.
+
+Both arity charges are monotone in the risks (`detection_account_mono`). So
+the charge computed from the words whose readings can no longer change, with
+the others' risks set to zero, is a floor under every bound refinement can
+still reach: once it exceeds the target, abstaining at once changes no
+answer.
 -/
 
 namespace NCA
@@ -144,6 +150,20 @@ theorem detected_error_le (wrong : Set Ω) (E : Finset ι) (W A : ι → Set Ω)
     μ wrong ≤ ∑ i ∈ E, μ (W i) + μ {ω | 2 ≤ occurring A ω} :=
   (measure_mono h).trans <| (measure_union_le _ _).trans <|
     add_le_add_left (measure_biUnion_finset_le _ _) _
+
+/-- **Floors.** The detection account `min (S / 2, e₂)` is monotone in the
+risks: lowering any risk, for instance to zero for words still open to
+refinement, never raises it. -/
+theorem detection_account_mono [LinearOrder ι] {ρ ρ' : ι → ℝ} (h0 : ∀ i, 0 ≤ ρ' i)
+    (h : ∀ i, ρ' i ≤ ρ i) :
+    min ((∑ i, ρ' i) / 2) (∑ p ∈ univ.filter (fun p : ι × ι => p.1 < p.2), ρ' p.1 * ρ' p.2) ≤
+      min ((∑ i, ρ i) / 2) (∑ p ∈ univ.filter (fun p : ι × ι => p.1 < p.2), ρ p.1 * ρ p.2) := by
+  apply min_le_min
+  · gcongr with i _
+    exact h i
+  · apply sum_le_sum
+    intro p _
+    exact mul_le_mul (h p.1) (h p.2) (h0 p.2) ((h0 p.1).trans (h p.1))
 
 end Counting
 

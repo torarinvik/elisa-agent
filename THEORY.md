@@ -1745,3 +1745,520 @@ premise, or quadratic under a premise of uncorrelated failures. The kernel
 needed one generic change: certificates return per-item charges instead of
 demands. That roughly doubles to triples certified coverage at depth 6,
 cuts compute severalfold, and keeps every answered formula correct.
+
+## 20. Higher-order experts and budgeted requests
+
+### 20.1 What is missing
+
+Experts can already ask the kernel for sub-results (§14): by delegation,
+which replaces their output, or by continuation, which resumes with the
+answer. Both are invisible to the planner, which has two costs:
+
+1. **No cost up front.** A route's cost (§13) does not include what its
+   experts will request, so the planner cannot choose the cheapest way to
+   serve those requests, and cannot compare a route that delegates with one
+   that does not.
+2. **No recursion.** Requests terminate because the requester chain excludes
+   every expert already in it (`RequestChain.length_le`). That also forbids
+   an expert from asking its own question again on a smaller input, which is
+   exactly what divide and conquer needs.
+
+Two extensions address them:
+
+- **slots**, sub-goals declared in the contract, which the planner fills
+  and costs like any other goal;
+- **budgets**, which replace chain exclusion as the termination argument
+  for dynamic requests.
+
+`map` is the first example of the first kind: a built-in combinator whose
+body is a planned sub-goal. Slots make it one library expert among others.
+
+### 20.2 Slots
+
+A contract with slots (`HContract`, `lean/NCA/Slots.lean`) adds a list of
+sub-goals `[a₁, …, aₖ] ⇒ b` to the inputs and output. A plan
+`apply c fs ps` fills slot `i` with the plan `fs[i]` and input `j` with
+`ps[j]`. The expert receives the fillings as functions and may call them
+during its invocation. It never learns which experts implement them.
+
+**Typing** (`HTyped`). It extends §1 with one premise. A slot filling must be
+a well-typed plan from *exactly the slot's inputs* to the slot's output:
+
+| Rule | Premises | Conclusion |
+|---|---|---|
+| given | `t ∈ avail` | `given t : t` |
+| apply | `lib c`; `fs[i] : sᵢ.out` under inputs `sᵢ.in`; `ps : c.inputs` under `avail` | `apply c fs ps : c.output` |
+
+A filling cannot read the surrounding task's inputs, only what the expert
+passes it. As with `map`'s body, this is what lets the kernel plan it
+separately.
+
+The library is a predicate, not a list, so that it can contain families
+such as `map` at every pair of types.
+
+**Theorem** (`HTyped.mono`). Installing experts never invalidates a plan.
+
+### 20.3 `map` is a higher-order expert
+
+`map` at element types `a`, `e` is the contract `mapContract a e` with slot
+`[a] ⇒ e`, input `seq a` and output `seq e`. It calls its slot once per
+element.
+
+**Theorem** (`embed_wellTyped`). Every plan well-typed in the sense of §1 is
+expressed by a plan in which `map` is a library expert with zero own cost
+and call bound `L`. The new plan has the same type and the same cost on
+sequences of length `L`.
+
+So nothing is lost by removing `map` from the kernel. Other combinators
+become experts of the same form, each declaring its call bound:
+
+| expert | slots | inputs → output | calls per slot |
+|---|---|---|---|
+| `map` | `[a] ⇒ e` | `seq a → seq e` | `L` |
+| `fold` | `[s, a] ⇒ s` | `s, seq a → s` | `L` |
+| `filter` | `[a] ⇒ bool` | `seq a → seq a` | `L` |
+| fallback | `[x] ⇒ y`, `[x] ⇒ y` | `x → y` | 1 and 1 (expected: 1 and `P(unsure)`) |
+
+The fallback expert is the confidence cascade of §14. As a hand-written
+module it hard-codes its two recognizers. As a higher-order expert its two
+recognizers are fillings, chosen by the planner.
+
+### 20.4 Cost
+
+An expert `c` costs `κ c` per invocation and calls each slot at most `ν c`
+times per invocation. Then
+
+> `cost(apply c fs ps) = κ c + ν c · Σᵢ cost(fs[i]) + Σⱼ cost(ps[j])`.
+
+`map` has `κ = 0` and `ν = L`, recovering §13.
+
+**Theorem** (`HPlan.cost_le_pow`). If `1 ≤ N` and every expert calls its
+slots at most `N` times, a plan costs at most `N^nest` times its cost with
+every slot called once. Here `nest` is the slot nesting depth, the largest
+number of fillings enclosing an expert.
+
+With `N = L`, plans whose fillings contain no further fillings are linear
+in `L`, as in `Plan.cost_linear`. The polynomial degree of a composition is
+visible from its shape before anything runs.
+
+**Worst case and expected cost.** `ν` is a worst-case bound and certifies a
+budget. Many higher-order experts call their slots lazily. Fallback calls its
+second slot only when unsure, and a short-circuit `and` calls its second
+operand only when the first is true. If a filling's cost does not depend on
+whether or how often it is called, linearity of expectation gives
+
+> `E[cost(apply c fs ps)] = κ c + Σᵢ E[Nᵢ] · cost(fs[i]) + Σⱼ cost(ps[j])`,
+
+with `Nᵢ` the number of calls to slot `i`. An expert may therefore declare
+two numbers per slot:
+
+- the bound `ν`, used for budgets and guarantees;
+- the expected number of calls `ν̄`, used as the planner's cost objective.
+
+For fallback, `ν̄ = (1, P(unsure))`, which is `cascade_expected_cost`.
+
+### 20.5 Planning with slots
+
+A slot is a sub-goal whose available inputs are the slot's inputs. That is
+the situation of `map`'s body, so the planner's state `(available, type,
+depth)` is unchanged. An expert with slots spawns one sub-goal per slot,
+alongside one per input.
+
+**Theorem** (`HPlan.cost_mono`, optimal substructure). Cost is monotone in
+the cost of every filling and every argument. Replacing either by a cheaper
+plan of the same type never makes a plan dearer.
+
+**Consequences.**
+
+1. **Cheapest plans.** The cheapest filling of a slot is the cheapest plan
+   for its sub-goal. It does not depend on the expert using it or on `ν`,
+   because multiplying by `ν ≥ 0` preserves order. So the Bellman
+   recursion of `planMin` (§13) extends with one term: an expert with slots
+   costs `κ c + ν c · Σ` (cheapest fillings) `+ Σ` (cheapest arguments).
+   Memoization keeps each sub-goal solved once. A slot whose sub-goal
+   recurs (for example, `[glyph] ⇒ digit` in several experts) is planned
+   once for all of them.
+2. **Cheapest plans under an error target.** By the union bound, a filling
+   called `ν` times contributes `ν` times its error. Dominance of
+   (cost, error) pairs is invariant under scaling both by `ν > 0`. So each
+   sub-goal's Pareto frontier, scaled, is the frontier of its contribution.
+   The frontier recursion of `planPareto` extends unchanged: combine the
+   scaled frontiers of the slots and arguments, then prune.
+3. **Cascades built by the planner.** With fallback as an expert, the
+   cheapest route within an error target may now be a cascade, and the
+   planner picks both of its components. Before, a cascade was hand-built.
+   Its expected cost `κ₁ + κ₂ · P(unsure)` enters the objective through
+   `ν̄`. Its error is `P(C ∩ W₁) + P(Cᶜ ∩ W₂)` (`cascade_error_eq`). That
+   error is a property of the pair, not a sum of per-filling errors, so the
+   fallback expert declares it per filling pair from audit data.
+
+### 20.6 Budgeted requests
+
+Static slots cover requests whose shape is known before the input is seen.
+Requests that depend on intermediate values, such as recursion on
+subformulas, stay dynamic. For those, chain exclusion is replaced by a
+budget (`serve`, `lean/NCA/Continuation.lean`):
+
+- A question `q` is answered by an expert program `expert q`, a `Prog` of
+  §14, whose invocation costs `κ q > 0`.
+- The kernel pays `κ q` from the budget `b` before running it. If
+  `κ q > b`, it refuses.
+- The program's own questions are served recursively, with the budget that
+  remains.
+- No expert is excluded, so a program may ask its own question again.
+
+The definition is accepted by Lean through well-founded recursion on the
+budget, which strictly decreases with every invocation. That acceptance is
+the termination proof: every run ends, recursive or not.
+
+| Theorem | Statement |
+|---|---|
+| `serve_sound` | if every expert's program is safe for its question's specification, every answer is correct, at any budget and recursion depth |
+| `serve_spent` | an answer leaves at most `b − κ q`: every invocation is paid from the budget |
+| `Prog.runB_le` | serving a program's questions never increases the budget |
+
+**Consequences.**
+
+- With every invocation costing at least `κ_min`, a question served from
+  budget `B` makes at most `B / κ_min` invocations. Its requests nest at
+  most `B / κ_min` deep, and its total compute is at most `B`. All of this
+  is known before it starts.
+- A refusal is not an error. Out of budget, the kernel returns no answer.
+  The consumer treats that like an unparseable reading: the controller
+  climbs or abstains.
+
+The two termination arguments coexist:
+
+| argument | bounds | recursion |
+|---|---|---|
+| chain exclusion (§14) | chain length by library size | forbidden |
+| budget | total cost by the budget | allowed |
+
+The runtime already counts invocations against a budget. Measured in cost
+units, with repeats in the chain allowed when a budget is set, it becomes
+`serve`.
+
+### 20.7 Predictions
+
+1. **Exactness.** With `map` moved from the kernel into the library, routes,
+   outputs and costs of the arithmetic tasks are identical (`embed_wellTyped`).
+2. **Planner optimality.** The slot-aware cost and Pareto planners agree
+   with exhaustive enumeration of searchable plans on random libraries,
+   including libraries where the cheapest route uses a higher-order expert.
+3. **Automatic cascades.** Given the digit recognizers and the fallback
+   expert, the planner's cheapest route within the error target is the
+   cascade that §14 built by hand, with matching cost and error.
+4. **Budgets.** A recursive expert (one that asks its own question on
+   subinputs) runs within its declared budget, and is refused rather than
+   wrong when the budget is too small.
+
+## 21. Decoding by the format
+
+### 21.1 From detection to correction
+
+§19 used the prefix format to **detect** arity errors: a reading that does
+not parse is refused, and the controller climbs or abstains. At depth 8,
+that is what limits coverage. Even at the top rung, 18 of 30 readings do not
+parse, so the formula cannot be answered at any cost.
+
+A refused reading is still evidence. Its words' arity distributions say
+which arities are likely, and the format says which arity sequences are
+possible. The posterior over *possible* sequences picks out the most
+probable formula. An error-detecting code used this way corrects errors.
+
+### 21.2 The model
+
+For each word `k`, let `qₖ(a)` be the calibrated probability that its arity
+is `a ∈ {0, 1, 2}`: the arity decision's grouped reading (§18.3), under that
+decision's temperature. Let `L_m` be the set of arity sequences of formulas
+with `m` words.
+
+**Premise (P).** Given the readings, the posterior probability of an arity
+sequence `a` is
+
+> `π(a) = Πₖ qₖ(aₖ) · 1[a ∈ L_m] / Z`,  `Z = Σ_{a ∈ L_m} Πₖ qₖ(aₖ)`.
+
+(P) holds exactly when two things are true:
+
+1. words are corrupted and read independently given the truth (the channel
+   corrupts each word separately, and each reader sees one word);
+2. the prior over arity sequences is the readers' own per-word prior,
+   restricted to the sequences that parse.
+
+The second part is a modeling choice. The evaluator knows the format, but
+not the process that generated the formulas. Complete alternating trees are
+far more constrained than (P) assumes; for one thing, the word count
+determines the tree's shape. Using that would hardcode the task's generator
+into the expert, against the requirement that experts be generic. (P) uses
+only the format, the least informative prior consistent with it. Whether
+the resulting risks are calibrated is an empirical question (§21.8), and
+risk control (§17) remains the backstop.
+
+### 21.3 The format is a regular language
+
+**Definition** (`await`, `lean/NCA/Decoding.lean`). The counter automaton
+of prefix notation has states `some n`, meaning `n` subformulas are still
+awaited, and a dead state `none`. A word of arity `a` read while `n + 1`
+subformulas are awaited leaves `n + a` awaited. Reading anything when none
+are awaited kills the run. A sequence is accepted when, started from one
+awaited subformula, it ends with none awaited.
+
+| Theorem | Statement |
+|---|---|
+| `await_code` | reading a formula's arity sequence consumes exactly one awaited subformula |
+| `code_accepted` | every formula's arity sequence is accepted |
+| `accepts_iff_codes` | a sequence of arities at most 2 is accepted from `n` awaited exactly when it is the concatenated arity sequence of `n` formulas |
+
+So `L_m` is exactly the set of length-`m` words the automaton accepts. The
+decoded sequence is therefore always a formula, and every formula is a
+candidate.
+
+### 21.4 Decoding by dynamic programming
+
+For any deterministic automaton and position-wise weights `wₖ`, define the
+score of a sequence as its weight product if accepted, else 0.
+
+| Theorem | Statement |
+|---|---|
+| `dpSum_eq` | the sum-product recursion over states equals the total score of all sequences |
+| `dpMax_ge` | with nonnegative weights, no sequence scores more than the max-product recursion |
+| `dpMax_attained` | unless the maximum is 0, some sequence attains it; backtracking the maximizing choices finds it |
+
+With `wₖ = qₖ`:
+
+- `dpSum` from state `some 1` is `Z`;
+- `dpMax` is `Πₖ qₖ(âₖ)` for the most probable parseable arity sequence
+  `â`, the **decoded** sequence.
+
+**Marginals.** Forward sums `F_k(n)` and backward sums `B_k(n)` over the
+same states give each word's posterior arity distribution:
+
+> `π(aₖ = a) = Σₙ F_k(n + 1) · qₖ(a) · B_{k+1}(n + a) / Z`.
+
+Each is the sum-product theorem applied to a prefix and a suffix.
+
+**Cost.** At position `k`, at most `min(k + 1, m − k)` subformulas can be
+awaited and still be completed, because every awaited subformula needs at
+least one more word. That leaves about `m² / 4` live states, with three
+arities each. Forward, backward and max passes then take about `2.25 m²`
+multiply-adds.
+
+| depth | words | decoding ops | bottom-rung reading | top-rung reading |
+|---:|---:|---:|---:|---:|
+| 6 | 143 | 46k | 93k | 14.9M |
+| 8 | 575 | 744k | 374k | 59.8M |
+
+Decoding costs at most about 1% of a top-rung pass. It is computed once per
+refinement step, in log space.
+
+When the sequence of each word's most probable arity parses, it is `â`: it
+maximizes the unconstrained product and is feasible. So decoding departs
+from per-word decisions only where those decisions do not parse.
+
+### 21.5 The risk of a decoded formula
+
+Under (P), the decoded arity sequence is wrong with posterior probability
+exactly
+
+> `R = 1 − Πₖ qₖ(âₖ) / Z`.
+
+**Theorem** (`exact_risk_le_union`, `one_sub_prod_le_sum`). Since `Z ≤ 1`,
+`R ≤ 1 − Πₖ qₖ(âₖ) ≤ Σₖ (1 − qₖ(âₖ))`. Correction is never worse than the
+union bound over the decoded arities.
+
+Detection's bounds charged the probability that two or more arity
+decisions fail, whether or not the failures leave a parseable sequence.
+`R` counts only failures that do, and it conditions on the truth being a
+formula, which §19.4 had to set aside.
+
+**Identities.** Given the arity sequence, (P) makes the words' identities
+independent. Word `k`'s identity is distributed as its reading restricted
+to the group `âₖ`. So each word is decoded as the most probable class within
+its decoded arity group. That pairs every word's identity with its own
+arity, which resolves the objection of §18.3 to choosing groups by mass.
+With `E` the words the decoded formula's least-risk certificate evaluates
+(§19.5), and `rₖ` the restricted risks, the argument of `detected_error_le`
+gives
+
+> `P(wrong | readings) ≤ R + Σ_{k ∈ E} rₖ`.
+
+### 21.6 Charges for refinement
+
+Let `μₖ = 1 − π(aₖ = âₖ)` be word `k`'s posterior arity risk after decoding.
+`μₖ` uses every other word's evidence through the format. A word whose
+reading is uncertain can still have a small `μₖ` when only one arity fits
+its neighbours.
+
+**Errors come in pairs.** The truth and `â` are both formulas of `m` words,
+so they differ in no position or in at least two (`code_no_single_change`).
+Applied to the posterior measure, Markov's inequality on the number of
+differing positions (`two_occur_le_half`) gives
+
+> `R ≤ ½ Σₖ μₖ`.
+
+The account charges word `k`
+
+> `R · μₖ / Σⱼ μⱼ`, plus `rₖ` if `k ∈ E`.
+
+The charges sum to the bound of §21.5. Refinement climbs the word with the
+largest charge, the word most likely misread *given the format*, not merely
+the least confident reading.
+
+**Interface.** The certificate needs the calibrated distribution of the
+arity decision, not only its risk. The controller already computes it to
+obtain the risk. The generic change is to pass the consumer a calibrated
+distribution for any grouped decision it names, alongside the risk.
+
+### 21.7 Scaling
+
+For words with arity risk `ρ` each and `S = mρ`:
+
+- **detection:** abstains on every unparseable reading, whose probability
+  approaches 1 as `S` grows past 1 (§19.9);
+- **correction:** answers every reading, and charges `R`.
+
+`R` is small when the competitors of `â` are improbable. The nearest
+competitors differ in two positions, with opposite net arity change, so `R`
+behaves like `e₂` restricted to cancelling pairs, divided by `Z`. Correction
+therefore removes the hard limit `S < 1`, beyond which detection answers
+nothing. What remains is the slower growth of the posterior weight of
+cancelling pairs.
+
+### 21.8 Testing the premises
+
+Two premises are now in use. Each yields a prediction about counts over
+independent formulas, which can be tested on held-out data.
+
+**Calibration of `R` (premise P).** Over `N` formulas, let `O` be the number
+whose decoded arity sequence is wrong. Under (P) with calibrated readings,
+`O` is a sum of independent Bernoulli(`R_f`) variables, so
+`E[O] = Σ_f R_f`. The test compares `O` with the Poisson-binomial
+distribution of that sum (two-sided), overall and in bins of `R`. It runs at
+the bottom rung, where errors are frequent enough to count, at depths 4 to
+8 and under the noise shift.
+
+**The pairs premise of §19.** Let `O₂` be the number of formulas whose
+per-word reading has at least two arity failures. If failures are not
+positively correlated, `E[O₂] ≤ Σ_f e₂(f)`. A one-sided Poisson-binomial
+test rejects the premise if `O₂` is significantly larger. A direct check:
+over pairs of words, the observed rate of joint arity failures against the
+product of the marginal rates, for adjacent and for distant pairs
+separately.
+
+These replace the indirect evidence of §19.9 (no errors, so no
+contradiction) with a test that can fail.
+
+### 21.9 What correction cannot do: hard style
+
+In the arithmetic task, the parser fixes the kind of every position:
+digits at even positions, operators at odd ones (§14). A misread digit is
+another digit, and a misread operator another operator. Either way, the
+reading still parses. The format has no redundancy against such errors,
+so neither detection nor correction has anything to work with.
+
+Of the remaining hard-style errors:
+
+- **Ambiguity between operators** (about 20%: `+` against `×` under
+  rotation) lies inside a decision the format leaves free. Its Bayes risk is
+  a floor: no reader, however strong, certifies such a glyph below it.
+- **Erased digits** (7%), when the segmenter misses them, change the
+  length's parity. Such readings do not parse and are already detected.
+  When an erased digit is segmented but misread, it is an ordinary digit
+  error.
+
+For hard style, the efficient policy is to recognize early that a glyph's
+risk cannot reach the target and abstain, rather than climb (§22).
+
+### 21.10 Predictions
+
+1. **Coverage.** Correction answers formulas whose readings do not parse.
+   At depth 8, where 18 of 30 top-rung readings fail to parse, coverage
+   rises well above detection's (0.247 at `δ = 0.2`), and readings refused
+   for not parsing disappear.
+2. **Error when forced.** The decoded formula is right more often than the
+   per-word reading. Error when forced to answer falls at every depth, most
+   at depth 8 (0.57 for pairs).
+3. **Validity.** If (P) is calibrated (§21.8), the error among answered
+   formulas stays within `δ`. (P) is the strongest premise used so far, so
+   this is the prediction most likely to fail. Risk control under shift is
+   the remedy if it does.
+4. **Compute.** Decoding adds about 1% to a top-rung pass. Climbs go to
+   words that are likely wrong given the format, so fewer are needed.
+
+## 22. Abstaining early
+
+### 22.1 The most expensive outcome
+
+An abstention costs the most of any outcome. The controller climbs until no
+item can be climbed, and only then gives up. At depth 8 and `δ = 0.01`, the
+pairs account spent 59.4M FLOPs per formula, nearly the 59.8M of top rungs
+everywhere, to answer 0.7% of formulas (§19.9). Compute spent on a formula
+that will be refused anyway is wasted.
+
+### 22.2 Selection never breaks the guarantee
+
+Each answered formula's bound is at most `δ`, so its posterior error is at
+most `δ`. A policy that abstains on some of these formulas, deciding from
+observed readings only, leaves every remaining answer's guarantee intact. So
+early abstention trades coverage for compute and never costs validity. The
+only question is which formulas to give up on, and when.
+
+### 22.3 Sound floors
+
+A **floor** is a lower bound on every bound refinement can still reach. If
+the floor exceeds `δ`, refinement would end in abstention anyway, so
+abstaining at once changes no answer and saves the remaining climbs.
+
+Readings at the top rung never change. Call those words *fixed*.
+
+- **Detection accounts.** `min(S / 2, e₂)` is monotone in the arity risks
+  (`detection_account_mono`). Setting every open word's risk to zero gives
+  the floor `min(S_F / 2, e₂(F))` over the fixed words `F`. Within-group
+  charges are nonnegative, and an unparseable reading has bound `∞`, so
+  every reachable bound is at least this floor.
+- **The certificate account of §18.** Every word is charged at least its
+  arity risk, so `Σ_{k ∈ F} ρₖ` is a floor.
+- **Static and demand accounts (arithmetic).** The bound is a sum of
+  nonnegative charges, and a fixed item's charge no longer changes. The sum
+  over fixed items is a floor.
+
+The consumer declares its floor, alongside its certificate, from the
+readings, the risks and the set of fixed items. The controller abstains as
+soon as the floor exceeds `δ`. Answers are identical. Only the value
+reported for an abstained formula (the "forced" value of the experiments)
+can differ, because it comes from an earlier reading.
+
+**Correction has no such floor.** `R` is not monotone in the open words'
+risks. An open word becoming certain can rule out the competitor that made
+a fixed word uncertain. For the correction account, early abstention must be
+predictive.
+
+### 22.4 Predictive abstention
+
+For any account, let `s` be the controller's state after a step, and let
+`A` be the event that refinement eventually answers. A stopping policy
+trades coverage against compute. The policy that maximizes coverage minus
+`λ` times compute stops at `s` when
+
+> `P(A | s) < λ · E[remaining cost | s]`.
+
+Both terms are estimated on calibration formulas from a few features of the
+state: the ratio of bound to `δ`, the charge mass on open words, and the
+cost already spent. Since selection never breaks the guarantee (§22.2),
+estimation errors cost only coverage or compute, never validity. Varying `λ`
+traces the coverage–compute frontier. The sound floors of §22.3 are its
+zero-loss end.
+
+### 22.5 Predictions
+
+1. **Identical answers under sound floors.** For the detection, certificate
+   and arithmetic accounts, early abstention by floor gives the same answers
+   with less compute.
+2. **Savings where abstention dominates.** Savings are largest at depth 8
+   and strict targets. At about `10⁻³` arity risk per fixed word, the pairs
+   floor reaches `δ = 0.01` once roughly 140 words are fixed, against 575
+   climbed now. That predicts several-fold less compute on abstained
+   formulas.
+3. **Hard style.** Glyphs whose top-rung risk alone exceeds `δ` end
+   refinement at once. That accounts for most of the compute saved on hard
+   expressions.
