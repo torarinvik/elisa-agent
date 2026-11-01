@@ -167,8 +167,15 @@ class ProducerIndex:
                     return
                 yield position, module, ()
             return
+        term = parse_type(goal)
+        head = None if isinstance(term, Var) else (term.name, len(term.args))
+        heads = () if head is None else self.heads.get(head, ())
+        generic_heads = (p for p in heads
+                         if p < limit and p in self.polymorphic)
+        generic_open = (p for p in self.open_outputs if p < limit)
+        generic = heapq.merge(generic_heads, generic_open)
         merged = heapq.merge(((p, m, ()) for p, m in exact if p < limit),
-                             ((p, m, None) for p, m in self.generic if p < limit),
+                             ((p, self.modules[p], None) for p in generic),
                              key=lambda item: item[0])
         for position, module, binding in merged:
             if binding is None:

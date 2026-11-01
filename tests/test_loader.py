@@ -45,6 +45,22 @@ def linear_stable(modules: list[Fn], available: tuple[str, ...], goal: str) -> P
     return None
 
 
+def test_index_candidates_match_scan_for_generic_heads_and_prefixes() -> None:
+    outputs = ["box[?a]", "pair[?a,?a]", "?a", "box[x]", "other[?a]",
+               "box[?a,?b]", "pair[x,y]", "box[?a]"]
+    modules = [Fn(Manifest(f"m{i}", "1", Contract((), output)))
+               for i, output in enumerate(outputs)]
+    original = ProducerIndex(modules)
+    replacement = Fn(Manifest("replacement", "1", modules[0].manifest.contract))
+    original.replace(0, replacement)
+    for index in (original, original.without({1, 4})):
+        for limit in range(index.size + 1):
+            for goal in ("box[x]", "box[x,y]", "pair[x,x]", "pair[x,y]", "missing", "?z"):
+                expected = [(p, module, binding) for p, module in enumerate(index.modules[:limit])
+                            if (binding := module.manifest.contract.producing(goal)) is not None]
+                assert list(index.candidates(goal, limit)) == expected
+
+
 def test_binary_search_matches_linear_layered_planning() -> None:
     rng = random.Random(0)
     types = [f"t{i}" for i in range(6)]

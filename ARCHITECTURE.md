@@ -280,6 +280,8 @@ the runtime uses for message types. `index.ProducerIndex` keeps polymorphic prod
 apart from those indexed by exact output type and merges both in installation
 order; its forward closure counts every type a polymorphic producer has an
 instance for as reachable, so pruning stays sound.
+For generic outputs, candidate lookup uses matching constructor and arity or
+a variable output; the head-mismatch theorem (§2.2) justifies this filter.
 Both cost planners use the same ordered producer index when enumerating
 candidate instances; free-variable instances are expanded after lookup.
 
