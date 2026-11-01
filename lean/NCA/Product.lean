@@ -157,4 +157,9 @@ theorem prior_selection_regret {best chosen reportedBest reportedChosen ε : ℝ
   have hc := (abs_le.mp hchosen).1
   linarith
 
+/-- Clipping a real evidence score supplies the deterministic bounded range. -/
+theorem clipped_evidence_bounds {x B : ℝ} (hB : 0 ≤ B) :
+    -B ≤ max (-B) (min B x) ∧ max (-B) (min B x) ≤ B := by
+  exact ⟨le_max_left _ _, max_le (by linarith) (min_le_left _ _)⟩
+
 end NCA

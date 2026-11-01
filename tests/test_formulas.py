@@ -1315,3 +1315,31 @@ def test_prior_selection_prefers_declared_priority_within_supplied_error(
     for invalid in (-1, np.nan, np.inf):
         with pytest.raises(ValueError, match="score_error"):
             formulas.select_prior(candidates, [rows], base, score_error=invalid)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_clipped_prior_selection_derives_uniform_total_score_error(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rows = np.full((3, 3), -np.inf)
+    rows[0, 1] = rows[1, 1] = rows[2, 0] = 0.0
+    base = np.log(np.full(3, 1 / 3))
+    candidates = [formulas.format_prior, formulas.complete_prior]
+    small = formulas.select_prior(candidates, [rows] * 2, base, score_clip=2, alpha=0.1)
+    large = formulas.select_prior(candidates, [rows] * 8, base, score_clip=2, alpha=0.1)
+    assert small.scores == (4.0, -4.0)  # Zero model evidence is clipped, not undefined.
+    assert large.scores == (16.0, -16.0)
+    assert small.score_error == pytest.approx(2 * np.sqrt(4 * np.log(40)))
+    assert large.score_error / 8 == pytest.approx(small.score_error / 2 / 2)
+    assert small.index == large.index == 0
+    assert small.score_clip == 2 and small.alpha == 0.1
+    for options in ({"score_clip": 2}, {"alpha": 0.1},
+                    {"score_clip": -1, "alpha": 0.1},
+                    {"score_clip": np.inf, "alpha": 0.1},
+                    {"score_clip": 2, "alpha": 0},
+                    {"score_clip": 2, "alpha": 0.1, "score_error": 1}):
+        with pytest.raises(ValueError):
+            formulas.select_prior(candidates, [rows], base, **options)
+    with pytest.raises(ValueError, match="every observed length"):
+        formulas.select_prior([lambda length: None], [rows], base, score_clip=2, alpha=0.1)

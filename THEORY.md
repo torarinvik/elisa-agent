@@ -2493,6 +2493,29 @@ broader supports first implements the support preference below when such
 an error bound is available. A zero supplied bound gives empirical
 maximization, without a population guarantee unless its premise holds.
 
+**Theorem 27.10 (bounded evidence scores).** Fix the reader, shared base,
+candidate providers, sample size `n > 0`, clipping level `B > 0` and
+`0 < α < 1` before drawing IID formula observations. Assume each candidate
+has a valid positive base normalizer almost surely. Define
+`g_e(x) = max(−B, min(B, log Z_e(q(x)) − log Z_e(π)))`, mapping zero
+posterior mass to `−B`. Let `μ_e = E[g_e(X)]` and `S_e = Σ_i g_e(X_i)`.
+For `K` candidates, with probability at least `1 − α`, simultaneously
+
+> `|S_e − n μ_e| ≤ ε_n = B sqrt(2 n log(2K/α))`.
+
+Each score lies in `[−B,B]`. Hoeffding gives failure probability at most
+`2 exp(−ε_n²/(2 n B²))` for each total; a union bound over K gives α.
+Combining this event with Theorem 27.9 bounds the selected expected clipped
+score's regret by `4 ε_n / n`. The event holds for fixed n, not optional
+stopping or arbitrary repeated selection.
+
+Clipping changes the objective: this does not bound raw-evidence regret,
+model misspecification or answer errors. The concentration statement does
+not require that the scores be true likelihoods, but that interpretation
+still requires Theorem 27.8's assumptions. Calibration data may fix the
+reader and base before this sample; selecting B, K or models using the same
+sample is outside this guarantee.
+
 Two safeguards:
 
 1. Prefer the largest support among priors whose evidence is statistically

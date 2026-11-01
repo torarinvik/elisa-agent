@@ -741,3 +741,14 @@ in `NCA/Product.lean` prove a conditional four-error regret bound. The API
 does not estimate sampling uncertainty or prove reader likelihood assumptions. It does not install the selected
 provider or certify an answering policy. Candidate order and calibration
 must be fixed before selection; deployment checking remains separate.
+
+`select_prior(..., score_clip=B, alpha=α)` clips each per-formula score to
+[-B,B] and derives the simultaneous total-score error of §27.10. The result
+records B, α and the derived error. Bounded mode requires candidates at
+every observed length and rejects mixing a manual error with this bound.
+It assumes fixed models/base/B/K/n, IID formulas, and valid candidate base
+normalizers throughout the population. `clipped_evidence_bounds` proves
+the clipping range and `prior_selection_regret` proves the conditional
+selection step; Hoeffding concentration is not formalized in Lean here.
+The bound concerns expected clipped scores, not raw evidence or deployment
+error. An answering policy still requires an independent risk audit.

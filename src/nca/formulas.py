@@ -323,12 +323,15 @@ class PriorSelection:
     scores: tuple[float, ...]
     samples: int
     score_error: float = 0.0
+    score_clip: float | None = None
+    alpha: float | None = None
 
 
 def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                  readings: Iterable[np.ndarray], log_base: np.ndarray,
                  alphabet: Sequence[int] = (0, 1, 2), *,
-                 score_error: float = 0.0) -> PriorSelection:
+                 score_error: float = 0.0, score_clip: float | None = None,
+                 alpha: float | None = None) -> PriorSelection:
     """Empirical summed-evidence selection on unlabeled held-out readings.
 
     With a supplied uniform error bound on summed scores, choose the first
@@ -338,9 +341,20 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     estimate or certify score_error; it also performs no risk certification
     or automatic installation. None providers are excluded; zero base mass
     is invalid rather than zero evidence.
+    Supplying score_clip B and alpha clips each log evidence to [-B,B] and
+    derives B*sqrt(2*n*log(2*K/alpha)) as the simultaneous total-score error.
+    This requires IID observations, fixed models/base/B/K, and valid priors
+    throughout the population. It bounds clipped-score means, not raw evidence
+    or answer errors. The concentration step is not formalized in Lean.
     """
     if not math.isfinite(score_error) or score_error < 0:
         raise ValueError("score_error must be finite and nonnegative")
+    if (score_clip is None) != (alpha is None):
+        raise ValueError("score_clip and alpha must be supplied together")
+    if score_clip is not None:
+        if (not math.isfinite(score_clip) or score_clip <= 0 or alpha is None
+                or not math.isfinite(alpha) or not 0 < alpha < 1 or score_error != 0):
+            raise ValueError("bounded scoring requires positive finite clipping, 0 < alpha < 1, and no manual error")
     base = np.asarray(log_base, dtype=np.float64)
     if (not candidates or base.shape != (len(alphabet),)
             or np.any(np.isnan(base)) or np.any(base > 0)
@@ -363,6 +377,8 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                 continue
             prior = provider(len(rows))
             if prior is None:
+                if score_clip is not None:
+                    raise ValueError("bounded scoring requires all candidates at every observed length")
                 scores[i] = -math.inf
                 continue
             if prior.alphabet != tuple(alphabet):
@@ -370,17 +386,24 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
             evidence = prior.log_evidence(rows, common)
             if math.isnan(evidence) or evidence == math.inf:
                 raise ValueError("candidate evidence must be finite or negative infinity")
+            if score_clip is not None:
+                evidence = max(-score_clip, min(score_clip, evidence))
             scores[i] += evidence
             if not math.isfinite(scores[i]) and math.isfinite(evidence):
                 raise ValueError("summed evidence overflow")
         count += 1
     if not count or not any(math.isfinite(score) for score in scores):
         raise ValueError("requires observations and at least one finite-evidence candidate")
+    if score_clip is not None:
+        assert alpha is not None
+        score_error = score_clip * math.sqrt(2 * count * (math.log(2 * len(candidates)) - math.log(alpha)))
+        if not math.isfinite(score_error):
+            raise ValueError("derived score error overflow")
     best = max(range(len(scores)), key=scores.__getitem__)
     chosen = (best if score_error == 0 else next(
         i for i, score in enumerate(scores) if math.isfinite(score)
         and scores[best] / 2 - score / 2 <= score_error))
-    return PriorSelection(chosen, tuple(scores), count, score_error)
+    return PriorSelection(chosen, tuple(scores), count, score_error, score_clip, alpha)
 
 
 @lru_cache(maxsize=32)
