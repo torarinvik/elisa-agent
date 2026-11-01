@@ -1204,3 +1204,26 @@ def test_prior_evidence_support_and_probability_validation() -> None:
     for bad in (np.zeros((1, 2)), np.array([[np.nan, 0.0]]), np.empty((0, 2))):
         with pytest.raises(ValueError):
             prior.log_evidence(bad, base)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_normalized_evidence_distinguishes_complete_and_unary_shapes(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    complete = formulas.complete_prior(3)
+    broad = formulas.height_prior(2)
+    assert complete is not None
+    base = np.log(np.full((3, 3), 1 / 3))
+    for selected in ((2, 0, 0), (1, 1, 0)):
+        rows = np.full((3, 3), -np.inf)
+        for k, a in enumerate(selected):
+            rows[k, a] = 0.0
+        narrow_evidence = complete.log_evidence(rows, base)
+        broad_evidence = broad.log_evidence(rows, base)
+        if selected[0] == 2:
+            # Same reading mass, but conditioning on the smaller support matters.
+            assert narrow_evidence - broad_evidence == pytest.approx(np.log(2))
+        else:
+            assert narrow_evidence == -np.inf
+            assert np.isfinite(broad_evidence)
