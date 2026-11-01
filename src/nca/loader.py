@@ -105,7 +105,7 @@ class ExpertStore:
             raise
 
     def _make_room(self, size: int) -> None:
-        if self.budget is None:
+        if self.budget is None or self.resident_bytes + size <= self.budget:
             return
         victims = (key for key in list(self._resident) if key not in self.pinned)
         while self.resident_bytes + size > self.budget:
