@@ -484,3 +484,38 @@ def test_prior_change_refreshes_allocation_priorities() -> None:
     assert actual is not None and fresh is not None
     assert state.priorities is not previous_priorities
     assert actual == pytest.approx(fresh)
+
+
+def test_priorities_track_prior_when_partition_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+    from nca.partition import PartitionCursor
+
+    rng = np.random.default_rng(2311)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
+    calibrated = rng.dirichlet(np.ones(3), size=9)
+    distribution = Distribution(lambda k, d: torch.tensor(calibrated[k]), lambda k: 0)
+    first_prior = priors.height_prior(4)
+    second_prior = priors.format_prior(9)
+    current = [first_prior]
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=lambda n: current[0])
+    state = CorrectionState()
+    def risk(k: int, d: Decision) -> float:
+        return 0.0
+    first = evaluator.certificate(readings, risk, distribution, state)
+    assert first is not None
+    original = PartitionCursor.partition
+    def partition(cursor: PartitionCursor, rows: np.ndarray,
+                  selected: tuple[int, ...]) -> tuple[float, float]:
+        if cursor.prior is second_prior:
+            raise ValueError("simulated partition failure")
+        return original(cursor, rows, selected)
+    monkeypatch.setattr(PartitionCursor, "partition", partition)
+    current[0] = second_prior
+    with pytest.raises(ValueError, match="simulated partition failure"):
+        evaluator.certificate(readings, risk, distribution, state)
+    assert state.priorities_prior is second_prior and state.risk_prior is first_prior
+    current[0] = first_prior
+    restored = evaluator.certificate(readings, risk, distribution, state)
+    assert state.priorities_prior is first_prior
+    assert restored == pytest.approx(first)

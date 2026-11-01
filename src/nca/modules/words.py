@@ -253,6 +253,7 @@ class CorrectionState:
     risk_band: CertifiedSplit | None = None
     prior_log_probs: np.ndarray | None = None
     priorities: list[float] | None = None
+    priorities_prior: ArityPrior | None = None
     steps: int = 0
     changed: tuple[int, ...] = ()
     revisions: tuple[int, ...] | None = None
@@ -278,6 +279,7 @@ class CorrectionState:
             self.risk_band = None
             self.prior_log_probs = None
             self.priorities = None
+            self.priorities_prior = None
             self.steps = 0
             self.changed = ()
             self.revisions = None
@@ -591,13 +593,14 @@ class FormulaEvaluator:
             if prior is None:
                 return None
             state.steps += len(invalidated)
-            if (state.priorities is None or state.risk_prior is not prior
+            if (state.priorities is None or state.priorities_prior is not prior
                     or state.steps >= math.isqrt(n)):
                 posterior = prior.decode(log_probs)
                 if posterior is None:
                     return None
                 state.priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
                                     for k, a in enumerate(arities)]
+                state.priorities_prior = prior
                 state.steps = 0
             def calculate_prior_risk() -> float | None:
                 return state.partition_risk(prior, log_probs, arities)
