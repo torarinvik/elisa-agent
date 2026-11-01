@@ -1077,6 +1077,32 @@ coverage. It reuses the splitting and tracing results (23.7–23.10); no new
 mathematical premise is introduced. Tied maxima may select different
 maximizers; the risk account always scores the actual selected sequence.
 
+**Full refinement after cursor integration.** Using the existing character
+reader checkpoint, calibration on 100 validation formulas of depth 4, noise
+0.1, seed 0, and the first three depth-8 test formulas at target 0.05:
+
+| execution | unprofiled seconds, two runs |
+|---|---|
+| fresh certificates | 2.0294, 1.9675 |
+| per-solve cached certificates | 0.8425, 0.8269 |
+
+The order was fresh, cached, cached, fresh, with calibration shared. Both
+versions produced false on all three formulas, abstained on the first only,
+and returned bounds 0.952626, 0.042211 and 0.048530 (rounded). Declared expert
+costs were identical: 60,050,698, 373,750 and 2,955,450. The cached run took
+605 certificate evaluations. Its separate cProfile run took 1.628 s, of
+which certificate selection (`evaluated`) consumed 0.381 s, word selection
+0.251 s and parsing 0.151 s. Only 2,323 distribution callbacks remained.
+Certificate selection is the next native-port target; its least-risk
+recurrence is already covered by the certificate theory and proofs.
+
+These three formulas establish a local runtime improvement, approximately
+2.4 times, not a coverage or risk guarantee. Stale priorities can change
+climb order on other formulas, and broader coverage comparisons remain due.
+The checkpoint is a pre-existing temporary artifact outside the repository;
+these timings are conditional on that trained reader, not a fresh-training
+replication.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
