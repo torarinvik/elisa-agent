@@ -58,7 +58,7 @@ from nca.abi import NOTHING, Contract, Message, Module, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
 from nca.ladder import (Certificate, ClimbPriority, Decision, Distribution, Floor,
-                        RankedReading, Refinement, Rung, SecondLook, State, Stop, ladder, refine)
+                        RankedReading, Reading, Refinement, Rung, SecondLook, State, Stop, ladder, refine)
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -267,7 +267,7 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
     revisions: dict[int, int] = {}
     source: object | None = None
 
-    def certificate(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
+    def certificate(readings: Sequence[Reading], risk: Callable[[int, Decision], float],
                     distribution: Callable[[int, Decision], torch.Tensor],
                     ) -> dict[int, float] | None:
         nonlocal source
@@ -306,7 +306,7 @@ def element_floor(consumer: Module, items: Sequence[tuple[int, int]],
         return None
     position = {i: j for j, (i, _) in enumerate(items)}
 
-    def floor(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
+    def floor(readings: Sequence[Reading], risk: Callable[[int, Decision], float],
               fixed: frozenset[int]) -> float:
         elements: list[Any] = [None] * count
         for (i, _), value in zip(items, readings):

@@ -451,7 +451,10 @@ class Distribution:
         return self.lookup(i, decision)
 
 
-Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float],
+Reading = torch.Tensor | RankedReading
+
+
+Certificate = Callable[[Sequence[Reading], Callable[[int, Decision], float],
                         Callable[[int, Decision], torch.Tensor]], dict[int, float] | None]
 """``certificate(readings, risk, distribution)``: a risk account for the
 current readings, each charged item's finite nonnegative charge, computed with
@@ -461,7 +464,7 @@ error probability. Keys identify refined items. ``None`` if the readings
 determine no answer."""
 
 
-Floor = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float], frozenset[int]],
+Floor = Callable[[Sequence[Reading], Callable[[int, Decision], float], frozenset[int]],
                  float]
 """``floor(readings, risk, fixed)``: a lower bound on every bound refinement
 can reach while the readings of the items in ``fixed`` stay as they are."""
@@ -579,7 +582,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     decisions = list(classes) if classes is not None else [None] * len(values)
     levels = [0] * len(values)
     logs: list[torch.Tensor | RankedObservation] = [torch.empty(0)] * len(values)
-    readings: list[torch.Tensor | RankedReading] = [torch.empty(0)] * len(values)
+    readings: list[Reading] = [torch.empty(0)] * len(values)
     risks: dict[tuple[int, int, DecisionKey], float] = {}
     distributions: dict[tuple[int, int, DecisionKey], torch.Tensor] = {}
     cost = 0.0

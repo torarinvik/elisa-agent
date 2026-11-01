@@ -1241,3 +1241,35 @@ def test_ranked_consumer_uses_same_order_for_answer_and_certificate() -> None:
     assert [answer.value for answer in answers] == [2, 2]
     assert [answer.abstained for answer in answers] == [True, False]
     assert answers[1].bound == pytest.approx(11 / 21, abs=1e-14)
+
+
+def test_ranked_shared_paths_keep_each_observation_snapshot() -> None:
+    from nca.selective import solve_many, solve_stops
+
+    class Consumer:
+        manifest = Manifest("ranked-snapshot-consumer", "1", Contract(("seq[dist]",), "out"))
+        ranked_readings = True
+
+        def certificate(self, readings, risk, distribution):
+            return {0: risk(0, ((1, 3), (2,)))}
+
+        def invoke(self, readings):
+            return readings[0].top([1, 2, 3])
+
+    low = 1e-300
+    high = math.nextafter(low, math.inf)
+    contract = Contract(("ch",), "dist")
+    first = constant("ranked-first", (1.0, high, low, 1e-301), 1.0, contract)
+    second = constant("ranked-second", (1.0, low, high, 1e-301), 2.0, contract)
+    route = plan_stable([Splitter(), first, second, Consumer()], ("text",), "out")
+    assert route is not None
+    ladders = {"dist": [Rung(first), Rung(second)]}
+    shared = solve_many(route, ladders, "a", [0.5, 0.45])
+    assert [answer.value for answer in shared] == [1, 2]
+    assert [answer.cost for answer in shared] == [1.0, 3.0]
+    assert [answer.abstained for answer in shared] == [False, True]
+    assert shared == [solve(route, ladders, "a", target) for target in (0.5, 0.45)]
+    stops = [lambda state: True, None]
+    shared_stops = solve_stops(route, ladders, "a", 0.45, stops)
+    assert [answer.value for answer in shared_stops] == [1, 2]
+    assert shared_stops == [solve(route, ladders, "a", 0.45, stop=stop) for stop in stops]
