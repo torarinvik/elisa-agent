@@ -11,7 +11,7 @@ torch = pytest.importorskip("torch")
 from nca.abi import Contract, Manifest
 from nca import formulas
 from nca.formulas import (ARITY, VOCABULARY, Decoded, FormulaDataset, corrupt, decode,
-                          decode_banded, decode_reference, evaluate, formula, parse)
+                          Split, decode_banded, decode_reference, evaluate, formula, parse)
 from nca.ladder import Decision, Rung, ladder, refine, risk
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, FORMULA_TEXT, READER, EditReader,
@@ -276,6 +276,26 @@ def test_banded_decoder_is_certified(slack: float) -> None:
             assert banded.risk <= exact_risk + slack + 1e-9
             if banded.exact:
                 assert banded.arities == exact.arities
+
+
+def test_split_matches_full_decoding() -> None:
+    """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one
+    word's weights, the cached vectors give the full programs' results."""
+    rng = np.random.default_rng(6)
+    for m in range(1, 12):
+        for _ in range(10):
+            probs = rng.dirichlet(np.full(3, 0.5), size=m)
+            split = Split(np.log(probs), ARITY_ORDER)
+            k = int(rng.integers(m))
+            probs[k] = rng.dirichlet(np.full(3, 0.5))
+            full = decode_reference(np.log(probs), ARITY_ORDER)
+            log_z, log_x = split.scores(k, np.log(probs[k]))
+            if full is None:
+                assert log_z == -np.inf
+                continue
+            assert log_z == pytest.approx(full.log_z)
+            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER,
+                                                          full.arities))
 
 
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")

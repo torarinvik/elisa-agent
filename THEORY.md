@@ -1677,8 +1677,16 @@ the prefix ends in. Grouping prefixes by their end state gives
 > `Z = Σₙ F_k(n) · Σₐ qₖ(a) · B_{k+1}(δ(n, a))`,
 
 with `F_k` the forward vector before word `k` and `B_{k+1}` the backward
-vector after it. The max-product version holds by the same recursion with
-`max` in place of sum.
+vector after it.
+
+**Theorem 23.8.** With nonnegative weights, the best score splits the same
+way, with `max` in place of the sums:
+
+> `x = maxₙ F^max_k(n) · maxₐ qₖ(a) · B^max_{k+1}(δ(n, a))`,
+
+where `F^max_k(n)` is the best weight of a prefix ending in state `n` and
+`B^max_{k+1}` the best score of a suffix. Nonnegativity is needed because
+`c · max(u, v) = max(c u, c v)` only for `c ≥ 0`.
 
 A climb changes only `qₖ`. With `F_k` and `B_{k+1}` current, the new `Z` and
 the new maximal weight cost `O(3 · Wₖ)` operations, where `Wₖ` is the

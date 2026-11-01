@@ -34,7 +34,7 @@ run the Python tests with `uv run pytest`.
 | §20 Higher-order experts, budgets | `Slots`, `Continuation` | `modules.combinators`, `optimize`, `kernel` |
 | §21 Decoding by the format | `Decoding` | `formulas.decode`, `native.decoding` |
 | §22 Abstaining early | `Detection` | `selective` (`floors`), `ladder` |
-| §23 Efficient decoding | `Banding` | `formulas.decode_banded` (reference), `native.decoding` (exact passes) |
+| §23 Efficient decoding | `Banding` | `formulas.decode_banded`, `formulas.Split` (references), `native.decoding` (exact passes) |
 | §24 When the prior is wrong | `Misspecification` | not implemented |
 | §25 Climbing order and stopping | `Stopping` | `ladder.stopping_rule` |
 | §26 Composing cascades | `Composition` | not implemented |
@@ -165,6 +165,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.5 | `banded_risk_le` | `Banding` |
 | 23.6 | `banded_risk_slack` | `Banding` |
 | 23.7 | `dpSum_append` | `Banding` |
+| 23.8 | `dpMax_append` | `Banding` |
 | 24.1 | `reweighted_odds` | `Misspecification` |
 | 24.2 | `reweighted_risk_le` | `Misspecification` |
 | 24.3 | `reweighted_risk_le_mul` | `Misspecification` |

@@ -300,6 +300,52 @@ theorem dpSum_append : ∀ (ws₁ ws₂ : List (α → ℝ)) (s : σ),
     simp only [Function.comp_apply, weightOf, List.foldl_cons]
     ring
 
+theorem foldr_max_nonneg : ∀ l : List ℝ, 0 ≤ l.foldr max 0
+  | [] => le_refl 0
+  | _ :: l => le_max_of_le_right (foldr_max_nonneg l)
+
+theorem foldr_max_init {b : ℝ} (hb : 0 ≤ b) : ∀ l : List ℝ,
+    l.foldr max b = max (l.foldr max 0) b
+  | [] => (max_eq_right hb).symm
+  | a :: l => by simp only [List.foldr_cons, foldr_max_init hb l, max_assoc]
+
+theorem foldr_max_flatten : ∀ L : List (List ℝ),
+    L.flatten.foldr max 0 = (L.map fun l => l.foldr max 0).foldr max 0
+  | [] => rfl
+  | l :: L => by
+    rw [List.flatten_cons, List.foldr_append, foldr_max_init (foldr_max_nonneg _),
+      foldr_max_flatten L]
+    rfl
+
+theorem mul_foldr_max {c : ℝ} (hc : 0 ≤ c) : ∀ l : List ℝ,
+    c * l.foldr max 0 = (l.map (c * ·)).foldr max 0
+  | [] => by simp
+  | a :: l => by simp only [List.foldr_cons, List.map_cons, mul_max_of_nonneg _ _ hc,
+      mul_foldr_max hc l]
+
+/-- **Max-product split.** With nonnegative weights, the best score over all
+sequences splits at any position into prefixes, each weighted by the best
+suffix score from the state it ends in. -/
+theorem dpMax_append : ∀ (ws₁ ws₂ : List (α → ℝ)), (∀ w ∈ ws₁, ∀ a, 0 ≤ w a) → ∀ s : σ,
+    dpMax δ F as (ws₁ ++ ws₂) s =
+      ((words as ws₁.length).map fun l =>
+        weightOf ws₁ l * dpMax δ F as ws₂ (l.foldl δ s)).foldr max 0
+  | [], ws₂, _, s => by
+    simpa [words, weightOf] using dpMax_nonneg δ F as ws₂ s
+  | w :: ws₁, ws₂, hw, s => by
+    have hw₁ : ∀ v ∈ ws₁, ∀ a, 0 ≤ v a := fun v hv => hw v (List.mem_cons_of_mem _ hv)
+    simp only [List.cons_append, dpMax, List.length_cons, words, List.map_flatten,
+      foldr_max_flatten, List.map_map]
+    congr 1
+    refine List.map_congr_left fun a _ => ?_
+    rw [Function.comp_apply, dpMax_append ws₁ ws₂ hw₁ (δ s a),
+      mul_foldr_max (hw w (List.mem_cons_self) a), List.map_map]
+    simp only [Function.comp_apply, List.map_map]
+    congr 1
+    refine List.map_congr_left fun l _ => ?_
+    simp only [Function.comp_apply, weightOf, List.foldl_cons]
+    ring
+
 end Split
 
 end NCA

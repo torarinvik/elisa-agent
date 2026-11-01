@@ -913,6 +913,15 @@ answer is now certified exact. The price is a wider band: at depth 8 the top
 rung averages `j = 8.1` (`W ≈ 29`) against 7.1 before, and the bottom rung
 13.6. Prediction 1 of §23.6 holds with the slack read as relative.
 
+**Splitting at the climbed word** (THEORY §23.4, Theorems 23.7 and 23.8;
+NumPy, exact, unbanded). On 20 depth-8 test formulas, read on the bottom
+rung, 5 random words each were climbed to the top rung. Scores from the
+cached vectors match a full decode: `log Z` within 1.8e-14 and the best log
+weight within 2.5e-14 over 100 climbs. Rescoring one climb takes 0.032 ms,
+against 23.9 ms for a full decode, a factor of about 750. Building the
+vectors once takes 12.7 ms per formula. Keeping them valid as the climbed
+word moves (the cursor of §23.4) is not yet implemented.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

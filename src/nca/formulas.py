@@ -306,6 +306,51 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: np.nd
     return float(forward[m, 0]), float(best[m, 0]), tuple(reversed(arities))
 
 
+class Split:
+    """Forward and backward vectors of the exact decoding programs, in log
+    space, for recomputing ``log Z`` and the best log weight when one word's
+    weights change (THEORY §23.4, Theorems 23.7 and 23.8)."""
+
+    def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> None:
+        m = len(log_probs)
+        self.alphabet = tuple(alphabet)
+        self.width = width = m + 2
+        self.forward = np.full((m + 1, width), -np.inf)
+        self.forward_max = np.full((m + 1, width), -np.inf)
+        self.forward[0, 1] = self.forward_max[0, 1] = 0.0
+        for k in range(m):
+            for j, a in enumerate(alphabet):
+                span = min(a + width - 1, width) - a
+                step = log_probs[k, j]
+                self.forward[k + 1, a:a + span] = np.logaddexp(
+                    self.forward[k + 1, a:a + span], self.forward[k, 1:1 + span] + step)
+                self.forward_max[k + 1, a:a + span] = np.maximum(
+                    self.forward_max[k + 1, a:a + span], self.forward_max[k, 1:1 + span] + step)
+        self.backward = np.full((m + 1, width), -np.inf)
+        self.backward_max = np.full((m + 1, width), -np.inf)
+        self.backward[m, 0] = self.backward_max[m, 0] = 0.0
+        for k in range(m - 1, -1, -1):
+            for j, a in enumerate(alphabet):
+                span = min(a + width - 1, width) - a
+                step = log_probs[k, j]
+                self.backward[k, 1:1 + span] = np.logaddexp(
+                    self.backward[k, 1:1 + span], self.backward[k + 1, a:a + span] + step)
+                self.backward_max[k, 1:1 + span] = np.maximum(
+                    self.backward_max[k, 1:1 + span], self.backward_max[k + 1, a:a + span] + step)
+
+    def scores(self, k: int, row: np.ndarray) -> tuple[float, float]:
+        """``log Z`` and the best log weight with word ``k``'s log weights
+        replaced by ``row``, from the vectors before and after it."""
+        log_z = log_x = -np.inf
+        for j, a in enumerate(self.alphabet):
+            span = min(a + self.width - 1, self.width) - a
+            through = self.backward[k + 1, a:a + span] + row[j]
+            log_z = np.logaddexp(log_z, np.logaddexp.reduce(self.forward[k, 1:1 + span] + through))
+            best = self.forward_max[k, 1:1 + span] + self.backward_max[k + 1, a:a + span] + row[j]
+            log_x = max(log_x, float(best.max()))
+        return float(log_z), log_x
+
+
 @dataclass(frozen=True)
 class FormulaSample:
     words: tuple[str, ...]
