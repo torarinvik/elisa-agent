@@ -25,6 +25,19 @@ of `(available, goal, fuel)`; memoizing it within one call returns exactly what
 recomputation would and bounds the work by the number of distinct subgoals
 rather than search paths.
 
+**Persistent search.** Installation appends to the library, and every result
+for a prefix of length `k` depends only on the first `k` contracts.
+
+| Theorem | Statement |
+|---|---|
+| 12.18 | for `k ≤ |lib|`, planning with the first `k` contracts of `lib ++ more` equals planning with the first `k` of `lib` |
+
+So plans, closures and candidate sets computed for a prefix stay valid when
+contracts are installed, and can be kept across planning calls instead of
+being rebuilt. Only removing a contract shifts later positions and
+invalidates them. Replacing an implementation under the same contract leaves
+every type-level result valid and changes only the plans that name it.
+
 **Reachability pruning.** Dormant producers of a
 relevant type, whose inputs nothing can supply, are dead ends the planner would
 otherwise explore. `planPruned` skips producers with an input rejected by a

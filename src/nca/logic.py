@@ -45,7 +45,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from nca.abi import TypeId
+from nca.abi import Module, TypeId
 from nca.certify import INFLATIONS
 from nca.decoding import decode, parse
 from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words
@@ -58,7 +58,6 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
                                CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator)
 from nca.planner import Plan, plan_stable
-from nca.registry import Module
 from nca.selective import Answer, build_ladders, solve, solve_many
 from nca.stats import clopper_pearson_upper, family_audit_alpha, poisson_binomial_tails, wilson
 

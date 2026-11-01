@@ -10,25 +10,33 @@ longer than the number of installed modules (``RequestChain.length_le``).
 question again. Termination then rests on the runtime's budgets, which
 decrease with every invocation (``NCA.serve``); chain exclusion is the
 default.
+
+The library is fixed when the kernel is created. One planner index is kept per
+set of excluded modules, so requests from the same chain reuse the plans found
+for earlier ones.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from nca.abi import Request
-from nca.planner import Plan, plan_stable
-from nca.registry import Module
+from nca.abi import Module, Request
+from nca.index import ProducerIndex
+from nca.planner import Plan, plan_stable_indexed
 
 
 class Kernel:
     def __init__(self, modules: Sequence[Module], recursive: bool = False) -> None:
-        self.modules = list(modules)
+        self.modules = tuple(modules)
         self.recursive = recursive
         self.requests = 0
+        self._indexes: dict[frozenset[str], ProducerIndex] = {}
 
     def resolve(self, request: Request, chain: tuple[str, ...]) -> Plan | None:
         self.requests += 1
-        candidates = [m for m in self.modules
-                      if self.recursive or m.manifest.module_id not in chain]
-        return plan_stable(candidates, tuple(request.inputs), request.type_id)
+        excluded = frozenset() if self.recursive else frozenset(chain)
+        if excluded not in self._indexes:
+            self._indexes[excluded] = ProducerIndex(
+                [m for m in self.modules if m.manifest.module_id not in excluded])
+        return plan_stable_indexed(self._indexes[excluded], tuple(request.inputs),
+                                   request.type_id)

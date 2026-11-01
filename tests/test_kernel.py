@@ -7,7 +7,8 @@ import pytest
 
 from nca.abi import Contract, Manifest, Message, parse_type, type_variables
 from nca.optimize import plan_min
-from nca.planner import Apply, Given, Map, Plan, ProducerIndex, plan, plan_stable
+from nca.index import ProducerIndex
+from nca.planner import Apply, Given, Map, Plan, plan, plan_stable, plan_stable_indexed
 from nca.registry import Registry
 from nca.router import infer
 from nca.runtime import BudgetExceeded, execute
@@ -495,3 +496,35 @@ def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) 
     unpruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
     assert pruned == unpruned
     assert sum(isinstance(p, Map) for p in pruned) > 20
+
+
+def test_registry_index_survives_installation_replacement_and_removal() -> None:
+    """The registry's index, kept across installations with its cached plans,
+    plans exactly like an index built afresh at every step (Theorem 12.18)."""
+    rng = np.random.default_rng(4)
+    names = [f"t{i}.v1" for i in range(6)]
+    types = [*names, *(f"seq[{t}]" for t in names)]
+    for trial in range(20):
+        registry = Registry()
+        goals = [str(g) for g in rng.choice(types, size=8)]
+        available = tuple(str(t) for t in rng.choice(types, size=2))
+        for step in range(12):
+            installed = registry.modules()
+            action = rng.random()
+            if installed and action < 0.15:
+                registry.uninstall(installed[int(rng.integers(len(installed)))].manifest.module_id)
+            elif installed and action < 0.3:
+                old = installed[int(rng.integers(len(installed)))]
+                registry.replace(Fn(old.manifest, lambda *x: x))
+            else:
+                inputs = [str(t) for t in rng.choice(types, size=int(rng.integers(0, 3)))]
+                output = str(rng.choice(types))
+                if rng.random() < 0.2:
+                    inputs, output = ["seq[?a]"], "seq[?a]"
+                registry.install(fn(f"m{step}-{trial}", inputs, output, lambda *x: x))
+            for goal in goals:
+                kept = plan_stable_indexed(registry.index, available, goal, fuel=4)
+                fresh = plan_stable(registry.modules(), available, goal, fuel=4)
+                assert kept == fresh
+                if kept is not None:
+                    assert infer(registry.modules(), available, kept) == goal

@@ -7,7 +7,7 @@ import itertools
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 TypeId = str
 """A semantic type in its canonical text form (THEORY §1.1): a constructor
@@ -255,6 +255,14 @@ class Manifest:
     @property
     def ref(self) -> str:
         return f"{self.module_id}@{self.version}"
+
+
+class Module(Protocol):
+    """An expert: known to the system by its manifest, run by ``invoke``."""
+
+    manifest: Manifest
+
+    def invoke(self, *inputs: Any) -> Any: ...
 
 
 @dataclass(frozen=True)

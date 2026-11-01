@@ -6,7 +6,8 @@ import pytest
 
 from nca.abi import NOTHING, Contract, Manifest, Message, Request
 from nca.loader import ExpertStore, LazyExpert, route_experts
-from nca.planner import Apply, Given, Map, Plan, ProducerIndex, plan, plan_stable_indexed
+from nca.index import ProducerIndex
+from nca.planner import Apply, Given, Map, Plan, plan, plan_stable_indexed
 from nca.runtime import execute
 from nca.workspace import Workspace
 

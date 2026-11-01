@@ -34,7 +34,7 @@ from typing import Callable
 
 import torch
 
-from nca.abi import Contract, Manifest, Message, TypeId
+from nca.abi import Contract, Manifest, Message, Module, TypeId
 from nca.expressions import RELATIONS, ExpressionDataset
 from nca.loader import ExpertStore, LazyExpert
 from nca.modules.digit_recognizer import CONTRACT as DIGIT_CONTRACT, DigitRecognizer
@@ -47,8 +47,8 @@ from nca.modules.symbols import (
     BOOLEAN, COMPARISON, INTEGER, ComparisonEvaluator, Evaluator, ExpressionParser,
     SymbolFuser,
 )
-from nca.planner import Apply, Map, Plan, ProducerIndex, plan, plan_stable_indexed
-from nca.registry import Module
+from nca.index import ProducerIndex
+from nca.planner import Apply, Map, Plan, plan, plan_stable_indexed
 from nca.runtime import execute
 from nca.workspace import Workspace
 from typing import Never

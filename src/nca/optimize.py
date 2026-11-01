@@ -35,9 +35,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
 
-from nca.abi import Manifest, TypeId, elem_type, seq_type
+from nca.abi import Manifest, Module, TypeId, elem_type, seq_type
 from nca.planner import Apply, Given, Map, Plan, elem_candidates
-from nca.registry import Module
 
 
 def slot_calls(manifest: Manifest, length: int, expected: bool = False) -> list[float]:

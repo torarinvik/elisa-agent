@@ -209,4 +209,12 @@ theorem planIdx_eq {lib : List (Contract Ty)} {idx : Ty → List (Contract Ty)}
 
 end Index
 
+/-- **Prefix results survive installation.** Installing contracts appends to
+the library, and planning with a prefix that existed before sees exactly the
+same contracts, so results cached for it stay valid. -/
+theorem plan_prefix_append (lib more : List (Contract Ty)) {k : Nat} (hk : k ≤ lib.length)
+    (avail : List Ty) (n : Nat) (t : Ty) :
+    plan ((lib ++ more).take k) avail n t = plan (lib.take k) avail n t := by
+  rw [List.take_append_of_le_length hk]
+
 end NCA

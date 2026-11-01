@@ -29,7 +29,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from nca.abi import Message
+from nca.abi import Message, Module
 from nca.expressions import HEIGHT, ExpressionDataset
 from nca.modules.digit_recognizer import DigitRecognizer
 from nca.modules.operator_recognizer import SymbolRecognizer
@@ -37,7 +37,6 @@ from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
 from nca.optimize import cheapest_within, plan_min, plan_pareto
 from nca.planner import Apply, Map, Plan
-from nca.registry import Module
 from nca.runtime import execute
 from nca.stats import wilson
 from nca.workspace import Workspace

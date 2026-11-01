@@ -51,7 +51,7 @@ from typing import Any
 
 import torch
 
-from nca.abi import NOTHING, Contract, Message, SequenceDemand, TypeId
+from nca.abi import NOTHING, Contract, Message, Module, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
 from nca.ladder import (Distribution, Certificate, Decision, Floor, Refinement, Rung, SecondLook, State, Stop, ladder,
@@ -61,7 +61,6 @@ from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecogni
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
 from nca.planner import Apply, Given, Map, Plan, plan_stable
-from nca.registry import Module
 from nca.stats import wilson
 from nca.runtime import execute
 from nca.workspace import Workspace

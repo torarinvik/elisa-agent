@@ -15,9 +15,8 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-from nca.abi import TypeId, canonical_type, parse_type, seq_type, type_variables
+from nca.abi import Module, TypeId, canonical_type, parse_type, seq_type, type_variables
 from nca.planner import Apply, Given, Plan, plan_stable
-from nca.registry import Module
 
 
 def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) -> TypeId | None:

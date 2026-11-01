@@ -45,7 +45,7 @@ from pathlib import Path
 
 import torch
 
-from nca.abi import Message
+from nca.abi import Message, Module
 from nca.modules.combinators import Fallback
 from nca.optimize import cheapest_within, plan_pareto
 from nca.planner import Apply, Given, Plan
@@ -58,7 +58,6 @@ from nca.modules.refinement import ConsultingRecognizer, RequestingRecognizer
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
 from nca.planner import plan_stable
-from nca.registry import Module
 from nca.runtime import execute
 from nca.stats import wilson
 from nca.workspace import Workspace

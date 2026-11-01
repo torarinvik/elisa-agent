@@ -23,7 +23,7 @@ run the Python tests with `uv run pytest`.
 | [§9 Module substitution](theory/09-module-substitution.md) | `Substitution` | `substitution` |
 | [§10 Complementarity](theory/10-complementarity.md) | | `complementarity` |
 | [§11 Evaluation methodology](theory/11-evaluation-methodology.md) | | `expressions`, `stats` |
-| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eviction` | `loader`, `planner.plan_stable_indexed`, `scaling` |
+| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `scaling` |
 | [§13 Efficiency](theory/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `efficiency`, `workspace` |
 | [§14 Kernel-mediated requests](theory/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `cascade` |
 | [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `modules.normalizer`, `baseline` |
@@ -97,6 +97,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [12.15](theory/12-lazy-loading-and-scalable-discovery.md) | `demanded_missing_le` | `Eviction` |
 | [12.16](theory/12-lazy-loading-and-scalable-discovery.md) | `pinned_next_fits` | `Eviction` |
 | [12.17](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_seq_source` | `Pruning` |
+| [12.18](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_append` | `Loading` |
 | [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
 | [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
 | [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |
@@ -259,7 +260,7 @@ against a ground goal and returns the binding of the one instance producing it;
 `Contract.instance` substitutes a binding. The planners (`planner`, and
 `optimize.plan_min` and `plan_pareto`) record that binding in `Apply.binding`,
 and `Apply.contract` is the applied instance, which `router.infer` checks and
-the runtime uses for message types. `ProducerIndex` keeps polymorphic producers
+the runtime uses for message types. `index.ProducerIndex` keeps polymorphic producers
 apart from those indexed by exact output type and merges both in installation
 order; its forward closure counts every type a polymorphic producer has an
 instance for as reachable, so pruning stays sound.
@@ -290,6 +291,18 @@ modules indexed by the root constructor and arity of their output
 (Theorem 2.6), plus those whose output is a variable, keeping a monomorphic
 contract only if it fires in the closure of the available types. `optimize.plan_min` and `plan_pareto` do not yet consider contracts
 with free variables.
+
+The index persists. `ProducerIndex.append` indexes a newly installed module
+after the others, and every cached result (closures, candidate sets, plans in
+`ProducerIndex.memo`, stable routes in `ProducerIndex.routes`) is keyed by a
+library prefix, so it stays valid (THEORY §12, Theorem 12.18). A stable route
+found earlier is returned without search, since installation never changes it
+(Theorem 3.3); a goal that had no route is planned again. `ProducerIndex.replace`
+swaps an implementation under the same contract and drops cached plans. The
+`Registry` keeps an index of its modules up to date (`Registry.index`),
+rebuilding it only on uninstallation. The `Kernel` keeps one index per set of
+modules excluded by a request chain. `Module`, the protocol every expert
+implements, is part of the ABI (`nca.abi`).
 
 ## 5. Reliability under distribution shift
 

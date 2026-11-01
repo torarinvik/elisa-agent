@@ -51,8 +51,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from nca.abi import Contract
-from nca.registry import Module
+from nca.abi import Contract, Module
 from nca.native import load
 
 _NATIVE = load("decoding")
