@@ -266,3 +266,22 @@ def test_native_risk_shares_match_reference(monkeypatch: pytest.MonkeyPatch) -> 
     for priorities, actual in zip(cases, native):
         assert actual == pytest.approx(allocate_risk(0.2, priorities), abs=1e-15)
         assert sum(actual) == pytest.approx(0.2, abs=1e-15)
+
+
+@pytest.mark.parametrize("temperature", [0.1, 1.0, 8.0])
+def test_native_calibrated_groups_match_torch(temperature: float,
+                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
+        pytest.skip("native calibration groups are not built")
+    classes = ((0, 2), (1,), (3, 4))
+    rung = Rung(constant("groups", (0.2,) * 5, 1.0))
+    rung.temperatures[ladder_module.decision_key(classes)] = temperature
+    logits = [torch.tensor([0.0, -1000.0, -2.0, -3.0, -10.0]),
+              torch.zeros(5), torch.tensor([1000.0, 999.0, -1000.0, 998.0, -999.0])]
+    actual = [rung.distribution(row, classes) for row in logits]
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    for row, probabilities in zip(logits, actual):
+        assert torch.allclose(probabilities, rung.distribution(row, classes), atol=2e-6)
+        assert float(probabilities.sum()) == pytest.approx(1.0, abs=1e-7)

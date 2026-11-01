@@ -487,3 +487,11 @@ Both correction cursors retain the last `Split.climb` return value for their
 current normalizer, avoiding a second `scores` call at that same position.
 When no row changes, they still obtain a score from the current tables. This
 reuses the split result of §23.4 without altering its weights or arithmetic.
+
+`Rung.distribution` can use native `calibrated_groups` for CPU observations
+without gradients and partitioned decision groups. The kernel subtracts the
+largest logit before exponentiation, sums probabilities by supplied group,
+and returns the original tensor dtype. Temperature fitting is unchanged.
+PyTorch remains the fallback for gradients, other devices, nonpartitioned
+groups and missing kernels. Double intermediates may differ from PyTorch's
+float32 arithmetic by rounding, requiring outcome checks on full runs.

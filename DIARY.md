@@ -1314,6 +1314,21 @@ to claim a robust speedup. All 114 native tests pass; fallback gives 107
 passes and seven skips. Existing multi-climb comparisons against fresh
 accounts cover the reused normalizers and mutable reading updates.
 
+**Native grouped calibration.** Repeated temperature values were already
+cached; grouped softmax and group reductions were the avoidable work.
+`calibrated_groups` implements the same temperature-scaled distribution
+with stable max subtraction and double intermediates. Tests compare tied
+and extreme logits at temperatures 0.1, 1 and 8. All 117 native-enabled
+tests pass; fallback gives 107 passes and ten native-only skips.
+
+For 3,000 five-class, three-group distributions at temperature 1.3,
+reference/native/native/reference times were
+0.02992/0.01414/0.01422/0.02921 s. One returned probability differed by
+2.98e-8 after float32 conversion. This is a preparation microbenchmark;
+full-refinement outcomes and calibration-sensitive audits remain to be
+compared. Temperature fitting and its data are unchanged. GPU tensors,
+gradient-bearing observations and nonpartitioned groups use PyTorch.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

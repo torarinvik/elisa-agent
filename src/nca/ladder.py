@@ -148,6 +148,17 @@ class Rung:
         if classes is None:
             return self.reading(log)
         union, positions = _layout(decision_key(classes))
+        native = getattr(_NATIVE, "calibrated_groups", None)
+        partition = sorted(k for part in positions for k in part) == list(range(len(union)))
+        if (native is not None and log.device.type == "cpu" and not log.requires_grad
+                and partition):
+            groups = [0] * len(union)
+            for entry, part in enumerate(positions):
+                for k in part:
+                    groups[k] = entry
+            values = native(log[union].double().numpy(), np.asarray(groups, dtype=np.int64),
+                            len(positions), self.temperature(classes))
+            return torch.tensor(values, dtype=log.dtype)
         reading = torch.softmax(log[union] / self.temperature(classes), dim=-1)
         return torch.stack([reading[part].sum() for part in positions])
 

@@ -311,6 +311,19 @@ def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
             return log(0.0) if column < 0
             total += log_probs[k * width + column]
 
+# Stable temperature-scaled softmax, summed into caller-declared groups.
+def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    largest: f64 =
+        for k in 0..<logits.len.i64() |largest: f64 = log(0.0)| -> largest:
+            largest <- logits[k] if logits[k] > largest else largest
+    weights: darray[f64] = [exp((logits[k] - largest) / temperature) for k in 0..<logits.len.i64()]
+    total: f64 =
+        for k in 0..<weights.count |total: f64 = 0.0| -> total:
+            total += weights[k]
+    return
+        for k in 0..<weights.count |result: darray[f64] = [0.0 for _ in 0..<entries]| -> result:
+            result[groups[k]] <- result[groups[k]] + weights[k] / total
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -323,3 +336,4 @@ export pymodule decoding:
     fn grouped_argmax
     fn risk_shares
     fn sequence_log_weight
+    fn calibrated_groups
