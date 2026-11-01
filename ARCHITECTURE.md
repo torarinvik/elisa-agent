@@ -280,7 +280,10 @@ calls it before executing a route; it evicts only experts outside the route
 (least recently used first), loads the missing ones, and pins the route's
 experts until the next `prepare`. `tests/test_loader.py` reproduces the case
 where least-recently-used eviction is not optimal (16 loads against the
-optimal 11).
+optimal 11). Theorem 12.14 maps to `oversized_route_infeasible` in `Eviction`;
+`prepare` rejects an oversized declared working set before changing pins or
+residency. The bound uses declared expert sizes, not measured process memory.
+Other loading failures can still leave partial store changes.
 
 ## 13. Efficiency
 

@@ -54,6 +54,7 @@ within a byte budget; serving a route with working set `R` moves it to some
 | 12.11 | keeping `R ∪ K` with `K ⊆ S` loads exactly `bytes(R \ S)`, the minimum |
 | 12.12 | alternating routes `A`, `B` costs `bytes(B \ A)` per switch: shared experts are never reloaded |
 | 12.13 | serving a resident route loads nothing |
+| 12.14 | if `bytes(R)` exceeds the budget, no resident set within budget can serve `R` |
 
 By Theorem 12.13, a task sequence costs only at route changes, so the
 remaining lever is the number of changes: independent tasks grouped by route
