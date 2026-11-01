@@ -28,6 +28,8 @@ to several readings of the element. Nothing below is specific to glyphs:
   to receive calibrated sequences with original-weight ordering via
   ``top(classes)``; its decisions must use that ordering consistently with
   the risk account;
+* a fuser may instead declare ``ranked_readings_for(consumer)`` when its
+  ordering handoff requires cooperation from the immediate consumer;
 * a consumer may declare ``solve_session()`` to provide a per-solve module;
   its demand, certificate, floor and answer are used throughout that solve;
 * if the map's source offers ``alternatives`` and the consumer would read
@@ -219,12 +221,16 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                 stopped[i] = latest
         return len(stopped) == len(stops)
 
+    ranked_for = getattr(fuse, "ranked_readings_for", None)
+    ranked = (ranked_for(consumer) if ranked_for is not None else
+              getattr(consumer if fuse is None else fuse, "ranked_readings", False))
+
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
                      delta, start, [ranges(k, reads[i]) for i, k in items], certificate,
                      floor, floors, stop_shared if stops is not None else stop, trace,
                      observe if len(targets) > 1 or stops is not None else None,
                      priority=priority,
-                     ranked=getattr(consumer if fuse is None else fuse, "ranked_readings", False))
+                     ranked=ranked)
 
     def answer(state: Refinement, target: float) -> Answer:
         inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]

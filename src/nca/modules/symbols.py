@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from nca.abi import NOTHING, Contract, Demand, Manifest, SequenceDemand, TypeId, seq_type
 from nca.expressions import OPERATORS, RELATIONS, evaluate, value_of
+from nca.ladder import RankedReading
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, RELATION_DISTRIBUTION
 
@@ -43,6 +44,23 @@ INTEGER = ARITHMETIC.value
 BOOLEAN = COMPARISON.value
 
 
+class RankedSymbols(dict[str, float]):
+    """Symbol probabilities with source order retained within each field."""
+
+    def __init__(self, values: dict[str, float], digits: RankedReading | None,
+                 operators: RankedReading | None) -> None:
+        super().__init__(values)
+        self.digits = digits
+        self.operators = operators
+
+    def choose(self, choices: str | tuple[str, ...]) -> str:
+        if choices == DIGITS and self.digits is not None:
+            return DIGITS[self.digits.top(range(len(DIGITS)))]
+        if isinstance(choices, tuple) and self.operators is not None:
+            return choices[self.operators.top(range(len(choices)))]
+        return max(choices, key=self.__getitem__)
+
+
 class SymbolFuser:
     """P(op) = q_op; P(digit d) = q_none * p_d.
 
@@ -60,6 +78,10 @@ class SymbolFuser:
             Contract((DIGIT_DISTRIBUTION, vocabulary.operator_distribution),
                      vocabulary.symbol_distribution),
         )
+
+    def ranked_readings_for(self, consumer: object) -> bool:
+        """Use source order only when the next module preserves its decisions."""
+        return bool(getattr(consumer, "ranked_symbol_readings", False))
 
     def demand(self, index: int, demand: Demand) -> Demand:
         """Digit entries depend on both inputs, operator entries on the operator
@@ -106,11 +128,14 @@ class SymbolFuser:
         """Unread inputs (``None``) count as no digit evidence, or as certainly
         not an operator."""
         ops = self.vocabulary.operators
+        ranked_digits = digits if isinstance(digits, RankedReading) else None
+        ranked_ops = operators if isinstance(operators, RankedReading) else None
         digits = digits if digits is not None else (0.0,) * len(DIGITS)
         operators = operators if operators is not None else (0.0,) * len(ops) + (1.0,)
         fused = {str(d): operators[len(ops)] * p for d, p in enumerate(digits)}
         fused.update(zip(ops, operators))
-        return fused
+        return (RankedSymbols(fused, ranked_digits, ranked_ops)
+                if ranked_digits is not None or ranked_ops is not None else fused)
 
 
 class ExpressionParser:
@@ -121,6 +146,8 @@ class ExpressionParser:
     maximum a posteriori parse is the per-position argmax within that class.
     Returns ``None`` when no well-formed parse exists (even length).
     """
+
+    ranked_symbol_readings = True
 
     def __init__(self, vocabulary: Vocabulary = ARITHMETIC) -> None:
         self.vocabulary = vocabulary
@@ -142,7 +169,9 @@ class ExpressionParser:
         if len(symbols) % 2 == 0:
             return None
         return tuple(
-            max(self.vocabulary.operators if i % 2 else DIGITS, key=dist.__getitem__)
+            (dist.choose(self.vocabulary.operators if i % 2 else DIGITS)
+             if isinstance(dist, RankedSymbols) else
+             max(self.vocabulary.operators if i % 2 else DIGITS, key=dist.__getitem__))
             for i, dist in enumerate(symbols) if dist is not None
         )
 

@@ -258,3 +258,14 @@ def test_library_map_matches_built_in_map() -> None:
             results.append((out.payload, workspace.spent))
         assert results[0] == results[1]
         assert results[0][1] < 1000.0 * len(tokens)
+
+
+def test_parser_preserves_order_when_positive_fusion_scale_rounds_to_a_tie() -> None:
+    import math
+    from nca.ladder import RankedReading
+
+    probabilities = (0.75, 1.0) + (0.0,) * 8
+    digits = RankedReading(probabilities, probabilities)
+    fused = SymbolFuser().invoke(digits, (0.0, 0.0, 0.0, math.ulp(0.0)))
+    assert fused["0"] == fused["1"] > 0
+    assert ExpressionParser().invoke([fused]) == ("1",)

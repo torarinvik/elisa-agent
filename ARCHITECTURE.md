@@ -557,7 +557,10 @@ their modules nor the requests raised there run. `ExpressionParser` reads
 digit entries at even positions, operator entries at odd ones, and nothing of
 an even-length sequence; `SymbolFuser` reads its digit input only when digit
 entries are demanded. Hence the digit recognizer never runs on operator
-positions.
+positions. In selective solving, `SymbolFuser` passes original per-field
+weight ordering to `ExpressionParser`, which uses it for digit and operator
+choices; other consumers retain numerical readings unless they explicitly
+support the same handoff.
 
 ## 15. Normalization against shift
 

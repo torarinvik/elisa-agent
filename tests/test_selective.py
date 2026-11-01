@@ -1305,3 +1305,30 @@ def test_ranked_fuser_and_legacy_fuser_match_their_risk_decisions() -> None:
     assert selected.bound == pytest.approx(11 / 21, abs=1e-14)
     assert old.value == (1,) and not old.abstained
     assert old.bound == pytest.approx(10 / 21, abs=1e-14)
+
+
+def test_symbol_fuser_hands_ranked_order_to_parser() -> None:
+    from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
+    from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION
+    from nca.modules.symbols import EXPRESSION, ExpressionParser, SymbolFuser
+
+    low = 1e-300
+    high = math.nextafter(low, math.inf)
+    digit_weights = (0.0, low, high) + (0.0,) * 7
+    operator_weights = (low, high, 0.0, 0.0)
+    digit = constant("ranked-digit", digit_weights, 1, Contract(("ch",), DIGIT_DISTRIBUTION))
+    operator = constant("ranked-operator", operator_weights, 1,
+                        Contract(("ch",), OPERATOR_DISTRIBUTION))
+    fuser, parser = SymbolFuser(), ExpressionParser()
+    route = plan_stable([Splitter(), digit, operator, fuser, parser], ("text",), EXPRESSION)
+    assert route is not None
+    ladders = {DIGIT_DISTRIBUTION: [Rung(digit)], OPERATOR_DISTRIBUTION: [Rung(operator)]}
+    answer = solve(route, ladders, "aaa", 2.0)
+    assert answer.value == ("2", fuser.vocabulary.operators[1], "2")
+    assert not answer.abstained
+
+    class LegacyParser(ExpressionParser):
+        ranked_symbol_readings = False
+
+    assert not fuser.ranked_readings_for(LegacyParser())
+    assert fuser.ranked_readings_for(parser)
