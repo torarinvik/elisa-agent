@@ -192,6 +192,34 @@ def test_partition_cursor_discards_mutated_cache_after_native_exception(
     assert cursor.last_start == 0
 
 
+def test_partition_cursor_recovers_from_partial_resize_allocation(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.height_prior(3)
+    cursor = incremental.PartitionCursor(prior)
+    rows = np.log(np.full((6, 3), 1 / 3))
+    selected = (1, 1, 1, 1, 1, 0)
+    cursor.partition(rows, selected)
+    original = np.full
+    calls = 0
+    def failing_full(*args: Any, **kwargs: Any) -> np.ndarray:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise MemoryError("injected allocation failure")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(incremental.np, "full", failing_full)
+    with pytest.raises(MemoryError, match="injected allocation failure"):
+        cursor.partition(rows[:2], selected[:2])
+    monkeypatch.setattr(incremental.np, "full", original)
+    rows[-1] = np.log([0.5, 0.3, 0.2])
+    np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected))
+    assert cursor.last_start == 0
+
+
 def test_partition_cursor_matches_full_sparse_automata() -> None:
     from nca.partition import PartitionCursor
 

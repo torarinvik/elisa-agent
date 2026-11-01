@@ -61,12 +61,14 @@ class PartitionCursor:
             self._valid = False
             return self.prior.partition(rows, selected)
         if self._rows is None or self._rows.shape != rows.shape:
-            self._alternatives = np.full((m + 1, states), -np.inf)
-            self._bounds = np.tile([states, -1], (m + 1, 1)).astype(np.int64)
-            self._matched_states = np.full(m + 1, self.prior.start, dtype=np.int64)
-            self._matched_weights = np.full(m + 1, -np.inf)
-            self._matched_weights[0] = 0.0
             self._valid = False
+            alternatives = np.full((m + 1, states), -np.inf)
+            bounds = np.tile([states, -1], (m + 1, 1)).astype(np.int64)
+            matched_states = np.full(m + 1, self.prior.start, dtype=np.int64)
+            matched_weights = np.full(m + 1, -np.inf)
+            matched_weights[0] = 0.0
+            self._alternatives, self._bounds = alternatives, bounds
+            self._matched_states, self._matched_weights = matched_states, matched_weights
         first = 0
         if self._valid:
             assert self._rows is not None and self._selected is not None
