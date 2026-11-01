@@ -547,7 +547,7 @@ class FormulaEvaluator:
                                       for k in range(n)]).double()
             log_probs = calibrated.clamp_min(1e-300).log().numpy()
         else:
-            log_probs = cached.copy()
+            log_probs = cached.copy() if invalidated else cached
             for k in invalidated:
                 row = torch.as_tensor(distribution(k, ARITY_DECISION)).double()
                 log_probs[k] = row.clamp_min(1e-300).log().numpy()

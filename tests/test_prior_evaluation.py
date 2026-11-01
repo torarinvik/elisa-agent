@@ -126,10 +126,15 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
         return 0.0
     first = evaluator.certificate(readings, risk, distribution, state)
     assert first is not None and calls == 1
+    cached_rows = state.prior_log_probs
     assert evaluator.certificate(readings, risk, distribution, state) == first and calls == 1
+    if use_prior:
+        assert state.prior_log_probs is cached_rows
     masses[0] = rng.dirichlet(np.ones(3))
     versions[0] += 1
     assert evaluator.certificate(readings, risk, distribution, state) is not None and calls == 2
+    if use_prior:
+        assert state.prior_log_probs is not cached_rows
     # The cache also depends on the selected sequence and prior identity.
     selected = state.risk_arities
     assert selected is not None
