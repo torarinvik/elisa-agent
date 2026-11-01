@@ -321,7 +321,9 @@ class Split:
         self.log_probs = np.array(log_probs, dtype=np.float64)
         m = len(self.log_probs)
         self.alphabet = tuple(alphabet)
+        self.arities = np.asarray(alphabet, dtype=np.int64)
         width = m + 2
+        self.width = width
         position = np.arange(m + 1)
         if centre is None or half is None:
             self.low, self.high = np.zeros(m + 1, dtype=np.int64), m - position
@@ -333,7 +335,9 @@ class Split:
         self.backward = np.full((m + 1, width), -np.inf)
         self.backward_max = np.full((m + 1, width), -np.inf)
         if self.low[0] <= 1 <= self.high[0]:
-            self.forward[0, 1] = self.forward_max[0, 1] = 0.0
+            self.low = np.ascontiguousarray(self.low, dtype=np.int64)
+        self.high = np.ascontiguousarray(self.high, dtype=np.int64)
+        self.forward[0, 1] = self.forward_max[0, 1] = 0.0
         if self.low[m] <= 0:
             self.backward[m, 0] = self.backward_max[m, 0] = 0.0
         self.ahead, self.behind, self.swept = 0, m, 0
@@ -355,6 +359,11 @@ class Split:
 
     def _advance(self, k: int) -> None:
         """Make forward vectors current through position ``k``."""
+        if _NATIVE is not None and self.ahead < k:
+            self.swept += _NATIVE.advance(self.forward.reshape(-1), self.forward_max.reshape(-1),
+                                          self.log_probs.reshape(-1), self.arities, self.low,
+                                          self.high, self.width, self.ahead, k)
+            self.ahead = k
         while self.ahead < k:
             i = self.ahead
             band = slice(int(self.low[i + 1]), int(self.high[i + 1]) + 1)
@@ -370,6 +379,11 @@ class Split:
 
     def _retreat(self, k: int) -> None:
         """Make backward vectors current from position ``k``."""
+        if _NATIVE is not None and self.behind > k:
+            self.swept += _NATIVE.retreat(self.backward.reshape(-1), self.backward_max.reshape(-1),
+                                          self.log_probs.reshape(-1), self.arities, self.low,
+                                          self.high, self.width, self.behind, k)
+            self.behind = k
         while self.behind > k:
             i = self.behind - 1
             band = slice(int(self.low[i]), int(self.high[i]) + 1)
@@ -388,6 +402,12 @@ class Split:
         replaced by ``row``, from the vectors before and after it."""
         self._advance(k)
         self._retreat(k + 1)
+        if _NATIVE is not None:
+            log_z, log_x = _NATIVE.scores(self.forward.reshape(-1), self.forward_max.reshape(-1),
+                                          self.backward.reshape(-1), self.backward_max.reshape(-1),
+                                          self.arities, self.low, self.high, self.width, k,
+                                          np.ascontiguousarray(row, dtype=np.float64))
+            return float(log_z), float(log_x)
         log_z = log_x = -np.inf
         for j, s0, n, t0 in self._moves(k):
             log_z = np.logaddexp(log_z, np.logaddexp.reduce(

@@ -197,6 +197,10 @@ extensions with `python -m nca.native` (needs `elisac-stage1`). Each has a
 NumPy reference that gives the same results within rounding and is used when
 the kernel is not built or `NCA_NATIVE=0`. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
+It also exports `advance`, `retreat` and `scores`, the banded cursor of §23.4:
+`formulas.Split` keeps the forward and backward tables in NumPy arrays and the
+kernel recomputes rows in place through `mutable view[f64]` parameters, which
+borrow the arrays' writable buffers.
 
 ## 1. Types and contracts
 

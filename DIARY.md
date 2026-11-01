@@ -950,6 +950,23 @@ the cost per swept position is mostly call overhead, about 11 µs, nearly
 independent of the number of states. The operation counts of §23.5 apply
 only where the per-state work dominates, which means native code.
 
+**Native cursor** (THEORY §23.4; Elisa kernel, log space). The same two
+experiments with `Split` running its sweeps and rescoring in
+`nca.native.decoding`, which updates the NumPy tables in place:
+
+| cursor | time per climb, depth 8 | NumPy |
+|---|---:|---:|
+| exact, unbanded | 0.78 ms | 2.1 ms |
+| banded, `η = 10⁻⁴`, including rebuilds | 0.17 ms | 1.52 ms |
+
+Results are unchanged (final `|Δ log Z|` ≤ 2.7e-14; banded slack 1.0e-7 to
+1.9e-5). Banding now pays: 4.6 times fewer milliseconds than the unbanded
+native cursor, against 1.4 times in NumPy, because per-state work dominates
+in native code. Against one native full decode (0.9 ms) a banded climb is
+5.3 times cheaper, short of the 26 times of §23.5. The rest is the rebuilds
+(about 4 per formula, each a full banded pass) and the log-space additions,
+each an exponential and a logarithm.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

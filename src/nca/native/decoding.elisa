@@ -13,6 +13,7 @@
 
 extern exp(x: f64) -> f64
 extern log(x: f64) -> f64
+extern log1p(x: f64) -> f64
 
 # The log-weight of an unreachable state, and log Z when no sequence is accepted.
 const FLOOR: f64 = -1.0e308
@@ -78,5 +79,76 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                 result[1 + m + k * width + j] <- through_total / totals[k]
     return result
 
+# The banded cursor of THEORY §23.4. The caller owns the forward and backward tables of the
+# sum and max programs in log space, `width` states per row, and keeps rows current around a
+# cursor; these functions recompute rows in place. Row `k` holds states `low[k] ..= high[k]`.
+
+def log_add(a: f64, b: f64) -> f64:
+    high: f64 = a if a > b else b
+    low: f64 = b if a > b else a
+    return high if low <= FLOOR else high + log1p(exp(low - high))
+
+# For arity `a` at position `i`: the first in-band state `s ≥ 1` whose successor `s − 1 + a` is
+# in band at `i + 1`, and how many consecutive such states there are.
+def moves(i: i64, a: i64, low: view[i64], high: view[i64]) -> (first: i64, count: i64) can[Abort.Panic]:
+    first: i64 =
+        lowest: i64 = low[i] if low[i] > 1 else 1
+        low[i + 1] + 1 - a if low[i + 1] + 1 - a > lowest else lowest
+    last: i64 = high[i] if high[i] < high[i + 1] + 1 - a else high[i + 1] + 1 - a
+    return first, (last - first + 1 if last >= first else 0)
+
+# Recompute forward rows `start + 1 ..= stop` from row `start`.
+def advance(forward: mutable view[f64], forward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
+    arities: i64 = alphabet.len.i64()
+    for i in start..<stop:
+        target: i64 = (i + 1) * width
+        for n in low[i + 1]..<(high[i + 1] + 1):
+            forward[target + n] <- log(0.0)
+            forward_max[target + n] <- log(0.0)
+        for j in 0..<arities:
+            run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
+            step: f64 = log_probs[i * arities + j]
+            for t in 0..<run.count:
+                source: i64 = i * width + run.first + t
+                cell: i64 = target + run.first - 1 + alphabet[j] + t
+                forward[cell] <- log_add(forward[cell], forward[source] + step)
+                forward_max[cell] <- forward_max[source] + step if forward_max[source] + step > forward_max[cell] else forward_max[cell]
+    return stop - start
+
+# Recompute backward rows `stop ..= start − 1` from row `start`.
+def retreat(backward: mutable view[f64], backward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
+    arities: i64 = alphabet.len.i64()
+    for back in 0..<(start - stop):
+        i: i64 = start - 1 - back
+        for n in low[i]..<(high[i] + 1):
+            backward[i * width + n] <- log(0.0)
+            backward_max[i * width + n] <- log(0.0)
+        for j in 0..<arities:
+            run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
+            step: f64 = log_probs[i * arities + j]
+            for t in 0..<run.count:
+                cell: i64 = i * width + run.first + t
+                source: i64 = (i + 1) * width + run.first - 1 + alphabet[j] + t
+                backward[cell] <- log_add(backward[cell], backward[source] + step)
+                backward_max[cell] <- backward_max[source] + step if backward_max[source] + step > backward_max[cell] else backward_max[cell]
+    return start - stop
+
+# [log Z, best log weight] with word `k`'s log weights replaced by `row`, from forward row `k`
+# and backward row `k + 1`.
+def scores(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64, row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    log_z, log_x =
+        for j in 0..<alphabet.len.i64() |log_z: f64 = log(0.0), log_x: f64 = log(0.0)| -> (log_z, log_x):
+            run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
+            for t in 0..<run.count |log_z, log_x|:
+                here: i64 = k * width + run.first + t
+                next: i64 = (k + 1) * width + run.first - 1 + alphabet[j] + t
+                log_z <- log_add(log_z, forward[here] + backward[next] + row[j])
+                candidate: f64 = forward_max[here] + backward_max[next] + row[j]
+                log_x <- candidate if candidate > log_x else log_x
+    return [log_z, log_x]
+
 export pymodule decoding:
     fn decode
+    fn advance
+    fn retreat
+    fn scores
