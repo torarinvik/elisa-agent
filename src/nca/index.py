@@ -15,10 +15,14 @@ from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
 
 from nca.abi import (Binding, Contract, Module, Term, TypeId, Var, elem_type, format_type,
-                     parse_type, type_variables, unify)
+                     match_type, parse_type, substitute, type_variables, unify)
 
 if TYPE_CHECKING:
     from nca.planner import Memo, Plan
+
+_MAX_BINDINGS = 1024
+"""Beyond this many bindings of an eliminator's inputs, its contributions are
+not enumerated and the closure is taken as total."""
 
 
 class ProducerIndex:
@@ -53,6 +57,8 @@ class ProducerIndex:
         self._fired_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[int]] = {}
         self._seq_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[TypeId] | None] = {}
         self._memos: dict[int, Memo] = {}
+        self._total_cache: dict[tuple[tuple[TypeId, ...], int], bool] = {}
+        self._in_progress: set[tuple[tuple[TypeId, ...], int]] = set()
         self.routes: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[int, Plan | None]] = {}
         """Stable routes found so far, each with the library size it was planned at."""
         for module in modules:
@@ -127,18 +133,39 @@ class ProducerIndex:
             yield position, module, binding
 
     def covered(self, type_id: TypeId, limit: int) -> bool:
-        """Whether a polymorphic producer among the first ``limit`` modules has
-        an instance producing ``type_id``."""
+        """Whether a polymorphic producer among the first ``limit`` modules,
+        other than one whose output is a bare variable, has an instance
+        producing ``type_id``. Those are accounted for in the closure."""
         key = (type_id, limit)
         if key not in self._cover_cache:
             self._cover_cache[key] = any(m.manifest.contract.producing(type_id) is not None
-                                         for p, m in self.generic if p < limit)
+                                         for p, m in self.generic
+                                         if p < limit and self.head_of[p] is not None)
         return self._cover_cache[key]
 
-    def satisfiable(self, needs: frozenset[TypeId], reach: frozenset[TypeId], limit: int) -> bool:
-        """Whether every need may be derivable: reachable, or produced by an
-        instance of a polymorphic producer."""
-        return all(t in reach or self.covered(t, limit) for t in needs)
+    def satisfiable(self, available: Sequence[TypeId], needs: frozenset[TypeId],
+                    limit: int) -> bool:
+        """Whether every need may be derivable from ``available``: in the
+        closure, or produced by an instance of a polymorphic producer."""
+        reach = self.reachable(available, limit)
+        return self.total(available, limit) or all(
+            t in reach or self.covered(t, limit) for t in needs)
+
+    def total(self, available: Sequence[TypeId], limit: int) -> bool:
+        """Whether a polymorphic producer whose output is a bare variable may
+        produce any type from ``available``, so the closure prunes nothing."""
+        self.reachable(available, limit)
+        return self._total_cache[(tuple(available), limit)]
+
+    def may_produce(self, available: Sequence[TypeId], position: int, goal: TypeId,
+                    limit: int) -> bool:
+        """Whether the module at ``position`` may produce ``goal`` from
+        ``available``. Only a module whose output is a bare variable is
+        restricted here: by Theorem 12.19, ``goal`` must be a sequence type or in
+        the closure, which includes the types polymorphic producers cover."""
+        return (self.head_of[position] is not None or elem_type(goal) is not None
+                or self.total(available, limit) or goal in self.reachable(available, limit)
+                or self.covered(goal, limit))
 
     def element_candidates(self, available: Sequence[TypeId], limit: int,
                            ) -> tuple[list[TypeId], dict[TypeId, int]]:
@@ -158,14 +185,16 @@ class ProducerIndex:
     def sources(self, goal: TypeId, limit: int) -> frozenset[TypeId] | None:
         """A superset of the types ``a`` with ``goal`` in the closure of ``[a]``,
         or ``None`` when that is every type: ``goal`` is in the closure of nothing, or a
-        polymorphic producer may produce it. Backward search over producers
+        polymorphic producer may produce it, or one whose output is a bare
+        variable is installed. Backward search over producers
         gives a superset, since a closure derivation that uses ``a`` reaches
         ``goal`` from it through producers' inputs. Sequence goals are in every
         closure."""
         key = (goal, limit)
         if key not in self._source_cache:
             if (elem_type(goal) is not None or goal in self.reachable((), limit)
-                    or self.covered(goal, limit)):
+                    or self.covered(goal, limit)
+                    or any(p < limit for p in self.open_outputs)):
                 self._source_cache[key] = None
             else:
                 found = {goal}
@@ -183,18 +212,18 @@ class ProducerIndex:
 
     def seq_elements(self, available: Sequence[TypeId], limit: int) -> frozenset[TypeId] | None:
         """A superset of the non-sequence elements ``a`` for which ``seq a`` may be
-        derivable from ``available`` (THEORY §12, Theorem 12.17): the closure of
-        the elements of available sequence types and of the sequence types that
-        contracts firing in the closure produce. ``None`` when a polymorphic
-        producer may produce any sequence type."""
+        derivable from ``available`` (THEORY §12, Theorems 12.17 and 12.19): the
+        closure of the elements of the sequence types in the closure of
+        ``available``. ``None`` when a polymorphic producer may produce any
+        sequence type."""
         key = (tuple(available), limit)
         if key not in self._seq_cache:
-            if any(self.head_of[p] in (None, ("seq", 1)) for p in self.polymorphic if p < limit):
+            reach = self.reachable(available, limit)
+            if (self.total(available, limit)
+                    or any(self.head_of[p] == ("seq", 1) for p in self.polymorphic if p < limit)):
                 self._seq_cache[key] = None
             else:
-                self.reachable(available, limit)
-                outputs = (self.outputs[p] for p in self._fired_cache[key])
-                seeds = {e for t in (*available, *outputs) if (e := elem_type(t)) is not None}
+                seeds = {e for t in reach if (e := elem_type(t)) is not None}
                 self._seq_cache[key] = self.reachable(tuple(sorted(seeds)), limit)
         return self._seq_cache[key]
 
@@ -202,14 +231,16 @@ class ProducerIndex:
         """The closure oracle (``NCA.SoundOracle``): ``False`` only if no
         instance of ``goal`` is derivable from ``available``. Sequence types and
         variables are always accepted, as is any type a polymorphic producer can
-        produce."""
-        if isinstance(goal, Var) or goal.name == "seq":
+        produce, and everything when the closure is total."""
+        if isinstance(goal, Var) or goal.name == "seq" or self.total(available, limit):
             return True
+        reach = self.reachable(available, limit)
         if not type_variables(goal):
             type_id = format_type(goal)
-            return type_id in self.reachable(available, limit) or self.covered(type_id, limit)
-        return (any(unify(goal, parse_type(t), {}) for t in self.reachable(available, limit))
-                or any(unify(goal, renamed_output(m), {}) for p, m in self.generic if p < limit))
+            return type_id in reach or self.covered(type_id, limit)
+        return (any(unify(goal, parse_type(t), {}) for t in reach)
+                or any(unify(goal, renamed_output(m), {}) for p, m in self.generic
+                       if p < limit and self.head_of[p] is not None))
 
     def reachable(self, available: Sequence[TypeId], limit: int) -> frozenset[TypeId]:
         """Forward closure of ``available`` under the first ``limit`` contracts.
@@ -218,16 +249,19 @@ class ProducerIndex:
         contract fires once all its non-sequence inputs are reachable. Horn-clause
         propagation touches only contracts consuming reachable types, so dormant
         modules elsewhere in the library cost nothing. Types that a polymorphic
-        producer has an instance for count as reachable too, which keeps the
-        closure an over-approximation of the derivable types.
+        producer has an instance for count as reachable too, and contracts whose
+        output is a bare variable contribute the types of Theorem 12.19, to a
+        fixed point. The closure stays an over-approximation of the derivable
+        types; ``total`` reports when it is everything.
         """
         key = (tuple(available), limit)
         if key in self._reach_cache:
             return self._reach_cache[key]
+        self._in_progress.add(key)
         reach = set(available)
         queue = list(available)
         remaining: dict[int, int] = {}
-        if any(p < limit for p, _ in self.generic):
+        if any(p < limit and self.head_of[p] is not None for p, _ in self.generic):
             for t in self.consumers:
                 if t not in reach and self.covered(t, limit):
                     reach.add(t)
@@ -242,20 +276,96 @@ class ProducerIndex:
                 reach.add(output)
                 queue.append(output)
 
+        def propagate() -> None:
+            while queue:
+                for position in self.consumers.get(queue.pop(), ()):
+                    if position >= limit:
+                        continue
+                    remaining[position] = remaining.get(position, len(self.needs[position])) - 1
+                    if remaining[position] == 0:
+                        fire(position)
+
         for position in self.unconditional:
             if position < limit:
                 fire(position)
-        while queue:
-            for position in self.consumers.get(queue.pop(), ()):
-                if position >= limit:
-                    continue
-                remaining[position] = remaining.get(position, len(self.needs[position])) - 1
-                if remaining[position] == 0:
-                    fire(position)
+        propagate()
+        total = False
+        while not total and any(p < limit for p in self.open_outputs):
+            new, total = self._open_contributions(key, reach)
+            new -= reach
+            if not new:
+                break
+            reach |= new
+            queue.extend(new)
+            propagate()
+        self._in_progress.discard(key)
         result = frozenset(reach)
         self._reach_cache[key] = result
         self._fired_cache[key] = frozenset(fired)
+        self._total_cache[key] = total
         return result
+
+    def _open_contributions(self, current: tuple[tuple[TypeId, ...], int], reach: set[TypeId],
+                            ) -> tuple[set[TypeId], bool]:
+        """The types contracts whose output is a bare variable may produce from
+        ``reach``, the closure ``current`` computed so far (Theorem 12.19), and
+        whether one of them may produce any type. A slot whose inputs are all
+        in ``reach`` contributes nothing new, as the closure being computed is
+        closed and contains them; one whose closure is still being computed
+        further out makes the result total."""
+        limit = current[1]
+        produced: set[TypeId] = set()
+        for position in self.open_outputs:
+            if position >= limit:
+                break
+            contract = self.modules[position].manifest.contract
+            output = parse_type(contract.output)
+            assert isinstance(output, Var)
+            inputs = [parse_type(t) for t in contract.inputs]
+            if output in inputs:
+                continue
+            bindings: list[dict[str, Term]] = [{}]
+            for pattern in inputs:
+                if isinstance(pattern, Var) or pattern.name == "seq":
+                    continue
+                if not type_variables(pattern):
+                    type_id = format_type(pattern)
+                    if type_id not in reach and not self.covered(type_id, limit):
+                        bindings = []
+                    continue
+                if any(unify(pattern, renamed_output(m), {}) for p, m in self.generic
+                       if p < limit and self.head_of[p] is not None):
+                    return produced, True
+                extended = []
+                for binding in bindings:
+                    for type_id in reach:
+                        candidate = dict(binding)
+                        if match_type(pattern, parse_type(type_id), candidate):
+                            extended.append(candidate)
+                bindings = extended
+                if len(bindings) > _MAX_BINDINGS:
+                    return produced, True
+            slots = [inputs for inputs, out in contract.slots if parse_type(out) == output]
+            for binding in bindings:
+                if output.name in binding:
+                    produced.add(format_type(binding[output.name]))
+                    continue
+                if not slots:
+                    return produced, True
+                for slot_inputs in slots:
+                    ground = [substitute(parse_type(t), binding) for t in slot_inputs]
+                    if any(type_variables(t) for t in ground):
+                        return produced, True
+                    key = (tuple(format_type(t) for t in ground), limit)
+                    if all(t in reach or elem_type(t) is not None for t in key[0]):
+                        continue
+                    if key in self._in_progress:
+                        return produced, True
+                    inner = self.reachable(key[0], limit)
+                    if self._total_cache[key]:
+                        return produced, True
+                    produced |= inner
+        return produced, False
 
     def pattern_candidates(self, available: Sequence[TypeId], goal: Term,
                            limit: int) -> list[int]:
@@ -263,11 +373,17 @@ class ProducerIndex:
         ``limit`` that can produce an instance of the pattern ``goal``
         (THEORY §2.2): an output whose root matches the goal's (Theorem 2.6)
         or is a variable, and, for a monomorphic contract, all ground inputs
-        in the forward closure of ``available``."""
-        self.reachable(available, limit)
+        in the forward closure of ``available``. By Theorem 12.19, a contract
+        whose output is a bare variable qualifies only if ``goal`` is a
+        sequence pattern or an instance of it is in the closure, unless the
+        closure is total."""
+        reach = self.reachable(available, limit)
+        if isinstance(goal, Var) or self.total(available, limit):
+            positions = range(limit) if isinstance(goal, Var) else (
+                p for p in range(limit)
+                if self.head_of[p] in (None, (goal.name, len(goal.args))))
+            return list(positions)
         fired = self._fired_cache[(tuple(available), limit)]
-        if isinstance(goal, Var):
-            return [p for p in range(limit) if p in fired or p in self.polymorphic]
         key = (goal.name, len(goal.args))
         heads = self.heads.get(key, ())
         if len(fired) < len(heads):
@@ -275,7 +391,11 @@ class ProducerIndex:
             matching += [p for p in heads if p in self.polymorphic and p < limit]
         else:
             matching = [p for p in heads if p < limit and (p in fired or p in self.polymorphic)]
-        return sorted({*matching, *(p for p in self.open_outputs if p < limit)})
+        if (key == ("seq", 1) or any(unify(goal, parse_type(t), {}) for t in reach)
+                or any(unify(goal, renamed_output(self.modules[p]), {}) for p in heads
+                       if p in self.polymorphic and p < limit)):
+            matching += [p for p in self.open_outputs if p < limit]
+        return sorted(set(matching))
 
 
 _fresh = itertools.count()

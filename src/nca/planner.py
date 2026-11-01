@@ -118,16 +118,19 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
     if goal in available:
         return Given(goal)
     reach = index.reachable(available, limit)
+    total = index.total(available, limit)
     for position, module, binding in index.candidates(goal, limit):
         if binding:
+            if not index.may_produce(available, position, goal, limit):
+                continue
             contract = module.manifest.contract.instance(binding)
             needs = frozenset(i for i in contract.inputs
                               if elem_type(i) is None and not type_variables(parse_type(i)))
-            if not index.satisfiable(needs, reach, limit):
+            if not index.satisfiable(available, needs, limit):
                 continue
         else:
             contract = module.manifest.contract
-            if not index.needs[position] <= reach:
+            if not (total or index.needs[position] <= reach):
                 continue
         if contract.free:
             found = _apply_free(index, limit, available, module, binding, fuel, memo)

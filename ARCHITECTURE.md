@@ -286,9 +286,20 @@ those elements by searching backward from the body goal through producers'
 inputs, so a sequence goal visits only candidates that can lead to its element
 type instead of every element type in the library. Candidate lists are cached
 per available types and library prefix. `ProducerIndex.seq_elements` is the
-source oracle of Theorem 12.17: the closure of the elements of available
-sequence types and of sequence types produced by contracts that fire in the
-closure, which `reachable` records.
+source oracle of Theorem 12.17: the closure of the elements of the sequence
+types in the closure of the available types.
+
+Contracts whose output is a bare variable, such as the eliminators `Case` and
+`Fold`, enter the closure through their contributions (Theorem 12.19):
+`ProducerIndex.reachable` matches their input patterns against the closure,
+adds what each binding determines, including the closure of a slot's inputs,
+and repeats to a fixed point. A slot whose inputs are already in the closure
+adds nothing, so only bindings that reach new types cost a nested closure.
+`ProducerIndex.total` reports when a contribution is unconstrained and the
+closure prunes nothing. The planner tries such a contract for a ground goal
+only if `ProducerIndex.may_produce` accepts it: a sequence type, a type in the
+closure, or one a polymorphic producer covers. Theorem 12.19 is argued in the
+theory; the Lean model has neither polymorphism nor slots.
 
 Pattern goals take their candidates from `ProducerIndex.pattern_candidates`:
 modules indexed by the root constructor and arity of their output

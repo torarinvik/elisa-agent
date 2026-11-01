@@ -470,12 +470,17 @@ def test_free_variable_planning_is_sound_and_complete_against_instances() -> Non
 
 def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skipping ``map`` candidates whose body goal (Theorem 12.7) or source
-    (Theorem 12.17) the closure oracle rejects, and pattern-goal candidates
-    with another output root (Theorem 2.6) or an underivable input, returns
+    (Theorem 12.17) the closure oracle rejects, pattern-goal candidates with
+    another output root (Theorem 2.6) or an underivable input, and
+    eliminators whose output lies outside the closure (Theorem 12.19), returns
     exactly the unpruned plan."""
     rng = np.random.default_rng(3)
     names = [f"t{i}.v1" for i in range(6)]
-    types = [*names, *(f"seq[{t}]" for t in names), *(f"seq[seq[{t}]]" for t in names[:2])]
+    types = [*names, *(f"seq[{t}]" for t in names), *(f"seq[seq[{t}]]" for t in names[:2]),
+             "either[t0.v1,t1.v1]", "either[t2.v1,seq[t3.v1]]"]
+    generic = [Case(), Fold(), fn("inl", ["?l"], "either[?l,?r]", lambda x: Choice(0, x)),
+               fn("unwrap", ["either[?a,?a]"], "?a", lambda c: c.value),
+               fn("first", ["seq[?a]"], "?a", lambda x: x[0])]
     cases = []
     for trial in range(150):
         modules = [fn(f"m{k}-{trial}", [str(t) for t in rng.choice(types, size=int(rng.integers(0, 3)))],
@@ -486,6 +491,9 @@ def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) 
         if rng.random() < 0.3:
             modules.insert(int(rng.integers(len(modules) + 1)),
                            fn(f"length-{trial}", ["seq[?a]"], "t5.v1", len))
+        for module in generic:
+            if rng.random() < 0.2:
+                modules.insert(int(rng.integers(len(modules) + 1)), module)
         available = tuple(str(t) for t in rng.choice(types, size=int(rng.integers(1, 3))))
         cases += [(modules, available, str(goal)) for goal in rng.choice(types, size=6)]
     pruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
@@ -494,6 +502,7 @@ def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(ProducerIndex, "seq_elements", lambda *_: None)
     monkeypatch.setattr(ProducerIndex, "pattern_candidates",
                         lambda self, available, goal, limit: list(range(limit)))
+    monkeypatch.setattr(ProducerIndex, "total", lambda *_: True)
     unpruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
     assert pruned == unpruned
     assert sum(isinstance(p, Map) for p in pruned) > 20
@@ -533,7 +542,8 @@ def test_registry_index_survives_installation_replacement_and_removal() -> None:
 
 def test_case_and_fold_are_planned_as_generic_eliminators() -> None:
     """One ``Case`` and one ``Fold`` serve every type (THEORY §20.7): the
-    planner instantiates ``Case`` from the data and the goal, a choice runs
+    planner instantiates ``Case`` from the data and the goal, its closure
+    contribution is what its branches make (Theorem 12.19), a choice runs
     only the branch it selects, and a fold plan type-checks and runs."""
     calls: list[str] = []
 
@@ -549,6 +559,10 @@ def test_case_and_fold_are_planned_as_generic_eliminators() -> None:
                lambda s: Choice(0, int(s)) if s.isdigit() else Choice(1, s))
     modules = [Case(), parse, fn("double", [INT], "out.v1", double),
                fn("report", ["err.v1"], "out.v1", report)]
+    index = ProducerIndex(modules)
+    assert not index.total((TEXT,), len(modules))
+    assert "out.v1" in index.reachable((TEXT,), len(modules))
+    assert plan(modules, (TEXT,), "missing.v1") is None
     route = plan(modules, (TEXT,), "out.v1")
     assert isinstance(route, Apply) and route.module is modules[0]
     assert route.binding == (("b", "out.v1"), ("l", INT), ("r", "err.v1"))

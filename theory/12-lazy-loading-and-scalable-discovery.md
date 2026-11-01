@@ -70,6 +70,36 @@ closure of `[a]`, and by induction `a` is in the closure of `E`, which contains
 the closure of `[a]`. So `map` candidates whose element lies outside the closure
 of `E` can be skipped, by the argument of Theorem 12.7.
 
+**Closure through eliminators.** A polymorphic contract whose output is a
+bare variable `v`, such as an eliminator (§20.7), has an instance for every
+type, so counting all its instances as reachable would make the closure total
+and prune nothing. Its instances that are actually derivable are fewer. Match
+its non-sequence input patterns against the closure to obtain bindings `β`;
+any derivable instance of the contract arises from one of them, because its
+inputs are derivable and hence in the closure (Theorem 12.8). Then:
+
+- if `v` is itself an input, the output is a derivable input, already in the
+  closure;
+- if `β` binds `v`, the output is `β(v)`;
+- if `v` occurs only as the output of slots whose inputs `β` makes ground,
+  the output is produced by a slot filling from those inputs, so it lies in
+  their closure (Theorem 12.8 again, applied to the filling);
+- otherwise, the output is unconstrained and the closure stays total.
+
+| Theorem | Statement |
+|---|---|
+| 12.19 | the least set containing `avail`, closed under contracts as in `Closure` and under these contributions, contains every derivable type except sequence types |
+
+So such a contract is a candidate for a goal only if the goal is a sequence
+type or in this closure. The argument combines Theorem 12.8 with the matching
+of §2.1; the closure is computed as a fixed point, since contributed types can
+make more contracts fire. A slot whose inputs already lie in the set being
+closed contributes nothing beyond it, because the least closed set containing
+those inputs is contained in every closed set that contains them. Theorem
+12.17 carries over with `E` taken as the elements of the sequence types in
+this closure, since a slot filling that makes a sequence has its own `E`
+inside it.
+
 `Closure lib avail` is the least set containing `avail` and closed under
 contracts whose non-sequence inputs it contains. It is computed by Horn-clause
 propagation: each contract keeps a count of
