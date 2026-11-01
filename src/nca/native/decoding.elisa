@@ -16,13 +16,16 @@ extern log(x: f64) -> f64
 extern log1p(x: f64) -> f64
 extern nextafter(x: f64, y: f64) -> f64
 
-# Generic nonnegative finite weights must have at least one positive entry.
-def valid_observation_weights(values: view[f64]) -> bool:
-    return
+# Validate nonnegative finite weights and produce their floored logarithms.
+# An empty result signals an invalid vector (including an all-zero vector).
+def observation_logs(values: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    positive: bool =
         for i in 0..<values.len.i64() |positive: bool = false| -> positive:
             x: f64 = values[i]
-            return false if x != x or x < 0.0 or x == -log(0.0)
+            return [] if x != x or x < 0.0 or x == -log(0.0)
             positive <- true if x > 0.0 else positive
+    return [] if not positive
+    return [log(values[i] if values[i] > 0.0 else nextafter(0.0, 1.0)) for i in 0..<values.len.i64()]
 
 # Sum finite nonnegative binary64 values, rounding each inexact addition up.
 def upper_add(total: f64, x: f64) -> f64:
@@ -791,7 +794,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return nextafter(0.0, 1.0) if recovered == 0.0 else recovered
 
 export pymodule decoding:
-    fn valid_observation_weights
+    fn observation_logs
     fn upper_sum
     fn lower_sum
     fn detection_floors

@@ -821,8 +821,10 @@ grouped distribution. When finite alternative logits underflow, both paths
 recover their aggregate in log space and retain a positive binary64 sentinel
 if it remains unrepresentable. This is not an outward-rounding guarantee.
 `Rung.observe` converts probabilities to binary64 and floors zero at the
-smallest positive representable value before taking logs. It rejects malformed
-weight vectors using an Elisa scan when available and a PyTorch fallback.
+smallest positive representable value before taking logs. For array and list
+outputs, an Elisa kernel validates weights and computes the logarithms;
+other outputs and unavailable kernels use the PyTorch fallback. The two log
+implementations may differ in final rounding.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.
 

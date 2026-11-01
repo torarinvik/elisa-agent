@@ -128,16 +128,29 @@ class Rung:
 
     def observe(self, value: Any) -> torch.Tensor:
         """Binary64 log-probabilities with a smallest-positive numerical floor."""
-        probabilities = torch.tensor(self.module.invoke(value), dtype=torch.float64)
+        output = self.module.invoke(value)
+        native = getattr(_NATIVE, "observation_logs", None)
+        array = None
+        if isinstance(output, (tuple, list, np.ndarray)):
+            try:
+                array = np.asarray(output, dtype=np.float64)
+            except (TypeError, ValueError, RuntimeError):
+                pass  # Some valid tensor-containing sequences require PyTorch conversion.
+        if array is not None:
+            if array.ndim != 1:
+                raise ValueError("expert output must be a one-dimensional weight vector")
+            array = np.ascontiguousarray(array)
+            if native is not None:
+                logs = native(array)
+                if not logs:
+                    raise ValueError("expert output must contain finite nonnegative weights with positive mass")
+                return torch.tensor(logs, dtype=torch.float64)
+        probabilities = torch.tensor(array if array is not None else output, dtype=torch.float64)
         if probabilities.ndim != 1:
             raise ValueError("expert output must be a one-dimensional weight vector")
-        native = getattr(_NATIVE, "valid_observation_weights", None)
-        if native is not None and probabilities.device.type == "cpu":
-            valid = bool(native(np.ascontiguousarray(probabilities.numpy())))
-        else:
-            valid = (bool(torch.isfinite(probabilities).all()) and
-                     not bool((probabilities < 0).any()) and
-                     bool((probabilities > 0).any()))
+        valid = (bool(torch.isfinite(probabilities).all()) and
+                 not bool((probabilities < 0).any()) and
+                 bool((probabilities > 0).any()))
         if not valid:
             raise ValueError("expert output must contain finite nonnegative weights with positive mass")
         return probabilities.clamp_min(math.nextafter(0.0, 1.0)).log()

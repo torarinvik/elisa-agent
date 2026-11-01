@@ -183,7 +183,7 @@ def test_observation_preserves_small_positive_probabilities() -> None:
 def test_observation_rejects_invalid_weights(weights, native, monkeypatch) -> None:
     from nca import ladder as ladder_module
 
-    if native and getattr(ladder_module._NATIVE, "valid_observation_weights", None) is None:
+    if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
         pytest.skip("native observation validation is not built")
     if not native:
         monkeypatch.setattr(ladder_module, "_NATIVE", None)
@@ -195,7 +195,7 @@ def test_observation_rejects_invalid_weights(weights, native, monkeypatch) -> No
 def test_observation_accepts_unnormalized_positive_weights(native, monkeypatch) -> None:
     from nca import ladder as ladder_module
 
-    if native and getattr(ladder_module._NATIVE, "valid_observation_weights", None) is None:
+    if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
         pytest.skip("native observation validation is not built")
     if not native:
         monkeypatch.setattr(ladder_module, "_NATIVE", None)
@@ -203,6 +203,43 @@ def test_observation_accepts_unnormalized_positive_weights(native, monkeypatch) 
     assert rung.reading(rung.observe(None)).tolist() == pytest.approx([2 / 3, 1 / 3])
     large = Rung(constant("large-weights", (1e308, 1e308), 1.0))
     assert large.reading(large.observe(None)).tolist() == pytest.approx([0.5, 0.5])
+
+
+def test_native_observation_logs_match_fallback(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "observation_logs", None) is None:
+        pytest.skip("native observation preparation is not built")
+    rng = np.random.default_rng(413)
+    values = np.concatenate(([0.0, np.nextafter(0.0, 1.0), np.nextafter(1.0, 0.0), 1.0],
+                             rng.random(1000), np.exp(rng.uniform(-740, 709, 1000))))
+    rung = Rung(constant("weights", tuple(values), 1.0))
+    actual = rung.observe(None).numpy()
+    noncontiguous = values[::2]
+    assert not noncontiguous.flags.c_contiguous
+    strided = Rung(constant("strided", noncontiguous, 1.0)).observe(None).numpy()
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    expected = rung.observe(None).numpy()
+    np.testing.assert_allclose(actual, expected, rtol=3e-15, atol=1e-15)
+    fallback = Rung(constant("strided", noncontiguous, 1.0)).observe(None).numpy()
+    np.testing.assert_allclose(strided, fallback, rtol=3e-15, atol=1e-15)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_observation_accepts_tensor_containing_sequence(native, monkeypatch) -> None:
+    import warnings
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
+        pytest.skip("native observation preparation is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    values = (torch.tensor(0.4, requires_grad=True), torch.tensor(0.6))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        rung = Rung(constant("tensor-values", values, 1.0))
+        reading = rung.reading(rung.observe(None))
+    assert reading.tolist() == pytest.approx([0.4, 0.6])
 
 
 def test_segmenter_alternatives_merge_narrowest_gap_first() -> None:
