@@ -285,3 +285,12 @@ def test_native_calibrated_groups_match_torch(temperature: float,
     for row, probabilities in zip(logits, actual):
         assert torch.allclose(probabilities, rung.distribution(row, classes), atol=2e-6)
         assert float(probabilities.sum()) == pytest.approx(1.0, abs=1e-7)
+
+
+def test_grouped_distribution_preserves_gradients() -> None:
+    rung = Rung(constant("gradient", (0.2,) * 5, 1.0))
+    row = torch.tensor([-1.0, -2.0, -3.0, -4.0, -5.0], requires_grad=True)
+    result = rung.distribution(row, ((0, 2), (1,), (3, 4)))
+    result[0].backward()
+    assert row.grad is not None and torch.isfinite(row.grad).all()
+    assert torch.count_nonzero(row.grad) > 0

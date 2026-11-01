@@ -1329,6 +1329,26 @@ full-refinement outcomes and calibration-sensitive audits remain to be
 compared. Temperature fitting and its data are unchanged. GPU tensors,
 gradient-bearing observations and nonpartitioned groups use PyTorch.
 
+**Grouped calibration in full refinement.** Six formulas each at depths
+6 and 8 (test seed 4, noise 0.1, target 0.05) shared the existing reader and
+100 depth-4 calibration formulas. Switching only grouped calibration in
+reference/native/native/reference order gave:
+
+| depth | reference seconds | native seconds | answered | wrong answered |
+|---|---|---|---:|---:|
+| 6 | 0.07607, 0.03800 | 0.03477, 0.03420 | 6/6 | 0 |
+| 8 | 2.09311, 2.01770 | 1.97844, 1.97733 | 2/6 | 0 |
+
+Values, abstentions and total expert costs agreed (558,350 at depth 6;
+242,824,924 at depth 8). Maximum bound changes were 5.95e-10 and 1.22e-8.
+These inputs retained their decisions, but this does not prove threshold
+invariance for other inputs. Warm-up affects the first short reference run.
+
+The wrapper's group-id metadata is now computed once per decision key and
+stored read-only; it does not cache logits or temperatures. Existing extreme
+logit comparisons still pass, and a new test confirms the PyTorch fallback
+preserves gradients. No isolated timing gain is claimed for metadata caching.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

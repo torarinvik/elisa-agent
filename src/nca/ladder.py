@@ -79,6 +79,19 @@ def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[lis
     return union, [[union.index(c) for c in part] for part in parts]
 
 
+@cache
+def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray | None:
+    """Read-only native group metadata for a partitioned decision."""
+    union, positions = _layout(key)
+    if sorted(k for part in positions for k in part) != list(range(len(union))):
+        return None
+    groups = np.empty(len(union), dtype=np.int64)
+    for entry, part in enumerate(positions):
+        groups[part] = entry
+    groups.setflags(write=False)
+    return groups
+
+
 class SecondLook:
     """An expert reading its input and ``views`` of it, averaging the readings."""
 
@@ -149,14 +162,10 @@ class Rung:
             return self.reading(log)
         union, positions = _layout(decision_key(classes))
         native = getattr(_NATIVE, "calibrated_groups", None)
-        partition = sorted(k for part in positions for k in part) == list(range(len(union)))
+        groups = _group_ids(decision_key(classes))
         if (native is not None and log.device.type == "cpu" and not log.requires_grad
-                and partition):
-            groups = [0] * len(union)
-            for entry, part in enumerate(positions):
-                for k in part:
-                    groups[k] = entry
-            values = native(log[union].double().numpy(), np.asarray(groups, dtype=np.int64),
+                and groups is not None):
+            values = native(log[union].double().numpy(), groups,
                             len(positions), self.temperature(classes))
             return torch.tensor(values, dtype=log.dtype)
         reading = torch.softmax(log[union] / self.temperature(classes), dim=-1)
