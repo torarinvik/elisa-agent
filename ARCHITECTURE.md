@@ -168,6 +168,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.8 | `dpMax_append` | `Banding` |
 | 23.9 | `sum_pair_dist` | `Banding` |
 | 23.10 | `stitch_attains` | `Banding` |
+| 23.12 | `revision_cache_eq` | `Selective` |
 | 23.11 | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
 | 24.1 | `reweighted_odds` | `Misspecification` |
 | 24.2 | `reweighted_risk_le` | `Misspecification` |
@@ -417,3 +418,8 @@ priorities every `isqrt(m)` changed rows. The current sequence risk and
 within-certificate risks are recomputed each call. The raw answer decode and
 per-word distribution preparation still run in full; making those incremental
 and moving their hot loops to Elisa remains necessary.
+
+`Distribution.revision(i)` identifies the item's rung within one refinement
+run. The run fixes observations and calibration, so the rung identifies both.
+The selective adapter preserves these revisions when mapping elements to
+refined items. Plain distribution callbacks remain supported without revisions.

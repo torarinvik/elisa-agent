@@ -1048,6 +1048,13 @@ explicit rung revisions in the generic session interface. Cursor scoring now
 stays at the changed position instead of returning to position zero, avoiding
 an unnecessary sweep. No end-to-end speedup is claimed for this change.
 
+**Revision identities.** A two-rung controlled refinement returns identical
+raw distributions at both rungs. Its observed distribution revisions are
+`[0, 1]` while the raw tensors compare equal. The generic distribution
+accessor and selective adapter now expose rung revisions within a solve.
+The correction cache does not yet consume these identities; this increment
+establishes the invalidation interface before bypassing calibration work.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

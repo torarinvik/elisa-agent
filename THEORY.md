@@ -1726,6 +1726,13 @@ caching the risk itself: `R` and the within-certificate risk must still be
 current. If every priority is zero, a nonempty set of `m` items can instead
 receive uniform charges `R / m`.
 
+**Theorem 23.12 (revision cache invariant).** Suppose a cached quantity
+is a deterministic function `f(v)` of an item's revision `v`. Reusing a
+cached value `f(v₀)` is exact whenever `v = v₀`. The revision must identify
+both the observation and its calibration; equality of raw observations
+alone is insufficient. Revisions are scoped to one refinement run, whose
+experts and calibration parameters remain fixed.
+
 The decoded sequence must still be recovered after each step, to evaluate
 the formula and find `E`. It too is read from the split, without a sweep.
 

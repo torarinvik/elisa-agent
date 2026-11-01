@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -231,3 +231,24 @@ def test_risk_allocation_uses_current_bound(priorities: list[float]) -> None:
 def test_risk_allocation_rejects_invalid_inputs(bound: float, priorities: list[float]) -> None:
     with pytest.raises(ValueError):
         allocate_risk(bound, priorities)
+
+
+def test_distribution_revision_changes_even_for_identical_readings() -> None:
+    from nca.ladder import Distribution
+
+    rungs = [Rung(constant(str(i), (0.4, 0.6), float(i + 1))) for i in range(2)]
+    revisions: list[int] = []
+    observations: list[torch.Tensor] = []
+
+    def account(readings: Sequence[torch.Tensor],
+                risk: Callable[[int, Any], float],
+                distribution: Callable[[int, Any], torch.Tensor],
+                ) -> dict[int, float]:
+        assert isinstance(distribution, Distribution)
+        revisions.append(distribution.revision(0))
+        observations.append(readings[0].clone())
+        return {0: 1.0}
+
+    refine([0], [rungs], 0.01, certificate=account)
+    assert revisions == [0, 1]
+    assert torch.equal(*observations)

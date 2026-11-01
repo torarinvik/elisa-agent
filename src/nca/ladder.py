@@ -192,6 +192,21 @@ def risk(reading: torch.Tensor, classes: Decision = None) -> float:
     return 1.0 - (mass[chosen].sum() / mass.sum()).item()
 
 
+@dataclass(frozen=True)
+class Distribution:
+    """Calibrated probabilities with optional per-item revision identities.
+
+    A revision identifies the observation and calibration within one run.
+    Consumers without revision support may call this like any other function.
+    """
+
+    lookup: Callable[[int, Decision], torch.Tensor]
+    revision: Callable[[int], int]
+
+    def __call__(self, i: int, decision: Decision) -> torch.Tensor:
+        return self.lookup(i, decision)
+
+
 Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float],
                         Callable[[int, Decision], torch.Tensor]], dict[int, float] | None]
 """``certificate(readings, risk, distribution)``: a risk account for the
@@ -279,13 +294,15 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             distributions[key] = ladders[i][levels[i]].distribution(logs[i], decision)
         return distributions[key]
 
+    current_distribution = Distribution(item_distribution, levels.__getitem__)
+
     for i in range(len(values)):
         climb(i)
         while levels[i] < min(start, len(ladders[i]) - 1):
             levels[i] += 1
             climb(i)
     while True:
-        account = (certificate(readings, item_risk, item_distribution) if certificate is not None
+        account = (certificate(readings, item_risk, current_distribution) if certificate is not None
                    else {i: item_risk(i, d) for i, d in enumerate(decisions)})
         if account is None:
             charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf

@@ -51,7 +51,7 @@ import torch
 from nca.abi import NOTHING, Contract, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
-from nca.ladder import (Certificate, Decision, Floor, Rung, SecondLook, State, Stop, ladder,
+from nca.ladder import (Distribution, Certificate, Decision, Floor, Rung, SecondLook, State, Stop, ladder,
                         refine)
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
@@ -164,8 +164,13 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
         elements: list[Any] = [None] * count
         for (i, _), value in zip(items, readings):
             elements[i] = tuple(value.tolist())
-        chosen = declared(elements, lambda i, d: risk(position[i], d),
-                          lambda i, d: distribution(position[i], d))
+        def mapped_distribution(i: int, d: Decision) -> torch.Tensor:
+            return distribution(position[i], d)
+
+        revision = getattr(distribution, "revision", None)
+        calibrated = (Distribution(mapped_distribution, lambda i: revision(position[i]))
+                      if revision is not None else mapped_distribution)
+        chosen = declared(elements, lambda i, d: risk(position[i], d), calibrated)
         return None if chosen is None else {position[i]: c for i, c in chosen.items()}
 
     return certificate
