@@ -288,6 +288,17 @@ inductive BoundedShape : ℕ → List ℕ → Prop
   | branch {d : ℕ} {left right : List ℕ} : BoundedShape d left →
       BoundedShape d right → BoundedShape (d + 1) (2 :: (left ++ right))
 
+/-- A complete unary/binary prefix tree has one more leaf than binary nodes. -/
+theorem bounded_shape_leaf_binary_count {d : ℕ} {arities : List ℕ}
+    (h : BoundedShape d arities) : arities.count 0 = arities.count 2 + 1 := by
+  induction h with
+  | leaf d => simp
+  | unary h ih => simpa using ih
+  | branch hl hr ihl ihr =>
+      simp only [List.count_cons, List.count_append]
+      simp at *
+      omega
+
 /-- Bounded binary trees have at most `2^(d+1)-1` nodes. -/
 theorem bounded_shape_length {d : ℕ} {arities : List ℕ}
     (h : BoundedShape d arities) : arities.length + 1 ≤ 2 ^ (d + 1) := by
