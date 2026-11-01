@@ -898,6 +898,14 @@ otherwise. NumPy contiguity conversion alone does not ensure alignment.
 The prior-decoding regression exercises read-only unaligned weights through
 maximum, normalizer and full-posterior paths without an application-side copy.
 
+Generated Python annotations accept `Sequence[T] | Buffer` for numeric view
+inputs and require `Buffer` for writable views. NumPy arrays therefore satisfy
+the input annotations, while lists are rejected statically for writable views.
+These protocols do not encode dtype, rank, alignment or write permission;
+the native converters enforce those constraints. Python 3.12+ uses the standard
+`collections.abc.Buffer`; older typing targets use the official
+`typing_extensions` backport without adding a native-module runtime dependency.
+
 Native builds pass the running interpreter as `PYTHON_BIN` and let Elisa resolve
 matching headers/configuration rather than guessing a platform-specific
 `python-config` path. Installed compiler snapshots freeze and verify their
