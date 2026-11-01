@@ -89,6 +89,10 @@ would not say which type to produce. For example, `nothing: → seq(α)` cannot
 be planned on its own, but it can be planned under a consumer whose goal
 fixes `α`.
 
+At depth one, an application with any inputs cannot succeed: its input search
+has depth zero. Such candidates can be skipped before renaming their variables;
+zero-input candidates and available inputs must still be considered.
+
 **Map sources.** With polymorphic contracts, the candidate element types of
 step 3 include the elements of the sequence types that instances produce, of
 which there may be infinitely many. Every non-sequence element whose

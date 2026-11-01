@@ -295,6 +295,9 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
             yield Given(type_id), extended
     for position in index.pattern_candidates(available, goal, limit):
         module = index.modules[position]
+        # At depth one, a contract with inputs cannot solve even its first input.
+        if fuel == 1 and module.manifest.contract.inputs:
+            continue
         renaming, inputs, output = rename_apart(module.manifest.contract, ())
         extended = dict(binding)
         if not unify(goal, output, extended):

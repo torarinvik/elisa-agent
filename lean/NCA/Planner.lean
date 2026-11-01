@@ -79,6 +79,12 @@ def plan (lib : List (Contract Ty)) : List Ty → Nat → Ty → Option (Plan Ty
           | some body, some src => some (.map a body src)
           | _, _ => none) (elemCandidates lib avail)
 
+/-- A depth-one application cannot solve a nonempty input list. -/
+theorem zero_fuel_nonempty_inputs (lib : List (Contract Ty)) (avail : List Ty)
+    (input : Ty) (rest : List Ty) :
+    traverse (plan lib avail 0) (input :: rest) = none := by
+  simp [traverse, plan]
+
 /-- **Soundness.** Any plan returned by the planner is well-typed. -/
 theorem plan_sound (lib : List (Contract Ty)) :
     ∀ (n : Nat) (avail : List Ty) (t : Ty) (p : Plan Ty), plan lib avail n t = some p →

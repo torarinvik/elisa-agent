@@ -458,6 +458,21 @@ def test_free_binding_rejects_unusable_required_input() -> None:
     assert plan([add, zero, Fold()], available, INT, fuel=5, required=frozenset({2})) is None
 
 
+def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
+    from nca import planner
+
+    needs = fn("needs", [TEXT], INT, lambda value: 1)
+    seed = fn("seed", [], INT, lambda: 2)
+    index = ProducerIndex([needs, seed])
+    memo = index.memo(index.size)
+    results = list(planner._solutions(index, index.size, (), Var("goal"), {}, 1, memo))
+    closed = [planner._close(index, index.size, partial, binding, memo)
+              for partial, binding in results]
+    assert closed == [Apply(seed, ())]
+    available = list(planner._solutions(index, index.size, (TEXT,), Var("goal"), {}, 1, memo))
+    assert any(partial == Given(TEXT) for partial, _ in available)
+
+
 def test_renaming_preserves_inputs_output_and_slot_only_variables() -> None:
     from nca.index import rename_apart
 
