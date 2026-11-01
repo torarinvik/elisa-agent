@@ -214,7 +214,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds` (range only; concentration not formalized) | `Product` |
 | [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
 | [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
-| [27.15](theory/27-priors-as-experts.md) | `prior_empty` (empty weight) | `Product` |
+| [27.15](theory/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |
 
 ## Native kernels
 

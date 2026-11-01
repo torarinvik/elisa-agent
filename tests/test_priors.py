@@ -154,6 +154,7 @@ def test_weighted_prior_empty_sequence(
     else:
         assert decoded is not None and decoded.arities == prior.best(rows) == ()
         assert decoded.log_z == final and decoded.marginals.shape == (0, 2)
+        assert decoded.risk(rows, prior.alphabet) == 0.0
 
 
 def test_native_empty_sequence_uses_start_final_weight() -> None:

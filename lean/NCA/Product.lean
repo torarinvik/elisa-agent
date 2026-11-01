@@ -32,6 +32,11 @@ def prior : τ → List α → ℝ
 /-- The empty sequence has exactly its start state's final weight. -/
 theorem prior_empty (t : τ) : prior ε v f t [] = f t := rfl
 
+/-- Normalizing positive empty-sequence mass against itself gives one. -/
+theorem prior_empty_normalized (t : τ) (hf : f t ≠ 0) :
+    prior ε v f t [] / prior ε v f t [] = 1 := by
+  simp [prior_empty, hf]
+
 /-- Sum-product dynamic program on the product automaton. -/
 def pdpSum : List (α → ℝ) → σ → τ → ℝ
   | [], s, t => if F s then f t else 0
