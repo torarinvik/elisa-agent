@@ -181,7 +181,7 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
 
     def observe(state: Refinement) -> None:
         for target in targets:
-            if target not in selected and state.bound <= target:
+            if target not in selected and state.available and state.bound <= target:
                 selected[target] = state
 
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
@@ -197,7 +197,8 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                         for args, read in zip(inputs, reads)])
         for module in reversed(chain):
             result = module.invoke(result)
-        return Answer(result, state.cost, state.bound, state.bound > target)
+        return Answer(result, state.cost, state.bound,
+                      not state.available or state.bound > target)
 
     return [answer(selected.get(target, refined), target) for target in targets]
 

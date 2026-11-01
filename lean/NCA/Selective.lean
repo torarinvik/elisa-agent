@@ -50,6 +50,18 @@ theorem selective_risk_le (p q b : X → ℝ) (δ : ℝ) (hp : ∀ x, 0 ≤ p x)
   calc p x * q x ≤ p x * δ := mul_le_mul_of_nonneg_left ((hq x).trans hb) (hp x)
     _ = δ * p x := mul_comm _ _
 
+/-- The risk bound is needed only where a certificate exists and is accepted. -/
+theorem selective_risk_le_available (p q b : X → ℝ) (available : X → Prop)
+    [DecidablePred available] (δ : ℝ) (hp : ∀ x, 0 ≤ p x)
+    (hq : ∀ x, available x → q x ≤ b x) :
+    ∑ x ∈ univ.filter (fun x => available x ∧ b x ≤ δ), p x * q x ≤
+      δ * ∑ x ∈ univ.filter (fun x => available x ∧ b x ≤ δ), p x := by
+  rw [mul_sum]
+  refine sum_le_sum fun x hx => ?_
+  have h := (mem_filter.mp hx).2
+  calc p x * q x ≤ p x * δ := mul_le_mul_of_nonneg_left ((hq x h.1).trans h.2) (hp x)
+    _ = δ * p x := mul_comm _ _
+
 variable {I : Type} [DecidableEq I]
 
 /-- Bound plus priced compute after refining the symbols in `T`. -/

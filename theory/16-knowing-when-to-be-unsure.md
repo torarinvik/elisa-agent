@@ -18,6 +18,12 @@ there, and the system can decline to answer when doubt remains.
 | 16.2 | for a price `λ` per unit of compute, refining exactly `{i : λ κ i ≤ β i}` minimizes bound plus priced compute over all refinement sets |
 | 16.3 | if every item's risk is at least `ρ`, a bound of at most `δ` needs `n · ρ ≤ δ`: holding `δ` as inputs grow needs floors shrinking like `1 / n` |
 
+Theorem 16.1 also applies when a bound exists only for some inputs: answer
+only where the certificate is available and its bound is at most `δ`, and
+require the error-bound premise only on those available inputs. An unavailable
+certificate is not an accepted bound, even if an implementation uses infinity
+as a sentinel and the requested threshold is also infinite.
+
 So the efficient policy is local: refine a glyph when its expected bound
 reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
 trade compute for reliability.

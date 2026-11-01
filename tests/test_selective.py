@@ -166,6 +166,35 @@ def test_solve_session_is_shared_by_generic_consumer_hooks() -> None:
     assert len([event for event in events if event[0] == "session"]) == 2
 
 
+def test_missing_certificate_cannot_meet_infinite_target() -> None:
+    from nca.selective import solve_many
+
+    low = Rung(constant("uncertain", (0.4, 0.6), 1.0))
+    high = Rung(constant("certain", (0.01, 0.99), 2.0))
+    seen = []
+    def certificate(readings: Any, risk: Any, distribution: Any) -> dict[int, float] | None:
+        return {0: 0.01} if readings[0][1] > 0.9 else None
+    result = refine([0], [[low, high]], float("inf"), certificate=certificate,
+                    observe=seen.append)
+    assert [state.available for state in seen] == [False, True]
+    assert seen[0].abstained and not result.abstained and result.cost == 3.0
+    missing = refine([0], [[low]], float("inf"), certificate=lambda *_: None)
+    assert missing.abstained and not missing.available
+
+    class Consumer:
+        manifest = Manifest("no-certificate", "1.0.0", Contract(("seq[dist]",), "out"))
+        def certificate(self, readings: Any, risk: Any, distribution: Any) -> None:
+            return None
+        def invoke(self, readings: Any) -> str:
+            return "unverified"
+    reader = constant("reader-no-certificate", (0.1, 0.9), 1.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), reader, Consumer()], ("text",), "out")
+    assert route is not None
+    ladders = {"dist": [Rung(reader)]}
+    assert solve(route, ladders, "a", float("inf")).abstained
+    assert all(answer.abstained for answer in solve_many(route, ladders, "a", [1.0, float("inf")]))
+
+
 def test_practice_queue_and_fine_tuning() -> None:
     from nca.practice import practice, proportional, queue
 

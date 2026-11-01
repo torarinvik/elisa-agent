@@ -208,6 +208,7 @@ class Refinement:
     cost: float
     bound: float
     abstained: bool
+    available: bool = True
 
 
 def risk(reading: torch.Tensor, classes: Decision = None) -> float:
@@ -347,9 +348,11 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf
         else:
             charges, bound = account, sum(account.values())
+        available = account is not None
         if observe is not None:
-            observe(Refinement(list(readings), cost, bound, bound > delta))
-        if bound <= delta:
+            observe(Refinement(list(readings), cost, bound,
+                               not available or bound > delta, available))
+        if available and bound <= delta:
             break
         fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))
         if floor is not None and floor(readings, item_risk, fixed) > delta:
@@ -368,7 +371,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         i = max(open_, key=charges.__getitem__)
         levels[i] += 1
         climb(i)
-    return Refinement(readings, cost, bound, bound > delta)
+    return Refinement(readings, cost, bound, not available or bound > delta, available)
 
 
 def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: float,

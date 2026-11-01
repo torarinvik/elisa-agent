@@ -121,7 +121,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [15.1](theory/15-normalization-against-shift.md) | `ShiftBound.map` | `Normalize` |
 | [15.2](theory/15-normalization-against-shift.md) | `shift_le_of_invariant_on` | `Normalize` |
 | [15.3](theory/15-normalization-against-shift.md) | `shift_zero_of_invariant` | `Normalize` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `selective_risk_le` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `selective_risk_le`, `selective_risk_le_available` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
