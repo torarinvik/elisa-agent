@@ -170,7 +170,12 @@ class ArityPrior:
                               _native_alphabet(self.alphabet),
                               self.transitions.reshape(-1), self.log_weights.reshape(-1),
                               self.log_final, self.start)
-            return tuple(int(a) for a in selected) if selected else None
+            if selected:
+                return tuple(int(a) for a in selected)
+            if (getattr(_NATIVE, "prior_normalizer", None) is not None
+                    and self.log_normalizer(rows) != -math.inf):
+                raise ValueError("prior maximum unavailable despite nonzero mass")
+            return None
         result = self.decode(rows)
         return None if result is None else result.arities
 
@@ -187,7 +192,12 @@ class ArityPrior:
                          self.transitions.reshape(-1), self.log_weights.reshape(-1),
                          self.log_final, self.start)
             if out is None:
+                if (getattr(_NATIVE, "prior_normalizer", None) is not None
+                        and self.log_normalizer(rows) != -math.inf):
+                    raise ValueError("prior decoding unavailable despite nonzero mass")
                 return None
+            if not math.isfinite(out["log_z"]):
+                raise ValueError("prior decoder normalizer is not finite")
             return Decoded(tuple(out["arities"]), out["log_z"],
                            np.asarray(out["marginals"], dtype=np.float64), self)
         states = len(self.log_final)

@@ -851,6 +851,10 @@ reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.
 The generic log-weight validation also uses Elisa for contiguous arrays;
 noncontiguous arrays and installations without the kernel use NumPy.
+When native prior decoding or maximization returns no result, the Python
+wrapper checks the native normalizer if available to distinguish zero mass
+from overflow. Older native modules without that entry point retain their
+existing empty-result behavior.
 
 `FormulaDataset(..., early_leaf=p)` and `formula(..., early_leaf=p)` expose
 the structural-shift family in §18.1. The new trailing parameter defaults

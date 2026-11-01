@@ -1,6 +1,7 @@
 import copy
 import itertools
 import pickle
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -366,6 +367,19 @@ def test_normalizer_rejects_finite_negative_overflow(
     with pytest.raises(ValueError, match="normalizer.*finite"):
         prior.log_normalizer(rows)
     assert prior.log_normalizer(np.full_like(rows, -np.inf)) == -np.inf
+    for operation in (prior.decode, prior.best):
+        with pytest.raises(ValueError, match="normalizer.*finite"):
+            operation(rows)
+        assert operation(np.full_like(rows, -np.inf)) is None
+
+
+def test_older_native_decoder_without_normalizer_can_return_no_result(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(priors, "_NATIVE", SimpleNamespace(
+        prior_best=lambda *args: [], decode_prior=lambda *args: None))
+    prior = priors.ArityPrior((0,), np.array([[0]]), np.zeros((1, 1)), np.zeros(1))
+    rows = np.full((1, 1), -np.inf)
+    assert prior.best(rows) is None and prior.decode(rows) is None
 
 
 def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
