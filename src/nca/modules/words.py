@@ -245,6 +245,7 @@ class CorrectionState:
     answer_band_result: Banded | None = None
     answer_cursor: Split | None = None
     answer_readings: np.ndarray | None = None
+    answer_arities: tuple[int, ...] | None = None
     cursor: Split | None = None
     normalizer_valid: bool = False
     risk_band: CertifiedSplit | None = None
@@ -267,6 +268,7 @@ class CorrectionState:
             self.answer_band_result = None
             self.answer_cursor = None
             self.answer_readings = None
+            self.answer_arities = None
             self.cursor = None
             self.normalizer_valid = False
             self.risk_band = None
@@ -397,19 +399,22 @@ class FormulaEvaluator:
                 masses = _arity_masses(readings)
                 with np.errstate(divide="ignore"):
                     state.answer_cursor = Split(np.log(masses), ARITY_ORDER)
-            anchor = 0
-            scored = None
-            for k in changed:
-                anchor = int(k)
-                row = _arity_masses([readings[k]])[0]
-                with np.errstate(divide="ignore"):
-                    scored = state.answer_cursor.climb(anchor, np.log(row))
-            state.answer_readings = current.copy()
-            log_z, _ = (scored if scored is not None else
-                        state.answer_cursor.scores(anchor, state.answer_cursor.log_probs[anchor]))
-            if not math.isfinite(log_z):
-                return [VOCABULARY[int(np.argmax(r))] for r in readings]
-            _, arities = state.answer_cursor.best(anchor)
+            if state.answer_arities is None or len(changed):
+                state.answer_arities = None
+                anchor = 0
+                scored = None
+                for k in changed:
+                    anchor = int(k)
+                    row = _arity_masses([readings[k]])[0]
+                    with np.errstate(divide="ignore"):
+                        scored = state.answer_cursor.climb(anchor, np.log(row))
+                state.answer_readings = current.copy()
+                log_z, _ = (scored if scored is not None else
+                            state.answer_cursor.scores(anchor, state.answer_cursor.log_probs[anchor]))
+                if not math.isfinite(log_z):
+                    return [VOCABULARY[int(np.argmax(r))] for r in readings]
+                _, state.answer_arities = state.answer_cursor.best(anchor)
+            arities = state.answer_arities
         native = getattr(_NATIVE, "grouped_argmax", None)
         if native is not None:
             scores = (state.answer_readings if state is not None else

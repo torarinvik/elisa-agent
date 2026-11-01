@@ -356,6 +356,30 @@ def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.
         assert evaluator.words(readings, state) == evaluator.words(readings)
 
 
+def test_answer_cursor_reuses_trace_only_for_unchanged_readings(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules.words import CorrectionState
+
+    original = decoding.Split.best
+    calls = 0
+
+    def best(split: decoding.Split, k: int) -> tuple[float, tuple[int, ...]]:
+        nonlocal calls
+        calls += 1
+        return original(split, k)
+
+    monkeypatch.setattr(decoding.Split, "best", best)
+    rng = np.random.default_rng(851)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=15)
+    evaluator = FormulaEvaluator(decode=True)
+    state = CorrectionState()
+    first = evaluator.words(readings, state)
+    assert calls == 1
+    assert evaluator.words(readings, state) == first and calls == 1
+    readings[7] = rng.dirichlet(np.ones(len(VOCABULARY)))
+    assert evaluator.words(readings, state) == evaluator.words(readings)
+    assert calls == 2
+
+
 def test_native_certificate_matches_reference_including_ties() -> None:
     from nca.modules import words as word_module
 
