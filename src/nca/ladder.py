@@ -48,7 +48,7 @@ from numbers import Integral
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from functools import cache
-from typing import Any
+from typing import Any, Literal, overload
 
 import numpy as np
 import torch
@@ -113,6 +113,31 @@ class SecondLook:
         return tuple(np.mean(readings, axis=0).tolist())
 
 
+@dataclass(frozen=True)
+class RankedObservation:
+    """An observation's log weights and the original binary64 ordering data.
+
+    The logits are a tensor; callers must treat it as read-only. The weights
+    are an immutable snapshot and retain distinctions lost by logarithms.
+    """
+
+    logits: torch.Tensor
+    weights: tuple[float, ...]
+
+    def top(self, classes: Sequence[int] | None = None) -> int:
+        """Return the first highest-weight class among the supplied indices."""
+        indices = tuple(range(len(self.weights))) if classes is None else tuple(classes)
+        if (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
+                               or not 0 <= i < len(self.weights) for i in indices)):
+            raise ValueError("classes must contain valid class indices")
+        native = getattr(_NATIVE, "row_argmax", None)
+        if native is not None:
+            values = np.fromiter((self.weights[i] for i in indices), dtype=np.float64,
+                                 count=len(indices))
+            return int(indices[int(native(values, len(indices))[0])])
+        return int(max(indices, key=self.weights.__getitem__))
+
+
 @dataclass
 class Rung:
     """An expert read through temperatures fitted on held-out labeled inputs:
@@ -128,6 +153,19 @@ class Rung:
 
     def observe(self, value: Any) -> torch.Tensor:
         """Binary64 log-probabilities with a smallest-positive numerical floor."""
+        return self._observe(value, ranked=False)
+
+    def observe_ranked(self, value: Any) -> RankedObservation:
+        """Observe once while retaining exact binary64 weight ordering."""
+        return self._observe(value, ranked=True)
+
+    @overload
+    def _observe(self, value: Any, *, ranked: Literal[False]) -> torch.Tensor: ...
+
+    @overload
+    def _observe(self, value: Any, *, ranked: Literal[True]) -> RankedObservation: ...
+
+    def _observe(self, value: Any, *, ranked: bool) -> torch.Tensor | RankedObservation:
         output = self.module.invoke(value)
         native = getattr(_NATIVE, "observation_logs", None)
         array = None
@@ -151,7 +189,8 @@ class Rung:
                 logs = native(array)
                 if not logs:
                     raise ValueError("expert output must contain finite nonnegative weights with positive mass")
-                return torch.tensor(logs, dtype=torch.float64)
+                logits = torch.tensor(logs, dtype=torch.float64)
+                return RankedObservation(logits, tuple(array.tolist())) if ranked else logits
             logs = []
             positive = False
             for weight in array:
@@ -162,14 +201,16 @@ class Rung:
                 logs.append(math.log(weight if weight > 0 else math.nextafter(0.0, 1.0)))
             if not positive:
                 raise ValueError("expert output must contain finite nonnegative weights with positive mass")
-            return torch.tensor(logs, dtype=torch.float64)
+            logits = torch.tensor(logs, dtype=torch.float64)
+            return RankedObservation(logits, tuple(array.tolist())) if ranked else logits
         assert probabilities is not None
         valid = (bool(torch.isfinite(probabilities).all()) and
                  not bool((probabilities < 0).any()) and
                  bool((probabilities > 0).any()))
         if not valid:
             raise ValueError("expert output must contain finite nonnegative weights with positive mass")
-        return probabilities.clamp_min(math.nextafter(0.0, 1.0)).log()
+        logits = probabilities.clamp_min(math.nextafter(0.0, 1.0)).log()
+        return RankedObservation(logits, tuple(probabilities.tolist())) if ranked else logits
 
     def calibrate(self, values: Sequence[Any], labels: torch.Tensor) -> None:
         """Keep held-out observations and fit the full output's temperature."""

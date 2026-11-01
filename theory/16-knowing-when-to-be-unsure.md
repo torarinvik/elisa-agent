@@ -57,6 +57,13 @@ decisions for arbitrary restricted class groups therefore requires retaining
 the original ordering information, or deciding from the original weights,
 through the consumer interface. Changing logarithm implementations alone
 cannot recover distinctions already lost to rounding.
+`Rung.observe_ranked` now exposes a log tensor together with an immutable
+binary64 snapshot of the original weights; its `top` operation uses those
+weights for any supplied class subset. For positive temperature, the exact
+power transform is strictly increasing, and division by a common positive
+normalizer preserves its order. This is a building block for carrying
+ordering information. The selective controller and its consumers do not yet
+use this interface, so their decision-ordering limitation remains.
 
 For independent known reductions, the priced objective has a local threshold
 rule: refine when the reduction pays for its cost. Sweeping `λ` explores a

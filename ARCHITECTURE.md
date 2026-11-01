@@ -148,6 +148,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_observation_floor` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
@@ -828,6 +830,9 @@ CPU fallback uses scalar `math.log` on the same binary64 values. Non-CPU
 tensor outputs use the PyTorch fallback, whose logarithms can round
 differently. Representing logarithms in binary64 can collapse distinct
 weights into a tie, so it does not always preserve the original weight order.
+`Rung.observe_ranked` retains a separate immutable weight snapshot for exact
+binary64 class ordering, but the selective controller does not yet propagate
+it to consumers.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.
 

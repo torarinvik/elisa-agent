@@ -126,6 +126,20 @@ theorem collapsed_pair_cannot_choose_both {α β γ : Type*}
   have same : choose (encode x, encode y) = choose (encode y, encode x) := by rw [h]
   exact hne (choices.1.symm.trans (same.trans choices.2))
 
+/-- Retaining the original value alongside any encoding preserves distinction. -/
+theorem original_value_distinguishes {α β : Type*} (encode : α → β)
+    {x y : α} (h : x ≠ y) : (encode x, x) ≠ (encode y, y) := by
+  intro same
+  exact h (congrArg Prod.snd same)
+
+/-- A strictly increasing transform followed by positive normalization
+preserves the ordering of weights. -/
+theorem monotone_normalized_rank (f : ℝ → ℝ) (hf : StrictMono f)
+    {a b total : ℝ} (ht : 0 < total) :
+    f a / total < f b / total ↔ a < b := by
+  rw [div_lt_div_iff_of_pos_right ht]
+  exact hf.lt_iff_lt
+
 /-- Bound plus priced compute after refining the symbols in `T`. -/
 def refinedObjective (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) : ℝ :=
   ∑ i ∈ S, r i - ∑ i ∈ T, β i + lam * ∑ i ∈ T, κ i

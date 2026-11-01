@@ -177,6 +177,42 @@ def test_observation_preserves_small_positive_probabilities() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
+def test_ranked_observation_retains_original_restricted_order(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
+        pytest.skip("native observation preparation is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+
+    class Expert:
+        manifest = Manifest("ranked", "1", Contract(("x",), "dist"))
+        calls = 0
+        def invoke(self, value):
+            self.calls += 1
+            return (1.0, 1e-300, math.nextafter(1e-300, math.inf))
+
+    expert = Expert()
+    observed = Rung(expert).observe_ranked(None)
+    assert expert.calls == 1
+    assert observed.top() == 0
+    assert observed.top([1, 2]) == 2
+    assert observed.top([2, 1]) == 2
+    assert observed.weights[1] < observed.weights[2]
+    forced_tie = ladder_module.RankedObservation(torch.tensor([0.0, -1.0, -1.0]), observed.weights)
+    assert forced_tie.top([1, 2]) == 2
+    equal = ladder_module.RankedObservation(torch.tensor([0.0, 0.0]), (0.5, 0.5))
+    assert equal.top([1, 0]) == 1
+    values = [0.2, 0.8]
+    snapshot = Rung(constant("mutable-output", values, 1.0)).observe_ranked(None)
+    values[0] = 1.0
+    assert snapshot.top() == 1
+    for invalid in ([], [-1], [3], [True]):
+        with pytest.raises(ValueError, match="class indices"):
+            observed.top(invalid)
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("weights", [(), (0.0, 0.0), (-0.1, 1.0),
                                       (float("nan"), 1.0), (float("inf"), 1.0),
                                       (float("-inf"), 1.0), ((0.1, 0.9),), 1.0])
