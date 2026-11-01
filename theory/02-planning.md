@@ -99,6 +99,8 @@ later substitution. If that input has no plan at the required depth, the
 contract cannot apply, regardless of solutions to earlier pattern inputs.
 This remains true when the input becomes ground only after an earlier input
 has extended the binding; other bindings must still be explored.
+For a single remaining input, each of its solutions is already a complete
+input tuple; no recursive search of an empty suffix is needed.
 
 **Map sources.** With polymorphic contracts, the candidate element types of
 step 3 include the elements of the sequence types that instances produce, of

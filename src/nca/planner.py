@@ -341,6 +341,11 @@ def _solve_inputs(index: ProducerIndex, limit: int, available: Sequence[TypeId],
     if not inputs:
         yield (), binding
         return
+    if len(inputs) == 1:
+        for first, extended in _solutions(index, limit, available, inputs[0], binding,
+                                          fuel - 1, memo):
+            yield (first,), extended
+        return
     # Later inputs that are already ground cannot be repaired by solving this one.
     if binding and fuel > 0:
         for pattern in inputs[1:]:

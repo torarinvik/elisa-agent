@@ -504,6 +504,20 @@ def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     assert any(partial == Given(TEXT) for partial, _ in available)
 
 
+def test_single_pattern_input_preserves_answers_and_order() -> None:
+    from nca import planner
+
+    seed = fn("seed", [], INT, lambda: 1)
+    index = ProducerIndex([seed])
+    memo = index.memo(index.size)
+    answers = list(planner._solve_inputs(index, index.size, (TEXT,), (Var("x"),), {}, 2, memo))
+    closed = [(planner._close(index, index.size, args[0], binding, memo),
+               format_type(planner.resolve(Var("x"), binding)))
+              for args, binding in answers]
+    assert closed == [(Given(TEXT), TEXT), (Apply(seed, ()), INT)]
+    assert list(planner._solve_inputs(index, index.size, (), (Var("x"),), {}, 1, memo)) == []
+
+
 def test_pattern_sequence_at_one_depth_needs_no_map_candidates(monkeypatch) -> None:
     from nca import planner
 

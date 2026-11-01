@@ -19,6 +19,11 @@ def traverse (f : α → Option β) : List α → Option (List β)
     | some b, some bs => some (b :: bs)
     | _, _ => none
 
+/-- Traversing a single input wraps its result without another search. -/
+theorem traverse_singleton (f : α → Option β) (a : α) :
+    traverse f [a] = (f a).map (fun b => [b]) := by
+  cases h : f a <;> simp [traverse, h]
+
 /-- The first successful application of `f`, in list order. -/
 def firstSome (f : α → Option β) : List α → Option β
   | [] => none
