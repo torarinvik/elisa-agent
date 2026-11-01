@@ -10,7 +10,7 @@ from itertools import accumulate
 import numpy as np
 
 from nca.native import load
-from nca.priors import Decoded, risk_from_log_weight, sequence_log_weight
+from nca.priors import Decoded, risk_from_log_weight, risk_from_partition, sequence_log_weight
 
 _NATIVE = load("decoding")
 
@@ -157,6 +157,39 @@ def _initial_band_changes(log_off: float, slack: float) -> int:
     return j
 
 
+def _format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
+    """Exact model risk with selected and alternative paths summed separately."""
+    native = getattr(_NATIVE, "format_partition", None)
+    if native is not None:
+        partition = native(np.ascontiguousarray(rows, dtype=np.float64).reshape(-1),
+                           np.asarray(alphabet, dtype=np.int64),
+                           np.asarray(selected, dtype=np.int64))
+        if len(partition) == 2:
+            return risk_from_partition(*partition)
+    m = len(rows)
+    alternatives = np.full(m + 2, -np.inf)
+    matched, state = 0.0, 1
+    for k in range(m):
+        following = np.full(m + 2, -np.inf)
+        for n in range(1, m - k + 1):
+            for j, value in enumerate(alphabet):
+                arity = int(value)
+                target = n - 1 + arity
+                if target > m - k - 1:
+                    continue
+                following[target] = np.logaddexp(following[target], alternatives[n] + rows[k, j])
+                if n == state and arity != selected[k]:
+                    following[target] = np.logaddexp(following[target], matched + rows[k, j])
+        column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
+        if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
+            matched = -math.inf
+        else:
+            matched += float(rows[k, column])
+            state += int(selected[k]) - 1
+        alternatives = following
+    return risk_from_partition(matched if state == 0 else -math.inf, float(alternatives[0]))
+
+
 def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) -> tuple[int, float]:
     """The least ``j`` with ``S^j / j! ≤ slack``, where ``S`` is the summed
     off-reference arity mass, and the tail bound ``U_j = S^j / j!``.
@@ -184,8 +217,8 @@ def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
     ``band_changes`` and widens until the tail bound is at most ``slack``
     times the band's weight, so the risk is within ``slack`` of the exact one
     (THEORY §23.3). ``None`` if no parseable sequence has positive weight."""
-    if not len(alphabet) or any(a < 0 for a in alphabet):
-        raise ValueError("alphabet must contain nonnegative arities")
+    if not len(alphabet) or len(set(alphabet)) != len(alphabet) or any(a < 0 for a in alphabet):
+        raise ValueError("alphabet must contain distinct nonnegative arities")
     if not 0 < slack < 1:
         raise ValueError("slack must be strictly between zero and one")
     if (log_probs.ndim != 2 or log_probs.shape[1] != len(alphabet)
@@ -211,7 +244,9 @@ def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
             return None
         changes += 1
     log_z, log_x, arities = passes
-    risk = max(0.0, 1.0 - math.exp(log_x - float(np.logaddexp(log_z, log_tail))))
+    risk = risk_from_log_weight(log_x, float(np.logaddexp(log_z, log_tail)))
+    if risk == 0.0:
+        risk = _format_sequence_risk(log_probs, alphabet, arities)
     return Banded(arities, risk, log_x >= log_tail, changes, 2 * half + 1)
 
 def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Sequence[int],
@@ -493,6 +528,8 @@ class CertifiedSplit:
         _, arities = self.split.best(k)
         assert self.log_upper is not None
         risk = risk_from_log_weight(log_x, self.log_upper)
+        if risk == 0.0:
+            risk = _format_sequence_risk(self.log_probs, self.alphabet, arities)
         return Banded(arities, risk, True, self.changes, 2 * half + 1)
 
     def sequence_risk(self, arities: Sequence[int]) -> float:
@@ -519,7 +556,9 @@ class CertifiedSplit:
             weight = sequence_log_weight(self.log_probs, self.alphabet, arities)
         if self.log_upper is None:
             raise ValueError("requires a successful result for the current rows")
-        return risk_from_log_weight(weight, self.log_upper)
+        risk = risk_from_log_weight(weight, self.log_upper)
+        return (_format_sequence_risk(self.log_probs, self.alphabet, arities)
+                if risk == 0.0 else risk)
 
     def _replace(self, k: int, row: np.ndarray) -> tuple[float, float]:
         """Replace one validated row and retain the reference and band."""

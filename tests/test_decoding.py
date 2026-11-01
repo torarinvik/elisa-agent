@@ -102,7 +102,7 @@ def test_banded_decoder_supports_general_arities(alphabet) -> None:
                     assert banded.arities == exact.arities
 
 
-@pytest.mark.parametrize("alphabet, slack", [((), 1e-4), ((0, -1), 1e-4),
+@pytest.mark.parametrize("alphabet, slack", [((), 1e-4), ((0, -1), 1e-4), ((0, 0), 1e-4),
                                               ((0, 1), 0.0), ((0, 1), 1.0)])
 def test_banded_decoder_rejects_invalid_parameters(alphabet, slack) -> None:
     with pytest.raises(ValueError):
@@ -144,6 +144,72 @@ def test_native_off_reference_log_mass_matches_reference(monkeypatch: pytest.Mon
     monkeypatch.setattr(decoding, "_NATIVE", None)
     expected = decoding._off_reference_log_mass(rows, reference)
     assert actual == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("shift", [0.0, -40.0])
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_risk_retains_tiny_accepted_alternative(
+        shift: float, reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, -40.0, 0.0], [0.0, -40.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    rows[0] += shift
+    exact = decode_reference(rows)
+    banded = decode_banded(rows)
+    cursor = decoding.CertifiedSplit(rows)
+    result = cursor.result()
+    assert exact is not None and banded is not None and result is not None
+    expected = exact.risk(rows, (0, 1, 2))
+    assert expected == pytest.approx(np.exp(-80), rel=1e-12)
+    assert banded.risk >= expected * (1 - 1e-12)
+    assert result.risk >= expected * (1 - 1e-12)
+    assert cursor.sequence_risk(result.arities) >= expected * (1 - 1e-12)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_risk_retains_alternative_below_float_range(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, -1000.0, 0.0], [0.0, -1000.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    result = decode_banded(rows)
+    assert result is not None and result.risk == np.nextafter(0.0, 1.0)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (0, 1, 3), (0, 1, 3, 2**63 - 1)])
+def test_native_format_partition_matches_reference(alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "format_partition", None) is None:
+        pytest.skip("native format partition is not built")
+    rng = np.random.default_rng(240)
+    for m in range(1, 8):
+        for _ in range(15):
+            rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+            chosen = decode_reference(rows, alphabet)
+            if chosen is None:
+                continue
+            actual = decoding._format_sequence_risk(rows, alphabet, chosen.arities)
+            with monkeypatch.context() as patch:
+                patch.setattr(decoding, "_NATIVE", None)
+                expected = decoding._format_sequence_risk(rows, alphabet, chosen.arities)
+            assert actual == pytest.approx(expected, rel=1e-12, abs=1e-15)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3)])
+def test_format_partition_matches_enumerated_paths(alphabet) -> None:
+    rng = np.random.default_rng(241)
+    for m in range(1, 7):
+        rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+        paths = [path for path in itertools.product(alphabet, repeat=m) if parse(path) is not None]
+        if not paths:
+            continue
+        weights = np.array([np.exp(sum(rows[k, alphabet.index(a)] for k, a in enumerate(path)))
+                            for path in paths])
+        for index, path in enumerate(paths):
+            expected = np.delete(weights, index).sum() / weights.sum()
+            actual = decoding._format_sequence_risk(rows, alphabet, path)
+            assert actual == pytest.approx(expected, rel=1e-12, abs=1e-15)
 
 def test_split_matches_full_decoding() -> None:
     """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one

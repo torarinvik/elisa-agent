@@ -231,6 +231,46 @@ def off_reference_log_mass(log_probs: view[f64], reference: view[i64]) -> f64 ca
                 continue if j == reference[k]
                 total <- log_add(total, log_probs[k * width + j])
 
+# Separate the selected format path from all different accepted paths.
+def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    m: i64 = selected.len.i64()
+    count: i64 = alphabet.len.i64()
+    return [] if m == 0 or count == 0 or log_probs.len.i64() != m * count
+    width: i64 = m + 2
+    missing: f64 = log(0.0)
+    alternatives: darray[f64] = [missing for _ in 0..<(2 * width)]
+    matched: darray[f64] = [0.0]
+    state: darray[i64] = [1]
+    for k in 0..<m:
+        here: i64 = (k % 2) * width
+        next: i64 = ((k + 1) % 2) * width
+        for n in 0..<width:
+            alternatives[next + n] <- missing
+        for n in 1..<(m - k + 1):
+            for j in 0..<count:
+                arity: i64 = alphabet[j]
+                return [] if arity < 0
+                continue if arity > m - k - 1
+                target: i64 = n - 1 + arity
+                continue if target > m - k - 1
+                reading: f64 = log_probs[k * count + j]
+                source: f64 = alternatives[here + n]
+                if source != missing and reading != missing:
+                    alternatives[next + target] <- log_add(alternatives[next + target], source + reading)
+                if n == state[0] and matched[0] != missing and arity != selected[k] and reading != missing:
+                    alternatives[next + target] <- log_add(alternatives[next + target], matched[0] + reading)
+        chosen: i64 =
+            for j in 0..<count |found: i64 = -1| -> found:
+                if alphabet[j] == selected[k]:
+                    found <- j
+                    break
+        if chosen < 0 or selected[k] < 0 or selected[k] > m - k - 1 or state[0] < 1:
+            matched[0] <- missing
+        else:
+            state[0] <- state[0] - 1 + selected[k]
+            matched[0] <- missing if state[0] > m - k - 1 else matched[0] + log_probs[k * count + chosen]
+    return [matched[0] if state[0] == 0 else missing, alternatives[(m % 2) * width]]
+
 # Exact format decoding in log space, used when linear-space paths underflow.
 def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     alphabet_size: i64 = alphabet.len.i64()
@@ -954,6 +994,7 @@ export pymodule decoding:
     fn decode
     fn decode_log
     fn off_reference_log_mass
+    fn format_partition
     fn decode_prior
     fn prior_log_weight
     fn prior_normalizer

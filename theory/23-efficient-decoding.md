@@ -33,6 +33,11 @@ subtracting the reference mass from a rounded row total. The tail comparison
 also stays in log space, retaining finite mass below the probability range.
 This avoids that cancellation and underflow; it is not an outward-rounding
 guarantee for the entire risk calculation.
+When a banded risk rounds to zero, a full format pass separately sums the
+selected sequence and every other accepted sequence. Normalizing the two
+parts recovers small model risks that disappear when subtracting nearly
+equal log normalizers. This fallback computes exact model risk, subject to
+floating-point rounding, and may require more work than the banded pass.
 
 **From changes to states** (Theorem 23.4). Arities are at most 2, so
 two sequences differing in `d` positions have sums at most `2d` apart. The
