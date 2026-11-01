@@ -983,6 +983,16 @@ about 78k transitions per climb in 0.43 ms, 5.5 ns each, so the
 transcendental functions were less than half the cost; the rest is the max
 pass, bounds-checked indexing, and the Python side of each climb.
 
+**Where a depth-8 correction run spends its time** (profile, 3 test
+formulas, `δ = 0.05`, native full decoding). 605 climbs took 3.26 s, 5.4 ms
+per climb: two full native decodes 0.84 s (26%); rebuilding every word's
+calibrated arity distribution 0.37 s and every word's risk 0.27 s, through
+350k Python calls; the certificate pass over the decoded tree 0.38 s; the
+rest Python bookkeeping in the account and controller. Each climb changes one
+word's reading, but every per-word quantity is recomputed for all `m` words.
+Replacing the decodes by the banded cursor would remove at most a quarter of
+the time; the per-word work must become incremental as well.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in
