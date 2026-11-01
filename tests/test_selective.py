@@ -2031,3 +2031,22 @@ def test_risk_allocation_preserves_positive_bound_with_older_native_kernel(monke
     monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(risk_shares=lambda bound, p: [0.0] * len(p)))
     smallest = math.nextafter(0.0, 1.0)
     assert allocate_risk(smallest, [1.0, 2.0, 1.0]) == [0.0, smallest, 0.0]
+
+
+def test_native_log_groups_match_reference_across_extreme_rows(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibrated_log_groups", None) is None:
+        pytest.skip("native calibrated log groups are not built")
+    rng = np.random.default_rng(938)
+    rung = Rung(constant("extreme-log-groups", (1.0,) * 8, 1.0))
+    decision = ((7, 3), (0,), (4, 1, 6), (5, 2))
+    rows = [torch.tensor(rng.uniform(-1500.0, 10.0, size=8), dtype=torch.float64)
+            for _ in range(20)]
+    rows.append(torch.tensor([0.0, -math.inf, -1000.0, -math.inf,
+                              -2000.0, -1.0, -3.0, -math.inf], dtype=torch.float64))
+    actual = [rung.log_distribution(row, decision).numpy() for row in rows]
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    for row, expected in zip(rows, actual):
+        np.testing.assert_allclose(rung.log_distribution(row, decision).numpy(), expected,
+                                   rtol=1e-12, atol=1e-12)

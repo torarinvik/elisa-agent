@@ -991,3 +991,32 @@ def test_correction_does_not_erase_smallest_positive_sequence_risk() -> None:
         readings, lambda k, d: 0.0, distribution)
     assert account is not None
     assert sum(account.values()) == np.nextafter(0.0, 1.0)
+
+
+@pytest.mark.parametrize("mode", ["exact", "banded", "prior"])
+def test_log_distribution_revision_refresh_matches_fresh_correction(mode: str) -> None:
+    from nca.ladder import Distribution
+
+    readings = one_hot(["and", "true", "true"])
+    rows = np.array([[-np.inf, 0.0, -700.0], [0.0, -1000.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    revisions = [0, 0, 0]
+    distribution = Distribution(lambda k, d: torch.tensor(np.exp(rows[k])), revisions.__getitem__,
+                                log_lookup=lambda k, d: torch.tensor(rows[k]))
+    options = ({"band_slack": 0.01} if mode == "banded" else
+               {"prior": priors.format_prior} if mode == "prior" else {})
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, **options)
+
+    def risk(k: int, decision: Decision) -> float:
+        return 0.0
+
+    session = evaluator.certificate_session()
+    initial = session(readings, risk, distribution)
+    assert initial is not None and sum(initial.values()) > 0
+    rows[1, 1] = -999.0
+    revisions[1] += 1
+    cached = session(readings, risk, distribution)
+    fresh = evaluator.certificate(readings, risk, distribution)
+    assert cached is not None and fresh is not None
+    assert sum(cached.values()) > sum(initial.values())
+    assert sum(cached.values()) == pytest.approx(sum(fresh.values()), rel=1e-12, abs=0)
