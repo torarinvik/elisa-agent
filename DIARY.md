@@ -1980,6 +1980,22 @@ route. Four invalid CLI combinations (missing/negative height, height without
 the height prior, and structural banding) are rejected before reader load.
 Native suite: 162 passes; fallback: 147 passes, 15 skips. Lean and Ruff pass.
 
+**Fresh height-prior policy audit.** Height 7 was fixed before inspecting
+new labels. Calibration stayed on 100 depth-4 noise-0.1 validation formulas
+(seed 6). The audit used 240 fit and 240 check depth-6 noise-0.2 formulas
+(seed 207); evaluation used 100 fresh seed-206 formulas. Only target 5% was
+tested, with alpha 0.1 and the existing fit-ordered fixed-sequence procedure.
+It selected multiplier 0.5, so the model-account threshold was 0.1.
+Independent re-evaluation of that selected checking policy gives 231 answers
+and three errors, with Clopper–Pearson upper bound 0.02869133, below 0.05.
+
+Fresh evaluation answered 97/100 with three errors (3.09%, Wilson interval
+[1.06%,8.70%]); the unadjusted threshold answered 95 with three errors
+(3.16%, [1.08%,8.88%]). The audit result supports this fixed-height policy
+under its sampling assumptions. It does not demonstrate repeated-audit
+validity or superiority to the complete prior, which was audited on another
+split. No audit labels chose the height, and no reader weights changed.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most
