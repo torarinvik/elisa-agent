@@ -48,6 +48,9 @@ probability inputs and are rejected, as are non-finite, empty, and non-vector
 outputs. An exact sum of one is not required: finite nonnegative weights with
 positive total mass are normalized by the subsequent softmax. This validation
 checks the representation, not whether the expert is statistically calibrated.
+Distinct binary64 weights can round to the same binary64 logarithm, so the
+log representation may lose their original ordering. CPU native and fallback
+paths use the platform scalar logarithm; other devices can round differently.
 
 For independent known reductions, the priced objective has a local threshold
 rule: refine when the reduction pays for its cost. Sweeping `λ` explores a

@@ -823,8 +823,10 @@ if it remains unrepresentable. This is not an outward-rounding guarantee.
 `Rung.observe` converts probabilities to binary64 and floors zero at the
 smallest positive representable value before taking logs. For array and list
 outputs, an Elisa kernel validates weights and computes the logarithms;
-other outputs and unavailable kernels use the PyTorch fallback. The two log
-implementations may differ in final rounding.
+CPU fallback uses scalar `math.log` on the same binary64 values. Non-CPU
+tensor outputs use the PyTorch fallback, whose logarithms can round
+differently. Representing logarithms in binary64 can collapse distinct
+weights into a tie, so it does not always preserve the original weight order.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.
 

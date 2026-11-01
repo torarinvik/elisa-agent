@@ -220,9 +220,23 @@ def test_native_observation_logs_match_fallback(monkeypatch) -> None:
     strided = Rung(constant("strided", noncontiguous, 1.0)).observe(None).numpy()
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
     expected = rung.observe(None).numpy()
-    np.testing.assert_allclose(actual, expected, rtol=3e-15, atol=1e-15)
+    np.testing.assert_array_equal(actual, expected)
     fallback = Rung(constant("strided", noncontiguous, 1.0)).observe(None).numpy()
-    np.testing.assert_allclose(strided, fallback, rtol=3e-15, atol=1e-15)
+    np.testing.assert_array_equal(strided, fallback)
+
+
+def test_observation_decisions_match_across_cpu_paths(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "observation_logs", None) is None:
+        pytest.skip("native observation preparation is not built")
+    weights = (0.30888158696060686, 0.3088815869606069)
+    rung = Rung(constant("adjacent", weights, 1.0))
+    native = rung.observe(None)
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    fallback = rung.observe(None)
+    assert torch.equal(native, fallback)
+    assert int(native.argmax()) == int(fallback.argmax())
 
 
 @pytest.mark.parametrize("native", [False, True])

@@ -136,6 +136,13 @@ class Rung:
                 array = np.asarray(output, dtype=np.float64)
             except (TypeError, ValueError, RuntimeError):
                 pass  # Some valid tensor-containing sequences require PyTorch conversion.
+        probabilities = None
+        if array is None:
+            probabilities = torch.tensor(output, dtype=torch.float64)
+            if probabilities.ndim != 1:
+                raise ValueError("expert output must be a one-dimensional weight vector")
+            if probabilities.device.type == "cpu":
+                array = probabilities.numpy()
         if array is not None:
             if array.ndim != 1:
                 raise ValueError("expert output must be a one-dimensional weight vector")
@@ -145,9 +152,18 @@ class Rung:
                 if not logs:
                     raise ValueError("expert output must contain finite nonnegative weights with positive mass")
                 return torch.tensor(logs, dtype=torch.float64)
-        probabilities = torch.tensor(array if array is not None else output, dtype=torch.float64)
-        if probabilities.ndim != 1:
-            raise ValueError("expert output must be a one-dimensional weight vector")
+            logs = []
+            positive = False
+            for weight in array:
+                weight = float(weight)
+                if not math.isfinite(weight) or weight < 0:
+                    raise ValueError("expert output must contain finite nonnegative weights with positive mass")
+                positive = positive or weight > 0
+                logs.append(math.log(weight if weight > 0 else math.nextafter(0.0, 1.0)))
+            if not positive:
+                raise ValueError("expert output must contain finite nonnegative weights with positive mass")
+            return torch.tensor(logs, dtype=torch.float64)
+        assert probabilities is not None
         valid = (bool(torch.isfinite(probabilities).all()) and
                  not bool((probabilities < 0).any()) and
                  bool((probabilities > 0).any()))
