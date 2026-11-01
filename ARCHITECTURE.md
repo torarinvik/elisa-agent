@@ -217,7 +217,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [22.4](theory/22-abstaining-early.md) | `positive_target_preserves_order` | `Stopping` |
 | [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
 | [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
-| [23.3](theory/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length`, `tail_row_scale`, `rowFactor_normalizes`, `tail_le_row_factors`, `row_summary_append` | `Banding` |
+| [23.3](theory/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length`, `tail_row_scale`, `row_mass_partition`, `rowFactor_normalizes`, `tail_le_row_factors`, `row_summary_append` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `bandPolynomial_recurrence`, `bandPolynomial_threshold_suffix`, `threshold_search_step`, `threshold_search_shrinks`, `searchGap_i64`, `threshold_search_adjacent` | `BandSearch` |
 | [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval`, `ragged_band_storage_covers` | `Banding` |
 | [23.5](theory/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |

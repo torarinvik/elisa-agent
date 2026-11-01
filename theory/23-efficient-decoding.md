@@ -60,8 +60,10 @@ The off-reference masses and log row factors can each be summed by blocks:
 their sums over a concatenation are the sums of the block sums. After one row
 changes, recomputing its block and combining all block summaries takes
 `O(B·|A| + m/B)` work for block size `B` and alphabet size `|A|`, instead of
-rescanning `m·|A|` weights. Regrouping floating-point additions can change
-rounding and does not provide outward-rounded bounds.
+rescanning `m·|A|` weights. Each row total is the sum of its reference and
+off-reference masses, allowing the latter to be reused. Regrouping
+floating-point additions can change rounding and does not provide
+outward-rounded bounds.
 When a banded risk rounds to zero, a full format pass separately sums the
 selected sequence and every other accepted sequence. Normalizing the two
 parts recovers small model risks that disappear when subtracting nearly

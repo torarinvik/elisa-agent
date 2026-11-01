@@ -270,12 +270,11 @@ def tail_block_summary(log_probs: view[f64], reference: view[i64], blocks: mutab
             return [] if reference[k] < 0 or reference[k] >= width
         off, block_scale, _ =
             for k in start..<stop |off: f64 = log(0.0), block_scale: f64 = 0.0, block_correction: f64 = 0.0| -> (off, block_scale, block_correction):
-                row, next_off =
-                    for j in 0..<width |row: f64 = log(0.0), next_off: f64 = off| -> (row, next_off):
-                        reading: f64 = log_probs[k * width + j]
-                        row <- log_add(row, reading)
-                        next_off <- log_add(next_off, reading) if j != reference[k] else next_off
-                off <- next_off
+                row_off: f64 =
+                    for j in 0..<width |sum: f64 = log(0.0)| -> sum:
+                        sum <- log_add(sum, log_probs[k * width + j]) if j != reference[k] else sum
+                row: f64 = log_add(log_probs[k * width + reference[k]], row_off)
+                off <- log_add(off, row_off)
                 excess: f64 = row if row > 0.0 else 0.0
                 adjusted: f64 = excess - block_correction
                 next: f64 = block_scale + adjusted

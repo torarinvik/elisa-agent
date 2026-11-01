@@ -149,6 +149,11 @@ theorem sum_split (p : α → Prop) [DecidablePred p] (f : α → ℝ) : ∀ l :
   | a :: l => by
     by_cases h : p a <;> simp [h, sum_split p f l] <;> ring
 
+/-- The reference mass and off-reference mass partition the row total. -/
+theorem row_mass_partition (w : α → ℝ) (r : α) :
+    onMass as w r + offMass as w r = (as.map w).sum := by
+  simpa [onMass, offMass] using (sum_split (· = r) w as).symm
+
 /-- The smallest factor at least one that makes a row a subprobability. -/
 def rowFactor (w : α → ℝ) : ℝ := max 1 (as.map w).sum
 
@@ -160,8 +165,7 @@ theorem rowFactor_normalizes (w : α → ℝ) (r : α) (hw : ∀ a, 0 ≤ w a) :
       offMass as (fun a => w a / rowFactor as w) r ≤ 1 := by
   have hc : 1 ≤ rowFactor as w := le_max_left _ _
   have hcpos : 0 < rowFactor as w := by linarith
-  have hsum : onMass as w r + offMass as w r = (as.map w).sum := by
-    simpa [onMass, offMass] using (sum_split (· = r) w as).symm
+  have hsum := row_mass_partition as w r
   refine ⟨hc, fun a => div_nonneg (hw a) (le_of_lt hcpos), ?_⟩
   have hm : (as.map w).sum ≤ rowFactor as w := le_max_right _ _
   have he : onMass as (fun a => w a / rowFactor as w) r +

@@ -206,6 +206,29 @@ def test_native_tail_blocks_preserve_tiny_and_tolerated_mass() -> None:
     np.testing.assert_allclose([off, factor], fresh, atol=1e-13)
 
 
+def test_native_tail_blocks_recombine_reference_and_off_mass() -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rows = np.array([[0.0, -40.0, -1000.0],
+                     [-1001.0, -np.inf, 0.0],
+                     [-np.inf, -1000.0, -1001.0],
+                     [-np.inf, -np.inf, -np.inf]])
+    reference = np.array([0, 1, 2, 0], dtype=np.int64)
+    blocks = np.empty(4)
+    off, factor = native(rows.reshape(-1), reference, blocks, 2, -1)
+    with localcontext() as context:
+        context.prec = 80
+        weights = [[Decimal(0) if x == -np.inf else Decimal.from_float(float(x)).exp()
+                    for x in row] for row in rows]
+        exact_off = sum((w for row, r in zip(weights, reference)
+                         for j, w in enumerate(row) if j != r), Decimal(0))
+        exact_factor = sum((max(Decimal(0), sum(row).ln()) for row in weights if sum(row)),
+                           Decimal(0))
+        assert off == pytest.approx(float(exact_off.ln()), abs=1e-14)
+        assert factor == pytest.approx(float(exact_factor), rel=1e-14, abs=1e-25)
+
+
 def test_native_tail_blocks_remain_stable_across_many_updates() -> None:
     native = getattr(decoding._NATIVE, "tail_block_summary", None)
     if native is None:
