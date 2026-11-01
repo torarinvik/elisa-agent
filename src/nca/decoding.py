@@ -632,8 +632,12 @@ class CertifiedSplit:
             log_off, log_factor = self._tail_summary
         while True:
             half = self.arity_bound * (self.changes - 1)
-            log_tail = (-math.inf if half >= self.cover_half or self.changes > len(self.log_probs)
-                        else _band_log_tail(log_off, self.changes, log_factor))
+            if half >= self.cover_half or self.changes > len(self.log_probs):
+                self._tail_blocks = None
+                self._tail_summary = None
+                log_tail = -math.inf
+            else:
+                log_tail = _band_log_tail(log_off, self.changes, log_factor)
             log_z, log_x = (scores if scores is not None else
                             self.split.scores(k, self.log_probs[k]))
             if (math.isfinite(log_z) and log_tail <= math.log(self.slack) + log_z

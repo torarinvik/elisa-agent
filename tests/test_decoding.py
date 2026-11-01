@@ -583,6 +583,31 @@ def test_banded_cursor_recovers_if_block_update_fails() -> None:
     assert upper >= exact.log_z - 1e-12
 
 
+def test_banded_cursor_releases_blocks_after_widening_to_full_band() -> None:
+    if getattr(decoding._NATIVE, "tail_block_summary", None) is None:
+        pytest.skip("native tail block kernel is not built")
+    rows = np.log(np.tile([0.00001, 0.99998, 0.00001], (7, 1)))
+    rows[-1] = np.log([0.99998, 0.00001, 0.00001])
+    cursor = decoding.CertifiedSplit(rows)
+    assert cursor._tail_blocks is not None
+    assert cursor.normalizer() is not None
+    rows[3] = np.log([0.99998, 0.00001, 0.00001])
+    upper = cursor.climb_normalizer(3, rows[3])
+    exact = decoding.decode_reference(rows)
+    assert cursor.rebuilds > 0
+    assert cursor.arity_bound * (cursor.changes - 1) >= cursor.cover_half
+    assert cursor._tail_blocks is None and cursor._tail_summary is None
+    assert upper is not None and exact is not None
+    assert upper == pytest.approx(exact.log_z, abs=1e-12)
+
+    rows[1] = np.log([0.00002, 0.99996, 0.00002])
+    upper = cursor.climb_normalizer(1, rows[1])
+    exact = decoding.decode_reference(rows)
+    assert upper is not None and exact is not None
+    assert upper == pytest.approx(exact.log_z, abs=1e-12)
+    assert cursor._tail_blocks is None and cursor._tail_summary is None
+
+
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_band_tail_accounts_for_tolerated_row_excess(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
