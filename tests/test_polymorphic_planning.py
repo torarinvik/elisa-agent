@@ -448,3 +448,10 @@ def test_free_bindings_retry_after_failed_closure(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(planner, "_close",
                         lambda index, limit, node, binding, memo: None if node.type_id == "bad" else node)
     assert planner.free_bindings(index, (), expert, (), 3) == [(("a", TEXT),)]
+
+
+def test_free_binding_rejects_unusable_required_input() -> None:
+    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
+    zero = fn("zero", [TEXT], INT, lambda _: 0)
+    available = (f"seq[{INT}]", TEXT, "unused.v1")
+    assert plan([add, zero, Fold()], available, INT, fuel=5, required=frozenset({2})) is None

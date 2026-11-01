@@ -397,11 +397,8 @@ def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], m
     """``module`` applied for a ground goal that matched it with ``binding``,
     its free variables determined by pattern search over its inputs. Under a
     requirement, each instance found is applied like a ground contract."""
-    tried = set()
-    for args, full in _free_instances(index, limit, available, module, binding, fuel, memo):
-        if full in tried:
-            continue
-        tried.add(full)
+    for args, full in _free_instances(index, limit, available, module, binding, fuel, memo,
+                                      distinct=True):
         contract = module.manifest.contract.instance(full)
         if required:
             found = _plan_args(index, limit, available, contract.inputs, required, fuel, memo)
