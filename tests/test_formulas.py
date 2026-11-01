@@ -1398,3 +1398,43 @@ def test_auto_prior_is_fixed_before_deployment_audit(
     monkeypatch.setattr(logic, "shifted", audit)
     logic.main()
     assert phases == ["select", "audit"]
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_selection_caches_fixed_base_normalizers_per_length(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    base = np.log(np.full(3, 1 / 3))
+    providers = [formulas.format_prior, lambda length: formulas.height_prior(2),
+                 formulas.complete_prior]
+    observations = []
+    for shape in ((1, 0), (2, 0, 0), (1, 0), (2, 0, 0)):
+        rows = np.full((len(shape), 3), -np.inf)
+        for k, a in enumerate(shape):
+            rows[k, a] = 0.0
+        observations.append(rows)
+    expected = tuple(sum(provider(len(rows)).log_evidence(
+        rows, np.broadcast_to(base, rows.shape)) for rows in observations) for provider in providers)
+    calls = {"base": 0, "observed": 0}
+    original = formulas.ArityPrior.log_normalizer
+
+    def counted(prior: formulas.ArityPrior, rows: np.ndarray) -> float:
+        calls["base" if np.all(rows == base) else "observed"] += 1
+        return original(prior, rows)
+
+    monkeypatch.setattr(formulas.ArityPrior, "log_normalizer", counted)
+    selected = formulas.select_prior(providers, observations, base)
+    assert selected.scores == expected
+    assert calls == {"base": 6, "observed": 12}
+    # Cache inputs are owned by the selection even if a producer reuses caller buffers.
+    def stream() -> Any:
+        yield observations[0]
+        base[:] = np.log([0.2, 0.3, 0.5])
+        providers.reverse()
+        yield observations[0]
+
+    original_base = np.log(np.full(3, 1 / 3))
+    scores = tuple(2 * provider(2).log_evidence(
+        observations[0], np.broadcast_to(original_base, (2, 3))) for provider in providers)
+    assert formulas.select_prior(providers, stream(), base).scores == scores

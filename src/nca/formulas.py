@@ -355,12 +355,16 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
         if (not math.isfinite(score_clip) or score_clip <= 0 or alpha is None
                 or not math.isfinite(alpha) or not 0 < alpha < 1 or score_error != 0):
             raise ValueError("bounded scoring requires positive finite clipping, 0 < alpha < 1, and no manual error")
-    base = np.asarray(log_base, dtype=np.float64)
+    candidates = tuple(candidates)
+    alphabet = tuple(alphabet)
+    base = np.array(log_base, dtype=np.float64, copy=True)
+    base.setflags(write=False)
     if (not candidates or base.shape != (len(alphabet),)
             or np.any(np.isnan(base)) or np.any(base > 0)
             or not np.isclose(np.exp(base).sum(), 1.0, rtol=0, atol=1e-12)):
         raise ValueError("requires candidates and a normalized shared base vector")
     scores = [0.0] * len(candidates)
+    models: dict[tuple[int, int], tuple[ArityPrior, float]] = {}
     count = 0
     for observation in readings:
         rows = np.asarray(observation, dtype=np.float64)
@@ -375,15 +379,22 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
         for i, provider in enumerate(candidates):
             if scores[i] == -math.inf:
                 continue
-            prior = provider(len(rows))
-            if prior is None:
-                if score_clip is not None:
-                    raise ValueError("bounded scoring requires all candidates at every observed length")
-                scores[i] = -math.inf
-                continue
-            if prior.alphabet != tuple(alphabet):
-                raise ValueError("candidate alphabet must match the shared base")
-            evidence = prior.log_evidence(rows, common)
+            key = (i, len(rows))
+            if key not in models:
+                prior = provider(len(rows))
+                if prior is None:
+                    if score_clip is not None:
+                        raise ValueError("bounded scoring requires all candidates at every observed length")
+                    scores[i] = -math.inf
+                    continue
+                if prior.alphabet != alphabet:
+                    raise ValueError("candidate alphabet must match the shared base")
+                denominator = prior.log_normalizer(common)
+                if denominator == -math.inf:
+                    raise ValueError("candidate prior has zero mass under the base")
+                models[key] = prior, denominator
+            prior, denominator = models[key]
+            evidence = prior.log_normalizer(rows) - denominator
             if math.isnan(evidence) or evidence == math.inf:
                 raise ValueError("candidate evidence must be finite or negative infinity")
             if score_clip is not None:

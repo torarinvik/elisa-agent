@@ -776,3 +776,9 @@ audit call even when multiple audit draws are requested. Theorem 27.11 and
 `selected_audit_failure_le` express the conditional failure-mixture step.
 They do not formalize the data-generation independence assumptions or
 upgrade a reused checking split into fresh validation.
+
+`select_prior` owns snapshots of the base vector, alphabet and candidate
+order for the batch. A local cache retains each immutable prior model and
+base normalizer by candidate index and length; observation normalizers are
+still computed for every formula. The cache is discarded when selection
+returns, so no cached denominator crosses calibration or selection runs.

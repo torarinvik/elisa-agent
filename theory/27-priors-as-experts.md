@@ -191,6 +191,13 @@ maximum backtracking and posterior marginals are unnecessary. Retaining only
 the previous and next forward rows uses O(number of states) working space,
 independent of sequence length, with the same transition work per pass.
 
+For a shared position-independent base and a fixed length-indexed provider,
+`Z_e(π)` depends on the candidate and length, not the observed reading.
+Across N observations at L distinct lengths, its reuse reduces normalizer
+passes from 2KN to KN + KL for K candidates. This is exact reuse, not a
+probability approximation; it requires the base and models to stay fixed
+throughout the selection batch.
+
 **What evidence rewards.** `−log Z_e(π)` rewards small support: an Occam
 term. `log Z_e(q)` penalizes supports that exclude sequences the readings
 favor. A prior that excludes the truth loses evidence on every formula
