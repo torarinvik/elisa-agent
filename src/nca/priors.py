@@ -232,13 +232,31 @@ class ArityPrior:
         marginals = np.zeros_like(rows)
         for k in reversed(range(m)):
             for state in range(states):
+                previous = float(forward[k, state])
+                if previous == -math.inf:
+                    continue
                 for j, target in enumerate(self.transitions[state]):
                     if target >= 0:
-                        weight = rows[k, j] + self.log_weights[state, j]
-                        through = weight + backward[k + 1, target]
+                        reading = float(rows[k, j])
+                        edge_weight = float(self.log_weights[state, j])
+                        suffix = float(backward[k + 1, target])
+                        if -math.inf in (reading, edge_weight, suffix):
+                            continue
+                        weight = reading + edge_weight
+                        through = weight + suffix
+                        first = previous + reading
+                        second = first + edge_weight
+                        third = second + suffix
+                        exponent = third - log_z
+                        if not all(map(math.isfinite, (through, first, second, third, exponent))):
+                            raise ValueError("prior decoder arithmetic is not finite")
                         backward[k, state] = np.logaddexp(backward[k, state], through)
-                        best[k, state] = max(best[k, state], weight + best[k + 1, target])
-                        marginals[k, j] += math.exp(forward[k, state] + through - log_z)
+                        best_suffix = float(best[k + 1, target])
+                        candidate = weight + best_suffix
+                        if best_suffix != -math.inf and not math.isfinite(candidate):
+                            raise ValueError("prior decoder arithmetic is not finite")
+                        best[k, state] = max(best[k, state], candidate)
+                        marginals[k, j] += math.exp(exponent)
         selected, state = [], self.start
         for k in range(m):
             candidates = [rows[k, j] + self.log_weights[state, j] + best[k + 1, target]

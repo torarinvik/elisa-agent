@@ -394,6 +394,18 @@ def test_prior_decoders_reject_overflow_even_when_other_paths_exist(
             operation(np.zeros((2, 2)))
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_decoder_rejects_overflowing_backward_sums(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0,), np.array([[1], [2], [2]]),
+                              np.array([[-1e308], [1e308], [1e308]]), np.zeros(3))
+    rows = np.zeros((3, 1))
+    with pytest.raises(ValueError, match="(decoder|decoding).*(finite|unavailable)"):
+        prior.decode(rows)
+
+
 def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
     # Successive supports alternate between a wide range with holes and one cell.
     # The two reusable rows must clear their old, sometimes wider envelopes.
