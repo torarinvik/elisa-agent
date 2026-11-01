@@ -282,6 +282,22 @@ def grouped_argmax(scores: view[f64], groups: view[i64], decisions: view[i64]) -
                         chosen <- c
                         best <- scores[k * width + c]
 
+# Allocate a current risk over validated finite nonnegative priorities (23.11).
+# Rescale before summing and compensate additions to preserve small weights.
+def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    m: i64 = priorities.len.i64()
+    scale: f64 =
+        for k in 0..<m |largest: f64 = 0.0| -> largest:
+            largest <- priorities[k] if priorities[k] > largest else largest
+    weights: darray[f64] = [priorities[k] / scale if scale > 0.0 else 1.0 for k in 0..<m]
+    total: f64 =
+        for k in 0..<m |total: f64 = 0.0, correction: f64 = 0.0| -> total:
+            adjusted: f64 = weights[k] - correction
+            next: f64 = total + adjusted
+            correction <- (next - total) - adjusted
+            total <- next
+    return [bound * (weights[k] / total) for k in 0..<m]
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -292,3 +308,4 @@ export pymodule decoding:
     fn parse_tree
     fn certificate_words
     fn grouped_argmax
+    fn risk_shares

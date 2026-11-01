@@ -52,6 +52,9 @@ from torch import nn
 
 from nca.abi import Contract
 from nca.registry import Module
+from nca.native import load
+
+_NATIVE = load("decoding")
 
 
 Decision = Sequence[int | Sequence[int]] | None
@@ -248,6 +251,9 @@ def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
         raise ValueError("risk allocation requires at least one item")
     if any(not math.isfinite(p) or p < 0 for p in priorities):
         raise ValueError("priorities must be finite and nonnegative")
+    native = getattr(_NATIVE, "risk_shares", None)
+    if native is not None:
+        return native(bound, np.asarray(priorities, dtype=np.float64))
     scale = max(priorities)
     weights = [p / scale for p in priorities] if scale > 0 else [1.0] * len(priorities)
     total = math.fsum(weights)

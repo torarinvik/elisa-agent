@@ -252,3 +252,17 @@ def test_distribution_revision_changes_even_for_identical_readings() -> None:
     refine([0], [rungs], 0.01, certificate=account)
     assert revisions == [0, 1]
     assert torch.equal(*observations)
+
+
+def test_native_risk_shares_match_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "risk_shares", None) is None:
+        pytest.skip("native risk shares are not built")
+    rng = np.random.default_rng(30)
+    cases = [rng.lognormal(0, 100, size=575).tolist() for _ in range(30)]
+    native = [allocate_risk(0.2, priorities) for priorities in cases]
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    for priorities, actual in zip(cases, native):
+        assert actual == pytest.approx(allocate_risk(0.2, priorities), abs=1e-15)
+        assert sum(actual) == pytest.approx(0.2, abs=1e-15)

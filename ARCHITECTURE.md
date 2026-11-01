@@ -469,3 +469,9 @@ running inside a correction session. That snapshot is copied from the input
 after changed rows have updated the cursor, so later caller mutation cannot
 alter cached observations. Stateless word selection still prepares its own
 score array. No extra observation/calibration cache assumption is needed.
+
+`ladder.allocate_risk` validates inputs and dispatches to native `risk_shares`
+when available. The Elisa loop rescales by the largest priority and uses
+compensated summation; all-zero priorities get uniform weights. The existing
+Python `math.fsum` path remains the fallback. Both implement Theorem 23.11;
+small floating-point differences in charges can affect refinement tie order.

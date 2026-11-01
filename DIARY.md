@@ -1249,6 +1249,22 @@ numbers show the eliminated work but do not establish a statistically
 resolved runtime gain. Corrected-account preparation remains the larger
 cost, about 0.576 s cumulatively in this run.
 
+**Native risk-share normalization.** The normalization of Theorem 23.11
+now runs in Elisa after Python validates finite, nonnegative inputs. It
+rescales priorities to avoid overflow and uses compensated summation; zero
+priorities allocate uniformly. Existing extreme-value tests and 30 random
+575-item lognormal vectors (log standard deviation 100, seed 30) match the
+reference within 1e-15. Native-enabled tests: 112 pass; fallback: 105 pass,
+seven native-only skips.
+
+For 3,000 allocations of one 575-item lognormal vector (log standard
+deviation 10, seed 30), reference/native/native/reference times were
+0.10851/0.07049/0.07064/0.11072 s, including validation and conversion.
+Total risk was 0.20000000000000004 for the reference and
+0.19999999999999998 for native. This is a normalization microbenchmark;
+full-refinement outcome and timing comparisons remain due because rounding
+may change ties in priority order.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
