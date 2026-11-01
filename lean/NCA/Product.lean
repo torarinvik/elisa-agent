@@ -306,6 +306,48 @@ theorem partitionBoundary_nonneg {S : Type} [Fintype S]
   · exact (partitionCompose_nonneg _ _ (hl start middle) (hr middle finish)).1
   · exact (partitionCompose_nonneg _ _ (hl start middle) (hr middle finish)).2
 
+def partitionSum {S : Type} [Fintype S] (f : S → ℝ × ℝ) : ℝ × ℝ :=
+  (∑ i, (f i).1, ∑ i, (f i).2)
+
+theorem partitionCompose_sum_left {S : Type} [Fintype S]
+    (f : S → ℝ × ℝ) (b : ℝ × ℝ) :
+    partitionCompose (partitionSum f) b = partitionSum (fun i => partitionCompose (f i) b) := by
+  apply Prod.ext
+  · simp [partitionCompose, partitionSum, Finset.sum_mul]
+  · simp [partitionCompose, partitionSum, Finset.sum_mul, Finset.sum_add_distrib]
+
+theorem partitionCompose_sum_right {S : Type} [Fintype S]
+    (a : ℝ × ℝ) (f : S → ℝ × ℝ) :
+    partitionCompose a (partitionSum f) = partitionSum (fun i => partitionCompose a (f i)) := by
+  apply Prod.ext
+  · simp [partitionCompose, partitionSum, Finset.mul_sum]
+  · simp only [partitionCompose, partitionSum]
+    rw [← Finset.sum_add_distrib, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+
+theorem partitionSum_comm {S : Type} [Fintype S] (f : S → S → ℝ × ℝ) :
+    partitionSum (fun i => partitionSum (fun j => f i j)) =
+      partitionSum (fun j => partitionSum (fun i => f i j)) := by
+  apply Prod.ext
+  · exact Finset.sum_comm
+  · exact Finset.sum_comm
+
+/-- Boundary-aware composition is associative over exact real arithmetic. -/
+theorem partitionBoundary_assoc {S : Type} [Fintype S]
+    (a b c : S → S → ℝ × ℝ) (start finish : S) :
+    partitionBoundaryCompose (partitionBoundaryCompose a b) c start finish =
+      partitionBoundaryCompose a (partitionBoundaryCompose b c) start finish := by
+  change partitionSum (fun j => partitionCompose
+      (partitionSum (fun i => partitionCompose (a start i) (b i j))) (c j finish)) =
+    partitionSum (fun i => partitionCompose (a start i)
+      (partitionSum (fun j => partitionCompose (b i j) (c j finish))))
+  simp only [partitionCompose_sum_left, partitionCompose_sum_right]
+  rw [partitionSum_comm]
+  congr 1
+  funext i
+  congr 1
+  funext j
+  exact partitionCompose_assoc _ _ _
+
 /-- A one-symbol factor product is the factor raised to its occurrence count. -/
 theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
     (symbols.map (fun a => if a = key then factor else 1)).prod =
