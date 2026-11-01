@@ -9,11 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
+
 from nca.abi import NOTHING, Contract, Demand, Manifest, SequenceDemand, TypeId, seq_type
 from nca.expressions import OPERATORS, RELATIONS, evaluate, value_of
 from nca.ladder import RankedReading
+from nca.native import load
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, RELATION_DISTRIBUTION
+
+_NATIVE = load("decoding")
 
 DIGITS = "0123456789"
 DIGIT_FIELD: frozenset[str] = frozenset({"digits"})
@@ -168,12 +173,38 @@ class ExpressionParser:
     def invoke(self, symbols: list[dict[str, float] | None]) -> tuple[str, ...] | None:
         if len(symbols) % 2 == 0:
             return None
+        native = getattr(_NATIVE, "row_argmax", None)
+        if native is not None and any(isinstance(s, RankedSymbols) for s in symbols):
+            return self._batched_choices(symbols, native)
         return tuple(
             (dist.choose(self.vocabulary.operators if i % 2 else DIGITS)
              if isinstance(dist, RankedSymbols) else
              max(self.vocabulary.operators if i % 2 else DIGITS, key=dist.__getitem__))
             for i, dist in enumerate(symbols) if dist is not None
         )
+
+    def _batched_choices(self, symbols, native) -> tuple[str, ...]:
+        result: list[str] = []
+        groups: list[list[tuple[int, tuple[float, ...]]]] = [[], []]
+        for i, dist in enumerate(symbols):
+            if dist is None:
+                continue
+            kind = i % 2
+            choices = self.vocabulary.operators if kind else DIGITS
+            reading = (dist.operators if kind else dist.digits) if isinstance(dist, RankedSymbols) else None
+            if reading is None:
+                result.append(max(choices, key=dist.__getitem__))
+            else:
+                groups[kind].append((len(result), reading.weights[:len(choices)]))
+                result.append("")
+        for kind, group in enumerate(groups):
+            if group:
+                choices = self.vocabulary.operators if kind else DIGITS
+                scores = np.asarray([weights for _, weights in group], dtype=np.float64)
+                winners = native(scores.reshape(-1), len(choices))
+                for (position, _), winner in zip(group, winners):
+                    result[position] = choices[winner]
+        return tuple(result)
 
 
 class Evaluator:

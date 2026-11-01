@@ -269,3 +269,25 @@ def test_parser_preserves_order_when_positive_fusion_scale_rounds_to_a_tie() -> 
     fused = SymbolFuser().invoke(digits, (0.0, 0.0, 0.0, math.ulp(0.0)))
     assert fused["0"] == fused["1"] > 0
     assert ExpressionParser().invoke([fused]) == ("1",)
+
+
+def test_batched_ranked_symbol_choices_match_fallback(monkeypatch) -> None:
+    import nca.modules.symbols as symbols
+    from nca.ladder import RankedReading
+
+    if getattr(symbols._NATIVE, "row_argmax", None) is None:
+        pytest.skip("Elisa argmax kernel is not built")
+    rng = np.random.default_rng(661)
+    fuser, parser = SymbolFuser(), ExpressionParser()
+    entries = []
+    for i in range(101):
+        width = 4 if i % 2 else 10
+        weights = tuple(rng.random(width))
+        if i % 9 == 0:
+            weights = tuple([0.5] * width)
+        reading = RankedReading(weights, weights)
+        dist = fuser.invoke(None, reading) if i % 2 else fuser.invoke(reading, None)
+        entries.append(None if i % 17 == 0 else dict(dist) if i % 11 == 0 else dist)
+    batched = parser.invoke(entries)
+    monkeypatch.setattr(symbols, "_NATIVE", None)
+    assert batched == parser.invoke(entries)

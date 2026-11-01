@@ -560,7 +560,8 @@ entries are demanded. Hence the digit recognizer never runs on operator
 positions. In selective solving, `SymbolFuser` passes original per-field
 weight ordering to `ExpressionParser`, which uses it for digit and operator
 choices; other consumers retain numerical readings unless they explicitly
-support the same handoff.
+support the same handoff. The parser batches ranked digit and operator
+choices through the Elisa row-argmax kernel when available.
 
 ## 15. Normalization against shift
 
