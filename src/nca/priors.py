@@ -258,7 +258,8 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     derives B*sqrt(2*n*log(2*K/alpha)) as the simultaneous total-score error.
     This requires IID observations, fixed models/base/B/K, and valid base
     normalizers wherever a provider supplies a model. It bounds clipped-score means, not raw evidence
-    or answer errors. The concentration step is not formalized in Lean.
+    or answer errors. Each reading is copied before provider callbacks so all
+    candidates score the same snapshot. The concentration step is not formalized in Lean.
     """
     if not math.isfinite(score_error) or score_error < 0:
         raise ValueError("score_error must be finite and nonnegative")
@@ -280,7 +281,8 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     models: dict[tuple[int, int], tuple[ArityPrior, float] | None] = {}
     count = 0
     for observation in readings:
-        rows = np.asarray(observation, dtype=np.float64)
+        # Freeze each reading before invoking providers, which may mutate caller storage.
+        rows = np.array(observation, dtype=np.float64, copy=True)
         if rows.ndim != 2 or not len(rows) or rows.shape[1] != len(alphabet):
             raise ValueError("readings must be nonempty matrices over the shared alphabet")
         common = np.broadcast_to(base, rows.shape)

@@ -332,7 +332,7 @@ def test_bounded_selection_scores_unavailable_lengths_without_losing_the_batch(
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_provider_mutation_cannot_bypass_row_validation(
+def test_provider_mutation_cannot_change_the_current_reading(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
@@ -343,5 +343,6 @@ def test_provider_mutation_cannot_bypass_row_validation(
         rows[0, 0] = np.nan
         return priors.height_prior(2)
 
-    with pytest.raises(ValueError, match="finite or -inf log weights"):
-        priors.select_prior([provider], [rows], base)
+    result = priors.select_prior([lambda length: priors.height_prior(2), provider], [rows], base)
+    assert result.scores[0] == pytest.approx(result.scores[1])
+    assert np.isnan(rows[0, 0])
