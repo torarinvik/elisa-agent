@@ -114,12 +114,17 @@ def _arity_masses(readings: Sequence[Sequence[float]]) -> np.ndarray:
                      for r in readings])
 
 
-def _pair_shares(risks: Sequence[float]) -> list[float]:
-    """Conservative pair shares without subtracting a risk from the total."""
+def _upper_values(risks: Sequence[float]) -> list[float]:
     values = []
     for risk in risks:
         value = float(risk)
         values.append(math.nextafter(value, math.inf) if risk > value else value)
+    return values
+
+
+def _pair_shares(risks: Sequence[float]) -> list[float]:
+    """Conservative pair shares without subtracting a risk from the total."""
+    values = _upper_values(risks)
     native = getattr(_NATIVE, "pair_shares", None)
     if native is not None:
         return list(native(np.asarray(values, dtype=np.float64)))
@@ -134,6 +139,26 @@ def _pair_shares(risks: Sequence[float]) -> list[float]:
         return value if a == 0.0 or b == 0.0 or math.isinf(value) else math.nextafter(value, math.inf)
     return [product(product(value, _upper_sum([prefix[i], suffix[i + 1]])), 0.5)
             for i, value in enumerate(values)]
+
+
+def _markov_shares(risks: Sequence[float]) -> list[float]:
+    values = _upper_values(risks)
+    native = getattr(_NATIVE, "markov_shares", None)
+    if native is not None:
+        return list(native(np.asarray(values, dtype=np.float64)))
+    result = []
+    for value in values:
+        half = value * 0.5
+        result.append(math.nextafter(half, math.inf) if half + half < value else half)
+    return result
+
+
+def _combine_shares(shares: Sequence[float], within: Sequence[float]) -> list[float]:
+    additions = _upper_values(within)
+    native = getattr(_NATIVE, "combine_shares", None)
+    if native is not None:
+        return list(native(np.asarray(shares, dtype=np.float64), np.asarray(additions, dtype=np.float64)))
+    return [_upper_sum([share, addition]) for share, addition in zip(shares, additions, strict=True)]
 
 
 DETECTION = ("none", "markov", "pairs")
@@ -748,12 +773,13 @@ class FormulaEvaluator:
                   for k, w in enumerate(words)]
         kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
                 else set(range(n)))
-        shares = [r / 2 for r in arity]
+        shares = _markov_shares(arity)
         if self.detection == "pairs":
             pairs = _pair_shares(arity)
             if sum(pairs) < sum(shares):
                 shares = pairs
-        return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
+        combined = _combine_shares(shares, [within[k] if k in kept else 0.0 for k in range(n)])
+        return dict(enumerate(combined))
 
     def floor(self, readings: Sequence[Sequence[float]], risk: Callable[[int, Decision], float],
               fixed: frozenset[int]) -> float:

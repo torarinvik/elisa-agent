@@ -227,6 +227,33 @@ def test_pair_shares_preserve_tiny_risks(reference: bool, monkeypatch: pytest.Mo
     assert sum(Fraction.from_float(float(v)) for v in account.values()) >= Fraction.from_float(1e-18)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_detection_shares_round_up_at_boundaries(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    smallest = float(np.nextafter(0.0, 1.0))
+    risks = [smallest, 1.0, 0.0]
+    shares = word_module._markov_shares(risks)
+    assert all(Fraction.from_float(share) >= Fraction.from_float(risk) / 2
+               for share, risk in zip(shares, risks, strict=True))
+    additions = [0.0, 1e-18, Fraction(1, 3)]
+    combined = word_module._combine_shares(shares, additions)
+    for actual, share, addition in zip(combined, shares, additions, strict=True):
+        assert Fraction.from_float(actual) >= Fraction.from_float(share) + Fraction(addition)
+    arity = [smallest, 1.0, 0.0]
+    within = [0.0, 1e-18, 0.0]
+    def risk(k: int, decision: Decision) -> float:
+        return arity[k] if decision == ARITY_DECISION else within[k]
+    evaluator = FormulaEvaluator(detection="markov", short_circuit=False)
+    account = evaluator.certificate(one_hot(["and", "true", "true"]), risk, no_distribution)
+    assert account is not None
+    for i in range(3):
+        exact = Fraction.from_float(arity[i]) / 2 + Fraction.from_float(within[i])
+        assert Fraction.from_float(account[i]) >= exact
+
+
 def test_floors_bound_every_account() -> None:
     """``FormulaEvaluator.floor`` never exceeds the account it bounds (§22.3),
     whatever the risks of the open words."""

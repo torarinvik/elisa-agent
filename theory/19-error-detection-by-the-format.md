@@ -114,6 +114,9 @@ and after `k`. Prefix and suffix sums evaluate all such shares in linear
 time without subtracting nearly equal floating-point values. If the two
 partial sums bound their exact values from above and `ρ_k ≥ 0`, replacing
 them by those bounds cannot lower the corresponding exact pair share.
+Similarly, upper bounds on a detection share and its within-group risk add
+to an upper bound on their exact sum. These orderings assume the individual
+risks are valid; they do not establish their calibration or numerical bounds.
 
 ## 19.7 Scaling
 

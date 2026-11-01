@@ -46,6 +46,16 @@ def upper_product(a: f64, b: f64) -> f64:
     return product if a == 0.0 or b == 0.0 or product == -log(0.0)
     return nextafter(product, -log(0.0))
 
+def upper_half(x: f64) -> f64:
+    half: f64 = x * 0.5
+    return nextafter(half, -log(0.0)) if half + half < x else half
+
+def markov_shares(risks: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return [upper_half(risks[i]) for i in 0..<risks.len.i64()]
+
+def combine_shares(shares: view[f64], within: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return [upper_add(shares[i], within[i]) for i in 0..<shares.len.i64()]
+
 # Half of each item's risk times the sum of all other risks, without subtraction.
 def pair_shares(risks: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     n: i64 = risks.len.i64()
@@ -733,6 +743,8 @@ export pymodule decoding:
     fn upper_sum
     fn lower_sum
     fn pair_shares
+    fn markov_shares
+    fn combine_shares
     fn prior_partition
     fn valid_log_weights
     fn normalized_rows_fast

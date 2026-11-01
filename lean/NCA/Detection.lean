@@ -175,6 +175,12 @@ theorem pair_share_prefix_suffix_upper (risk left right leftUpper rightUpper : �
     mul_nonneg hr (add_nonneg (sub_nonneg.mpr hl) (sub_nonneg.mpr hh))
   nlinarith
 
+/-- Upper bounds on a detection share and within-group risk bound their sum. -/
+theorem detection_share_combine_upper (share within shareUpper withinUpper : ℝ)
+    (hs : share ≤ shareUpper) (hw : within ≤ withinUpper) :
+    share + within ≤ shareUpper + withinUpper := by
+  linarith
+
 /-- **Within-group errors.** Under a reading `p`, the probability that the
 true class lies in the read class's group `g` but differs from it,
 `p(g) − p(a)`, is at most the risk `1 − p(a) / p(g)` of the decision
