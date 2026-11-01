@@ -107,15 +107,22 @@ class ExpertStore:
     def _make_room(self, size: int) -> None:
         if self.budget is None or self.resident_bytes + size <= self.budget:
             return
-        victims = (key for key in list(self._resident) if key not in self.pinned)
-        while self.resident_bytes + size > self.budget:
-            victim = next(victims, None)
-            if victim is None:
-                raise MemoryError(f"pinned experts leave no room for {size} B")
+        needed = self.resident_bytes + size - self.budget
+        victims: list[str] = []
+        released = 0
+        for key, (_, resident_size) in self._resident.items():
+            if key not in self.pinned:
+                victims.append(key)
+                released += resident_size
+                if released >= needed:
+                    break
+        for victim in victims:
             self._resident_bytes -= self._resident[victim][1]
             del self._resident[victim]
             del self._owners[victim]
             self.stats.evictions += 1
+        if released < needed:
+            raise MemoryError(f"pinned experts leave no room for {size} B")
 
     def acquire(self, expert: LazyExpert) -> Any:
         key = expert.manifest.ref

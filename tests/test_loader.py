@@ -262,3 +262,22 @@ def test_resident_accounting_tracks_eviction_and_cannot_be_mutated_externally() 
     second.invoke()
     assert list(view) == ["second@1"]
     assert store.resident_bytes == sum(size for _, size in view.values()) == 2
+
+
+def test_evicts_oldest_unpinned_experts_until_enough_space() -> None:
+    store = ExpertStore(5)
+    def expert(name: str, size: int) -> LazyExpert:
+        manifest = Manifest(name, "1", Contract((), name))
+        return LazyExpert(manifest, lambda: Fn(manifest, lambda: name), size, store)
+    pinned, first, second, large = (expert("pinned", 1), expert("first", 1),
+                                     expert("second", 1), expert("large", 3))
+    store.prepare(Apply(pinned, ()))
+    first.invoke()
+    second.invoke()
+    large.invoke()
+    assert list(store.resident) == ["pinned@1", "second@1", "large@1"]
+    assert store.resident_bytes == 5 and store.stats.evictions == 1
+    larger = expert("larger", 4)
+    larger.invoke()
+    assert list(store.resident) == ["pinned@1", "larger@1"]
+    assert store.resident_bytes == 5 and store.stats.evictions == 3
