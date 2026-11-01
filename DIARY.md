@@ -1218,6 +1218,23 @@ so this is a selection microbenchmark rather than a full-refinement speedup.
 The operation is the existing restricted identity decision of §21.5; no new
 risk assumption or mathematical algorithm is introduced.
 
+**Grouped selection in full refinement.** On the same three depth-8
+formulas, a reference/native/native/reference comparison disabled only the
+new grouped-argmax export while keeping both cursors and other native kernels.
+Unprofiled times were 0.73788, 0.65263, 0.64420 and 0.64400 s respectively.
+All four runs gave identical values, abstentions, bounds (to 1e-10) and
+expert costs. Because the reference and native times overlap and the first
+reference run was slower, these data do not establish an isolated runtime
+speedup despite the prepared-input microbenchmark.
+
+A separate native profile took 1.084 s over 605 certificate calls. Word
+selection still cost 0.247 s; 3,749 NumPy array conversions cost 0.096 s
+across the run, while corrected-account work cost 0.573 s cumulatively.
+This points to repeated score marshaling and account preparation rather
+than restricted argmax as the remaining costs. The next incremental change
+should reuse the score array already held by the answer cursor and measure
+that allocation reduction, before expanding the native interface further.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
