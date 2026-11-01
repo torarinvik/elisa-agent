@@ -592,6 +592,18 @@ class CertifiedSplit:
             self.log_probs, self.reference)
         log_off, log_factor = self._tail_summary
         self.changes = _initial_band_changes(log_off, slack, len(self.log_probs), log_factor)
+        self._tail_blocks: np.ndarray | None = None
+        self._tail_block_size = math.isqrt(max(1, len(self.log_probs) // len(self.alphabet))) + 1
+        self._tail_block_kernel = getattr(_NATIVE, "tail_block_summary", None)
+        if (self._tail_block_kernel is not None and self.changes <= len(self.log_probs)
+                and self.arity_bound * (self.changes - 1) < self.cover_half):
+            count = (len(self.log_probs) - 1) // self._tail_block_size + 1
+            blocks = np.empty(2 * count, dtype=np.float64)
+            summary = self._tail_block_kernel(self.log_probs.reshape(-1), self.reference, blocks,
+                                             self._tail_block_size, -1)
+            if len(summary) == 2:
+                self._tail_blocks = blocks
+                self._tail_summary = float(summary[0]), float(summary[1])
         self.rebuilds = 0
         self.log_upper: float | None = None
         self.split = self._build()
@@ -694,6 +706,17 @@ class CertifiedSplit:
         self.log_probs[k] = row
         self._tail_summary = None
         self.log_upper = None
+        if self._tail_blocks is not None:
+            if (self.changes > len(self.log_probs)
+                    or self.arity_bound * (self.changes - 1) >= self.cover_half):
+                self._tail_blocks = None
+            else:
+                blocks, self._tail_blocks = self._tail_blocks, None
+                summary = self._tail_block_kernel(self.log_probs.reshape(-1), self.reference,
+                                                  blocks, self._tail_block_size, k)
+                if len(summary) == 2:
+                    self._tail_blocks = blocks
+                    self._tail_summary = float(summary[0]), float(summary[1])
         return scores
 
     def climb(self, k: int, row: np.ndarray) -> Banded | None:

@@ -111,6 +111,13 @@ def onMass (w : α → ℝ) (r : α) : ℝ := ((as.filter (· = r)).map w).sum
 /-- Mass of every other symbol: the position's off-reference mass `ρ`. -/
 def offMass (w : α → ℝ) (r : α) : ℝ := ((as.filter (· ≠ r)).map w).sum
 
+/-- Off-mass and log-scale sums can be combined from separate row blocks. -/
+theorem row_summary_append (xs ys : List (ℝ × ℝ)) :
+    (((xs ++ ys).map Prod.fst).sum, ((xs ++ ys).map Prod.snd).sum) =
+      ((xs.map Prod.fst).sum + (ys.map Prod.fst).sum,
+       (xs.map Prod.snd).sum + (ys.map Prod.snd).sum) := by
+  simp
+
 /-- Total weight of the sequences differing from the reference in at least
 `j` positions; each position is a weight function and a reference symbol. -/
 def tail (ps : List ((α → ℝ) × α)) (j : ℕ) : ℝ :=

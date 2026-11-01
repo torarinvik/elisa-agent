@@ -150,6 +150,62 @@ def test_native_tail_mass_summary_matches_reference(monkeypatch: pytest.MonkeyPa
     np.testing.assert_allclose(actual, expected, atol=1e-12)
 
 
+@pytest.mark.parametrize("block_size", [1, 3, 16, 100])
+def test_native_tail_blocks_match_fresh_summary_after_updates(block_size: int) -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rng = np.random.default_rng(269)
+    m = 31
+    rows = np.log(rng.dirichlet(np.ones(4), size=m))
+    reference = rng.integers(0, 4, size=m, dtype=np.int64)
+    blocks = np.empty(2 * ((m - 1) // block_size + 1), dtype=np.float64)
+    actual = native(rows.reshape(-1), reference, blocks, block_size, -1)
+    np.testing.assert_allclose(actual, decoding._tail_mass_summary(rows, reference), atol=1e-13)
+    for k in (0, 1, 15, 30, 15):
+        rows[k] = np.log(rng.dirichlet(np.ones(4)))
+        actual = native(rows.reshape(-1), reference, blocks, block_size, k)
+        np.testing.assert_allclose(actual, decoding._tail_mass_summary(rows, reference), atol=1e-13)
+    rows[15] = [-np.inf] * 4
+    actual = native(rows.reshape(-1), reference, blocks, block_size, 15)
+    np.testing.assert_allclose(actual, decoding._tail_mass_summary(rows, reference), atol=1e-13)
+
+
+def test_native_tail_blocks_reject_invalid_shapes() -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rows = np.array([0.0, -np.inf, 0.0, -np.inf])
+    reference = np.array([0, 0], dtype=np.int64)
+    blocks = np.zeros(2)
+    assert not native(rows, reference, blocks, 0, -1)
+    assert not native(rows, reference, blocks, 2, 2)
+    assert not native(rows[:-1], reference, blocks, 2, -1)
+    assert not native(rows, reference, np.zeros(1), 2, -1)
+    assert not native(rows, np.array([0, 2], dtype=np.int64), blocks, 2, -1)
+
+
+def test_native_tail_blocks_preserve_tiny_and_tolerated_mass() -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rows = np.tile([0.0, math.log(5e-13)], (1000, 1))
+    reference = np.zeros(len(rows), dtype=np.int64)
+    block_size = 32
+    blocks = np.empty(2 * ((len(rows) - 1) // block_size + 1))
+    off, factor = native(rows.reshape(-1), reference, blocks, block_size, -1)
+    with localcontext() as context:
+        context.prec = 80
+        epsilon = Decimal.from_float(float(rows[0, 1])).exp()
+        true_tail = (Decimal(1) + epsilon) ** len(rows) - 1
+        bound = math.exp(decoding._band_log_tail(off, 1, factor))
+        assert Decimal.from_float(bound) >= true_tail
+    rows[0] = [0.0, -1000.0]
+    off, factor = native(rows.reshape(-1), reference, blocks, block_size, 0)
+    fresh = decoding._tail_mass_summary(rows, reference)
+    np.testing.assert_allclose([off, factor], fresh, atol=1e-13)
+
+
 @pytest.mark.parametrize("shift", [0.0, -40.0])
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_risk_retains_tiny_accepted_alternative(
@@ -474,11 +530,35 @@ def test_banded_cursor_reuses_tail_summary_until_row_update(
     updated = np.log(np.array([0.00002, 0.99996, 0.00002]))
     rows[2] = updated
     upper = cursor.climb_normalizer(2, updated)
-    assert upper is not None and calls == 2
+    expected_calls = 2 if reference_only or cursor._tail_blocks is None else 1
+    assert upper is not None and calls == expected_calls
     exact = decoding.decode_reference(rows)
     assert exact is not None and upper >= exact.log_z - 1e-12
     assert cursor.normalizer() == pytest.approx(upper)
-    assert calls == 2
+    assert calls == expected_calls
+
+
+def test_banded_cursor_recovers_if_block_update_fails() -> None:
+    if getattr(decoding._NATIVE, "tail_block_summary", None) is None:
+        pytest.skip("native tail block kernel is not built")
+    rows = np.log(np.tile([0.00001, 0.99998, 0.00001], (15, 1)))
+    rows[-1] = np.log([0.99998, 0.00001, 0.00001])
+    cursor = decoding.CertifiedSplit(rows)
+    assert cursor._tail_blocks is not None
+    assert cursor.normalizer() is not None
+
+    def failed_update(*args: object) -> list[float]:
+        raise RuntimeError("block update failed")
+
+    cursor._tail_block_kernel = failed_update
+    rows[2] = np.log([0.00002, 0.99996, 0.00002])
+    with pytest.raises(RuntimeError, match="block update failed"):
+        cursor.climb_normalizer(2, rows[2])
+    assert cursor._tail_blocks is None and cursor.log_upper is None
+    upper = cursor.normalizer()
+    exact = decoding.decode_reference(rows)
+    assert upper is not None and exact is not None
+    assert upper >= exact.log_z - 1e-12
 
 
 @pytest.mark.parametrize("reference_only", [False, True])

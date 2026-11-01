@@ -56,6 +56,12 @@ subtracting the reference mass from a rounded row total. The tail comparison
 also stays in log space, retaining finite mass below the probability range.
 This avoids that cancellation and underflow; it is not an outward-rounding
 guarantee for the entire risk calculation.
+The off-reference masses and log row factors can each be summed by blocks:
+their sums over a concatenation are the sums of the block sums. After one row
+changes, recomputing its block and combining all block summaries takes
+`O(B·|A| + m/B)` work for block size `B` and alphabet size `|A|`, instead of
+rescanning `m·|A|` weights. Regrouping floating-point additions can change
+rounding and does not provide outward-rounded bounds.
 When a banded risk rounds to zero, a full format pass separately sums the
 selected sequence and every other accepted sequence. Normalizing the two
 parts recovers small model risks that disappear when subtracting nearly

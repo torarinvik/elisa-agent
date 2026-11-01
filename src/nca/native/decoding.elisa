@@ -250,6 +250,47 @@ def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64]
             scale <- next
     return [total, scale]
 
+# Refresh one block, or every block for index -1, then combine their summaries.
+# The caller owns a pair of f64 values per block: log off-mass and log scale.
+def tail_block_summary(log_probs: view[f64], reference: view[i64], blocks: mutable view[f64], block_size: i64, index: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    m: i64 = reference.len.i64()
+    return [] if m == 0 or block_size <= 0 or index < -1 or index >= m
+    return [] if log_probs.len.i64() % m != 0
+    width: i64 = log_probs.len.i64() / m
+    return [] if width == 0
+    count: i64 = (m - 1) / block_size + 1
+    return [] if blocks.len.i64() / 2 != count or blocks.len.i64() % 2 != 0
+    for b in 0..<count:
+            if index == -1 or index / block_size == b:
+                start: i64 = b * block_size
+                remaining: i64 = m - start
+                stop: i64 = start + (block_size if block_size < remaining else remaining)
+                for k in start..<stop:
+                    return [] if reference[k] < 0 or reference[k] >= width
+                off, block_scale, _ =
+                    for k in start..<stop |off: f64 = log(0.0), block_scale: f64 = 0.0, block_correction: f64 = 0.0| -> (off, block_scale, block_correction):
+                        row, next_off =
+                            for j in 0..<width |row: f64 = log(0.0), next_off: f64 = off| -> (row, next_off):
+                                reading: f64 = log_probs[k * width + j]
+                                row <- log_add(row, reading)
+                                next_off <- log_add(next_off, reading) if j != reference[k] else next_off
+                        off <- next_off
+                        excess: f64 = row if row > 0.0 else 0.0
+                        adjusted: f64 = excess - block_correction
+                        next: f64 = block_scale + adjusted
+                        block_correction <- (next - block_scale) - adjusted
+                        block_scale <- next
+                blocks[b * 2] <- off
+                blocks[b * 2 + 1] <- block_scale
+    total, scale, _ =
+        for b in 0..<count |total: f64 = log(0.0), scale: f64 = 0.0, correction: f64 = 0.0| -> (total, scale, correction):
+            total <- log_add(total, blocks[b * 2])
+            adjusted: f64 = blocks[b * 2 + 1] - correction
+            next: f64 = scale + adjusted
+            correction <- (next - scale) - adjusted
+            scale <- next
+    return [total, scale]
+
 # Search only through the number of positions; beyond it the tail is empty.
 def initial_band_changes_scaled(log_off: f64, log_factor: f64, log_slack: f64, length: i64) -> i64:
     # Reserve a representable sentinel for a tail beyond the final position.
@@ -1142,6 +1183,7 @@ export pymodule decoding:
     fn decode
     fn decode_log
     fn tail_mass_summary
+    fn tail_block_summary
     fn initial_band_changes_scaled
     fn format_partition
     fn banded_format
