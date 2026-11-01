@@ -1428,3 +1428,17 @@ def test_native_risk_from_reading_matches_fallback_for_restricted_ties(monkeypat
     native = calculate()
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
     assert np.allclose(native, calculate(), rtol=1e-13, atol=1e-15)
+
+
+def test_native_unrestricted_risk_accepts_noncontiguous_readings(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
+        pytest.skip("native reading-risk kernel is not built")
+    rung = Rung(constant("noncontiguous-risk", (0.2, 0.8), 1.0))
+    logits = torch.tensor([-3.0, 9.0, -1.0, 9.0], dtype=torch.float64)[::2]
+    reading = torch.tensor([0.4, 9.0, 0.6, 9.0], dtype=torch.float64)[::2]
+    assert not logits.is_contiguous() and not reading.is_contiguous()
+    native = rung.risk(logits, reading=reading)
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    assert native == pytest.approx(rung.risk(logits, reading=reading))

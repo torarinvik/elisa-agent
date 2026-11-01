@@ -303,8 +303,14 @@ class Rung:
             if groups is not None:
                 ordering = (np.asarray(ranked.weights, dtype=np.float64) if ranked is not None else
                             probabilities.double().numpy())
-                return float(native_reading(log.double().numpy()[union], ordering[union], groups,
-                                            len(positions), self.temperature(classes)))
+                logits = log.double().numpy()
+                if classes is None:
+                    logits = np.ascontiguousarray(logits)
+                    ordering = np.ascontiguousarray(ordering)
+                else:
+                    logits, ordering = logits[union], ordering[union]
+                return float(native_reading(logits, ordering, groups, len(positions),
+                                            self.temperature(classes)))
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
