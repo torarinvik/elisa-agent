@@ -1195,6 +1195,15 @@ the earlier three-input comparison and is consistent with about 2.4 times
 less runtime, but remains a small, fixed-order experiment without confidence
 intervals. It does not establish general coverage or reliability equivalence.
 
+**Compiler conversion repaired.** Elisa compiler commit `18eb222b8` now
+constructs a borrowed view from an owned dynamic array's data pointer and
+count at call boundaries, excluding capacity. The new empty/nonempty call
+regression and existing buffer-view and mutable-view smoke tests pass.
+The installed compiler snapshot is updated. NCA's kernel rebuilt through it
+without a stale override, and all 110 project tests pass. The separate
+`.view()` method-lowering limitation has not been repaired; explicit slices
+and implicit owned-array arguments cover the current kernel use case.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
