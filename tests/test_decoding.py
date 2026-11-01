@@ -248,6 +248,29 @@ def test_native_tail_blocks_keep_tiny_excess_for_any_reference_order(
         assert factor == pytest.approx(float(exact_factor), rel=1e-14, abs=0.0)
 
 
+@pytest.mark.parametrize("width", [3, 16, 64, 256])
+def test_native_tail_blocks_wide_rows_against_high_precision(width: int) -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rng = np.random.default_rng(280 + width)
+    probabilities = rng.dirichlet(np.full(width, 0.2), size=12) * (1 + 5e-13)
+    rows = np.log(probabilities)
+    reference = np.argmin(rows, axis=1).astype(np.int64)
+    blocks = np.empty(2 * len(rows))
+    off, factor = native(rows.reshape(-1), reference, blocks, 1, -1)
+    with localcontext() as context:
+        context.prec = 80
+        weights = [[Decimal.from_float(float(x)).exp() for x in row] for row in rows]
+        exact_off = sum((w for row, r in zip(weights, reference)
+                         for j, w in enumerate(row) if j != r), Decimal(0))
+        exact_factors = [max(Decimal(0), sum(row).ln()) for row in weights]
+        assert off == pytest.approx(float(exact_off.ln()), abs=2e-14)
+        assert factor == pytest.approx(float(sum(exact_factors)), abs=3e-15)
+        for actual, expected in zip(blocks[1::2], exact_factors):
+            assert actual == pytest.approx(float(expected), abs=1e-15)
+
+
 def test_native_tail_blocks_remain_stable_across_many_updates() -> None:
     native = getattr(decoding._NATIVE, "tail_block_summary", None)
     if native is None:

@@ -1,4 +1,5 @@
 import Mathlib.Data.Nat.Factorial.Basic
+import Mathlib.Analysis.SpecialFunctions.Exp
 import NCA.Decoding
 
 /-!
@@ -153,6 +154,19 @@ theorem sum_split (p : α → Prop) [DecidablePred p] (f : α → ℝ) : ∀ l :
 theorem row_mass_partition (w : α → ℝ) (r : α) :
     onMass as w r + offMass as w r = (as.map w).sum := by
   simpa [onMass, offMass] using (sum_split (· = r) w as).symm
+
+/-- Recentered exponentials sum to the same mass as the original weights. -/
+theorem anchored_exp_mass (peak : ℝ) (others : List ℝ) :
+    Real.exp peak * (1 + (others.map fun x => Real.exp (x - peak)).sum) =
+      Real.exp peak + (others.map Real.exp).sum := by
+  rw [mul_add, mul_one, ← List.sum_map_mul_left]
+  congr 1
+  congr 1
+  apply List.map_congr_left
+  intro x _
+  rw [← Real.exp_add]
+  congr 1
+  ring
 
 /-- The smallest factor at least one that makes a row a subprobability. -/
 def rowFactor (w : α → ℝ) : ℝ := max 1 (as.map w).sum
