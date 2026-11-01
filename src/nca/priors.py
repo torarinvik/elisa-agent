@@ -112,8 +112,14 @@ class ArityPrior:
 
     def _rows(self, log_probs: np.ndarray) -> np.ndarray:
         rows = np.asarray(log_probs, dtype=np.float64)
-        if (rows.ndim != 2 or rows.shape[1] != len(self.alphabet)
-                or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
+        if rows.ndim != 2 or rows.shape[1] != len(self.alphabet):
+            raise ValueError("requires finite or -inf log weights over the prior alphabet")
+        validate = getattr(_NATIVE, "valid_log_weights", None)
+        if validate is not None and rows.flags.c_contiguous:
+            valid = validate(rows.reshape(-1))
+        else:
+            valid = not (np.any(np.isnan(rows)) or np.any(np.isposinf(rows)))
+        if not valid:
             raise ValueError("requires finite or -inf log weights over the prior alphabet")
         return rows
 

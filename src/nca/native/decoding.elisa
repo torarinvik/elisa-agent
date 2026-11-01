@@ -14,6 +14,13 @@
 extern exp(x: f64) -> f64
 extern log(x: f64) -> f64
 
+# Log weights may contain negative infinity but not NaN or positive infinity.
+def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
+    for i in 0..<rows.len.i64():
+        x: f64 = rows[i]
+        return false if x != x or x == -log(0.0)
+    return true
+
 # Accept only rows comfortably inside the normalization tolerance. A false
 # result asks the caller to run its full validator, including boundary cases.
 def normalized_rows_fast(rows: view[f64], base: view[f64]) -> bool can[Abort.Panic]:
@@ -545,6 +552,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return 1.0 - probabilities[groups[top]]
 
 export pymodule decoding:
+    fn valid_log_weights
     fn normalized_rows_fast
     fn decode
     fn decode_prior

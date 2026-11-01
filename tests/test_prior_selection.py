@@ -321,6 +321,30 @@ def test_native_row_validation_falls_back_at_normalization_boundary() -> None:
             assert native(rows.reshape(-1), shared_base)
             assert np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)
 
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("layout", ["contiguous", "transposed", "strided"])
+def test_prior_log_weight_validation_preserves_edge_cases(
+        reference: bool, layout: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.height_prior(2)
+    assert prior is not None
+    values = np.array([[0.0, -np.inf, -1e300], [1e300, -0.0, -2.0]])
+    def arrange(rows: np.ndarray) -> np.ndarray:
+        if layout == "transposed":
+            return np.array(rows.T, order="C").T
+        if layout == "strided":
+            expanded = np.repeat(rows, 2, axis=1)
+            return expanded[:, ::2]
+        return rows.copy()
+    assert np.array_equal(prior._rows(arrange(values)), values)
+    for bad in (np.nan, np.inf):
+        invalid = values.copy()
+        invalid[1, 2] = bad
+        with pytest.raises(ValueError, match="finite or -inf"):
+            prior._rows(arrange(invalid))
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_bounded_selection_scores_unavailable_lengths_without_losing_the_batch(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:

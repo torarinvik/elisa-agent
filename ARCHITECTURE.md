@@ -849,6 +849,8 @@ returns, so no cached denominator crosses calibration or selection runs.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.
+The generic log-weight validation also uses Elisa for contiguous arrays;
+noncontiguous arrays and installations without the kernel use NumPy.
 
 `FormulaDataset(..., early_leaf=p)` and `formula(..., early_leaf=p)` expose
 the structural-shift family in §18.1. The new trailing parameter defaults
