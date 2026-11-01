@@ -8,7 +8,7 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from nca.abi import App, Choice, Contract, Manifest, Message, Var, format_type, parse_type, type_variables
+from nca.abi import App, Calls, Choice, Contract, Manifest, Message, Var, format_type, parse_type, type_variables
 from nca.index import ProducerIndex
 from nca.modules.combinators import Case, Fold
 from nca.optimize import plan_min, plan_pareto
@@ -487,6 +487,32 @@ def test_pattern_search_checks_later_input_after_binding_without_losing_alternat
     assert isinstance(result[0], Apply) and ("a", TEXT) in result[0].binding
     frontier = plan_pareto(modules, available, "out.v1", length=1, errors={}, fuel=4)
     assert frontier and frontier[0].cost == result[1]
+
+
+def test_free_expert_ground_slot_pruning_keeps_solvable_instances() -> None:
+    gate = Fn(Manifest("gate", "1.0.0", Contract(
+        ("seq[?a]",), "out.v1", (((TEXT,), "missing.v1"),), ((0,),)),
+        calls=(Calls(1, 0),)), lambda *args: None)
+    wrap = fn("wrap", ["?a"], "seq[?a]", lambda value: [value])
+    provider = fn("provider", [TEXT], "missing.v1", lambda value: value)
+    available = (f"seq[{INT}]", INT)
+    modules = [gate, wrap]
+    assert plan(modules, available, "out.v1", fuel=5) is None
+    assert plan_min(modules, available, "out.v1", 1, fuel=5) is None
+    assert not plan_pareto(modules, available, "out.v1", 1, errors={}, fuel=5)
+    modules.append(provider)
+    route = plan(modules, available, "out.v1", fuel=5)
+    cheapest = plan_min(modules, available, "out.v1", 1, fuel=5)
+    frontier = plan_pareto(modules, available, "out.v1", 1, errors={}, fuel=5)
+    assert route is not None and infer(modules, available, route) == "out.v1"
+    assert cheapest is not None and infer(modules, available, cheapest[0]) == "out.v1"
+    assert frontier and infer(modules, available, frontier[0].plan) == "out.v1"
+
+    open_slot = Fn(Manifest("open-slot", "1.0.0", Contract(
+        ("seq[?a]",), "out.v1", ((("?a",), "?a"),)), calls=(Calls(1, 0),)),
+        lambda *args: None)
+    assert plan([open_slot], available, "out.v1", fuel=3) is not None
+    assert plan_min([open_slot], available, "out.v1", 1, fuel=3) is not None
 
 
 def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:

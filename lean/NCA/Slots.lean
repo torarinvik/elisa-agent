@@ -63,6 +63,19 @@ inductive HTypedArgs (lib : HContract Ty → Prop) :
       HTypedArgs lib avail (p :: ps) (t :: ts)
 end
 
+/-- Every declared slot of a well-typed filling list has a well-typed plan. -/
+theorem HTypedSlots.has_filling {lib : HContract Ty → Prop} {fs : List (HPlan Ty)}
+    {ss : List (List Ty × Ty)} (h : HTypedSlots lib fs ss) {s : List Ty × Ty}
+    (hs : s ∈ ss) : ∃ f, HTyped lib s.1 f s.2 := by
+  cases h with
+  | nil => simp at hs
+  | cons hf hrest =>
+    simp only [List.mem_cons] at hs
+    rcases hs with rfl | hs
+    · exact ⟨_, hf⟩
+    · exact HTypedSlots.has_filling hrest hs
+termination_by ss.length
+
 mutual
 /-- Installing experts never invalidates a plan. -/
 theorem HTyped.mono {lib lib' : HContract Ty → Prop} (hsub : ∀ c, lib c → lib' c) :

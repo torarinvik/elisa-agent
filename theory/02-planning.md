@@ -101,6 +101,10 @@ This remains true when the input becomes ground only after an earlier input
 has extended the binding; other bindings must still be explored.
 For a single remaining input, each of its solutions is already a complete
 input tuple; no recursive search of an empty suffix is needed.
+A slot whose input and output types are already ground is also unaffected by
+later bindings. If it has no filling at the required depth, the application
+can be rejected before searching its polymorphic inputs. Slots that still
+contain variables remain eligible for later instantiation.
 
 **Map sources.** With polymorphic contracts, the candidate element types of
 step 3 include the elements of the sequence types that instances produce, of

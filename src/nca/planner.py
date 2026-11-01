@@ -419,6 +419,8 @@ def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], m
     """``module`` applied for a ground goal that matched it with ``binding``,
     its free variables determined by pattern search over its inputs. Under a
     requirement, each instance found is applied like a ground contract."""
+    if not _ground_slots_possible(index, limit, module, binding, fuel, memo):
+        return None
     for args, full in _free_instances(index, limit, available, module, binding, fuel, memo,
                                       distinct=True):
         contract = module.manifest.contract.instance(full)
@@ -431,6 +433,20 @@ def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], m
         if slots is not None:
             return Apply(module, args, slots, full)
     return None
+
+
+def _ground_slots_possible(index: ProducerIndex, limit: int, module: Module,
+                           binding: Binding, fuel: int, memo: Memo) -> bool:
+    """Reject a fully determined slot with no filling before expanding inputs."""
+    contract = module.manifest.contract
+    if not contract.slots:
+        return True
+    for inputs, output, required in slot_goals(contract.instance(binding)):
+        if any(type_variables(parse_type(t)) for t in (*inputs, output)):
+            continue
+        if _plan(index, limit, inputs, output, fuel - 1, memo, required) is None:
+            return False
+    return True
 
 
 def free_bindings(index: ProducerIndex, available: Sequence[TypeId], module: Module,

@@ -61,6 +61,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.2](theory/02-planning.md) | `zero_fuel_map_children` | `Planner` |
 | [2.2](theory/02-planning.md) | `renVar_ne_external`, `renVar_injective` | `PatternSearch` |
 | [2.2](theory/02-planning.md) | `subst_ground` | `PatternSearch` |
+| [2.2](theory/02-planning.md) | `HTypedSlots.has_filling` | `Slots` |
 | [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
 | [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
 | [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |

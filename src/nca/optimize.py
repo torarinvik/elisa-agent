@@ -42,8 +42,8 @@ from itertools import product
 
 from nca.abi import Binding, Manifest, Module, TypeId, elem_type, seq_type
 from nca.index import ProducerIndex
-from nca.planner import (Apply, Given, Map, Plan, assignments, free_bindings, map_candidates,
-                         slot_goals)
+from nca.planner import (Apply, Given, Map, Plan, _ground_slots_possible, assignments,
+                         free_bindings, map_candidates, slot_goals)
 
 
 def slot_calls(manifest: Manifest, length: int, expected: bool = False) -> list[float]:
@@ -61,6 +61,9 @@ def _instances(index: ProducerIndex, available: Sequence[TypeId], goal: TypeId,
     free variables, by every instance pattern search determines (§2.2)."""
     for _, module, binding in index.candidates(goal, index.size):
         if module.manifest.contract.free:
+            if not _ground_slots_possible(index, index.size, module, binding, fuel,
+                                          index.memo(index.size)):
+                continue
             for full in free_bindings(index, available, module, binding, fuel):
                 yield module, full
         else:
