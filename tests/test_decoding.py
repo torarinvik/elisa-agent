@@ -293,6 +293,28 @@ def test_banded_pass_ignores_overflow_outside_its_band() -> None:
     assert result == (-1e308, -1e308, (1, 1, 0))
 
 
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_pass_ignores_overflow_when_final_state_is_outside_band(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, -1e308, -np.inf], [-np.inf, -1e308, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    assert decoding._banded_passes(rows, (0, 1, 2), (1, 1, 1, 1), 0) is None
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("extreme", [2**63 - 1, -(2**63)])
+def test_banded_pass_handles_extreme_numpy_centres(
+        reference_only: bool, extreme: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, 0.0, -np.inf], [0.0, -np.inf, -np.inf]])
+    centre = np.array([1, extreme, 0], dtype=np.int64)
+    with np.errstate(over="raise"):
+        assert decoding._banded_passes(rows, (0, 1, 2), centre, 1) is None
+
+
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 3)])
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_pass_matches_enumeration_with_arbitrary_bands(
@@ -350,6 +372,26 @@ def test_native_banded_pass_matches_reference(alphabet, monkeypatch: pytest.Monk
             if actual is not None and expected is not None:
                 assert actual[0] == pytest.approx(expected[0], abs=1e-12)
                 assert actual[1] == pytest.approx(expected[1], abs=1e-12)
+                assert actual[2] == expected[2]
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (0, 1, 3)])
+def test_native_banded_pass_matches_sparse_ties(alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "banded_format", None) is None:
+        pytest.skip("native banded decoder is not built")
+    rng = np.random.default_rng(258)
+    for m in range(1, 10):
+        for _ in range(30):
+            rows = rng.choice([-np.inf, -1000.0, -3.0, -1.0, 0.0], size=(m, len(alphabet)))
+            centre = [1] * m + [0]
+            half = int(rng.integers(0, m + 2))
+            actual = decoding._banded_passes(rows, alphabet, centre, half)
+            with monkeypatch.context() as patch:
+                patch.setattr(decoding, "_NATIVE", None)
+                expected = decoding._banded_passes(rows, alphabet, centre, half)
+            assert (actual is None) == (expected is None)
+            if actual is not None and expected is not None:
+                np.testing.assert_allclose(actual[:2], expected[:2], rtol=0, atol=1e-10)
                 assert actual[2] == expected[2]
 
 

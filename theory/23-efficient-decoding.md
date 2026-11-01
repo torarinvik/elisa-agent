@@ -61,6 +61,10 @@ The banded passes compute:
   least the weight of accepted sequences within `j − 1` changes.
 - `â`: the most probable accepted sequence inside the band, with weight `x`.
 
+Every accepted path starts at counter 1 and ends at counter 0. If either
+endpoint lies outside its band row, the band contains no accepted path and
+the pass can return without evaluating intermediate weights.
+
 Every other accepted sequence lies outside `j − 1` changes, so the true
 normalizer satisfies `Z ≤ Z_band + U_j`.
 

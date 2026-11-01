@@ -240,6 +240,10 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Seque
     m = len(log_probs)
     if m == 0:
         return None
+    first, last = int(centre[0]), int(centre[m])
+    if (not max(0, first - half) <= 1 <= min(m, first + half)
+            or not last - half <= 0 <= last + half):
+        return None
     native = getattr(_NATIVE, "banded_format", None)
     if native is not None:
         growth = max(0, int(max(alphabet)) - 1)
@@ -262,13 +266,13 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Seque
     forward = np.full((m + 1, width), -np.inf)
     best = np.full((m + 1, width), -np.inf)
     choice = np.zeros((m + 1, width), dtype=np.int64)
-    if max(0, centre[0] - half) <= 1 <= min(m, centre[0] + half):
-        forward[0, 1] = best[0, 1] = 0.0
+    forward[0, 1] = best[0, 1] = 0.0
     for k in range(m):
+        centre_k = int(centre[k + 1])
         for j, a in enumerate(alphabet):
             a = int(a)
-            low = max(a, 0, centre[k + 1] - half)
-            high = min(a + width - 1, width, m - k, centre[k + 1] + half + 1)
+            low = max(a, 0, centre_k - half)
+            high = min(a + width - 1, width, m - k, centre_k + half + 1)
             span = high - low
             if span <= 0:
                 continue
