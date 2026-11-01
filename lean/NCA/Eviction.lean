@@ -38,6 +38,12 @@ theorem oversized_route_infeasible {R S : Finset E} {budget : ℕ}
     (hR : R ⊆ S) (hS : bytes w S ≤ budget) : bytes w R ≤ budget :=
   le_trans (bytes_mono hR) hS
 
+/-- Restoring the surviving old pins is the largest set of old pins still resident. -/
+theorem surviving_pins_maximal (oldPins resident : Finset E) :
+    oldPins ∩ resident ⊆ oldPins ∧ oldPins ∩ resident ⊆ resident ∧
+      ∀ pins, pins ⊆ oldPins → pins ⊆ resident → pins ⊆ oldPins ∩ resident := by
+  exact ⟨inter_subset_left, inter_subset_right, fun _ hp hr => subset_inter hp hr⟩
+
 /-- **Lower bound.** Any transition serving `R` loads the route's missing experts. -/
 theorem load_lower_bound {S S' R : Finset E} (hR : R ⊆ S') :
     bytes w (R \ S) ≤ bytes w (S' \ S) :=

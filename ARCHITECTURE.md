@@ -283,7 +283,9 @@ where least-recently-used eviction is not optimal (16 loads against the
 optimal 11). Theorem 12.14 maps to `oversized_route_infeasible` in `Eviction`;
 `prepare` rejects an oversized declared working set before changing pins or
 residency. The bound uses declared expert sizes, not measured process memory.
-Other loading failures can still leave partial store changes.
+Other loading failures can still leave partial store changes; surviving old pins
+are their intersection with the current resident set. `surviving_pins_maximal`
+in `Eviction` proves this is the largest resident subset of the old pins.
 
 ## 13. Efficiency
 
