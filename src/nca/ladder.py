@@ -322,6 +322,21 @@ Stop = Callable[[State], bool]
 """A stopping rule: abstain now, given the state of refinement."""
 
 
+ClimbPriority = Callable[[int, float, float], float]
+"""Priority of an open item given its index, current charge and next cost."""
+
+
+def charge_per_cost(index: int, charge: float, cost: float) -> float:
+    """Rank a current charge by the declared cost of its next invocation.
+
+    This is a heuristic, not a guarantee that the charge will fall. A free
+    invocation takes priority; ties preserve the existing item order.
+    """
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("next invocation cost must be finite and nonnegative")
+    return math.inf if cost == 0 else charge / cost
+
+
 def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
     """Allocate a current bound using possibly stale, nonnegative priorities.
 
@@ -348,14 +363,17 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
            certificate: Certificate | None = None, floor: Floor | None = None,
            additive_floor: bool = False, stop: Stop | None = None,
            trace: list[State] | None = None,
-           observe: Callable[[Refinement], None] | None = None) -> Refinement:
+           observe: Callable[[Refinement], None] | None = None, *,
+           priority: ClimbPriority | None = None) -> Refinement:
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
     Every item starts at rung ``min(start, top)``, reading each rung below it.
     The bound sums the charges of ``certificate``'s account; by default every
     item ``i`` is charged the risk of decision ``classes[i]``. While it exceeds
     ``delta`` the open item with the largest charge climbs a rung; if the
-    readings determine no answer, the riskiest item. ``observe`` receives each
+    readings determine no answer, the riskiest item. A supplied ``priority``
+    instead ranks open items using their index, charge and next invocation
+    cost; it must not mutate the refinement state. ``observe`` receives each
     state, including the initial and terminal states, with an independent
     outer reading list. Observers must not mutate the reading tensors.
     """
@@ -434,7 +452,15 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             trace.append(state)
         if stop is not None and stop(state):
             break
-        i = max(open_, key=charges.__getitem__)
+        if priority is None:
+            i = max(open_, key=charges.__getitem__)
+        else:
+            def score(i: int) -> float:
+                value = priority(i, float(charges[i]), float(ladders[i][levels[i] + 1].cost))
+                if math.isnan(value):
+                    raise ValueError("climb priority must not be NaN")
+                return value
+            i = max(open_, key=score)
         levels[i] += 1
         climb(i)
     return Refinement(readings, cost, bound, not available or bound > delta, available)

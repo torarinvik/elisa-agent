@@ -54,8 +54,8 @@ import torch
 from nca.abi import NOTHING, Contract, Message, Module, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
-from nca.ladder import (Distribution, Certificate, Decision, Floor, Refinement, Rung, SecondLook, State, Stop, ladder,
-                        refine)
+from nca.ladder import (Certificate, ClimbPriority, Decision, Distribution, Floor, Refinement,
+                        Rung, SecondLook, State, Stop, ladder, refine)
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -122,18 +122,21 @@ def split_route(route: Plan) -> tuple[list[Module], Map]:
 
 def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: float,
           start: int = 0, floors: bool = False, stop: Stop | None = None,
-          trace: list[State] | None = None) -> Answer:
+          trace: list[State] | None = None, *, priority: ClimbPriority | None = None) -> Answer:
     """Answer ``value`` along ``route`` within target ``delta``, or abstain.
 
     With ``floors`` refinement abstains as soon as the consumer's floor (or,
     without a certificate, the additive floor) exceeds ``delta``; ``stop`` and
-    ``trace`` are passed to ``refine``.
+    ``trace`` are passed to ``refine``. ``priority`` optionally ranks the
+    open items; the default chooses the largest current charge.
     """
-    return _solve_targets(route, ladders, value, [delta], start, floors, stop, trace)[0]
+    return _solve_targets(route, ladders, value, [delta], start, floors, stop, trace,
+                          priority=priority)[0]
 
 
 def solve_many(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
-               targets: Sequence[float], start: int = 0) -> list[Answer]:
+               targets: Sequence[float], start: int = 0, *,
+               priority: ClimbPriority | None = None) -> list[Answer]:
     """Answer several targets from one target-independent refinement path.
 
     Consumers must be deterministic. Floors and predictive stopping are not
@@ -141,27 +144,30 @@ def solve_many(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
     """
     if not targets:
         return []
-    return _solve_targets(route, ladders, value, targets, start)
+    return _solve_targets(route, ladders, value, targets, start, priority=priority)
 
 
 def solve_stops(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: float,
                 stops: Sequence[Stop | None], start: int = 0,
-                floors: bool = False) -> list[Answer]:
+                floors: bool = False, *, priority: ClimbPriority | None = None) -> list[Answer]:
     """Evaluate pure stopping policies on one deterministic refinement path.
 
     ``None`` continues to the normal endpoint. Consumers, experts and stopping
-    policies must be deterministic and must not mutate their inputs or session
-    state in a way that changes the final evaluation of a saved reading.
+    policies and the climb priority must be deterministic and must not mutate
+    their inputs or session state in a way that changes the final evaluation
+    of a saved reading.
     """
     if not stops:
         return []
-    return _solve_targets(route, ladders, value, [delta], start, floors, stops=stops)
+    return _solve_targets(route, ladders, value, [delta], start, floors, stops=stops,
+                          priority=priority)
 
 
 def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                    targets: Sequence[float], start: int = 0, floors: bool = False,
                    stop: Stop | None = None, trace: list[State] | None = None,
-                   stops: Sequence[Stop | None] | None = None) -> list[Answer]:
+                   stops: Sequence[Stop | None] | None = None,
+                   priority: ClimbPriority | None = None) -> list[Answer]:
     if any(math.isnan(target) or target < 0 for target in targets):
         raise ValueError("targets must be nonnegative and not NaN")
     delta = min(targets)
@@ -212,7 +218,8 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
                      delta, start, [ranges(k, reads[i]) for i, k in items], certificate,
                      floor, floors, stop_shared if stops is not None else stop, trace,
-                     observe if len(targets) > 1 or stops is not None else None)
+                     observe if len(targets) > 1 or stops is not None else None,
+                     priority=priority)
 
     def answer(state: Refinement, target: float) -> Answer:
         inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]

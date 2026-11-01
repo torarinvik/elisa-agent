@@ -52,7 +52,7 @@ from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, label
 from nca.priors import (ArityPrior, PriorSelection, complete_prior, format_prior,
                         height_prior, select_prior)
 from nca.ladder import (Rung, State, Stop, certification_order, certification_possible, certify,
-                        stopping_rule)
+                        charge_per_cost, stopping_rule)
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
@@ -210,6 +210,7 @@ def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
 
 def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Namespace) -> None:
     """Coverage and compute of the predictive stopping rule as ``λ`` varies."""
+    priority = charge_per_cost if args.climb_priority == "charge-per-cost" else None
     print(f"{'depth':>5s} {'δ':>5s} {'λ':>8s} {'coverage':>9s} {'error answered [95% CI]':>27s} "
           f"{'mean bound':>11s} {'error forced':>13s} {'kFLOPs':>8s}")
     for depth in args.depths:
@@ -223,7 +224,7 @@ def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Name
             for i in range(len(fit)):
                 trace: list[State] = []
                 answer = solve(route, ladders, fit.sample(i).text, delta, floors=True,
-                               trace=trace)
+                               trace=trace, priority=priority)
                 runs.append((trace, not answer.abstained, answer.cost))
             lambdas = (0.0, *args.lambdas)
             stops = [(stopping_rule(runs, delta, lam, open_charge=args.stop_open_charge)
@@ -231,7 +232,8 @@ def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Name
             outcomes: list[list[Answer]] = [[] for _ in stops]
             for sample in samples:
                 for answers, answer in zip(outcomes, solve_stops(route, ladders, sample.text,
-                                                                 delta, stops, floors=True)):
+                                                                 delta, stops, floors=True,
+                                                                 priority=priority)):
                     answers.append(answer)
             for lam, answers in zip(lambdas, outcomes):
                 print(f"{depth:5d} {delta:5g} {lam:8.1e} " + summary(answers, samples),
@@ -391,11 +393,15 @@ def main() -> None:
                         help="trace the predictive stopping rule for --account")
     parser.add_argument("--stop-open-charge", action="store_true",
                         help="also bin predictive stopping states by their open-charge fraction")
+    parser.add_argument("--climb-priority", choices=("charge", "charge-per-cost"),
+                        default="charge", help="refinement priority for frontier experiments")
     parser.add_argument("--fit", type=int, default=200, help="formulas to fit the rule")
     parser.add_argument("--lambdas", type=float, nargs="+",
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
+    if args.climb_priority != "charge" and not args.frontier:
+        parser.error("--climb-priority charge-per-cost requires --frontier")
     if args.family_alpha is not None:
         if (not math.isfinite(args.family_alpha) or not 0 < args.family_alpha < 1
                 or args.draws <= 0 or args.shift is None or args.frontier or args.premises):

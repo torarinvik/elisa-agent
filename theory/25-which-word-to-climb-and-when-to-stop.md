@@ -51,6 +51,14 @@ reaches 0.401 at cost 1. Theorem 16.2 (§16) instead applies when the actual
 independent reductions and costs are known; ordering by current charge does
 not in general implement its threshold rule.
 
+The generic controller can instead accept a caller-supplied priority based
+on the item, current charge, and next invocation cost. One available
+heuristic ranks charge per declared cost, treating free invocations first.
+The charge is only a proxy for the unknown reduction, so this is not an
+optimality guarantee. Each selected answer must still meet the same bound;
+the conditional error-bound premise must hold for the states selected by
+the new policy, rather than being inferred from another policy's calibration.
+
 ## 25.2 Why floors pass `δ` early
 
 Fixing a word means bringing it to its top rung. The controller fixes the

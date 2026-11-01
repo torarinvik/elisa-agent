@@ -226,6 +226,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [24.5](theory/24-when-the-prior-is-wrong.md) | `adversarial_prior` | `Misspecification` |
 | [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `cost_ge_of_ratio` | `Stopping` |
 | [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `fractional_ratio_bound_strict` | `Stopping` |
+| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `selective_risk_le_selected` | `Selective` |
 | [25.2](theory/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
 | [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
 | [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
@@ -652,6 +653,11 @@ calibrated distribution for any grouped decision it names, alongside the risk
 (§21.6).
 
 ## 25. Which word to climb, and when to stop
+
+`nca.ladder.refine` accepts an optional generic climb-priority callback; its
+default ranks by charge, while `charge_per_cost` is an experimental heuristic
+using the next invocation's declared cost (§25.1). `solve`, `solve_many`, and
+`solve_stops` pass the chosen callback to the controller.
 
 `nca.ladder.stopping_rule` estimates `P(A | s)` by binning calibration states
 (§25.3). Its optional open-charge feature also bins by the fraction of the

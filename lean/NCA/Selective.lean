@@ -62,6 +62,15 @@ theorem selective_risk_le_available (p q b : X → ℝ) (available : X → Prop)
   calc p x * q x ≤ p x * δ := mul_le_mul_of_nonneg_left ((hq x h.1).trans h.2) (hp x)
     _ = δ * p x := mul_comm _ _
 
+/-- Any selection policy preserves the bound when it is valid conditional on
+the selected states. The hypothesis must be rechecked for a new policy. -/
+theorem selective_risk_le_selected (p q b : X → ℝ) (selected : X → Prop)
+    [DecidablePred selected] (δ : ℝ) (hp : ∀ x, 0 ≤ p x)
+    (hq : ∀ x, selected x → q x ≤ b x) :
+    ∑ x ∈ univ.filter (fun x => selected x ∧ b x ≤ δ), p x * q x ≤
+      δ * ∑ x ∈ univ.filter (fun x => selected x ∧ b x ≤ δ), p x := by
+  exact selective_risk_le_available p q b selected δ hp hq
+
 /-- Composing upper-bounding additions bounds the exact real sum. -/
 theorem upper_fold_ge (add : ℝ → ℝ → ℝ) (xs : List ℝ) (initial : ℝ)
     (upper : ∀ a x, a + x ≤ add a x) :

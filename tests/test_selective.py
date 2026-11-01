@@ -49,6 +49,8 @@ def test_ladder_orders_experts_by_cost_and_refines_until_target() -> None:
 
 
 def test_largest_charge_can_spend_more_than_a_feasible_alternative() -> None:
+    from nca.ladder import charge_per_cost
+
     a0 = Rung(constant("a0", (0.4, 0.6), 1.0))
     a1 = Rung(constant("a1", (0.001, 0.999), 100.0))
     b0 = Rung(constant("b0", (0.3, 0.7), 1.0))
@@ -58,6 +60,40 @@ def test_largest_charge_can_spend_more_than_a_feasible_alternative() -> None:
     alternative_bound = a0.risk(a0.observe(0)) + b1.risk(b1.observe(0))
     assert alternative_bound < 0.41
     assert a0.cost + b0.cost + b1.cost == 3.0
+    cost_aware = refine([0, 0], [[a0, a1], [b0, b1]], 0.41, priority=charge_per_cost)
+    assert not cost_aware.abstained and cost_aware.cost == 3.0
+    assert cost_aware.bound == pytest.approx(alternative_bound)
+
+
+def test_climb_priorities_are_generic_and_validate_scores() -> None:
+    from nca.ladder import charge_per_cost
+
+    assert charge_per_cost(0, 0.1, 0.0) == math.inf
+    for cost in (-1.0, math.inf, math.nan):
+        with pytest.raises(ValueError, match="cost"):
+            charge_per_cost(0, 0.1, cost)
+    bottom = Rung(constant("bottom", (0.4, 0.6), 1.0))
+    top = Rung(constant("top", (0.01, 0.99), 2.0))
+    with pytest.raises(ValueError, match="priority"):
+        refine([0], [[bottom, top]], 0.1, priority=lambda *_: math.nan)
+    indices: list[int] = []
+    def custom(index: int, charge: float, cost: float) -> float:
+        indices.append(index)
+        return float(index)
+    result = refine([0, 0], [[bottom, top]] * 2, 0.5, priority=custom)
+    assert result.cost == 4.0 and indices == [0, 1]
+
+
+def test_cost_aware_priority_can_also_spend_more() -> None:
+    from nca.ladder import charge_per_cost
+
+    a0 = Rung(constant("a0", (0.4, 0.6), 1.0))
+    a1 = Rung(constant("a1", (0.001, 0.999), 2.0))
+    b0 = Rung(constant("b0", (0.3, 0.7), 1.0))
+    b1 = Rung(constant("b1", (0.29, 0.71), 1.0))
+    ladders = [[a0, a1], [b0, b1]]
+    assert refine([0, 0], ladders, 0.41).cost == 4.0
+    assert refine([0, 0], ladders, 0.41, priority=charge_per_cost).cost == 5.0
 
 
 def test_second_look_averages_views_and_costs_more() -> None:
@@ -744,6 +780,7 @@ def test_shared_refinement_trace_matches_independent_thresholds() -> None:
 
 
 def test_solve_many_matches_independent_answers_and_costs() -> None:
+    from nca.ladder import charge_per_cost
     from nca.selective import solve_many
 
     cheap = constant("cheap", (0.4, 0.6), 1.0, Contract(("ch",), "dist"))
@@ -754,6 +791,8 @@ def test_solve_many_matches_independent_answers_and_costs() -> None:
     targets = [0.9, 0.01, 0.0001, 0.2, 0.9]
     shared = solve_many(route, ladders, "abcd", targets)
     assert shared == [solve(route, ladders, "abcd", delta) for delta in targets]
+    assert solve_many(route, ladders, "abcd", targets, priority=charge_per_cost) == [
+        solve(route, ladders, "abcd", delta, priority=charge_per_cost) for delta in targets]
     assert shared[0].cost < shared[1].cost
     assert shared[2].abstained
     assert solve_many(route, ladders, "abcd", []) == []
@@ -765,6 +804,7 @@ def test_solve_many_matches_independent_answers_and_costs() -> None:
 
 @pytest.mark.parametrize("floors", [False, True])
 def test_solve_stops_matches_independent_policies(floors: bool) -> None:
+    from nca.ladder import charge_per_cost
     from nca.selective import solve_stops
 
     cheap = constant("cheap", (0.4, 0.6), 1.0, Contract(("ch",), "dist"))
@@ -778,6 +818,10 @@ def test_solve_stops_matches_independent_policies(floors: bool) -> None:
         shared = solve_stops(route, ladders, text, 0.01, policies, floors=floors)
         assert shared == [solve(route, ladders, text, 0.01, floors=floors, stop=policy)
                           for policy in policies]
+        assert solve_stops(route, ladders, text, 0.01, policies, floors=floors,
+                           priority=charge_per_cost) == [
+            solve(route, ladders, text, 0.01, floors=floors, stop=policy,
+                  priority=charge_per_cost) for policy in policies]
         stopped = policies[1:3]
         assert solve_stops(route, ladders, text, 0.01, stopped, floors=floors) == [
             solve(route, ladders, text, 0.01, floors=floors, stop=policy) for policy in stopped]
