@@ -1664,6 +1664,43 @@ calibration and prior mismatch: tighter numerical decoding alone cannot
 establish a deployment risk guarantee. These finite samples do not isolate
 which modeling assumption failed or prove repeated-audit validity.
 
+**Diagnosing shifted reader calibration.** Premise diagnostics used 300
+seed-6 test formulas at each of depths 4 and 6 and noises 0.1 and 0.2,
+with the same 100-formula depth-4 noise-0.1 validation calibration as the
+audit above. At depth 6 and noise 0.2:
+
+| reader | observed arity errors | predicted Σρ | wrong decoded sequences | predicted ΣR |
+|---|---:|---:|---:|---:|
+| edit | 333 | 502.6 | 92 | 83.4 |
+| learned character | 316 | 123.5 | 93 | 54.6 |
+
+For the learned reader, 81 formulas had at least two raw arity errors,
+against predicted summed pair bounds 26.1. Its arity miscalibration must be
+addressed before attributing the deployment failure solely to the prior.
+The `--premises` command previously checked only the cheapest rung; it now
+labels and reports every reader rung. A real-reader CLI check verifies both
+rungs are reported.
+
+Recalibrating on 100 independent depth-4 validation formulas at noise 0.2
+changed the learned temperature from about 0.61 to 1.05563. On the same
+300 depth-6 noise-0.2 test formulas it predicted 337.8 arity errors against
+316 observed, and 115.5 decoded errors against 91 observed. Calibration
+instead on 100 depth-6 noise-0.2 validation formulas gave temperature
+0.94522, predicted 289.7 arity errors against 316, and 103.7 decoded errors
+against 90. The aggregate decoded-error counts are conservative in these
+samples; neither aggregate agreement nor these exploratory diagnostics
+establishes calibration after selective refinement or repeated-audit validity.
+No learned weights were changed.
+
+A separate deployment audit using the depth-4 noise-0.2 recalibration,
+with the earlier seed-6 depth-6 evaluation and 240 fit/check formulas at
+noise 0.2, certified neither 5% nor 1%. The uncontrolled 5% policy answered
+10/100 with no errors (Wilson interval [0,27.75%]); the 1% policy answered
+none. Compared with the previous calibration's 76 answers and six errors
+at 5%, this is a substantial coverage cost, not an established certified
+improvement. Both readers were recalibrated for this deployment run, so it
+is not an isolated intervention on the learned reader alone.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

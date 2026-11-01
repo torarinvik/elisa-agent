@@ -603,6 +603,10 @@ The evaluator can opt into this wrapper for raw answer selection. Storage remain
 arrays with restricted active bands, and floating-point enclosure is not
 certified by this wrapper.
 
+`logic --premises` reports the §21.8 diagnostic for every reader rung,
+including the learned reader whose calibration can fail under noise shift.
+It tests fixed-rung readings, not the adaptively selected deployment policy.
+
 `logic --band-slack η` enables certified banding for both the evaluator's raw
 answer cursor and calibrated risk cursor. The latter scores the actual selected
 arity sequence with `sequence_risk`, regardless of the calibrated maximum.

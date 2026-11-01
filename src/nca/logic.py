@@ -319,7 +319,7 @@ def main() -> None:
     parser.add_argument("--fit", type=int, default=200, help="formulas to fit the rule")
     parser.add_argument("--lambdas", type=float, nargs="+",
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
-    parser.add_argument("--premises", action="store_true", help="test the premises of §21.8")
+    parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
 
     routes = {}
@@ -336,7 +336,9 @@ def main() -> None:
         f"{r.module.manifest.module_id} (cost {r.cost:g}, T={r.temperature():.2f})"
         for r in ladders[WORD_DISTRIBUTION]))
     if args.premises:
-        premises(ladders[WORD_DISTRIBUTION][0], args)
+        for rung in ladders[WORD_DISTRIBUTION]:
+            print(f"reader {rung.module.manifest.module_id}", flush=True)
+            premises(rung, args)
         return
 
     print(f"{'depth':>5s} {'leaves':>7s} {'certificate leaves: mean':>25s} {'max':>5s} "
