@@ -289,3 +289,31 @@ def test_native_prior_best_does_not_compute_unused_posteriors(
     prior = formulas.complete_prior(3)
     assert prior is not None
     assert prior.best(np.zeros((3, 3))) == (2, 0, 0)
+
+
+def test_prior_normalizer_reuses_shrinking_and_gapped_state_ranges() -> None:
+    # Successive supports alternate between a wide range with holes and one cell.
+    # The two reusable rows must clear their old, sometimes wider envelopes.
+    transitions = np.full((257, 3), -1, dtype=np.int64)
+    transitions[128] = [1, 255, 128]
+    transitions[1] = [127, 127, 127]
+    transitions[255] = [127, 127, 127]
+    transitions[127] = [2, 254, 127]
+    transitions[2] = [128, 128, 128]
+    transitions[254] = [128, 128, 128]
+    weights = np.zeros((257, 3))
+    weights[128, 2] = weights[127, 2] = -np.inf
+    final = np.full(257, -np.inf)
+    final[[1, 2, 127, 128, 254, 255]] = [0, -2, -1, 0, -3, 1]
+    prior = priors.ArityPrior((2, 0, 1), transitions, weights, final, start=128)
+    rng = np.random.default_rng(73)
+    rows = np.log(rng.dirichlet(np.ones(3), size=17))
+    for size in range(1, len(rows) + 1):
+        full = prior.decode(rows[:size])
+        assert full is not None
+        assert prior.log_normalizer(rows[:size]) == full.log_z
+    # Once all prefixes die, stale values from either row must never reappear.
+    rows[8] = -np.inf
+    for size in range(9, len(rows) + 1):
+        assert prior.decode(rows[:size]) is None
+        assert prior.log_normalizer(rows[:size]) == -np.inf

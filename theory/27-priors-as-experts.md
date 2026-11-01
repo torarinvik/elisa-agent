@@ -59,6 +59,18 @@ state, so its forward transitions may also be omitted. Backward values need
 only be computed on the forward support when used for these split sums;
 values outside that support are not unrestricted continuation probabilities.
 
+For a forward step `F′(t) = Σ_s F(s) W(s,t)`, suppose `F` vanishes
+outside `A`, and `W(s,t) = 0` whenever `s ∈ A` and `t ∉ A′`.
+Then `F′` vanishes outside `A′`: each summand has a zero factor. Thus an
+enclosing interval of reachable states suffices; it need not equal the
+exact support. With two reusable rows, clear only the previous interval
+of the destination row before accumulating its new values. All other cells
+remain zero. Scan source states and symbols in their original order to
+preserve the accumulation order. Including initialization and the final sum,
+this requires O(S + H_m + Σ_{k<m} (C_k + w H_k)) work, where C_k is the
+cleared interval width, H_k is the source interval width, and w is the
+alphabet size, with O(S) storage.
+
 ## 27.3 The contract
 
 A prior expert has the contract

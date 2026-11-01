@@ -205,7 +205,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.3](theory/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
 | [27.4](theory/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
 | [27.5](theory/27-priors-as-experts.md) | `complete_shape_length` | `Decoding` |
-| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum` | `Product` |
+| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum`, `prior_step_zero_outside` | `Product` |
 | [27.7](theory/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
 | [27.8](theory/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
 | [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret` | `Product` |
@@ -734,7 +734,13 @@ API checks normalized probability rows and posterior/base support, rejects
 zero base mass, and returns negative infinity for zero posterior mass. It
 does not establish that calibrated reader scores satisfy a shared likelihood
 model. Prior selection is explicit rather than automatically installed. `log_normalizer` uses Elisa
-`prior_normalizer` for the sum-product pass with two reusable state rows;
+`prior_normalizer` for the sum-product pass with two reusable state rows.
+Each row records an enclosing interval of reachable states. Reuse clears only
+its previous interval, and transitions scan the current interval in ascending
+state order. Cells outside the interval stay unreachable, by the support-step
+invariant of §27.6 (`prior_step_zero_outside`). Symbol order and the order of
+nonzero log additions are preserved. The initial rows still require O(S) space
+and initialization; sparse intervals reduce subsequent scans, not automaton size.
 `log_evidence` calls it for both arguments. The transition recurrence matches
 `pdpSum_eq`; it retains the full decoder as a reference fallback when the
 normalizer export is absent. Empty reading arrays follow the decoder

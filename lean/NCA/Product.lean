@@ -135,6 +135,19 @@ theorem prior_support_sum {S : Type} [Fintype S] (forward backward : S → ℝ) 
   intro s _
   by_cases h : forward s = 0 <;> simp [h]
 
+/-- Forward support remains inside any envelope containing all live successors. -/
+theorem prior_step_zero_outside {S : Type} [Fintype S]
+    (forward : S → ℝ) (weight : S → S → ℝ) (active next : Finset S)
+    (hforward : ∀ s, s ∉ active → forward s = 0)
+    (hedge : ∀ s ∈ active, ∀ t, t ∉ next → weight s t = 0)
+    (t : S) (ht : t ∉ next) : ∑ s, forward s * weight s t = 0 := by
+  classical
+  apply Finset.sum_eq_zero
+  intro s _
+  by_cases hs : s ∈ active
+  · rw [hedge s hs t ht, mul_zero]
+  · rw [hforward s hs, zero_mul]
+
 /-- Normalized tilted-prior evidence from a shared base posterior. -/
 theorem prior_evidence_identity {S : Type} [Fintype S]
     (v base likelihood posterior : S → ℝ) (Z c : ℝ)

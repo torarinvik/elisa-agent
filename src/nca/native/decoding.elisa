@@ -108,22 +108,30 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
     return log(0.0) if m == 0
-    rows: darray[f64] =
-        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)]| -> rows:
+    rows, bounds =
+        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], bounds: darray[i64] = [start, start, 0, -1]| -> (rows, bounds):
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            for state in 0..<states |rows|:
+            here_bound: i64 = (k % 2) * 2
+            next_bound: i64 = ((k + 1) % 2) * 2
+            # Every cell outside the old destination envelope is already unreachable.
+            for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:
                 rows[next + state] <- log(0.0)
-            for state in 0..<states |rows|:
+            bounds[next_bound] <- states
+            bounds[next_bound + 1] <- -1
+            for state in bounds[here_bound]..<(bounds[here_bound + 1] + 1) |rows, bounds|:
                 continue if rows[here + state] == log(0.0)
-                for j in 0..<width |rows|:
+                for j in 0..<width |rows, bounds|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
                     through: f64 = rows[here + state] + (log_probs[k * width + j] + prior[edge])
+                    continue if through == log(0.0)
                     rows[next + target] <- log_add(rows[next + target], through)
+                    bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
+                    bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
     return
-        for state in 0..<states |total: f64 = log(0.0)| -> total:
+        for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |total: f64 = log(0.0)| -> total:
             total <- log_add(total, rows[(m % 2) * states + state] + final[state])
 
 # Max-product and traceback only. Traversal and strict ties match decode_prior.
