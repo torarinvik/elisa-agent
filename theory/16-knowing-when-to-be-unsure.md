@@ -44,8 +44,8 @@ binary64 value so temperature fitting has finite log inputs; positive inputs
 are not raised to an arbitrary larger floor, assuming gradual underflow. This
 is numerical smoothing, not evidence that a zero-probability prediction has a
 well-calibrated error rate. Negative outputs and all-zero vectors are invalid
-probability inputs and are rejected, as are text, complex-valued, non-finite,
-empty, and non-vector outputs. An exact sum of one is not required: finite nonnegative weights with
+probability inputs and are rejected, as are text, complex-valued, masked,
+non-finite, empty, and non-vector outputs. An exact sum of one is not required: finite nonnegative weights with
 positive total mass are normalized by the subsequent softmax. This validation
 checks the representation, not whether the expert is statistically calibrated.
 Distinct binary64 weights can round to the same binary64 logarithm, so the

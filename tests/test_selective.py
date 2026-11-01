@@ -1800,3 +1800,19 @@ def test_observation_accepts_numeric_object_weights() -> None:
     values = np.array([Decimal("0.6"), Fraction(2, 5)], dtype=object)
     observation = Rung(constant("numeric-object-weights", values, 1.0)).observe_ranked(None)
     assert observation.weights == pytest.approx((0.6, 0.4))
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_observation_rejects_masked_weights(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
+        pytest.skip("native observation kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    masked = np.ma.array([0.99, 0.01], mask=[True, False])
+    rung = Rung(constant("masked-weights", masked, 1.0))
+    with pytest.raises(ValueError, match="masked weights"):
+        rung.observe_ranked(None)
+    unmasked = np.ma.array([0.99, 0.01], mask=[False, False])
+    assert Rung(constant("unmasked-weights", unmasked, 1.0)).observe_ranked(None).top() == 0

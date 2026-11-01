@@ -257,6 +257,8 @@ class Rung:
 
     def _observe(self, value: Any, *, ranked: bool) -> torch.Tensor | RankedObservation:
         output = self.module.invoke(value)
+        if isinstance(output, np.ma.MaskedArray) and np.ma.is_masked(output):
+            raise ValueError("expert output must not contain masked weights")
         if isinstance(output, torch.Tensor) and output.is_complex():
             raise ValueError("expert output must contain real-valued weights")
         native = getattr(_NATIVE, "observation_logs", None)
