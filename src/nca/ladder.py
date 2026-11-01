@@ -266,7 +266,11 @@ class Rung:
                 pass  # Some valid tensor-containing sequences require PyTorch conversion.
         probabilities = None
         if array is None:
-            probabilities = torch.tensor(output, dtype=torch.float64)
+            if isinstance(output, torch.Tensor) and output.device.type == "mps":
+                # MPS does not support binary64; retain its represented values on CPU.
+                probabilities = output.detach().cpu().to(dtype=torch.float64)
+            else:
+                probabilities = torch.tensor(output, dtype=torch.float64)
             if probabilities.ndim != 1:
                 raise ValueError("expert output must be a one-dimensional weight vector")
             if probabilities.device.type == "cpu":
@@ -330,12 +334,13 @@ class Rung:
             log, labels = self.held_out
             union, positions = _layout(key)
             entry = {union[i]: k for k, part in enumerate(positions) for i in part}
-            inside = torch.isin(labels, torch.tensor(union))
+            inside = torch.isin(labels, torch.tensor(union, device=labels.device))
             if not bool(inside.any()):
                 if len(positions) == 1:
                     return 1.0  # A single entry has no decision ambiguity.
                 raise ValueError("cannot fit decision temperature without matching held-out labels")
-            targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long)
+            targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long,
+                                   device=labels.device)
             self.temperatures[key] = self._fit(log[inside][:, union], targets, positions)
         return self.temperatures[key]
 

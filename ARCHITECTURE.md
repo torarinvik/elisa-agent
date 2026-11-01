@@ -846,9 +846,10 @@ if it remains unrepresentable. This is not an outward-rounding guarantee.
 `Rung.observe` converts probabilities to binary64 and floors zero at the
 smallest positive representable value before taking logs. For array and list
 outputs, an Elisa kernel validates weights and computes the logarithms;
-CPU fallback uses scalar `math.log` on the same binary64 values. Non-CPU
-tensor outputs use the PyTorch fallback, whose logarithms can round
-differently. Representing logarithms in binary64 can collapse distinct
+CPU fallback uses scalar `math.log` on the same binary64 values. MPS tensor
+outputs are copied to CPU before binary64 conversion because MPS lacks that
+dtype. Other non-CPU tensor outputs use the PyTorch fallback, whose logarithms
+can round differently. Representing logarithms in binary64 can collapse distinct
 weights into a tie, so it does not always preserve the original weight order.
 `Rung.observe_ranked` retains a separate immutable weight snapshot for exact
 binary64 class ordering. `Rung.risk` can use that ordering to select its group;

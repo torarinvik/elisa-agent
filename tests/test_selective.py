@@ -1741,3 +1741,26 @@ def test_calibration_snapshots_value_sequence_before_invoking_expert() -> None:
     assert values == [0, 0]
     assert rung.held_out is not None
     assert rung.held_out[0].exp().tolist()[1] == pytest.approx([0.1, 0.9])
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_expert_can_fit_restricted_temperature(device) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+
+    class AcceleratorExpert:
+        manifest = Manifest("accelerator-calibration", "1", Contract(("x",), "dist"))
+
+        def invoke(self, value):
+            return torch.tensor([0.6, 0.3, 0.1], device=device)
+
+    rung = Rung(AcceleratorExpert())
+    rung.calibrate([0, 1, 2, 3], torch.tensor([0, 1, 0, 1]))
+    assert rung.held_out is not None
+    if device == "mps":
+        assert rung.held_out[0].device.type == "cpu"
+    observed = rung.observe_ranked(None)
+    assert observed.top() == 0
+    assert rung.temperature((0, 1)) > 0
+    assert rung.risk(observed, (0, 1)) == pytest.approx(0.5, abs=0.03)
