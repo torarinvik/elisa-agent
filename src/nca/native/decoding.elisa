@@ -759,10 +759,10 @@ def banded_format(log_probs: view[f64], alphabet: view[i64], low: view[i64], hig
     return result
 
 # Recompute forward and backward rows in log space.
-def advance_packed_log(forward: mutable view[f64], forward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
+def advance_ragged_log(forward: mutable view[f64], forward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], start: i64, stop: i64) -> i64 can[Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     for i in start..<stop:
-        target: i64 = (i + 1) * width
+        target: i64 = offsets[i + 1]
         for n in low[i + 1]..<(high[i + 1] + 1):
             forward[target + n - low[i + 1]] <- log(0.0)
             forward_max[target + n - low[i + 1]] <- log(0.0)
@@ -771,7 +771,7 @@ def advance_packed_log(forward: mutable view[f64], forward_max: mutable view[f64
             continue if step == log(0.0)
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
             for t in 0..<run.count:
-                source: i64 = i * width + run.first + t - low[i]
+                source: i64 = offsets[i] + run.first + t - low[i]
                 cell: i64 = target + run.first - 1 + alphabet[j] + t - low[i + 1]
                 if forward[source] != log(0.0):
                     incoming: f64 = forward[source] + step
@@ -782,20 +782,20 @@ def advance_packed_log(forward: mutable view[f64], forward_max: mutable view[f64
                 forward_max[cell] <- candidate if candidate > forward_max[cell] else forward_max[cell]
     return stop - start
 
-def retreat_packed_log(backward: mutable view[f64], backward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
+def retreat_ragged_log(backward: mutable view[f64], backward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], start: i64, stop: i64) -> i64 can[Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     for back in 0..<(start - stop):
         i: i64 = start - 1 - back
         for n in low[i]..<(high[i] + 1):
-            backward[i * width + n - low[i]] <- log(0.0)
-            backward_max[i * width + n - low[i]] <- log(0.0)
+            backward[offsets[i] + n - low[i]] <- log(0.0)
+            backward_max[offsets[i] + n - low[i]] <- log(0.0)
         for j in 0..<arities:
             step: f64 = log_probs[i * arities + j]
             continue if step == log(0.0)
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
             for t in 0..<run.count:
-                cell: i64 = i * width + run.first + t - low[i]
-                source: i64 = (i + 1) * width + run.first - 1 + alphabet[j] + t - low[i + 1]
+                cell: i64 = offsets[i] + run.first + t - low[i]
+                source: i64 = offsets[i + 1] + run.first - 1 + alphabet[j] + t - low[i + 1]
                 if backward[source] != log(0.0):
                     incoming: f64 = backward[source] + step
                     return -1 if incoming == log(0.0) or incoming == -log(0.0) or incoming != incoming
@@ -806,14 +806,14 @@ def retreat_packed_log(backward: mutable view[f64], backward_max: mutable view[f
     return start - stop
 
 # [log Z, best log weight] with word k replaced by log_row.
-def scores_packed_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     total, log_x =
         for j in 0..<alphabet.len.i64() |total: f64 = log(0.0), log_x: f64 = log(0.0)| -> (total, log_x):
             continue if log_row[j] == log(0.0)
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
             for t in 0..<run.count |total, log_x|:
-                here: i64 = k * width + run.first + t - low[k]
-                next: i64 = (k + 1) * width + run.first - 1 + alphabet[j] + t - low[k + 1]
+                here: i64 = offsets[k] + run.first + t - low[k]
+                next: i64 = offsets[k + 1] + run.first - 1 + alphabet[j] + t - low[k + 1]
                 if forward[here] != log(0.0) and backward[next] != log(0.0):
                     partial: f64 = forward[here] + log_row[j]
                     return [log(-1.0), log(-1.0)] if partial == log(0.0) or partial == -log(0.0) or partial != partial
@@ -832,7 +832,7 @@ def scores_packed_log(forward: view[f64], forward_max: view[f64], backward: view
 # current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
 # prefix traced back through the forward max rows and the best suffix forward through the
 # backward max rows.
-def trace_packed(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     m: i64 = low.len.i64() - 1
     log_x, state, choice =
@@ -840,8 +840,8 @@ def trace_packed(forward_max: view[f64], backward_max: view[f64], log_probs: vie
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
             for t in 0..<run.count |log_x, state, choice|:
                 n: i64 = run.first + t
-                prefix: f64 = forward_max[k * width + n - low[k]]
-                suffix: f64 = backward_max[(k + 1) * width + n - 1 + alphabet[j] - low[k + 1]]
+                prefix: f64 = forward_max[offsets[k] + n - low[k]]
+                suffix: f64 = backward_max[offsets[k + 1] + n - 1 + alphabet[j] - low[k + 1]]
                 reading: f64 = log_probs[k * arities + j]
                 continue if prefix == log(0.0) or suffix == log(0.0) or reading == log(0.0)
                 partial: f64 = prefix + reading
@@ -862,7 +862,7 @@ def trace_packed(forward_max: view[f64], backward_max: view[f64], log_probs: vie
             for j in 0..<arities |best: f64 = log(0.0), source: i64 = 1, arity: i64 = 0| -> (best, source, arity):
                 n: i64 = before + 1 - alphabet[j]
                 continue if n < 1 or n < low[i] or n > high[i]
-                candidate: f64 = forward_max[i * width + n - low[i]] + log_probs[i * arities + j]
+                candidate: f64 = forward_max[offsets[i] + n - low[i]] + log_probs[i * arities + j]
                 if candidate > best:
                     best <- candidate
                     source <- n
@@ -875,7 +875,7 @@ def trace_packed(forward_max: view[f64], backward_max: view[f64], log_probs: vie
                 continue if after < 1 or alphabet[j] > high[i + 1]
                 n: i64 = after - 1 + alphabet[j]
                 continue if n < low[i + 1] or n > high[i + 1]
-                candidate: f64 = log_probs[i * arities + j] + backward_max[(i + 1) * width + n - low[i + 1]]
+                candidate: f64 = log_probs[i * arities + j] + backward_max[offsets[i + 1] + n - low[i + 1]]
                 if candidate > best:
                     best <- candidate
                     target <- n
@@ -1192,10 +1192,10 @@ export pymodule decoding:
     fn prior_log_weight
     fn prior_normalizer
     fn prior_best
-    fn advance_packed_log
-    fn retreat_packed_log
-    fn scores_packed_log
-    fn trace_packed
+    fn advance_ragged_log
+    fn retreat_ragged_log
+    fn scores_ragged_log
+    fn trace_ragged
     fn certificate
     fn parse_tree
     fn parse_tree_generic

@@ -456,6 +456,13 @@ theorem packed_band_storage_covers (state low high width : ℤ)
     0 ≤ state - low ∧ state - low < width := by
   omega
 
+/-- Prefix offsets place every admitted state inside its own row interval. -/
+theorem ragged_band_storage_covers (state low high start next : ℤ)
+    (lower : low ≤ state) (upper : state ≤ high)
+    (next_row : next = start + (high - low + 1)) :
+    start ≤ start + (state - low) ∧ start + (state - low) < next := by
+  omega
+
 variable {σ : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F]
 
 /-- Accepted sequences outside the band weigh at most the tail: the

@@ -219,7 +219,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length`, `tail_row_scale`, `rowFactor_normalizes`, `tail_le_row_factors`, `row_summary_append` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `bandPolynomial_recurrence`, `bandPolynomial_threshold_suffix`, `threshold_search_step`, `threshold_search_shrinks`, `searchGap_i64`, `threshold_search_adjacent` | `BandSearch` |
-| [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval`, `packed_band_storage_covers` | `Banding` |
+| [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval`, `ragged_band_storage_covers` | `Banding` |
 | [23.5](theory/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |
 | [23.6](theory/23-efficient-decoding.md) | `banded_risk_slack` | `Banding` |
 | [23.7](theory/23-efficient-decoding.md) | `dpSum_append` | `Banding` |
@@ -279,9 +279,9 @@ extensions with `python -m nca.native` (needs `elisac-stage1`). Each has a
 NumPy reference that gives the same results within rounding and is used when
 the kernel is not built or `NCA_NATIVE=0`. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
-It also exports `advance_packed_log`, `retreat_packed_log`, `scores_packed_log`
-and `trace_packed`, the banded cursor of §23.4
-(`trace_packed` reads the decoded sequence off the max tables, `Split.best`, and
+It also exports `advance_ragged_log`, `retreat_ragged_log`, `scores_ragged_log`
+and `trace_ragged`, the banded cursor of §23.4
+(`trace_ragged` reads the decoded sequence off the max tables, `Split.best`, and
 returns no sequence when the maximum is unreachable):
 `formulas.Split` keeps the forward and backward tables in NumPy arrays and the
 kernel recomputes rows in place through `mutable view[f64]` parameters, which

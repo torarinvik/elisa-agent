@@ -189,11 +189,12 @@ number of states at `k`. What must be maintained are the vectors themselves:
 - `F_i` depends only on words before `i`;
 - `B_i` depends only on words from `i` on.
 
-If `W` is the largest number of admitted states in any row, the cursor stores
-each vector in `max(1, W)` columns. A state's column is its value minus that
-row's lower state bound. The four tables therefore use `O(m W)` space,
-including when the band is far from zero. Every row has the same allocated
-width, so shorter intervals may leave unused columns.
+The cursor stores each row's admitted states contiguously, with a prefix sum of
+row lengths giving its starting offset. State `s` in row `k` is stored at
+`offset[k] + s - low[k]`. The four tables use space proportional to the sum of
+the row widths, plus `O(m)` offsets; empty rows use no table cells. This is at
+most `O(m W)` for largest row width `W`, including when the band is far from
+zero.
 
 After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
 stays valid. The next climb at `k` needs `F_k`, which costs recomputing the

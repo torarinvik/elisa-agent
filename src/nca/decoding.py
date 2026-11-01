@@ -396,25 +396,35 @@ class Split:
         self.high = np.minimum(self.high, reachable)
         self.low = np.ascontiguousarray(self.low, dtype=np.int64)
         self.high = np.ascontiguousarray(self.high, dtype=np.int64)
-        # Columns index states relative to each row's lower bound.
-        width = max(1, int((self.high - self.low + 1).max()))
-        self.width = width
+        # Each row stores only its admitted states, relative to its lower bound.
+        lengths = np.maximum(0, self.high - self.low + 1)
+        self.width = max(1, int(lengths.max()))
+        self.offsets = np.empty(m + 2, dtype=np.int64)
+        self.offsets[0] = 0
+        np.cumsum(lengths, out=self.offsets[1:])
+        if np.any(self.offsets[1:] < self.offsets[:-1]):
+            raise OverflowError("cursor storage exceeds the 64-bit offset range")
+        size = int(self.offsets[-1])
         self._native = (_NATIVE if all(getattr(_NATIVE, name, None) is not None
-                                     for name in ("advance_packed_log", "retreat_packed_log",
-                                                  "scores_packed_log", "trace_packed"))
+                                     for name in ("advance_ragged_log", "retreat_ragged_log",
+                                                  "scores_ragged_log", "trace_ragged"))
                         else None)
-        self.forward = np.full((m + 1, width), -np.inf)
-        self.backward = np.full((m + 1, width), -np.inf)
-        self.forward_max = np.full((m + 1, width), -np.inf)
-        self.backward_max = np.full((m + 1, width), -np.inf)
+        self.forward = np.full(size, -np.inf)
+        self.backward = np.full(size, -np.inf)
+        self.forward_max = np.full(size, -np.inf)
+        self.backward_max = np.full(size, -np.inf)
         if self.low[0] <= 1 <= self.high[0]:
-            self.forward[0, 1 - self.low[0]], self.forward_max[0, 1 - self.low[0]] = 0.0, 0.0
+            self.forward[1 - self.low[0]], self.forward_max[1 - self.low[0]] = 0.0, 0.0
         if self.low[m] <= 0 <= self.high[m]:
-            self.backward[m, -self.low[m]], self.backward_max[m, -self.low[m]] = 0.0, 0.0
+            self.backward[self.offsets[m] - self.low[m]] = 0.0
+            self.backward_max[self.offsets[m] - self.low[m]] = 0.0
         self.ahead, self.behind, self.swept = 0, m, 0
         self._advance(m)
         self._retreat(0)
         self.swept = 0
+
+    def _row(self, values: np.ndarray, i: int) -> np.ndarray:
+        return values[self.offsets[i]:self.offsets[i + 1]]
 
     def _moves(self, i: int) -> list[tuple[int, int, int, int]]:
         """For each arity ``a`` (index ``j``), the run of in-band states
@@ -432,52 +442,54 @@ class Split:
     def _advance(self, k: int) -> None:
         """Make forward vectors current through position ``k``."""
         if self._native is not None and self.ahead < k:
-            swept = self._native.advance_packed_log(self.forward.reshape(-1),
+            swept = self._native.advance_ragged_log(self.forward,
                                               self.forward_max.reshape(-1),
                                               self.log_probs.reshape(-1), self.arities, self.low,
-                                              self.high, self.width, self.ahead, k)
+                                              self.high, self.offsets, self.ahead, k)
             if swept < 0:
                 raise ValueError("format decoding arithmetic is not finite")
             self.swept += swept
             self.ahead = k
         while self.ahead < k:
             i = self.ahead
-            band = slice(0, max(0, int(self.high[i + 1] - self.low[i + 1] + 1)))
-            self.forward[i + 1, band] = self.forward_max[i + 1, band] = -np.inf
+            source, target = self._row(self.forward, i), self._row(self.forward, i + 1)
+            source_max, target_max = self._row(self.forward_max, i), self._row(self.forward_max, i + 1)
+            target[:] = target_max[:] = -np.inf
             for j, s0, n, t0 in self._moves(i):
                 step = self.log_probs[i, j]
                 s0 -= int(self.low[i])
                 t0 -= int(self.low[i + 1])
-                self.forward[i + 1, t0:t0 + n] = np.logaddexp(
-                    self.forward[i + 1, t0:t0 + n], _checked_log_sum(self.forward[i, s0:s0 + n], step))
-                self.forward_max[i + 1, t0:t0 + n] = np.maximum(
-                    self.forward_max[i + 1, t0:t0 + n], _checked_log_sum(self.forward_max[i, s0:s0 + n], step))
+                target[t0:t0 + n] = np.logaddexp(
+                    target[t0:t0 + n], _checked_log_sum(source[s0:s0 + n], step))
+                target_max[t0:t0 + n] = np.maximum(
+                    target_max[t0:t0 + n], _checked_log_sum(source_max[s0:s0 + n], step))
             self.ahead += 1
             self.swept += 1
 
     def _retreat(self, k: int) -> None:
         """Make backward vectors current from position ``k``."""
         if self._native is not None and self.behind > k:
-            swept = self._native.retreat_packed_log(self.backward.reshape(-1),
+            swept = self._native.retreat_ragged_log(self.backward,
                                               self.backward_max.reshape(-1),
                                               self.log_probs.reshape(-1), self.arities, self.low,
-                                              self.high, self.width, self.behind, k)
+                                              self.high, self.offsets, self.behind, k)
             if swept < 0:
                 raise ValueError("format decoding arithmetic is not finite")
             self.swept += swept
             self.behind = k
         while self.behind > k:
             i = self.behind - 1
-            band = slice(0, max(0, int(self.high[i] - self.low[i] + 1)))
-            self.backward[i, band] = self.backward_max[i, band] = -np.inf
+            target, source = self._row(self.backward, i), self._row(self.backward, i + 1)
+            target_max, source_max = self._row(self.backward_max, i), self._row(self.backward_max, i + 1)
+            target[:] = target_max[:] = -np.inf
             for j, s0, n, t0 in self._moves(i):
                 step = self.log_probs[i, j]
                 s0 -= int(self.low[i])
                 t0 -= int(self.low[i + 1])
-                self.backward[i, s0:s0 + n] = np.logaddexp(
-                    self.backward[i, s0:s0 + n], _checked_log_sum(self.backward[i + 1, t0:t0 + n], step))
-                self.backward_max[i, s0:s0 + n] = np.maximum(
-                    self.backward_max[i, s0:s0 + n], _checked_log_sum(self.backward_max[i + 1, t0:t0 + n], step))
+                target[s0:s0 + n] = np.logaddexp(
+                    target[s0:s0 + n], _checked_log_sum(source[t0:t0 + n], step))
+                target_max[s0:s0 + n] = np.maximum(
+                    target_max[s0:s0 + n], _checked_log_sum(source_max[t0:t0 + n], step))
             self.behind -= 1
             self.swept += 1
 
@@ -494,10 +506,10 @@ class Split:
         self._retreat(k + 1)
         if self._native is not None:
             log_row = np.ascontiguousarray(row, dtype=np.float64)
-            log_z, log_x = self._native.scores_packed_log(self.forward.reshape(-1),
+            log_z, log_x = self._native.scores_ragged_log(self.forward,
                                                    self.forward_max.reshape(-1), self.backward.reshape(-1),
                                                    self.backward_max.reshape(-1), self.arities, self.low,
-                                                   self.high, self.width, k, log_row)
+                                                   self.high, self.offsets, k, log_row)
             if math.isnan(log_z) or math.isnan(log_x):
                 raise ValueError("format decoding arithmetic is not finite")
             return float(log_z), float(log_x)
@@ -507,12 +519,13 @@ class Split:
                 continue
             s0 -= int(self.low[k])
             t0 -= int(self.low[k + 1])
-            suffix = self.backward[k + 1, t0:t0 + n]
-            prefix = np.where(np.isneginf(suffix), -np.inf, self.forward[k, s0:s0 + n])
+            suffix = self._row(self.backward, k + 1)[t0:t0 + n]
+            prefix = np.where(np.isneginf(suffix), -np.inf, self._row(self.forward, k)[s0:s0 + n])
             sums = _checked_log_sum(_checked_log_sum(prefix, row[j]), suffix)
             log_z = np.logaddexp(log_z, np.logaddexp.reduce(sums))
-            suffix_max = self.backward_max[k + 1, t0:t0 + n]
-            prefix_max = np.where(np.isneginf(suffix_max), -np.inf, self.forward_max[k, s0:s0 + n])
+            suffix_max = self._row(self.backward_max, k + 1)[t0:t0 + n]
+            prefix_max = np.where(np.isneginf(suffix_max), -np.inf,
+                                  self._row(self.forward_max, k)[s0:s0 + n])
             best = _checked_log_sum(_checked_log_sum(prefix_max, row[j]), suffix_max)
             log_x = max(log_x, float(best.max()))
         return float(log_z), log_x
@@ -526,9 +539,9 @@ class Split:
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
-            out = np.asarray(self._native.trace_packed(self.forward_max.reshape(-1), self.backward_max.reshape(-1),
+            out = np.asarray(self._native.trace_ragged(self.forward_max, self.backward_max,
                                            self.log_probs.reshape(-1), self.arities, self.low,
-                                           self.high, self.width, k))
+                                           self.high, self.offsets, k))
             if np.isnan(out[0]):
                 raise ValueError("format decoding arithmetic is not finite")
             return float(out[0]), tuple(int(a) for a in out[1:])
@@ -538,8 +551,9 @@ class Split:
             if self.log_probs[k, j] == -np.inf:
                 continue
             source, target = s0 - int(self.low[k]), t0 - int(self.low[k + 1])
-            suffix = self.backward_max[k + 1, target:target + n]
-            prefix = np.where(np.isneginf(suffix), -np.inf, self.forward_max[k, source:source + n])
+            suffix = self._row(self.backward_max, k + 1)[target:target + n]
+            prefix = np.where(np.isneginf(suffix), -np.inf,
+                              self._row(self.forward_max, k)[source:source + n])
             best = _checked_log_sum(_checked_log_sum(prefix, self.log_probs[k, j]), suffix)
             t = int(np.argmax(best))
             if best[t] > log_x:
@@ -550,7 +564,7 @@ class Split:
         arities[k] = alphabet[choice]
         before = state
         for i in reversed(range(k)):
-            options = [(float(_checked_log_sum(self.forward_max[i, n - self.low[i]],
+            options = [(float(_checked_log_sum(self._row(self.forward_max, i)[n - self.low[i]],
                                                self.log_probs[i, j])), n, a)
                        for j, a in enumerate(alphabet)
                        for n in (before + 1 - a,) if max(1, self.low[i]) <= n <= self.high[i]]
@@ -558,7 +572,7 @@ class Split:
         after = state - 1 + alphabet[choice]
         for i in range(k + 1, m):
             options = [(float(_checked_log_sum(self.log_probs[i, j],
-                                               self.backward_max[i + 1, n - self.low[i + 1]])), n, a)
+                                               self._row(self.backward_max, i + 1)[n - self.low[i + 1]])), n, a)
                        for j, a in enumerate(alphabet)
                        for n in (after - 1 + a,) if after >= 1 and self.low[i + 1] <= n <= self.high[i + 1]]
             _, after, arities[i] = max(options)

@@ -962,7 +962,7 @@ def test_split_handles_out_of_range_band_centres(
 
 
 def test_native_split_scores_sparse_extreme_rows(monkeypatch: pytest.MonkeyPatch) -> None:
-    if getattr(decoding._NATIVE, "advance_packed_log", None) is None:
+    if getattr(decoding._NATIVE, "advance_ragged_log", None) is None:
         pytest.skip("native log cursor is not built")
     rng = np.random.default_rng(245)
     for m in range(1, 9):
@@ -1050,7 +1050,7 @@ def test_banded_split_limits_storage_to_largest_row_interval(
     centre = [1] * m + [0]
     split = decoding.Split(rows, (0, 1, 2), centre, 2)
     assert split.width == max(1, int((split.high - split.low + 1).max())) == 4
-    assert split.forward.shape == (m + 1, 4)
+    assert split.forward.size == int(np.maximum(0, split.high - split.low + 1).sum())
     expected = decoding._banded_passes(rows, (0, 1, 2), centre, 2)
     assert expected is not None
     for k in (0, m // 2, m - 1):
@@ -1108,6 +1108,9 @@ def test_packed_split_matches_independently_enumerated_bands(
                 centre = rng.integers(-1, m + 2, size=m + 1).tolist()
             half = int(rng.integers(0, 4))
             split = decoding.Split(rows, alphabet, centre, half)
+            lengths = np.maximum(0, split.high - split.low + 1)
+            np.testing.assert_array_equal(np.diff(split.offsets), lengths)
+            assert split.forward.size == int(lengths.sum())
             k = int(rng.integers(m))
             rows[k] = np.log(rng.dirichlet(np.ones(len(alphabet))))
             actual_z, actual_best = split.climb(k, rows[k])
