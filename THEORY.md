@@ -1,9 +1,13 @@
 # Theory
 
-Mathematical foundations of module composition. Every theorem stated here is
-machine-checked in `lean/` (build with `cd lean && lake exe cache get && lake build`),
-and every algorithm has a Python mirror in `src/nca/` that is tested against
-the Lean model's behavior.
+Mathematical foundations of the agent: composing modules, planning routes,
+answering selectively under a risk target, and decoding by the input format.
+Every theorem stated here is machine-checked in `lean/` (build with
+`cd lean && lake exe cache get && lake build`). The algorithms of §1–§22
+have Python mirrors in `src/nca/` that are tested against the Lean model's
+behavior, and their results subsections report measurements. §23–§27 extend
+the theory ahead of the code: their predictions are not yet measured, except
+the exact native decoder of §23.7.
 
 ## 1. Types and contracts
 
@@ -1509,16 +1513,14 @@ it. The arity term `m · ρ_shape` grows with all `m` words. At depth 8
 (575 words) it alone nearly exhausts `δ = 0.2`, and only 1.7% of formulas
 are certified.
 
-**Why the bound is conservative.** A hypothesis, not yet tested: prefix
-notation is an error-detecting code. A single wrong arity changes
-`Σ (arity − 1)`, so the words no longer parse, the certificate reports no
-answer, and the controller climbs or abstains. A wrong arity can go
-undetected only if at least one other compensates, so the arity term,
-summed as if every arity error were silent, overstates the risk roughly
-quadratically. A bound that credits this detection would charge the arity
-term only for pairs of errors. That needs either a premise of independent
-word errors, or the audit's test of §17 to stay valid. It is the natural
-next refinement, and it targets exactly what limits depth.
+**Why the bound is conservative.** Prefix notation is an error-detecting
+code. A single wrong arity changes `Σ (arity − 1)`, so the words no longer
+parse, the certificate reports no answer, and the controller climbs or
+abstains. A wrong arity can go undetected only if at least one other
+compensates, so the arity term, summed as if every arity error were silent,
+overstates the risk roughly quadratically. §19 builds the bound that credits
+this detection, charging the arity term only for pairs of errors, and §19.9
+measures its gain. §21.11 tests its premise of uncorrelated word errors.
 
 **Conclusion.** The kernel, planner, ladders, calibration, refinement and
 certification carried over to a task with different inputs, different
@@ -1736,7 +1738,8 @@ the top rung gives `S ≈ 0.71` per formula, so `e₂ ≈ 0.28` alone exceeds
 (18 of 30) do not parse even at the top rung. With the measured per-word
 arity risk, the length limit `√(2δ) / ρ` is about 520 words, below the 575
 of depth 8. Pairs helps only while `S < 1`. Beyond that, what limits depth
-is the readers' arity error itself, not the account.
+is the readers' arity error itself, not the account. §21 lifts this limit by
+correcting arity errors instead of only detecting them (results in §21.11).
 
 **Conclusion.** Prefix notation detects every single arity error, a fact
 proved once in Lean and used by the evaluator alone. Crediting it turns the
@@ -1748,7 +1751,7 @@ cuts compute severalfold, and keeps every answered formula correct.
 
 ## 20. Higher-order experts and budgeted requests
 
-### 20.1 What is missing
+### 20.1 Limits of plain requests
 
 Experts can already ask the kernel for sub-results (§14): by delegation,
 which replaces their output, or by continuation, which resumes with the
@@ -2680,9 +2683,6 @@ helps.
    coverage and error among answered formulas match per-step exact
    decoding within sampling noise, because only the climb order changes.
 
-## 24. When the prior is wrong
-
-### 24.1 The question
 ### 23.7 Exact decoding in native code
 
 Before banding, the exact passes can be made cheap per operation. The
@@ -2705,6 +2705,9 @@ operation count per step is unchanged, still about seven top-rung word
 readings, so banding and splitting (§23.2–23.4) would still cut it 26-fold.
 They are not yet implemented.
 
+## 24. When the prior is wrong
+
+### 24.1 The question
 
 The decoder of §21 is exact under premise (P): a prior over arity
 sequences that is the readers' per-word prior restricted to sequences that
