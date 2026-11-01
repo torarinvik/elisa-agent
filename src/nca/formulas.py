@@ -25,6 +25,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
@@ -252,6 +253,39 @@ class ArityPrior:
             selected.append(self.alphabet[j])
             state = int(self.transitions[state, j])
         return Decoded(tuple(selected), log_z, marginals, self)
+
+
+@lru_cache(maxsize=32)
+def complete_prior(length: int) -> ArityPrior | None:
+    """Unit-weight complete binary skeleton prior inferred from length (§27.4).
+
+    Leaves may be constants or unary negations of constants. Unsupported
+    lengths return None. This is a structural prior, not a reader calibration.
+    """
+    if not isinstance(length, int) or length < 1:
+        raise ValueError("length must be a positive integer")
+    depth = (length + 1).bit_length() - 2
+    if length + 1 > 3 * 2 ** depth:
+        return None
+    pending = [(depth,)]
+    indices = {pending[0]: 0}
+    transitions: list[list[int]] = []
+    for stack in pending:
+        row = [-1, -1, -1]
+        if stack:
+            head, rest = stack[0], stack[1:]
+            successors = ({2: (head - 1, head - 1, *rest)} if head > 0 else
+                          {0: rest, 1: (-1, *rest)} if head == 0 else {0: rest})
+            for arity, target in successors.items():
+                if target not in indices:
+                    indices[target] = len(pending)
+                    pending.append(target)
+                row[arity] = indices[target]
+        transitions.append(row)
+    final = np.full(len(pending), -np.inf)
+    final[indices[()]] = 0.0
+    return ArityPrior((0, 1, 2), np.array(transitions, dtype=np.int64),
+                      np.zeros((len(pending), 3)), final)
 
 
 @dataclass(frozen=True)

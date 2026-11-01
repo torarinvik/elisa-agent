@@ -890,3 +890,53 @@ def test_counter_prior_matches_format_decoder(reference: bool,
         assert actual.risk(rows, alphabet) == pytest.approx(expected.risk(rows, alphabet))
         with pytest.raises(ValueError, match="alphabet"):
             actual.risk(rows, (0, 1, 2))
+
+
+def complete_shapes(depth: int) -> list[tuple[int, ...]]:
+    if not depth:
+        return [(0,), (1, 0)]
+    smaller = complete_shapes(depth - 1)
+    return [(2, *left, *right) for left in smaller for right in smaller]
+
+
+def test_complete_prior_accepts_exactly_complete_shapes() -> None:
+    expected = set(complete_shapes(0) + complete_shapes(1) + complete_shapes(2))
+    for size in range(1, 9):
+        prior = formulas.complete_prior(size)
+        for selected in itertools.product(range(3), repeat=size):
+            accepted = prior is not None and prior.log_weight(selected) == 0.0
+            assert accepted == (selected in expected)
+    for depth in range(4):
+        for selected in complete_shapes(depth):
+            prior = formulas.complete_prior(len(selected))
+            assert prior is not None and prior.log_weight(selected) == 0.0
+            assert parse(selected) is not None
+    for invalid in (0, -1, 1.5):
+        with pytest.raises(ValueError):
+            formulas.complete_prior(invalid)
+    assert formulas.complete_prior(6) is None
+    assert formulas.complete_prior(12) is None
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_complete_prior_posterior_matches_enumerated_shapes(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(67)
+    for depth in range(4):
+        shapes = complete_shapes(depth)
+        for size in sorted({len(shape) for shape in shapes}):
+            prior = formulas.complete_prior(size)
+            assert prior is not None
+            rows = np.log(rng.dirichlet(np.ones(3), size=size))
+            candidates = [shape for shape in shapes if len(shape) == size]
+            scores = np.array([sum(rows[k, a] for k, a in enumerate(shape))
+                               for shape in candidates])
+            expected_z = np.logaddexp.reduce(scores)
+            posterior = prior.decode(rows)
+            assert posterior is not None
+            assert posterior.arities == candidates[int(np.argmax(scores))]
+            assert posterior.log_z == pytest.approx(expected_z, abs=1e-12)
+            assert posterior.risk(rows, (0, 1, 2)) == pytest.approx(
+                -np.expm1(scores.max() - expected_z), abs=1e-12)

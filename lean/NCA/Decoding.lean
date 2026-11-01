@@ -261,4 +261,23 @@ theorem exact_risk_le_union {x Z : ℝ} (hx : 0 ≤ x) (hZ : Z ≤ 1) (hZ0 : 0 <
   have : x ≤ x / Z := by rw [le_div_iff₀ hZ0]; nlinarith
   linarith
 
+/-- Complete binary skeletons with optional unary negation at leaves. -/
+inductive CompleteShape : ℕ → List ℕ → Prop
+  | leaf : CompleteShape 0 [0]
+  | negated : CompleteShape 0 [1, 0]
+  | branch {d : ℕ} {left right : List ℕ} : CompleteShape d left →
+      CompleteShape d right → CompleteShape (d + 1) (2 :: (left ++ right))
+
+/-- The length interval used to identify a complete skeleton's depth. -/
+theorem complete_shape_length {d : ℕ} {arities : List ℕ}
+    (h : CompleteShape d arities) :
+    2 ^ (d + 1) ≤ arities.length + 1 ∧ arities.length + 1 ≤ 3 * 2 ^ d := by
+  induction h with
+  | leaf => simp
+  | negated => simp
+  | branch hl hr ihl ihr =>
+      simp only [List.length_cons, List.length_append]
+      simp only [pow_succ] at *
+      constructor <;> omega
+
 end NCA

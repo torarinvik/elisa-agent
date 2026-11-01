@@ -2380,6 +2380,12 @@ leaf is either a constant (arity 0) or `not` followed by a constant (arity
 `{0, …, d − 1}`, with one extra flag for "after a `not`": about `2^{d+1}`
 states, with at most two transitions each.
 
+**Theorem 27.5 (complete-shape length).** A complete binary skeleton of
+depth `d`, with each leaf optionally negated once, has
+`2^{d+1} ≤ m + 1 ≤ 3 · 2^d`. At depth zero the lengths are 1 and 2.
+A branch joins two depth-`d` shapes and adds one connective, so both
+bounds follow by induction.
+
 Length determines depth. A depth-`d` formula has
 `m ∈ [2^{d+1} − 1, 3 · 2^d − 1]` words, and these ranges are disjoint for
 different `d`. So `length → arity.prior.v1` is a function.

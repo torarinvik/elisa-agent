@@ -633,3 +633,13 @@ does not automatically intersect an arbitrary expert with prefix syntax.
 It is not yet connected to the evaluator or planner. Both implementations
 use dense position-by-state tables, with O(length × states × alphabet) work
 and O(length × states) storage. Tie choices may differ between implementations.
+
+`formulas.complete_prior(length)` constructs and caches the complete-tree
+unit-weight prior of §27.4. Theorem 27.5 maps a supported length to its depth;
+`CompleteShape` and `complete_shape_length` in `NCA/Decoding.lean` formalize
+the shape grammar and its bounds. Construction uses pending height budgets
+and a marker for a leaf constant after unary negation. Impossible lengths
+return `None`; decoding and posterior calculations use the existing Elisa
+weighted-automaton kernel. Exhaustive grammar tests check the transition
+construction; the construction itself is not extracted from Lean. This
+factory is not yet an installed planner expert or evaluator input.

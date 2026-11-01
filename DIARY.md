@@ -1802,6 +1802,28 @@ for the reference over three. Log normalizers were -7.469034803167754 and
 the specialized format kernel or an end-to-end ML improvement. Structural
 prior experts and evaluator/planner integration remain to be implemented.
 
+**Complete-tree prior construction.** The length-indexed factory now builds
+the unit-weight complete binary skeleton automaton, allowing a single unary
+negation at each leaf. Theorem 27.5 and `complete_shape_length` prove its
+length bounds from an inductive grammar. Exhaustive acceptance checks cover
+all arity sequences through length eight, and independently generated shapes
+through depth three. Posterior tests enumerate all complete shapes at each
+supported length through depth three in native and reference modes. Impossible
+lengths return no prior. The transition builder itself is tested, not formally
+extracted or proved equivalent to the grammar.
+
+On the same 300 seed-6 depth-6 noise-0.2 formulas used for reader diagnosis,
+with the learned reader calibrated on 100 depth-4 noise-0.1 validation
+formulas, format-only raw-reading selection made 93 arity-sequence errors
+(predicted summed calibrated risk 54.55558). All 93 selected shapes lay
+outside the generator support. Complete-tree selection made zero arity
+errors, with summed calibrated risk 0.00016772. No reader weights or
+calibration changed; both selection and risk used the same structural prior.
+This uses the known synthetic generator's shape family. It is not a result
+on Boolean answer errors, selective refinement, deployment certification,
+or an unknown formula family. The factory is not yet wired into the planner
+or evaluator.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most
