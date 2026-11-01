@@ -13,6 +13,7 @@
 
 extern exp(x: f64) -> f64
 extern log(x: f64) -> f64
+extern log1p(x: f64) -> f64
 
 # Log weights may contain negative infinity but not NaN or positive infinity.
 def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
@@ -118,7 +119,7 @@ def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[
     return total + final[state]
 
 def log_add_present(x: f64, y: f64) -> f64:
-    return x + log(1.0 + exp(y - x)) if x >= y else y + log(1.0 + exp(x - y))
+    return x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))
 
 # Stable log-sum, including unreachable states.
 def log_add(x: f64, y: f64) -> f64:

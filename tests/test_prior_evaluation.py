@@ -58,6 +58,27 @@ def test_prior_evaluator_selection_and_account_use_same_structural_prior(
     with pytest.raises(ValueError):
         FormulaEvaluator(decode=True, band_slack=1e-4, prior=formulas.complete_prior)
 
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_evaluator_retains_tiny_risk_with_and_without_session(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1, 2), np.array([[0, 0, 0]]),
+                              np.zeros((1, 3)), np.zeros(1))
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=lambda length: prior)
+    readings = one_hot(["true"])
+    def distribution(k: int, decision: Decision) -> torch.Tensor:
+        return torch.tensor([1.0, np.exp(-40.0), 0.0], dtype=torch.float64)
+    expected = np.exp(-40.0)
+    fresh = evaluator.certificate(readings, lambda k, d: 0.0, distribution)
+    session = evaluator.certificate_session()
+    first = session(readings, lambda k, d: 0.0, distribution)
+    again = session(readings, lambda k, d: 0.0, distribution)
+    for account in (fresh, first, again):
+        assert account is not None
+        assert sum(account.values()) == pytest.approx(expected, rel=1e-14)
+
 def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
     from nca.abi import Message
     from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior

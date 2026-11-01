@@ -35,7 +35,7 @@ from nca.abi import Calls, Contract, Manifest, seq_type
 from nca.efficiency import network_flops
 from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
 from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
-from nca.priors import ArityPrior, complete_prior, height_prior, sequence_log_weight
+from nca.priors import ArityPrior, complete_prior, height_prior, risk_from_log_weight, sequence_log_weight
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
 
@@ -532,7 +532,7 @@ class FormulaEvaluator:
                 if not math.isfinite(log_z):
                     return None
             weight = sequence_log_weight(log_probs, ARITY_ORDER, arities) + prior.log_weight(arities)
-            sequence_risk = max(0.0, 1.0 - math.exp(min(0.0, weight - log_z)))
+            sequence_risk = risk_from_log_weight(weight, log_z)
             priorities = state.priorities
         else:
             if state.cursor is None:
@@ -562,7 +562,7 @@ class FormulaEvaluator:
                 if not math.isfinite(log_z):
                     return None
                 weight = sequence_log_weight(log_probs, ARITY_ORDER, arities)
-                sequence_risk = float(-np.expm1(min(0.0, weight - log_z)))
+                sequence_risk = risk_from_log_weight(weight, log_z)
             if state.priorities is None or state.steps >= math.isqrt(n):
                 posterior = decode(log_probs, ARITY_ORDER)
                 if posterior is None:

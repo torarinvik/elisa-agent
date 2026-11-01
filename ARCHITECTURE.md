@@ -850,8 +850,10 @@ returns, so no cached denominator crosses calibration or selection runs.
 Empty readings are supported when a provider supplies a prior whose start
 state has nonzero final weight; its relative log evidence is zero.
 Decoded sequence risk uses `expm1` to retain small positive risks when the
-selected sequence's log probability is near zero. This numerical improvement
-does not by itself supply a certified floating-point error bound.
+selected sequence's log probability is near zero; the stateful evaluator uses
+the same calculation. Elisa's prior log-sum uses `log1p` to retain small
+alternative weights. These improvements do not by themselves supply a
+certified floating-point error bound.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.

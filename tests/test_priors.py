@@ -53,6 +53,20 @@ def test_decoded_risk_preserves_tiny_probabilities_and_rejects_nan(
         decoded.risk(np.array([[np.nan]]), (0,))
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_normalizer_preserves_tiny_alternative_probability(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    rows = np.array([[0.0, -40.0]])
+    decoded = prior.decode(rows)
+    assert decoded is not None and decoded.arities == (0,)
+    expected = np.exp(-40.0) / (1.0 + np.exp(-40.0))
+    assert decoded.risk(rows, prior.alphabet) == pytest.approx(expected, rel=1e-14)
+    assert prior.log_normalizer(rows) == pytest.approx(np.log1p(np.exp(-40.0)), rel=1e-14)
+
+
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
                                       lambda value: pickle.loads(pickle.dumps(value))])
 def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:

@@ -21,6 +21,14 @@ def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
     return np.frombuffer(np.asarray(alphabet, dtype=np.int64).tobytes(), dtype=np.int64)
 
 
+def risk_from_log_weight(weight: float, log_z: float) -> float:
+    """Complement of a normalized log weight, stable near probability one."""
+    difference = weight - log_z
+    if math.isnan(difference) or difference == math.inf:
+        raise ValueError("sequence risk requires finite or negative-infinite log probability")
+    return -math.expm1(min(0.0, difference))
+
+
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
                         selected: Sequence[int]) -> float:
     """Log product of a selected sequence's position-wise weights (§21.5)."""
@@ -498,7 +506,4 @@ class Decoded:
         """Posterior probability that the true sequence differs from
         ``arities`` (default: the decoded one), ``1 − weight / Z``."""
         chosen = self.arities if arities is None else arities
-        difference = self.log_weight(log_probs, alphabet, chosen) - self.log_z
-        if math.isnan(difference) or difference == math.inf:
-            raise ValueError("sequence risk requires finite or negative-infinite log probability")
-        return -math.expm1(min(0.0, difference))
+        return risk_from_log_weight(self.log_weight(log_probs, alphabet, chosen), self.log_z)
