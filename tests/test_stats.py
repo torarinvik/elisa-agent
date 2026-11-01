@@ -150,6 +150,27 @@ def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch) -> No
             assert stats.poisson_binomial_upper_bound(2, [1e-200, 1e-200]) > 0.0
 
 
+def test_format_upper_bound_never_rounds_down() -> None:
+    import math
+    import random
+    from decimal import Decimal, Inexact, localcontext
+    from nca.stats import format_upper_bound
+
+    rng = random.Random(3519)
+    values = [0.0, 1.0, 0.515417709566158, 1e-5, math.ulp(0.0)]
+    values += [rng.random() * 10 ** rng.randrange(-300, 1) for _ in range(100)]
+    for digits in (1, 3, 8):
+        for value in values:
+            assert Decimal(format_upper_bound(value, digits)) >= Decimal.from_float(value)
+    assert format_upper_bound(0.515417709566158) == "0.516"
+    assert format_upper_bound(math.nan) == "nan"
+    with localcontext() as context:
+        context.traps[Inexact] = True
+        assert format_upper_bound(0.515417709566158) == "0.516"
+    with pytest.raises(ValueError, match="digits"):
+        format_upper_bound(0.5, 0)
+
+
 def test_native_poisson_binomial_handles_sparse_and_nonfinite_inputs() -> None:
     import numpy as np
     import nca.stats as stats

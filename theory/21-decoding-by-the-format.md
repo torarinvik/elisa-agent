@@ -198,6 +198,8 @@ probabilities, and round each nonzero product and sum upward. Monotonicity of
 the nonnegative recurrence preserves the bound. This implementation assumes
 IEEE 754 binary64 operations rounded to nearest, gradual underflow, and a
 correctly rounded `nextafter`; the Lean recurrence proof is over exact reals.
+When displayed as a decimal inequality, the bound is rounded upward again at
+the requested number of significant digits.
 
 **The pairs premise of §19.** Let `O₂` be the number of formulas whose
 per-word reading has at least two arity failures. If failures are not

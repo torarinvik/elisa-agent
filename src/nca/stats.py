@@ -4,6 +4,7 @@ count tests against predicted probabilities."""
 from __future__ import annotations
 
 import math
+from decimal import ROUND_CEILING, Context, Decimal, localcontext
 from typing import Sequence
 
 import numpy as np
@@ -57,6 +58,16 @@ def paired_difference(first: Sequence[bool], second: Sequence[bool],
 
 def format_interval(value: float, low: float, high: float) -> str:
     return f"{value:.4f} [{low:.4f}, {high:.4f}]"
+
+
+def format_upper_bound(value: float, digits: int = 3) -> str:
+    """Format a binary64 upper bound without rounding it down in decimal."""
+    if digits < 1:
+        raise ValueError("digits must be positive")
+    if not math.isfinite(value):
+        return str(value)
+    with localcontext(Context(prec=digits, rounding=ROUND_CEILING)):
+        return format(+Decimal.from_float(value), f".{digits}g")
 
 
 def binomial_cdf(k: int, n: int, r: float) -> float:

@@ -271,6 +271,7 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 `bernoulli_step_upper` establishes monotonicity of one nonnegative update;
 `poisson_binomial_upper_bound` uses upward-rounded operations in `stats.elisa`
 or its Python fallback for excess p-values, under IEEE 754 assumptions.
+`format_upper_bound` rounds displayed bounds upward in decimal as well.
 `bernoulliStep_impossible` justifies skipping zero-probability events.
 `bernoulliStep_certain_zero` and `bernoulliStep_certain_succ` justify combining
 the shifts for events with probability one.
