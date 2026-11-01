@@ -294,7 +294,11 @@ def test_banded_pass_ignores_overflow_outside_its_band() -> None:
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 3)])
-def test_banded_pass_matches_enumeration_with_arbitrary_bands(alphabet) -> None:
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_pass_matches_enumeration_with_arbitrary_bands(
+        alphabet, reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(253)
     for m in range(1, 6):
         for _ in range(20):
@@ -326,6 +330,27 @@ def test_banded_pass_matches_enumeration_with_arbitrary_bands(alphabet) -> None:
                 assert log_z == pytest.approx(np.logaddexp.reduce(scores), abs=1e-12)
                 assert log_x == pytest.approx(max(scores), abs=1e-12)
                 assert (path, log_x) in accepted
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3), (0, 3, 2**63 - 1)])
+def test_native_banded_pass_matches_reference(alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "banded_format", None) is None:
+        pytest.skip("native banded decoder is not built")
+    rng = np.random.default_rng(255)
+    for m in range(1, 13):
+        for _ in range(10):
+            rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+            centre = rng.integers(-m, m * 2 + 1, size=m + 1).tolist()
+            half = int(rng.integers(0, m * 2 + 1))
+            actual = decoding._banded_passes(rows, alphabet, centre, half)
+            with monkeypatch.context() as patch:
+                patch.setattr(decoding, "_NATIVE", None)
+                expected = decoding._banded_passes(rows, alphabet, centre, half)
+            assert (actual is None) == (expected is None)
+            if actual is not None and expected is not None:
+                assert actual[0] == pytest.approx(expected[0], abs=1e-12)
+                assert actual[1] == pytest.approx(expected[1], abs=1e-12)
+                assert actual[2] == expected[2]
 
 
 def test_finite_band_tail_overflow_is_not_treated_as_absent_mass() -> None:

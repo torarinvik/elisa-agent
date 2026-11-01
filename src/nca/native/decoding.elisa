@@ -636,6 +636,56 @@ def moves(i: i64, a: i64, low: view[i64], high: view[i64]) -> (first: i64, count
     last: i64 = high[i] if high[i] < high[i + 1] + 1 - a else high[i + 1] + 1 - a
     return first, (last - first + 1 if last >= first else 0)
 
+# One-shot banded sum and maximum, with an empty result for no accepted path.
+# A NaN result signals overflow while adding finite log weights.
+def banded_format(log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    count: i64 = alphabet.len.i64()
+    m: i64 = low.len.i64() - 1
+    return [] if count == 0 or m <= 0 or high.len.i64() != m + 1 or log_probs.len.i64() != m * count
+    return [] if low[0] > 1 or high[0] < 1 or low[m] > 0 or high[m] < 0
+    width: i64 = m + 2
+    missing: f64 = log(0.0)
+    forward: darray[f64] = [0.0 if i == 1 else missing for i in 0..<(2 * width)]
+    best: darray[f64] = [0.0 if i == 1 else missing for i in 0..<(2 * width)]
+    choice: darray[i64] = [0 for _ in 0..<((m + 1) * width)]
+    for k in 0..<m:
+        here: i64 = (k % 2) * width
+        next: i64 = ((k + 1) % 2) * width
+        for state in low[k + 1]..<(high[k + 1] + 1):
+            forward[next + state] <- missing
+            best[next + state] <- missing
+        for j in 0..<count:
+            arity: i64 = alphabet[j]
+            return [] if arity < 0
+            step: f64 = log_probs[k * count + j]
+            continue if step == missing
+            run: (first: i64, count: i64) = moves(k, arity, low, high)
+            for t in 0..<run.count:
+                state: i64 = run.first + t
+                target: i64 = state - 1 + arity
+                if forward[here + state] != missing:
+                    incoming: f64 = forward[here + state] + step
+                    return [log(-1.0)] if incoming == missing or incoming == -missing or incoming != incoming
+                    forward[next + target] <- log_add(forward[next + target], incoming)
+                if best[here + state] != missing:
+                    candidate: f64 = best[here + state] + step
+                    return [log(-1.0)] if candidate == missing or candidate == -missing or candidate != candidate
+                    if candidate > best[next + target]:
+                        best[next + target] <- candidate
+                        choice[(k + 1) * width + target] <- j
+    log_z: f64 = forward[(m % 2) * width]
+    return [] if log_z == missing
+    result: darray[f64] = [0.0 for _ in 0..<(m + 2)]
+    result[0] <- log_z
+    result[1] <- best[(m % 2) * width]
+    trace_state: darray[i64] = [0]
+    for step in 0..<m:
+        k: i64 = m - step
+        arity: i64 = alphabet[choice[k * width + trace_state[0]]]
+        result[1 + k] <- arity.f64()
+        trace_state[0] <- trace_state[0] + 1 - arity
+    return result
+
 # Recompute forward and backward rows in log space.
 def advance_log(forward: mutable view[f64], forward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
     arities: i64 = alphabet.len.i64()
@@ -1038,6 +1088,7 @@ export pymodule decoding:
     fn decode_log
     fn off_reference_log_mass
     fn format_partition
+    fn banded_format
     fn decode_prior
     fn prior_log_weight
     fn prior_normalizer

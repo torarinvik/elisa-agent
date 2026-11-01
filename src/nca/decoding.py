@@ -238,6 +238,22 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Seque
     """Sum and max passes over states within ``half`` of ``centre``: the log
     weight of the band, the log weight of its best sequence, and that sequence."""
     m = len(log_probs)
+    if m == 0:
+        return None
+    native = getattr(_NATIVE, "banded_format", None)
+    if native is not None:
+        growth = max(0, int(max(alphabet)) - 1)
+        low = np.array([max(0, min(m - k + 1, int(c) - half))
+                        for k, c in enumerate(centre)], dtype=np.int64)
+        high = np.array([max(-1, min(m - k, int(c) + half, 1 + k * growth))
+                         for k, c in enumerate(centre)], dtype=np.int64)
+        result = native(np.ascontiguousarray(log_probs, dtype=np.float64).reshape(-1),
+                        np.asarray(alphabet, dtype=np.int64), low, high)
+        if not result:
+            return None
+        if math.isnan(result[0]):
+            raise ValueError("format decoding arithmetic is not finite")
+        return float(result[0]), float(result[1]), tuple(int(a) for a in result[2:])
     width = m + 2
     # Bound every m-step path well inside the finite range, leaving room for
     # the logarithm of the finite number of paths accumulated by logaddexp.
