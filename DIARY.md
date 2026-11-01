@@ -1505,6 +1505,22 @@ The call-count reduction is exact; the single ordered timing pair includes
 warm-up effects. No early acceptance or optional-stopping confidence claim
 was introduced.
 
+**Shared-threshold trace foundation.** Theorem 17.8 and its Lean proof
+show that extending a trace cannot change a loose-target answer already in
+its prefix. The runtime now has an optional observation hook before each
+stop decision. A regression compares first selected states against five
+independent target runs, including exhaustion at the strictest target and
+preservation of initial reading snapshots. Native suite: 129 passes;
+fallback: 116 passes and 13 skips. The full Lean build passes.
+
+Using the existing calibrated word-reader ladder, one depth-6 formula at
+noise 0.2, seed 7, had 148 words and 149 visited states. A shared run for
+targets 0.0001, 0.001 and 0.01 used 296 expert observations, versus 888
+across three independent runs. Selected bounds and per-target costs agreed.
+This tests reader refinement only; Boolean answer reconstruction and audit
+fit-pass integration remain pending. Floors and predictive stopping were
+disabled, as required for target-independent transitions.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

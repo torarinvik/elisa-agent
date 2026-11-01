@@ -126,6 +126,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 17.2 | `shift_ratio_le` | `Calibration` |
 | 17.3 | `horvitz_thompson` | `Calibration` |
 | 17.4 | `inflated_answered_mono` | `Calibration` |
+| 17.8 | `threshold_trace_prefix` | `Calibration` |
 | 17.7 | `audit_rejection_of_completion` | `Calibration` |
 | 17.6 | `audit_budget_obstruction` | `Calibration` |
 | 17.5 | `fixed_sequence_le` | `Calibration` |
@@ -559,3 +560,10 @@ which are used only to reject that candidate. Accepted candidates still
 consume the full checking sample; fit and evaluation calls remain complete.
 Theorem 17.7 proves rejection under the supplied monotonicity premises;
 binomial-bound monotonicity itself is not newly formalized here.
+
+`refine(..., observe=...)` optionally exposes every evaluated state, including
+initial and terminal states. Outer reading lists are independent; observers
+must treat tensors as read-only. This is the basis for shared-target inference
+under Theorem 17.8. Audit fitting does not yet use the hook. A future client
+should retain only selected target snapshots, rather than every trace state.
+Target-dependent floors/stopping must not be mixed into shared-path selection.

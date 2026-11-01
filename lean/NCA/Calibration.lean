@@ -150,4 +150,19 @@ theorem audit_rejection_of_completion (U : ℕ → ℕ → ℝ) {k K n N : ℕ} 
     (hfail : δ < U k N) : δ < U K n :=
   hfail.trans_le ((herror_mono k K N herrors).trans (hcount_anti K n N hcount))
 
+/-- Extending a trace cannot change the first loose-target answer already in its prefix. -/
+theorem threshold_trace_prefix {S : Type} (bound : S → ℝ) (initial remaining : List S)
+    {witness : S} {strict loose : ℝ} (hmem : witness ∈ initial)
+    (hbound : bound witness ≤ strict) (htarget : strict ≤ loose) :
+    (initial ++ remaining).find? (fun s => decide (bound s ≤ loose)) =
+      initial.find? (fun s => decide (bound s ≤ loose)) := by
+  have hfound : initial.find? (fun s => decide (bound s ≤ loose)) ≠ none := by
+    intro hnone
+    have h := List.find?_eq_none.mp hnone witness hmem
+    simp [hbound.trans htarget] at h
+  rw [List.find?_append]
+  cases h : initial.find? (fun s => decide (bound s ≤ loose)) with
+  | none => exact False.elim (hfound h)
+  | some value => simp
+
 end NCA

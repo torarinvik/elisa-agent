@@ -292,14 +292,17 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
            start: int = 0, classes: Sequence[Decision] | None = None,
            certificate: Certificate | None = None, floor: Floor | None = None,
            additive_floor: bool = False, stop: Stop | None = None,
-           trace: list[State] | None = None) -> Refinement:
+           trace: list[State] | None = None,
+           observe: Callable[[Refinement], None] | None = None) -> Refinement:
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
     Every item starts at rung ``min(start, top)``, reading each rung below it.
     The bound sums the charges of ``certificate``'s account; by default every
     item ``i`` is charged the risk of decision ``classes[i]``. While it exceeds
     ``delta`` the open item with the largest charge climbs a rung; if the
-    readings determine no answer, the riskiest item.
+    readings determine no answer, the riskiest item. ``observe`` receives each
+    state, including the initial and terminal states, with an independent
+    outer reading list. Observers must not mutate the reading tensors.
     """
     decisions = list(classes) if classes is not None else [None] * len(values)
     levels = [0] * len(values)
@@ -342,6 +345,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf
         else:
             charges, bound = account, sum(account.values())
+        if observe is not None:
+            observe(Refinement(list(readings), cost, bound, bound > delta))
         if bound <= delta:
             break
         fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))

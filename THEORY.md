@@ -740,6 +740,21 @@ Calibration quality no longer affects validity. It affects only *efficiency*:
 better risks put the safe candidates further down the sequence, so a less
 cautious, higher-coverage policy is certified.
 
+**Theorem 17.8 (threshold selection from a shared trace).** Suppose the
+next refinement state depends only on the current readings and fixed
+calibration, not on the requested target. A run stopped at a strict target
+is a prefix of the trajectory obtained by continuing the same transitions.
+For a looser target, its first qualifying state lies in that prefix whenever
+the strict run answers: the strict stopping state itself qualifies. Appending
+more states cannot change that first selection. More generally the same
+conclusion holds for any prefix already containing a qualifying state.
+
+An exhausted trajectory supplies the final abstention state for targets
+never reached. Reuse requires identical transitions, including tie rules,
+calibration and certificate state. Target-dependent floors or predictive
+stopping are excluded. Per-policy cost is the cost at its first qualifying
+state, not the cost of computing the entire shared trajectory.
+
 ### 17.6 How many audit labels
 
 When a candidate answers `n` audit expressions and errs on none, it is

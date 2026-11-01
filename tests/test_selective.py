@@ -452,3 +452,20 @@ def test_checking_rejects_early_but_never_accepts_early(wrong_first: bool,
     else:
         assert len(calls) == 60 and counts == (60, 0)
         assert certify([counts], 0.05, 0.1) == [0]
+
+
+def test_shared_refinement_trace_matches_independent_thresholds() -> None:
+    rungs = [Rung(constant(str(i), output, float(i + 1))) for i, output in
+             enumerate(((0.4, 0.6), (0.1, 0.9), (0.001, 0.999)))]
+    states: list[Any] = []
+    strict = refine([0, 0], [rungs, rungs], 0.001, observe=states.append)
+    assert strict.abstained  # Include exhaustion, not only a successful strict run.
+    for target in (0.001, 0.01, 0.2, 0.6, 0.9):
+        shared = next((state for state in states if state.bound <= target), states[-1])
+        independent = refine([0, 0], [rungs, rungs], target)
+        assert shared.bound == independent.bound
+        assert shared.cost == independent.cost
+        assert all(torch.equal(a, b) for a, b in zip(shared.readings, independent.readings))
+    assert states[0].cost == 2.0
+    assert torch.allclose(states[0].readings[0], torch.tensor([0.4, 0.6]))
+    assert states[0].readings is not states[-1].readings
