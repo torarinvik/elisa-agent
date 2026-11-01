@@ -166,6 +166,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.6 | `banded_risk_slack` | `Banding` |
 | 23.7 | `dpSum_append` | `Banding` |
 | 23.8 | `dpMax_append` | `Banding` |
+| 23.9 | `sum_pair_dist` | `Banding` |
 | 24.1 | `reweighted_odds` | `Misspecification` |
 | 24.2 | `reweighted_risk_le` | `Misspecification` |
 | 24.3 | `reweighted_risk_le_mul` | `Misspecification` |

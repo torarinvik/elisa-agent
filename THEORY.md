@@ -1699,8 +1699,14 @@ After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
 stays valid. The next climb at `k` needs `F_k`, which costs recomputing the
 forward vectors from `p` to `k` (or the backward ones, if `k < p`). The
 split point moves like a cursor, and each step costs the states it sweeps.
-Refinement climbs in charge order, which is spatially unordered, so the
-expected sweep is `m / 3` positions.
+Refinement climbs in charge order, which is spatially unordered.
+
+**Theorem 23.9.** Over all ordered pairs of positions among `m`,
+`Σᵢ Σⱼ |i − j| = (m³ − m) / 3`.
+
+So if consecutive climbs fall at independent uniform positions, the cursor
+sweeps `(m² − 1) / (3m) < m / 3` positions per climb on average. Climbs that
+cluster sweep less; the premise is an upper reference, not a guarantee.
 
 **Charges need not be fresh.** The account's validity requires only that
 the charges sum to the bound (§19.6). The bound `R_band + Σ_{k ∈ E} rₖ` is

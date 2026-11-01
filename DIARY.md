@@ -922,6 +922,23 @@ against 23.9 ms for a full decode, a factor of about 750. Building the
 vectors once takes 12.7 ms per formula. Keeping them valid as the climbed
 word moves (the cursor of §23.4) is not yet implemented.
 
+**Cursor** (THEORY §23.4, Theorem 23.9; NumPy, exact, unbanded). On 20
+depth-8 test formulas (`m ≈ 566` words), 100 words each were climbed from the
+bottom to the top rung. Climbing in order of bottom-rung arity risk (a
+stand-in for charge order) and in random order:
+
+| order | mean sweep per climb | `m / 3` | time per climb | final `|Δ log Z|` |
+|---|---:|---:|---:|---:|
+| risk | 186.4 | 189 | 2.10 ms | 2.5e-14 |
+| random | 185.8 | 189 | 2.11 ms | 8.9e-15 |
+
+Risk order is spatially unordered, as §23.4 assumed: its sweep equals the
+uniform prediction of Theorem 23.9. A climb with a moving cursor costs 2.1 ms
+against 23.9 ms for a full decode, 11 times less; §23.5 counted 4.5 times
+fewer operations for the incremental exact program, and the rest is the
+backtracking and marginals the full decode also does. Banding the swept
+vectors (`W ≈ 29` states instead of up to `m / 4`) is the remaining factor.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

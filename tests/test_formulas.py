@@ -298,6 +298,24 @@ def test_split_matches_full_decoding() -> None:
                                                           full.arities))
 
 
+def test_split_cursor_follows_climbs() -> None:
+    """A sequence of climbs at random words, each rescored after the vectors
+    were moved to it, matches a full decode after every climb."""
+    rng = np.random.default_rng(7)
+    for m in (5, 17, 40):
+        probs = rng.dirichlet(np.full(3, 0.5), size=m)
+        split = Split(np.log(probs), ARITY_ORDER)
+        for _ in range(15):
+            k = int(rng.integers(m))
+            probs[k] = rng.dirichlet(np.full(3, 0.5))
+            log_z, log_x = split.climb(k, np.log(probs[k]))
+            full = decode_reference(np.log(probs), ARITY_ORDER)
+            assert full is not None
+            assert log_z == pytest.approx(full.log_z)
+            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER,
+                                                          full.arities))
+
+
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")
 def test_native_decoder_matches_reference() -> None:
     """The native kernel against NumPy at formula sizes up to depth 9, with

@@ -308,39 +308,63 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: np.nd
 
 class Split:
     """Forward and backward vectors of the exact decoding programs, in log
-    space, for recomputing ``log Z`` and the best log weight when one word's
-    weights change (THEORY §23.4, Theorems 23.7 and 23.8)."""
+    space, kept valid around a cursor so that a change to one word's weights
+    is rescored from the vectors on either side of it (THEORY §23.4,
+    Theorems 23.7–23.9). Forward vectors ``0 ..= ahead`` and backward vectors
+    ``behind ..= m`` are current; ``swept`` counts the positions recomputed."""
 
     def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> None:
-        m = len(log_probs)
+        self.log_probs = np.array(log_probs, dtype=np.float64)
+        m = len(self.log_probs)
         self.alphabet = tuple(alphabet)
-        self.width = width = m + 2
-        self.forward = np.full((m + 1, width), -np.inf)
-        self.forward_max = np.full((m + 1, width), -np.inf)
+        self.width = m + 2
+        self.forward = np.full((m + 1, self.width), -np.inf)
+        self.forward_max = np.full((m + 1, self.width), -np.inf)
+        self.backward = np.full((m + 1, self.width), -np.inf)
+        self.backward_max = np.full((m + 1, self.width), -np.inf)
         self.forward[0, 1] = self.forward_max[0, 1] = 0.0
-        for k in range(m):
-            for j, a in enumerate(alphabet):
-                span = min(a + width - 1, width) - a
-                step = log_probs[k, j]
-                self.forward[k + 1, a:a + span] = np.logaddexp(
-                    self.forward[k + 1, a:a + span], self.forward[k, 1:1 + span] + step)
-                self.forward_max[k + 1, a:a + span] = np.maximum(
-                    self.forward_max[k + 1, a:a + span], self.forward_max[k, 1:1 + span] + step)
-        self.backward = np.full((m + 1, width), -np.inf)
-        self.backward_max = np.full((m + 1, width), -np.inf)
         self.backward[m, 0] = self.backward_max[m, 0] = 0.0
-        for k in range(m - 1, -1, -1):
-            for j, a in enumerate(alphabet):
-                span = min(a + width - 1, width) - a
-                step = log_probs[k, j]
-                self.backward[k, 1:1 + span] = np.logaddexp(
-                    self.backward[k, 1:1 + span], self.backward[k + 1, a:a + span] + step)
-                self.backward_max[k, 1:1 + span] = np.maximum(
-                    self.backward_max[k, 1:1 + span], self.backward_max[k + 1, a:a + span] + step)
+        self.ahead, self.behind = 0, m
+        self.swept = 0
+        self._advance(m)
+        self._retreat(0)
+        self.swept = 0
+
+    def _advance(self, k: int) -> None:
+        """Make forward vectors current through position ``k``."""
+        while self.ahead < k:
+            i = self.ahead
+            self.forward[i + 1] = self.forward_max[i + 1] = -np.inf
+            for j, a in enumerate(self.alphabet):
+                span = min(a + self.width - 1, self.width) - a
+                step = self.log_probs[i, j]
+                self.forward[i + 1, a:a + span] = np.logaddexp(
+                    self.forward[i + 1, a:a + span], self.forward[i, 1:1 + span] + step)
+                self.forward_max[i + 1, a:a + span] = np.maximum(
+                    self.forward_max[i + 1, a:a + span], self.forward_max[i, 1:1 + span] + step)
+            self.ahead += 1
+            self.swept += 1
+
+    def _retreat(self, k: int) -> None:
+        """Make backward vectors current from position ``k``."""
+        while self.behind > k:
+            i = self.behind - 1
+            self.backward[i] = self.backward_max[i] = -np.inf
+            for j, a in enumerate(self.alphabet):
+                span = min(a + self.width - 1, self.width) - a
+                step = self.log_probs[i, j]
+                self.backward[i, 1:1 + span] = np.logaddexp(
+                    self.backward[i, 1:1 + span], self.backward[i + 1, a:a + span] + step)
+                self.backward_max[i, 1:1 + span] = np.maximum(
+                    self.backward_max[i, 1:1 + span], self.backward_max[i + 1, a:a + span] + step)
+            self.behind -= 1
+            self.swept += 1
 
     def scores(self, k: int, row: np.ndarray) -> tuple[float, float]:
         """``log Z`` and the best log weight with word ``k``'s log weights
         replaced by ``row``, from the vectors before and after it."""
+        self._advance(k)
+        self._retreat(k + 1)
         log_z = log_x = -np.inf
         for j, a in enumerate(self.alphabet):
             span = min(a + self.width - 1, self.width) - a
@@ -349,6 +373,16 @@ class Split:
             best = self.forward_max[k, 1:1 + span] + self.backward_max[k + 1, a:a + span] + row[j]
             log_x = max(log_x, float(best.max()))
         return float(log_z), log_x
+
+    def climb(self, k: int, row: np.ndarray) -> tuple[float, float]:
+        """Replace word ``k``'s log weights by ``row`` and return the new
+        ``log Z`` and best log weight. Vectors that depend on word ``k`` (forward
+        after it, backward before it) stop being current."""
+        result = self.scores(k, row)
+        self.log_probs[k] = row
+        self.ahead = min(self.ahead, k)
+        self.behind = max(self.behind, k + 1)
+        return result
 
 
 @dataclass(frozen=True)

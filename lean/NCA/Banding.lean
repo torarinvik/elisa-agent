@@ -348,4 +348,40 @@ theorem dpMax_append : ∀ (ws₁ ws₂ : List (α → ℝ)), (∀ w ∈ ws₁, 
 
 end Split
 
+section Sweep
+
+open Finset
+
+theorem sum_row (m : ℕ) : 2 * ∑ i ∈ range m, |(i : ℤ) - m| = m * (m + 1) := by
+  induction m with
+  | zero => simp
+  | succ n ih =>
+    have h : ∀ i ∈ range n, |(i : ℤ) - (n + 1 : ℕ)| = |(i : ℤ) - n| + 1 := by
+      intro i hi
+      have := mem_range.mp hi
+      rw [abs_of_neg (by push_cast; omega), abs_of_neg (by omega)]; push_cast; ring
+    rw [sum_range_succ, sum_congr rfl h, sum_add_distrib]
+    push_cast at ih ⊢
+    simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
+    rw [abs_of_neg (by linarith)]
+    nlinarith [ih]
+
+/-- **Cursor sweep.** Over all ordered pairs of positions among `m`, the
+distances `|i − j|` sum to `(m³ − m) / 3`: a cursor moving between uniformly
+random positions sweeps `(m² − 1) / (3m) < m / 3` positions on average. -/
+theorem sum_pair_dist (m : ℕ) :
+    3 * ∑ i ∈ range m, ∑ j ∈ range m, |(i : ℤ) - j| = (m : ℤ) ^ 3 - m := by
+  induction m with
+  | zero => simp
+  | succ n ih =>
+    have row := sum_row n
+    have col : ∑ i ∈ range n, |(n : ℤ) - i| = ∑ i ∈ range n, |(i : ℤ) - n| :=
+      sum_congr rfl fun i _ => abs_sub_comm _ _
+    simp only [sum_range_succ, sum_add_distrib, sub_self, abs_zero, add_zero]
+    rw [col]
+    push_cast
+    nlinarith [ih, row]
+
+end Sweep
+
 end NCA
