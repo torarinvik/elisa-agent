@@ -349,14 +349,17 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         account = (certificate(readings, item_risk, current_distribution) if certificate is not None
                    else {i: item_risk(i, d) for i, d in enumerate(decisions)})
         if account is None:
-            charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf
+            charges = {i: item_risk(i, d) for i, d in enumerate(decisions)}
         else:
-            charges, bound = account, sum(account.values())
+            charges = account
         if (any(isinstance(i, bool) or (not isinstance(i, int) and not isinstance(i, Integral))
                 or not 0 <= i < len(values)
-                or not math.isfinite(charge) or charge < 0 for i, charge in charges.items())
-                or (account is not None and not math.isfinite(bound))):
+                or not math.isfinite(charge) or charge < 0 for i, charge in charges.items())):
             raise ValueError("certificate charges must have valid item indices and finite nonnegative values")
+        try:
+            bound = math.inf if account is None else math.fsum(charges.values())
+        except OverflowError as exc:
+            raise ValueError("certificate charges must have a finite total") from exc
         available = account is not None
         if observe is not None:
             observe(Refinement(list(readings), cost, bound,

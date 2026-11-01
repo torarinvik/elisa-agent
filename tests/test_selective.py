@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+import math
 from typing import Any
 
 import numpy as np
@@ -209,6 +210,16 @@ def test_refinement_accepts_non_builtin_integral_indices() -> None:
     rung = Rung(constant("numpy-index-reader", (0.1, 0.9), 1.0))
     result = refine([0], [[rung]], 0.5, certificate=lambda *_: {np.int64(0): 0.1})
     assert not result.abstained and result.bound == 0.1
+
+
+def test_refinement_preserves_small_charges_in_total() -> None:
+    rung = Rung(constant("small-charges-reader", (0.1, 0.9), 1.0))
+    charges = {0: 1.1186891848835543e-179, 1: 0.15944700478182372,
+               2: 0.4537584643973063}
+    target = math.nextafter(math.fsum(charges.values()), -math.inf)
+    result = refine([0] * 3, [[rung]] * 3, target, certificate=lambda *_: charges)
+    assert result.bound == math.fsum(charges.values())
+    assert result.bound > target and result.abstained
 
 
 @pytest.mark.parametrize("target", [float("nan"), -1.0])

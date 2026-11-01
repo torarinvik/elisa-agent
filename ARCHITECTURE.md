@@ -481,6 +481,8 @@ Selective solving creates a per-solve consumer session and holds each resolved
 prior fixed across refinement and final answer production.
 Refinement rejects invalid item indices, nonfinite or negative certificate
 charges, and nonfinite total charges before comparing a bound with a target.
+It totals charges with `math.fsum` to reduce loss of small contributions;
+this is not a directed-rounding or end-to-end floating-point certificate.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs
