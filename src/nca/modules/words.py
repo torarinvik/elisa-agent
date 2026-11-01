@@ -35,6 +35,9 @@ from nca.efficiency import network_flops
 from nca.formulas import (ALPHABET, ARITY, VOCABULARY, FormulaDataset, Split, apply, decode,
                           labeled_words, parse)
 from nca.ladder import Decision, allocate_risk
+from nca.native import load
+
+_NATIVE = load("decoding")
 from nca.modules.symbols import BOOLEAN
 
 FORMULA_TEXT = "text.formula.prefix.v1"
@@ -269,6 +272,21 @@ class FormulaEvaluator:
         with weight ``full[k]`` at evaluated words and ``shape[k]`` in skipped
         subtrees; a child is skipped only if its sibling's value absorbs the
         connective."""
+        native = getattr(_NATIVE, "certificate", None)
+        if native is not None:
+            left = np.array([kids[0] if kids else -1 for kids in children], dtype=np.int64)
+            right = np.array([kids[1] if len(kids) == 2 else -1 for kids in children],
+                             dtype=np.int64)
+            found = native(np.array([VOCABULARY.index(w) for w in words], dtype=np.int64),
+                           left, right, np.asarray(full, dtype=np.float64),
+                           np.asarray(shape, dtype=np.float64))
+            return {k for k, chosen in enumerate(found) if chosen}
+        return FormulaEvaluator.evaluated_reference(words, children, full, shape)
+
+    @staticmethod
+    def evaluated_reference(words: Sequence[str], children: Sequence[Sequence[int]],
+                            full: Sequence[float], shape: Sequence[float]) -> set[int]:
+        """Reference recurrence for the optional native certificate kernel."""
         n = len(words)
         values = [False] * n
         weight = [0.0] * n

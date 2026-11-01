@@ -1103,6 +1103,20 @@ The checkpoint is a pre-existing temporary artifact outside the repository;
 these timings are conditional on that trained reader, not a fresh-training
 replication.
 
+**Native certificate recurrence.** The Elisa implementation matches the
+reference on 120 random formulas at depths 1–6 with xor probability 0.3,
+for both random weights and all-zero weights (ties): 240 comparisons. On
+one depth-8 formula of 568 words, seed 26, 1,000 selections took 0.3165 s
+in the Python recurrence and 0.0673 s through the native wrapper, about
+4.7 times faster including marshaling. Full refinement has not yet been
+remeasured after this port. All 108 tests passed with the kernel built.
+
+The installed compiler refused the ordinary build because its LLVM-toolchain
+provenance fingerprint differed. The kernel was compiled for this experiment
+with the explicit `ELISA_ALLOW_STALE_STAGE1=1` override. This does not change
+the project's default build command. Repairing the compiler provenance check
+remains a follow-up before relying on an ordinary reproducible native build.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

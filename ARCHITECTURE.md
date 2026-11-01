@@ -436,3 +436,10 @@ answer's words. It compares raw rows, updates only changed arity masses, and
 uses `Split.best` (native Elisa `trace` when available). The calibrated cursor
 still computes the risk of that selected sequence, which need not maximize
 the calibrated posterior. Both cursors remain scoped to one solve.
+
+The optional native decoding module also exports `certificate`: the least-risk
+certificate recurrence over parsed prefix trees, including right-child tie
+preference. `FormulaEvaluator.evaluated` marshals opcodes and child indices to
+Elisa; `evaluated_reference` remains the Python recurrence and fallback when
+the native module or this export is absent. This implements the existing
+certificate soundness and minimum-weight results (18.3–18.5).

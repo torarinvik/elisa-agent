@@ -527,3 +527,20 @@ def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.
         k = int(rng.integers(len(readings)))
         readings[k] = rng.dirichlet(np.ones(len(VOCABULARY)))
         assert evaluator.words(readings, state) == evaluator.words(readings)
+
+
+def test_native_certificate_matches_reference_including_ties() -> None:
+    from nca.modules import words as word_module
+
+    if getattr(word_module._NATIVE, "certificate", None) is None:
+        pytest.skip("native certificate kernel is not built")
+    rng = np.random.default_rng(26)
+    for depth in range(1, 7):
+        for _ in range(20):
+            words = formula(depth, rng, xor=0.3)
+            kids = parse([ARITY[VOCABULARY.index(w)] for w in words])
+            assert kids is not None
+            for full, shape in ((rng.random(len(words)), rng.random(len(words))),
+                                (np.zeros(len(words)), np.zeros(len(words)))):
+                assert FormulaEvaluator.evaluated(words, kids, full, shape) == (
+                    FormulaEvaluator.evaluated_reference(words, kids, full, shape))
