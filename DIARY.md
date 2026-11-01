@@ -1824,6 +1824,31 @@ on Boolean answer errors, selective refinement, deployment certification,
 or an unknown formula family. The factory is not yet wired into the planner
 or evaluator.
 
+**Prior-aware evaluation and refinement.** The evaluator now accepts a
+generic length-to-prior provider. The same prior determines raw-reading
+selection and calibrated risk of that selected answer. Tests check account
+sums against independent posterior calculations, changing raw and calibrated
+readings, fresh/session agreement, unsupported lengths and incompatible
+banding settings. The default remains format-only; no generator structure
+is hard-coded into the evaluator. Native tests: 153 passes; fallback: 139
+passes with 14 skips.
+
+The same 100 seed-6 depth-6 noise-0.2 evaluation formulas were solved at two
+targets, keeping depth-4 noise-0.1 validation calibration fixed:
+
+| prior | target | answers | errors among answers | mean expert cost | seconds |
+|---|---:|---:|---:|---:|---:|
+| format | 0.05 | 76 | 6 | 3,750,946.38 | 1.28895 |
+| complete | 0.05 | 97 | 3 | 556,179.02 | 1.20380 |
+| format | 0.01 | 34 | 3 | 10,038,091.34 | 2.38883 |
+| complete | 0.01 | 77 | 1 | 4,352,874.06 | 6.31743 |
+
+The complete prior improves observed coverage and error counts on this known
+synthetic family, but these runs are not deployment-certified. Lower expert
+compute does not imply lower wall time: the complete 1% run repeatedly
+executes a dense prior decoder and is slower. Typed planner integration,
+policy audits and incremental prior decoding remain outstanding.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

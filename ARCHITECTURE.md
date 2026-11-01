@@ -642,4 +642,12 @@ and a marker for a leaf constant after unary negation. Impossible lengths
 return `None`; decoding and posterior calculations use the existing Elisa
 weighted-automaton kernel. Exhaustive grammar tests check the transition
 construction; the construction itself is not extracted from Lean. This
-factory is not yet an installed planner expert or evaluator input.
+factory can be supplied through `FormulaEvaluator(prior=complete_prior,
+decode=True)`. The evaluator accepts a generic deterministic length-to-prior
+provider, uses it for raw answer selection and calibrated sequence risk, and
+refuses certificates at unsupported lengths. The alphabet must be
+`ARITY_ORDER`, and the prior must include syntax constraints. Full native
+decoding refreshes prior marginals on every account call; the default format
+cursor and its revision caches remain unchanged. Prior decoding and format
+banding cannot yet be combined. A separate typed planner prior expert and
+CLI selection remain to be implemented.

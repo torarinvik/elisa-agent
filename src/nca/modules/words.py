@@ -32,7 +32,7 @@ from torch import nn
 
 from nca.abi import Contract, Manifest, seq_type
 from nca.efficiency import network_flops
-from nca.formulas import (ALPHABET, ARITY, VOCABULARY, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
+from nca.formulas import (ALPHABET, ARITY, VOCABULARY, ArityPrior, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
                           labeled_words, parse, sequence_log_weight)
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
@@ -204,6 +204,11 @@ class FormulaEvaluator:
     the words in proportion to their posterior arity risks, plus each evaluated
     word's restricted risk.
 
+    An optional ``prior(length)`` provider supplies a stable, syntax-constrained
+    ``ArityPrior`` over ``ARITY_ORDER`` for both selection and correction risk.
+    Unsupported lengths have no certificate. This path uses full native prior
+    decoding and cannot yet be combined with the format-only banded cursor.
+
     Its ``floor`` (§22.3) bounds every account refinement can still reach
     from the words whose readings are fixed: the smaller of their full and
     arity risks (certificate account), their full risks (static account), or
@@ -213,9 +218,13 @@ class FormulaEvaluator:
     """
 
     def __init__(self, short_circuit: bool = True, detection: str = "none",
-                 decode: bool = False, band_slack: float | None = None) -> None:
+                 decode: bool = False, band_slack: float | None = None,
+                 prior: Callable[[int], ArityPrior | None] | None = None) -> None:
         if band_slack is not None and not 0 < band_slack < 1:
             raise ValueError("band_slack must be strictly between zero and one")
+        if prior is not None and (not decode or band_slack is not None):
+            raise ValueError("prior requires decoding without banding")
+        self.prior = prior
         self.band_slack = band_slack
         assert detection in DETECTION
         self.short_circuit = short_circuit
@@ -224,20 +233,30 @@ class FormulaEvaluator:
         self.manifest = Manifest("nca.logic.formula-evaluator", "1.0.0",
                                  Contract((seq_type(WORD_DISTRIBUTION),), BOOLEAN))
 
+    def _arity_prior(self, length: int) -> ArityPrior | None:
+        prior = None if self.prior is None else self.prior(length)
+        if prior is not None and prior.alphabet != ARITY_ORDER:
+            raise ValueError("evaluator prior must use ARITY_ORDER")
+        return prior
+
     def words(self, readings: Sequence[Sequence[float]],
               state: CorrectionState | None = None) -> list[str]:
         """The words read: each word's most probable class, or, when decoding,
         the most probable class within its decoded arity group."""
         if not self.decode:
             return [VOCABULARY[int(np.argmax(r))] for r in readings]
-        if state is None:
+        if state is None or self.prior is not None:
             masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
                                for r in readings])
             with np.errstate(divide="ignore"):
-                decoded = decode(np.log(masses), ARITY_ORDER)
+                prior = None if self.prior is None else self._arity_prior(len(readings))
+                decoded = (decode(np.log(masses), ARITY_ORDER) if self.prior is None else
+                           None if prior is None else prior.decode(np.log(masses)))
             if decoded is None:
                 return [VOCABULARY[int(np.argmax(r))] for r in readings]
             arities = decoded.arities
+            if state is not None:
+                state.answer_readings = np.asarray(readings, dtype=np.float64).copy()
         elif self.band_slack is not None:
             selected = self._banded_words(readings, state)
             if selected is None:
@@ -307,6 +326,8 @@ class FormulaEvaluator:
         return None if result is None else result.arities
 
     def invoke(self, readings: Sequence[Sequence[float]]) -> bool | None:
+        if self.prior is not None and self._arity_prior(len(readings)) is None:
+            return None
         words = self.words(readings)
         children = parse([ARITY[VOCABULARY.index(w)] for w in words])
         if children is None:
@@ -397,8 +418,10 @@ class FormulaEvaluator:
                 for a in ARITY_ORDER:
                     state.within.pop((k, a), None)
         arities = [ARITY[VOCABULARY.index(w)] for w in words]
-        if state is None:
-            posterior = decode(log_probs, ARITY_ORDER)
+        if state is None or self.prior is not None:
+            prior = None if self.prior is None else self._arity_prior(n)
+            posterior = (decode(log_probs, ARITY_ORDER) if self.prior is None else
+                         None if prior is None else prior.decode(log_probs))
             if posterior is None:
                 return None
             sequence_risk = posterior.risk(log_probs, ARITY_ORDER, arities)

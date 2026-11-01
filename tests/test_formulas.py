@@ -940,3 +940,42 @@ def test_complete_prior_posterior_matches_enumerated_shapes(
             assert posterior.log_z == pytest.approx(expected_z, abs=1e-12)
             assert posterior.risk(rows, (0, 1, 2)) == pytest.approx(
                 -np.expm1(scores.max() - expected_z), abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_evaluator_selection_and_account_use_same_structural_prior(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(71)
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=formulas.complete_prior)
+    session = evaluator.certificate_session()
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
+    calibrated = rng.dirichlet(np.ones(3), size=9)
+    prior = formulas.complete_prior(9)
+    assert prior is not None
+
+    def distribution(k: int, decision: Decision) -> torch.Tensor:
+        return torch.tensor(calibrated[k])
+
+    for _ in range(10):
+        readings[int(rng.integers(9))] = rng.dirichlet(np.ones(len(VOCABULARY)))
+        calibrated[int(rng.integers(9))] = rng.dirichlet(np.ones(3))
+        words = evaluator.words(readings)
+        selected = tuple(ARITY[VOCABULARY.index(w)] for w in words)
+        assert prior.log_weight(selected) == 0.0
+        posterior = prior.decode(np.log(calibrated))
+        assert posterior is not None
+        expected = posterior.risk(np.log(calibrated), ARITY_ORDER, selected) + 0.009
+        account = session(readings, lambda k, d: 0.001, distribution)
+        fresh = evaluator.certificate(readings, lambda k, d: 0.001, distribution)
+        assert account is not None and fresh is not None
+        assert sum(account.values()) == pytest.approx(expected, abs=1e-12)
+        assert account == pytest.approx(fresh)
+        assert evaluator.invoke(readings) == evaluate(words)
+    assert evaluator.invoke(readings[:6]) is None
+    assert evaluator.certificate(readings[:6], lambda k, d: 0.001, distribution) is None
+    with pytest.raises(ValueError):
+        FormulaEvaluator(prior=formulas.complete_prior)
+    with pytest.raises(ValueError):
+        FormulaEvaluator(decode=True, band_slack=1e-4, prior=formulas.complete_prior)
