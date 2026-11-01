@@ -167,3 +167,18 @@ def test_conflicting_live_expert_references_are_rejected() -> None:
     other = LazyExpert(other_manifest, lambda: Fn(other_manifest, lambda: None), 1, store)
     other.invoke()
     assert new.invoke(None) == "new"
+
+
+def test_unfit_route_does_not_evict_or_replace_existing_pins() -> None:
+    store = ExpertStore(budget=2)
+    manifest = Manifest("resident", "1", Contract(("x",), "y"))
+    resident = LazyExpert(manifest, lambda: Fn(manifest, lambda x: x), 1, store)
+    route = Apply(resident, (Given("x"),))
+    store.prepare(route)
+    before = (list(store.resident), store.pinned, store.stats.evictions)
+    huge_manifest = Manifest("huge", "1", Contract(("x",), "z"))
+    huge = LazyExpert(huge_manifest, lambda: Fn(huge_manifest, lambda x: x), 3, store)
+    with pytest.raises(MemoryError, match="route requires 3 B"):
+        store.prepare(Apply(huge, (Given("x"),)))
+    assert (list(store.resident), store.pinned, store.stats.evictions) == before
+    assert resident.invoke("ok") == "ok"

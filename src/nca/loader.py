@@ -64,6 +64,9 @@ class ExpertStore:
                     key in self._owners and self._owners[key] is not expert):
                 raise ValueError(f"conflicting expert definitions for {key}")
             experts[key] = expert
+        required = sum(e.size for e in experts.values())
+        if self.budget is not None and required > self.budget:
+            raise MemoryError(f"route requires {required} B, exceeding the {self.budget} B store budget")
         self.pinned = frozenset(experts)
         missing = [e for key, e in experts.items() if key not in self.resident]
         self._make_room(sum(e.size for e in missing))
