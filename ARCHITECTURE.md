@@ -653,8 +653,8 @@ banding cannot yet be combined. `logic --prior complete` supplies the prior to c
 selective and shifted-policy audit runs; other accounts remain unchanged.
 The CLI rejects combining this prior with banding before loading the reader,
 and labels the chosen correction prior. Premise diagnostics still explicitly
-report the format-only model. A separate typed planner prior expert remains
-to be implemented.
+report the format-only model. The complete-prior library now installs the
+independent prior expert and the slot-consuming evaluator.
 
 The Elisa prior decoder skips states whose current forward log weight is
 negative infinity in forward, backward and marginal passes (§27.6,
@@ -670,6 +670,17 @@ otherwise, retaining the output type without a format fallback. The ordinary
 stable planner and runtime can route and execute it independently; the
 evaluator can consume its `invoke` method as a prior provider. Direct
 evaluation refuses selected shapes outside the supplied prior support.
-Binding the expert through a typed higher-order slot in selective refinement
-remains outstanding: that solver currently handles single-input consumer
-chains, while the ordinary runtime already executes higher-order slots.
+`PriorFormulaEvaluator` declares a slot from formula length to arity prior,
+with one call per invocation. Its `bind_slots` method constructs a per-solve
+ordinary evaluator, caching the supplied prior by length. `split_route` binds
+consumer slots before asking for certificates or invoking consumers, so risk
+and answers use the same filling. Other slotted consumers must provide
+`bind_slots`; unsupported bindings are rejected rather than discarded.
+
+Slot fillings execute through the ordinary runtime in fresh workspaces with
+a 10,000-invocation budget per call. This does not turn the selective solver
+into a general cost-budgeted runtime: `Answer.cost` still counts reader
+refinement compute, excluding consumer and auxiliary-slot execution. The
+ordinary runtime charges slot and consumer manifests when executing the
+whole typed route. The consumer chain still has one ordinary data input per
+module; slots add explicitly bound higher-order dependencies.

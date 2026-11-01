@@ -1907,6 +1907,28 @@ automata. Typed slot binding in selective refinement remains outstanding;
 its current consumer-chain adapter does not bind higher-order slots. The
 existing constructor-provider path and CLI remain available.
 
+**Typed slot binding in refinement.** `PriorFormulaEvaluator` now consumes
+the length-to-prior slot described in §27.3, using the existing higher-order
+planner and runtime semantics. Selective consumer binding happens before
+certificate-session creation; invocation and risk therefore share the same
+filled prior. The per-solve evaluator caches the prior by length, and tests
+verify exactly one prior-expert invocation for a solve and shared multi-target
+solve. Slotted consumers without `bind_slots` are rejected. The complete
+CLI library now installs the separate expert and slot consumer.
+
+Ordinary runtime execution, selective answers, full refinement traces,
+unsupported lengths and shared multi-target results are checked against the
+constructor-provider path. A real-reader comparison on 20 depth-6 noise-0.2
+seed-106 formulas, calibrated on the earlier 100 seed-6 depth-4 noise-0.1
+validation formulas, matched every Answer and trace: 19 answered, no observed
+errors. This checks integration, not a new certification result or a timing
+gain. A real CLI run also exercises the typed route.
+
+Each auxiliary slot invocation uses the ordinary runtime with a 10,000-call
+budget and a fresh workspace. The selective solver's reported cost retains
+its reader-compute meaning; it does not include consumer or prior-slot
+execution. Ordinary whole-route runtime budgeting still charges manifests.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

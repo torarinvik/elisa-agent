@@ -52,7 +52,8 @@ from nca.ladder import (Rung, State, Stop, certification_order, certification_po
                         stopping_rule)
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
-                               EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer)
+                               EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
+                               CompleteTreePrior, PriorFormulaEvaluator)
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
 from nca.selective import Answer, build_ladders, solve, solve_many
@@ -69,8 +70,15 @@ detection (§19), and decoding by the format (§21)."""
 def library(reader: Path, short_circuit: bool, detection: str = "none",
             decoding: bool = False, band_slack: float | None = None,
             prior: Callable[[int], ArityPrior | None] | None = None) -> list[Module]:
-    return [Tokenizer(), EditReader(), CharReader.load(reader),
-            FormulaEvaluator(short_circuit, detection, decoding, band_slack, prior if decoding else None)]
+    modules: list[Module] = [Tokenizer(), EditReader(), CharReader.load(reader)]
+    if decoding and prior is complete_prior:
+        if band_slack is not None:
+            raise ValueError("complete prior cannot yet be combined with banding")
+        modules.extend([CompleteTreePrior(), PriorFormulaEvaluator(short_circuit)])
+    else:
+        modules.append(FormulaEvaluator(short_circuit, detection, decoding, band_slack,
+                                        prior if decoding else None))
+    return modules
 
 
 def certificate_leaves(sample: FormulaSample) -> int:

@@ -25,12 +25,13 @@ import math
 from dataclasses import dataclass, field
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from functools import lru_cache
 
 import numpy as np
 import torch
 from torch import nn
 
-from nca.abi import Contract, Manifest, seq_type
+from nca.abi import Calls, Contract, Manifest, seq_type
 from nca.efficiency import network_flops
 from nca.formulas import (ALPHABET, ARITY, VOCABULARY, ArityPrior, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
                           complete_prior, labeled_words, parse, sequence_log_weight)
@@ -575,6 +576,25 @@ class FormulaEvaluator:
         if self.detection == "markov":
             return markov
         return min(markov, (total * total - sum(r * r for r in arity)) / 2)
+
+
+class PriorFormulaEvaluator(FormulaEvaluator):
+    """Formula evaluator with a planner-filled length-to-prior slot (§27.3)."""
+
+    def __init__(self, short_circuit: bool = True) -> None:
+        super().__init__(short_circuit=short_circuit, decode=True)
+        self.manifest = Manifest("nca.logic.prior-formula-evaluator", "1.0.0",
+            Contract((seq_type(WORD_DISTRIBUTION),), BOOLEAN,
+                     (((FORMULA_LENGTH,), ARITY_PRIOR),)), calls=(Calls(fixed=1),))
+
+    def bind_slots(self, prior: Callable[[int], ArityPrior]) -> FormulaEvaluator:
+        # Binding is local to one solve/invocation; the length is constant in it.
+        return FormulaEvaluator(self.short_circuit, decode=True,
+                                prior=lru_cache(maxsize=32)(prior))
+
+    def invoke(self, prior: Callable[[int], ArityPrior],
+               readings: Sequence[Sequence[float]]) -> bool | None:
+        return self.bind_slots(prior).invoke(readings)
 
 
 def main() -> None:

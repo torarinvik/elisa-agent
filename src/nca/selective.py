@@ -49,7 +49,7 @@ from typing import Any
 
 import torch
 
-from nca.abi import NOTHING, Contract, SequenceDemand, TypeId
+from nca.abi import NOTHING, Contract, Message, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
 from nca.ladder import (Distribution, Certificate, Decision, Floor, Refinement, Rung, SecondLook, State, Stop, ladder,
@@ -61,6 +61,8 @@ from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuse
 from nca.planner import Apply, Given, Map, Plan, plan_stable
 from nca.registry import Module
 from nca.stats import wilson
+from nca.runtime import execute
+from nca.workspace import Workspace
 
 SHIFTS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 GLYPH_SHAPE = (1, 28, 28)
@@ -89,12 +91,29 @@ def readers(mapped: Map) -> list[Apply]:
     return list(body.args)
 
 
+def bind_consumer(node: Apply) -> Module:
+    """Bind typed slots before obtaining a consumer's per-solve declarations."""
+    if not node.slots:
+        return node.module
+    bind = getattr(node.module, "bind_slots", None)
+    if bind is None:
+        raise ValueError("selective consumer with slots must declare bind_slots")
+    fillings = []
+    for sub, (inputs, _) in zip(node.slots, node.module.manifest.contract.slots, strict=True):
+        def filling(*values: Any, sub: Plan = sub, inputs: tuple[TypeId, ...] = inputs) -> Any:
+            messages = {t: Message(t, value, "selective-slot")
+                        for t, value in zip(inputs, values, strict=True)}
+            return execute(sub, messages, Workspace(), budget=10_000).payload
+        fillings.append(filling)
+    return bind(*fillings)
+
+
 def split_route(route: Plan) -> tuple[list[Module], Map]:
     """The consumer chain (outermost first) and the map it consumes."""
     chain: list[Module] = []
     while isinstance(route, Apply):
         assert len(route.args) == 1, "refinement needs a chain of single-input consumers"
-        chain.append(route.module)
+        chain.append(bind_consumer(route))
         route = route.args[0]
     assert isinstance(route, Map) and isinstance(route.body, Apply)
     return chain, route

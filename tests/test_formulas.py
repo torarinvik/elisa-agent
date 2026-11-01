@@ -1027,3 +1027,57 @@ def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> N
             assert result.payload.decode(np.zeros((size, 3))) is None
         else:
             assert result.payload is formulas.complete_prior(size)
+
+
+def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
+    from nca.abi import Message, seq_type
+    from nca.modules.words import (CompleteTreePrior, PriorFormulaEvaluator,
+                                   WORD_DISTRIBUTION)
+    from nca.runtime import execute
+    from nca.selective import solve_many
+    from nca.workspace import Workspace
+
+    class CountingPrior(CompleteTreePrior):
+        calls = 0
+
+        def invoke(self, length: int) -> formulas.ArityPrior:
+            self.calls += 1
+            return super().invoke(length)
+
+    prior = CountingPrior()
+    consumer = PriorFormulaEvaluator()
+    assert plan_stable([consumer], (seq_type(WORD_DISTRIBUTION),), BOOLEAN) is None
+    direct = plan_stable([prior, consumer], (seq_type(WORD_DISTRIBUTION),), BOOLEAN)
+    assert direct is not None
+    from nca.planner import Apply
+    from nca.selective import bind_consumer
+
+    class UnboundConsumer:
+        manifest = consumer.manifest
+
+    assert isinstance(direct, Apply)
+    with pytest.raises(ValueError, match="bind_slots"):
+        bind_consumer(Apply(UnboundConsumer(), direct.args, direct.slots))
+    readings = one_hot("and true not false".split())
+    result = execute(direct, {seq_type(WORD_DISTRIBUTION): Message(
+        seq_type(WORD_DISTRIBUTION), readings, "input")}, Workspace(), budget=2)
+    assert result.payload is True and prior.calls == 1
+    modules = [Tokenizer(), EditReader(), prior, consumer]
+    route = plan_stable(modules, (FORMULA_TEXT,), BOOLEAN)
+    provider = plan_stable([Tokenizer(), EditReader(), FormulaEvaluator(
+        decode=True, prior=formulas.complete_prior)], (FORMULA_TEXT,), BOOLEAN)
+    assert route is not None and provider is not None
+    words = list(VOCABULARY) * 10
+    ladders = build_ladders(modules, route, {WORD_DISTRIBUTION: (
+        words, torch.tensor([VOCABULARY.index(w) for w in words]))})
+    for text in ("and true not flse", "and tru flse", "and or true false not false"):
+        prior.calls = 0
+        typed_trace, provider_trace = [], []
+        typed = solve(route, ladders, text, 0.05, trace=typed_trace)
+        expected = solve(provider, ladders, text, 0.05, trace=provider_trace)
+        assert typed == expected and typed_trace == provider_trace
+        assert prior.calls == 1
+        prior.calls = 0
+        assert solve_many(route, ladders, text, [0.05, 0.01]) == solve_many(
+            provider, ladders, text, [0.05, 0.01])
+        assert prior.calls == 1
