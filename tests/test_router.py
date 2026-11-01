@@ -137,3 +137,39 @@ def test_unify_returns_most_general_unifiers() -> None:
         for tau in unifiers:
             assert all(substitute(resolve(Var(v), binding), tau) == tau[v] for v in names)
     assert unified > 50 and factored > 30
+
+
+def test_sequential_unification_is_most_general() -> None:
+    """Unifying equations one at a time, threading the binding as pattern
+    search does, succeeds whenever the whole list has a unifier and returns a
+    most general one (Theorem 2.8)."""
+    rng = np.random.default_rng(6)
+    names = ["a", "b", "c"]
+    constants = [App("k0"), App("k1")]
+    ground = [*constants, *(App("box", (t,)) for t in constants),
+              *(App("pair", (s, t)) for s in constants for t in constants)]
+
+    def small(depth: int) -> Term:
+        if depth == 0 or rng.random() < 0.4:
+            return Var(str(rng.choice(names))) if rng.random() < 0.6 else constants[int(rng.integers(2))]
+        if rng.random() < 0.5:
+            return App("box", (small(depth - 1),))
+        return App("pair", (small(depth - 1), small(depth - 1)))
+
+    solved = factored = 0
+    for _ in range(1200):
+        equations = [(small(2), small(2)) for _ in range(int(rng.integers(2, 4)))]
+        binding: dict[str, Term] = {}
+        found = all(unify(left, right, binding) for left, right in equations)
+        unifiers = [tau for values in itertools.product(ground, repeat=3)
+                    if all(substitute(left, tau := dict(zip(names, values)))
+                           == substitute(right, tau) for left, right in equations)]
+        if not found:
+            assert not unifiers
+            continue
+        solved += 1
+        assert all(resolve(left, binding) == resolve(right, binding) for left, right in equations)
+        factored += bool(unifiers)
+        for tau in unifiers:
+            assert all(substitute(resolve(Var(v), binding), tau) == tau[v] for v in names)
+    assert solved > 70 and factored > 30

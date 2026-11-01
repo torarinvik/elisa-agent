@@ -61,6 +61,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.5](theory/02-planning.md) | `InstanceOf.subst`, `answer_sound` | `Terms` |
 | [2.6](theory/02-planning.md) | `Term.subst_app_ne` | `Terms` |
 | [2.7](theory/02-planning.md) | `mgu_exists` | `Unification` |
+| [2.8](theory/02-planning.md) | `unifies_eqSubst`, `isMGU_append` | `Unification` |
 | [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |

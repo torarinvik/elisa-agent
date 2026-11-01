@@ -393,4 +393,41 @@ theorem mgu_exists (E : Equations) (hu : ∃ τ, Unifies τ E) : ∃ σ, IsMGU �
         · exact Or.inr fun hl => hfg ⟨h, hl⟩
         · exact Or.inl h
 
+/-- Equations with a substitution applied to both sides. -/
+def eqSubst (θ : Nat → Term) (E : Equations) : Equations :=
+  E.map fun p => (subst θ p.1, subst θ p.2)
+
+/-- A unifier factoring through `θ` absorbs it. -/
+theorem subst_absorb {τ θ : Nat → Term} (h : ∀ x, τ x = subst τ (θ x)) (s : Term) :
+    subst τ (subst θ s) = subst τ s := by
+  rw [subst_subst]
+  congr 1
+  funext x
+  exact (h x).symm
+
+/-- **Sequential unification.** Solving `E₁` most generally never loses a
+solution of `E₁ ++ E₂`, and a most general solution of the rest, composed
+with it, is most general for the whole. -/
+theorem unifies_eqSubst {θ₁ τ : Nat → Term} {E₁ E₂ : Equations} (h₁ : IsMGU θ₁ E₁)
+    (hτ : Unifies τ (E₁ ++ E₂)) : Unifies τ (eqSubst θ₁ E₂) := by
+  have hgen := h₁.2 τ (unifies_append.mp hτ).1
+  intro p hp
+  obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
+  rw [subst_absorb hgen, subst_absorb hgen]
+  exact (unifies_append.mp hτ).2 q hq
+
+theorem isMGU_append {θ₁ θ₂ : Nat → Term} {E₁ E₂ : Equations} (h₁ : IsMGU θ₁ E₁)
+    (h₂ : IsMGU θ₂ (eqSubst θ₁ E₂)) :
+    IsMGU (fun x => subst θ₂ (θ₁ x)) (E₁ ++ E₂) := by
+  have hcomp : ∀ s, subst (fun x => subst θ₂ (θ₁ x)) s = subst θ₂ (subst θ₁ s) :=
+    fun s => (subst_subst θ₂ θ₁ s).symm
+  refine ⟨unifies_append.mpr ⟨fun p hp => ?_, fun p hp => ?_⟩, fun τ hτ x => ?_⟩
+  · rw [hcomp, hcomp, h₁.1 p hp]
+  · rw [hcomp, hcomp]
+    exact h₂.1 _ (List.mem_map_of_mem hp)
+  · have g₁ := h₁.2 τ (unifies_append.mp hτ).1
+    have g₂ := h₂.2 τ (unifies_eqSubst h₁ hτ)
+    rw [subst_absorb g₂]
+    exact g₁ x
+
 end NCA

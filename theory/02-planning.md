@@ -139,4 +139,34 @@ distinct variables in `E` and then on the total size of its terms:
 The unification procedure follows these steps one by one, so it returns a
 most general unifier whenever any unifier exists.
 
+**Completeness of pattern search.** Fix the *skeleton* of a plan: which
+contract or available type sits at each node, without the types. Rename the
+variables of the contract at each node apart, by tagging them with the node.
+The skeleton then produces an instance of the goal `P` exactly when one
+finite list of equations has a solution: at every node, the node's output
+equals the pattern its parent asks for. A ground plan whose skeleton is this
+one gives such a solution, namely its own instantiation of every node.
+
+Pattern search does not solve that list at once. It solves the equations
+node by node, in search order, applying each node's most general unifier to
+the equations that follow.
+
+**Theorem 2.8 (sequential unification).** Let `θ₁` be a most general unifier
+of `E₁`.
+
+1. If `E₁ ++ E₂` has a unifier `τ`, then `τ` unifies `θ₁(E₂)`.
+2. If `θ₂` is a most general unifier of `θ₁(E₂)`, then `θ₂ ∘ θ₁` is a most
+   general unifier of `E₁ ++ E₂`.
+
+By induction over the nodes, the sequential solution never fails while the
+equations still have a solution. When it finishes, it is a most general
+unifier of the whole list, which exists by Theorem 2.7. So for every skeleton
+of depth at most `n`, pattern search finds the most general typing of that
+skeleton, and every ground instance of the skeleton's result factors through
+it. Pattern search backtracks over every skeleton within the depth bound, so
+it solves every pattern goal that has a plannable instance. The answer it
+returns is most general for the skeleton it settles on, though not
+necessarily over all skeletons. If that typing leaves a variable
+undetermined, the skeleton is ambiguous and the search goes on to the next.
+
 [Theory index](../THEORY.md)
