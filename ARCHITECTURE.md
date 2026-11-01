@@ -284,6 +284,9 @@ range; `certain_success_threshold` states the threshold adjustment.
 The pair-premise audit supplies `pair_risk_upper` as input to that excess-tail
 bound. Its Elisa kernel accumulates pair products with an upward-rounded
 prefix (`pair_prefix_step_upper`); the fallback sums upper-rounded shares.
+The separate distant-pair diagnostic uses `pair_gap_sum` to accumulate only
+eligible pairs without subtraction; `pair_gap_sum_nonneg` states nonnegativity
+in exact arithmetic. This diagnostic is not an outward-rounded bound.
 `bernoulliStep_impossible` justifies skipping zero-probability events.
 `bernoulliStep_certain_zero` and `bernoulliStep_certain_succ` justify combining
 the shifts for events with probability one.

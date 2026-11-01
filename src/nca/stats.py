@@ -71,6 +71,25 @@ def format_upper_bound(value: float, digits: int = 3) -> str:
         return format(+Decimal.from_float(value), f".{digits}g")
 
 
+def pair_gap_sum(values: Sequence[float], gap: int) -> float:
+    """Estimate the sum of products for pairs separated by at least ``gap``."""
+    if not isinstance(gap, Integral) or gap < 1:
+        raise ValueError("gap must be a positive integer")
+    risks = np.asarray(values, dtype=np.float64)
+    if risks.ndim != 1 or not np.isfinite(risks).all() or (risks < 0).any():
+        raise ValueError("values must be a one-dimensional sequence of finite nonnegative numbers")
+    if gap >= len(risks):
+        return 0.0
+    native = getattr(_NATIVE, "pair_gap_sum", None)
+    if native is not None and gap < 2**63:
+        return float(native(np.ascontiguousarray(risks), gap))
+    suffix = total = 0.0
+    for i in range(len(risks) - gap - 1, -1, -1):
+        suffix += float(risks[i + gap])
+        total += float(risks[i]) * suffix
+    return total
+
+
 def binomial_cdf(k: int, n: int, r: float) -> float:
     """``P(Binomial(n, r) <= k)``."""
     if n < 0:

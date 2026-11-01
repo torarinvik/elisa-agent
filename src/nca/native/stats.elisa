@@ -49,6 +49,16 @@ def pair_risk_upper(risks: view[f64]) -> f64:
                 prefix <- nextafter(sum, -log(0.0))
     return total
 
+# Sum products whose indices are separated by at least gap, without subtraction.
+def pair_gap_sum(risks: view[f64], gap: i64) -> f64:
+    n: i64 = risks.len.i64()
+    return 0.0 if gap <= 0 or gap >= n
+    return
+        for step in 0..<(n - gap) |total: f64 = 0.0, suffix: f64 = 0.0| -> total:
+            i: i64 = n - gap - 1 - step
+            suffix += risks[i + gap]
+            total += risks[i] * suffix
+
 def fixed_event(p: f64, q: f64) -> bool:
     return (p == 0.0 and q == 1.0) or (p == 1.0 and q == 0.0)
 
@@ -171,6 +181,7 @@ export pymodule stats:
     fn poisson_binomial_pmf
     fn poisson_binomial_upper
     fn pair_risk_upper
+    fn pair_gap_sum
     fn clopper_zero_upper
     fn clopper_upper
     fn binomial_cdf_upper

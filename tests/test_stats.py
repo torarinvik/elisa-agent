@@ -190,6 +190,28 @@ def test_format_upper_bound_never_rounds_down() -> None:
         format_upper_bound(0.5, 0)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_pair_gap_sum_avoids_cancellation(reference: bool, monkeypatch) -> None:
+    import numpy as np
+    import nca.stats as stats
+
+    if reference:
+        monkeypatch.setattr(stats, "_NATIVE", None)
+    risks = [1.0] + [0.0] * 8 + [1e-18]
+    assert stats.pair_gap_sum(risks, 9) == pytest.approx(1e-18, rel=1e-15, abs=0)
+    assert stats.pair_gap_sum(risks, 10) == 0.0
+    assert stats.pair_gap_sum([], 1) == 0.0
+    rng = np.random.default_rng(141)
+    for n in (1, 2, 10, 100):
+        values = rng.random(n)
+        for gap in (1, 3, 10):
+            expected = sum(values[i] * values[j] for i in range(n) for j in range(i + gap, n))
+            assert stats.pair_gap_sum(values, gap) == pytest.approx(expected, rel=1e-14, abs=1e-300)
+    for values, gap in (([0.1], 0), ([-0.1], 1), ([float("nan")], 1), ([[0.1]], 1)):
+        with pytest.raises(ValueError):
+            stats.pair_gap_sum(values, gap)
+
+
 def test_native_poisson_binomial_handles_sparse_and_nonfinite_inputs() -> None:
     import numpy as np
     import nca.stats as stats

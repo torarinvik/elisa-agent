@@ -24,6 +24,42 @@ def one_hot(words: list[str]) -> list[tuple[float, ...]]:
     return [tuple(float(w == v) for v in VOCABULARY) for w in words]
 
 
+def test_premise_diagnostic_handles_zero_expected_pairs(monkeypatch, capsys) -> None:
+    from types import SimpleNamespace
+    import nca.logic as logic
+
+    class Dataset:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __len__(self):
+            return 1
+
+        def sample(self, index):
+            return SimpleNamespace(text="true", words=["true"])
+
+    class Reader:
+        def observe(self, word):
+            return None
+
+        def reading(self, log):
+            return torch.tensor(one_hot(["true"])[0])
+
+        def distribution(self, log, classes):
+            return torch.tensor([1.0, 0.0, 0.0])
+
+        def risk(self, log, classes):
+            return 0.0
+
+    monkeypatch.setattr(logic, "FormulaDataset", Dataset)
+    args = SimpleNamespace(noise=0.1, shift=None, depths=[0], samples=1, seed=0, xor=0.0,
+                           early_leaf=0.0)
+    logic.premises(Reader(), args)
+    output = capsys.readouterr().out
+    assert "distant joint failures: 0" in output
+    assert "ratio n/a against marginal ratio² n/a" in output
+
+
 def no_distribution(k: int, decision: Decision) -> torch.Tensor:
     raise AssertionError("not needed by this account")
 

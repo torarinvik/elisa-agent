@@ -167,6 +167,18 @@ theorem detection_account_mono [LinearOrder ι] {ρ ρ' : ι → ℝ} (h0 : ∀ 
 
 end Counting
 
+/-- The sum of nonnegative pair products at a minimum separation is nonnegative. -/
+theorem pair_gap_sum_nonneg (risk : ℕ → ℝ) (n gap : ℕ) (h : ∀ i, 0 ≤ risk i) :
+    0 ≤ ∑ i ∈ Finset.range n, ∑ j ∈ Finset.range n,
+      if i + gap ≤ j then risk i * risk j else 0 := by
+  apply Finset.sum_nonneg
+  intro i hi
+  apply Finset.sum_nonneg
+  intro j hj
+  split
+  · exact mul_nonneg (h i) (h j)
+  · exact le_rfl
+
 /-- Adding one risk preserves a pair-sum bound when its prefix is bounded. -/
 theorem pair_prefix_step_upper (total pref risk totalUpper prefixUpper riskUpper : ℝ)
     (hTotal : total ≤ totalUpper) (hPrefix : pref ≤ prefixUpper)
