@@ -6,7 +6,7 @@ import pytest
 
 from nca.abi import Contract, Manifest, Message
 from nca.loader import ExpertStore, LazyExpert
-from nca.planner import Plan, ProducerIndex, plan, plan_stable_indexed
+from nca.planner import Apply, Given, Plan, ProducerIndex, plan, plan_stable_indexed
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -146,3 +146,24 @@ def test_route_aware_eviction_keeps_shared_experts() -> None:
     # Route-aware: the first two loads, then one missing expert per switch.
     assert run(True) == 2 + 9
     assert run(False) > run(True)
+
+
+def test_conflicting_live_expert_references_are_rejected() -> None:
+    store = ExpertStore(budget=1)
+    manifest = Manifest("expert", "1", Contract(("input",), "output"))
+    old = LazyExpert(manifest, lambda: Fn(manifest, lambda x: "old"), 1, store)
+    new = LazyExpert(manifest, lambda: Fn(manifest, lambda x: "new"), 1, store)
+    with pytest.raises(ValueError, match="conflicting expert definitions"):
+        store.prepare(Apply(old, (Apply(new, (Given("input"),)),)))
+    assert store.resident_bytes == 0
+    assert old.invoke(None) == "old"
+    with pytest.raises(ValueError, match="conflicting expert definitions"):
+        new.invoke(None)
+    with pytest.raises(ValueError, match="conflicting expert definitions"):
+        store.prepare(Apply(new, (Given("input"),)))
+    assert old.invoke(None) == "old"
+    # Once the old implementation is evicted, a new definition can load safely.
+    other_manifest = Manifest("other", "1", Contract((), "other"))
+    other = LazyExpert(other_manifest, lambda: Fn(other_manifest, lambda: None), 1, store)
+    other.invoke()
+    assert new.invoke(None) == "new"

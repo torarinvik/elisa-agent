@@ -8,7 +8,11 @@ at most ``budget`` bytes and evicts the least recently used experts first.
 Before executing a route the kernel may call ``ExpertStore.prepare``: experts
 outside the route are evicted (least recently used first) until the route's
 missing experts fit, those are loaded, and the route's experts are pinned
-until the next ``prepare``. Every transition that serves a route loads at
+until the next ``prepare``. Distinct live wrappers with the same reference
+are rejected while an implementation is resident, and conflicting wrappers
+in one route are rejected before the store changes. Use distinct versions
+for distinct implementations when provenance must distinguish them.
+Every transition that serves a route loads at
 least its missing experts, and this one loads exactly those
 (``NCA.routeAware_optimal``), so experts shared by consecutive routes are
 never reloaded.
@@ -43,6 +47,7 @@ class ExpertStore:
     def __init__(self, budget: int | None = None) -> None:
         self.budget = budget
         self.resident: OrderedDict[str, tuple[Any, int]] = OrderedDict()
+        self._owners: dict[str, LazyExpert] = {}
         self.pinned: frozenset[str] = frozenset()
         self.stats = StoreStats()
 
@@ -52,7 +57,13 @@ class ExpertStore:
 
     def prepare(self, route: Plan) -> None:
         """Make ``route``'s experts resident, evicting only experts outside it."""
-        experts = {e.manifest.ref: e for e in route_experts(route)}
+        experts: dict[str, LazyExpert] = {}
+        for expert in route_experts(route):
+            key = expert.manifest.ref
+            if (key in experts and experts[key] is not expert) or (
+                    key in self._owners and self._owners[key] is not expert):
+                raise ValueError(f"conflicting expert definitions for {key}")
+            experts[key] = expert
         self.pinned = frozenset(experts)
         missing = [e for key, e in experts.items() if key not in self.resident]
         self._make_room(sum(e.size for e in missing))
@@ -68,11 +79,14 @@ class ExpertStore:
             if victim is None:
                 raise MemoryError(f"pinned experts leave no room for {size} B")
             del self.resident[victim]
+            del self._owners[victim]
             self.stats.evictions += 1
 
     def acquire(self, expert: LazyExpert) -> Any:
         key = expert.manifest.ref
         if key in self.resident:
+            if self._owners[key] is not expert:
+                raise ValueError(f"conflicting expert definitions for {key}")
             self.resident.move_to_end(key)
             return self.resident[key][0]
         if self.budget is not None and expert.size > self.budget:
@@ -85,6 +99,7 @@ class ExpertStore:
         self.stats.loaded_bytes += expert.size
         self.stats.loaded_ids.add(expert.manifest.module_id)
         self.resident[key] = (implementation, expert.size)
+        self._owners[key] = expert
         self.stats.peak_bytes = max(self.stats.peak_bytes, self.resident_bytes)
         return implementation
 
