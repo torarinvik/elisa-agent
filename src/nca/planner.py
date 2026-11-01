@@ -313,24 +313,55 @@ def _close(index: ProducerIndex, limit: int, node: _Partial, binding: dict[str, 
     return Apply(node.module, tuple(a for a in args if a is not None), slots, applied)
 
 
-def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], module: Module,
-                binding: Binding, fuel: int, memo: Memo) -> Apply | None:
-    """``module`` applied for a ground goal that matched it with ``binding``,
-    its free variables determined by pattern search over its inputs."""
+def _free_instances(index: ProducerIndex, limit: int, available: Sequence[TypeId],
+                    module: Module, binding: Binding, fuel: int, memo: Memo,
+                    ) -> Iterator[tuple[tuple[Plan, ...], Binding]]:
+    """Argument plans and full bindings of ``module``, in search order, for a
+    ground goal that matched it with ``binding``: its free variables
+    determined by pattern search over its inputs at depth ``fuel - 1``."""
     renaming, contract = rename_apart(module.manifest.contract, binding)
     for args, solved in _solve_inputs(index, limit, available, contract.inputs, {}, fuel, memo):
         free = {v: resolve(Var(r), solved) for v, r in renaming.items()}
         if any(type_variables(t) for t in free.values()):
             continue
         closed = [_close(index, limit, a, solved, memo) for a in args]
-        if any(a is None for a in closed):
-            continue
-        full = tuple(sorted((*binding, *((v, format_type(t)) for v, t in free.items()))))
+        if all(a is not None for a in closed):
+            yield (tuple(a for a in closed if a is not None),
+                   tuple(sorted((*binding, *((v, format_type(t)) for v, t in free.items())))))
+
+
+def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], module: Module,
+                binding: Binding, fuel: int, memo: Memo) -> Apply | None:
+    """``module`` applied for a ground goal that matched it with ``binding``,
+    its free variables determined by pattern search over its inputs."""
+    for args, full in _free_instances(index, limit, available, module, binding, fuel, memo):
         contract = module.manifest.contract.instance(full)
         slots = _plan_all(index, limit, list(contract.slots), fuel, memo)
         if slots is not None:
-            return Apply(module, tuple(a for a in closed if a is not None), slots, full)
+            return Apply(module, args, slots, full)
     return None
+
+
+def free_bindings(index: ProducerIndex, available: Sequence[TypeId], module: Module,
+                  binding: Binding, fuel: int) -> list[Binding]:
+    """The full bindings, each once in search order, of the instances of
+    ``module`` producing a ground goal it matched with ``binding`` whose
+    inputs pattern search plans from ``available`` at depth ``fuel - 1``
+    (THEORY §2.2). These are the instances the planner can apply."""
+    found = dict.fromkeys(full for _, full in _free_instances(
+        index, index.size, available, module, binding, fuel, index.memo(index.size)))
+    return list(found)
+
+
+def map_candidates(index: ProducerIndex, available: Sequence[TypeId], fuel: int) -> list[TypeId]:
+    """Every ``map`` candidate element the planner tries for a sequence goal
+    at depth ``fuel``, each once in its order (THEORY §2): the enumerated
+    elements, then those of sequences polymorphic producers make."""
+    found, order = index.element_candidates(available, index.size)
+    if index.polymorphic_sequences(index.size):
+        found = [*found, *_polymorphic_sources(index, index.size, available, order, fuel - 1,
+                                               index.memo(index.size))]
+    return list(dict.fromkeys(found))
 
 
 def plan(

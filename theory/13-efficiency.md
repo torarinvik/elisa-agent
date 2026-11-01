@@ -36,6 +36,13 @@ enumerates.
 | 13.5 | it costs at most any searchable plan of smaller depth |
 
 With memoization the recursion visits each `(available, type, depth)` once.
+
+Polymorphic contracts reduce to this case. At a ground type, a contract
+contributes the instance the type selects (§2.1) or, if it has free
+variables, each instance pattern search determines (§2.2), and the candidate
+element types include those of the sequences polymorphic producers make.
+These are finitely many ground contracts within the depth bound, so Theorems
+13.4 to 13.6 hold over the library of the instances the planner can apply.
 Minimizing total compute is polynomial; minimizing the number of *distinct*
 experts (memory) is a set-cover problem and is handled as a constraint, not an
 objective.

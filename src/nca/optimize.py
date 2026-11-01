@@ -23,6 +23,11 @@ slots' inputs. A filling is charged once per call: ``κ + Σ νᵢ · cost(fᵢ)
 calls with ``expected=True``. Cost is monotone in every filling's cost
 (``NCA.HPlan.cost_mono``), so cheapest fillings make cheapest plans, and a
 filling's frontier scaled by ``νᵢ`` is the frontier of its contribution.
+Polymorphic contracts are costed at every instance the planner can apply:
+the one a ground goal selects and, for free variables, each instance pattern
+search determines, so both planners are exact over those instances, and
+``map`` sources include the sequences polymorphic producers make.
+
 An expert whose error depends on its fillings jointly (a cascade) may declare
 ``assess(fillings) -> (cost, error)``, giving their contribution from audit
 data; the Pareto planner then combines frontier fillings with it. That is
@@ -31,12 +36,13 @@ exact when the assessment is monotone in each filling's cost and error.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
 
-from nca.abi import Manifest, Module, TypeId, elem_type, seq_type
-from nca.planner import Apply, Given, Map, Plan, elem_candidates
+from nca.abi import Binding, Manifest, Module, TypeId, elem_type, seq_type
+from nca.index import ProducerIndex
+from nca.planner import Apply, Given, Map, Plan, free_bindings, map_candidates
 
 
 def slot_calls(manifest: Manifest, length: int, expected: bool = False) -> list[float]:
@@ -47,11 +53,26 @@ def slot_calls(manifest: Manifest, length: int, expected: bool = False) -> list[
     return [c.at(length) for c in calls]
 
 
+def _instances(index: ProducerIndex, available: Sequence[TypeId], goal: TypeId,
+               fuel: int) -> Iterator[tuple[Module, Binding]]:
+    """Each module producing ``goal`` with each binding it may be applied at:
+    the one the goal selects (THEORY §2.1), extended, for a contract with
+    free variables, by every instance pattern search determines (§2.2)."""
+    for module in index.modules:
+        binding = module.manifest.contract.producing(goal)
+        if binding is None:
+            continue
+        if module.manifest.contract.free:
+            for full in free_bindings(index, available, module, binding, fuel):
+                yield module, full
+        else:
+            yield module, binding
+
+
 def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
              length: int, fuel: int = 8, expected: bool = False) -> tuple[Plan, float] | None:
-    """The cheapest plan for ``goal`` and its cost (the first among equal costs).
-
-    Contracts with free variables (THEORY §2.2) are not considered."""
+    """The cheapest plan for ``goal`` and its cost (the first among equal costs)."""
+    index = ProducerIndex(modules)
     memo: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[Plan, float] | None] = {}
 
     def search(avail: tuple[TypeId, ...], t: TypeId, n: int) -> tuple[Plan, float] | None:
@@ -64,10 +85,7 @@ def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeI
             result = (Given(t), 0.0)
         elif n > 0:
             candidates: list[tuple[Plan, float]] = []
-            for module in modules:
-                binding = module.manifest.contract.producing(t)
-                if binding is None or module.manifest.contract.free:
-                    continue
+            for module, binding in _instances(index, avail, t, n):
                 contract = module.manifest.contract.instance(binding)
                 subs = [search(avail, i, n - 1) for i in contract.inputs]
                 fills = [search(inputs, out, n - 1) for inputs, out in contract.slots]
@@ -80,7 +98,7 @@ def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeI
                         + sum(s[1] for s in subs)))
             element_goal = elem_type(t)
             if element_goal is not None:
-                for a in elem_candidates(modules, avail):
+                for a in map_candidates(index, avail, n):
                     body = search((a,), element_goal, n - 1)
                     source = search(avail, seq_type(a), n - 1)
                     if body is not None and source is not None:
@@ -117,9 +135,9 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
     ``errors`` maps a module's manifest ref to its per-invocation failure rate
     (absent means 0). Both objectives are additive over invocations, with map
     bodies counted ``length`` times, so combining the frontiers of sub-goals
-    and discarding dominated results yields the exact frontier. Contracts with
-    free variables (THEORY §2.2) are not considered.
+    and discarding dominated results yields the exact frontier.
     """
+    index = ProducerIndex(modules)
     memo: dict[tuple[tuple[TypeId, ...], TypeId, int], list[Option]] = {}
 
     def search(avail: tuple[TypeId, ...], t: TypeId, n: int) -> list[Option]:
@@ -133,11 +151,8 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
             memo[key] = [Option(Given(t), 0.0, 0.0)]
             return memo[key]
         options: list[Option] = []
-        for module in modules:
+        for module, binding in _instances(index, avail, t, n):
             manifest = module.manifest
-            binding = manifest.contract.producing(t)
-            if binding is None or manifest.contract.free:
-                continue
             contract = manifest.contract.instance(binding)
             fronts = [search(avail, i, n - 1) for i in contract.inputs]
             fills = [search(inputs, out, n - 1) for inputs, out in contract.slots]
@@ -156,7 +171,7 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
                         + sum(o.error for o in combo)))
         element_goal = elem_type(t)
         if element_goal is not None:
-            for a in elem_candidates(modules, avail):
+            for a in map_candidates(index, avail, n):
                 for body, source in product(search((a,), element_goal, n - 1),
                                             search(avail, seq_type(a), n - 1)):
                     options.append(Option(Map(a, body.plan, source.plan),

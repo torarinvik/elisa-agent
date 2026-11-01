@@ -11,7 +11,7 @@ import pytest
 from nca.abi import Choice, Contract, Manifest, Message, parse_type, type_variables
 from nca.index import ProducerIndex
 from nca.modules.combinators import Case, Fold
-from nca.optimize import plan_min
+from nca.optimize import plan_min, plan_pareto
 from nca.planner import Apply, Given, Map, Plan, plan, plan_stable
 from nca.router import infer
 from nca.runtime import execute
@@ -319,3 +319,52 @@ def test_map_sources_made_by_polymorphic_producers_are_found() -> None:
                 planned += 1
                 assert infer(modules, available, found) == goal
     assert planned > 80
+
+
+def test_cost_planners_price_every_instance_of_free_variables() -> None:
+    """``plan_min`` and ``plan_pareto`` cost a contract with free variables at
+    every instance pattern search determines, so they agree with the same
+    planners over the expanded instances."""
+    forget = Fn(Manifest("forget", "1.0.0", Contract(("box[?a]",), "c1.v1"), cost=1.0),
+                lambda x: x)
+    dear = Fn(Manifest("dear", "1.0.0", Contract(("c0.v1",), "box[c0.v1]"), cost=5.0), lambda x: x)
+    cheap = Fn(Manifest("cheap", "1.0.0", Contract(("c0.v1",), "box[c2.v1]"), cost=1.0),
+               lambda x: x)
+    best = plan_min([forget, dear, cheap], ("c0.v1",), "c1.v1", length=1)
+    assert best is not None and best[1] == 2.0
+    assert isinstance(best[0], Apply) and best[0].binding == (("a", "c2.v1"),)
+
+    rng = np.random.default_rng(5)
+    universe, wide = _ground_terms(1), _ground_terms(2)
+    generic = [("forget", ["box[?a]"], "c1.v1"), ("size", ["box[?a]", "c0.v1"], "c2.v1"),
+               ("box", ["?a"], "box[?a]"), ("unbox", ["box[?a]"], "?a"),
+               ("dup", ["?a"], "pair[?a,?a]")]
+    compared = 0
+    for trial in range(70):
+        specs = [(f"m{k}", [str(rng.choice(universe))], str(rng.choice(universe)))
+                 for k in range(int(rng.integers(1, 4)))]
+        specs += [generic[i] for i in rng.permutation(len(generic))[:int(rng.integers(1, 5))]]
+        modules = [Fn(Manifest(f"{name}-{trial}", "1.0.0", Contract(tuple(inputs), output),
+                               cost=float(rng.integers(1, 5))), lambda *x: x)
+                   for name, inputs, output in (specs[i] for i in rng.permutation(len(specs)))]
+        errors = {m.manifest.ref: float(rng.integers(0, 3)) / 10 for m in modules}
+        instances = [Fn(Manifest(m.manifest.module_id, "1.0.0",
+                                 m.manifest.contract.instance((("a", t),)),
+                                 cost=m.manifest.cost), m.fn)
+                     if m.manifest.contract.variables else m
+                     for m in modules
+                     for t in (wide if m.manifest.contract.variables else [""])]
+        available = (str(rng.choice(universe)), "c0.v1")
+        for goal in [*rng.choice(wide, size=6), "c1.v1", "c2.v1"]:
+            found = plan_min(modules, available, str(goal), length=1, fuel=3)
+            expected = plan_min(instances, available, str(goal), length=1, fuel=3)
+            assert (found is None) == (expected is None)
+            if found is not None and expected is not None:
+                compared += 1
+                assert found[1] == expected[1]
+                assert infer(modules, available, found[0]) == goal
+                frontier = plan_pareto(modules, available, str(goal), 1, errors, fuel=3)
+                reference = plan_pareto(instances, available, str(goal), 1, errors, fuel=3)
+                assert [(o.cost, o.error) for o in frontier] == [
+                    (o.cost, o.error) for o in reference]
+    assert compared > 45

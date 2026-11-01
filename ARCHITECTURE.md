@@ -318,8 +318,12 @@ closure total where the model would still bound it.
 Pattern goals take their candidates from `ProducerIndex.pattern_candidates`:
 modules indexed by the root constructor and arity of their output
 (Theorem 2.6), plus those whose output is a variable, keeping a monomorphic
-contract only if it fires in the closure of the available types. `optimize.plan_min` and `plan_pareto` do not yet consider contracts
-with free variables.
+contract only if it fires in the closure of the available types.
+
+`optimize.plan_min` and `plan_pareto` cost a contract with free variables at
+each instance `planner.free_bindings` returns, the instances pattern search
+determines, and take `map` elements from `planner.map_candidates`, which adds
+the sources of sequences that polymorphic producers make (THEORY §13).
 
 The index persists. `ProducerIndex.append` indexes a newly installed module
 after the others, and every cached result (closures, candidate sets, plans in
