@@ -169,16 +169,24 @@ class ExpertStore:
 
 
 class LazyExpert:
-    """A module whose implementation is loaded from ``load`` on first use."""
+    """A module loaded on first use, with a fixed manifest and owning store."""
 
     def __init__(self, manifest: Manifest, load: Callable[[], Any], size: int,
                  store: ExpertStore) -> None:
         if isinstance(size, bool) or not isinstance(size, Integral) or size < 0:
             raise ValueError("expert size must be a nonnegative integer")
-        self.manifest = manifest
+        self._manifest = manifest
         self.load = load
         self._size = int(size)
-        self.store = store
+        self._store = store
+
+    @property
+    def manifest(self) -> Manifest:
+        return self._manifest
+
+    @property
+    def store(self) -> ExpertStore:
+        return self._store
 
     @property
     def size(self) -> int:

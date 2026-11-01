@@ -366,3 +366,17 @@ def test_foreign_expert_is_rejected_before_store_changes() -> None:
     assert not foreign_store.resident
     foreign.invoke()
     assert list(foreign_store.resident) == ["foreign@1"]
+
+
+def test_lazy_expert_identity_and_store_are_stable() -> None:
+    store = ExpertStore(1)
+    manifest = Manifest("original", "1", Contract((), "output"))
+    expert = LazyExpert(manifest, placeholder, 1, store)
+    store.prepare(Apply(expert, ()))
+    with pytest.raises(AttributeError):
+        expert.store = ExpertStore(1)
+    with pytest.raises(AttributeError):
+        expert.manifest = Manifest("replacement", "1", Contract((), "output"))
+    assert expert.store is store and expert.manifest is manifest
+    expert.invoke()
+    assert list(store.resident) == [manifest.ref] and store.stats.loads == 1
