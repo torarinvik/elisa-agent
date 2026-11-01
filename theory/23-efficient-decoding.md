@@ -233,6 +233,9 @@ attains the vector entry. The best suffix is traced forwards through the
 backward max vectors in the same way. With the vectors current on either
 side of the climbed word, as they are after Theorem 23.8 scores it, the
 decoded sequence costs `O(3 m)` comparisons and no recomputed vectors.
+This construction requires a positive-weight accepted path. When none
+exists, the maximum log weight is `−∞` and there is no sequence to trace;
+subsequent row updates can restore one.
 
 **Banding with a moving cursor.** Theorems 23.1–23.6 hold for *any*
 reference sequence `r`, not only the per-word argmax. So the reference, and

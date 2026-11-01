@@ -301,17 +301,29 @@ class Split:
     def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
                  centre: np.ndarray | None = None, half: int | None = None) -> None:
         self.log_probs = np.array(log_probs, dtype=np.float64)
-        m = len(self.log_probs)
         self.alphabet = tuple(alphabet)
+        if (self.log_probs.ndim != 2 or not self.alphabet
+                or self.log_probs.shape[1] != len(self.alphabet)
+                or any(not isinstance(a, (int, np.integer)) or a < 0 for a in self.alphabet)
+                or np.any(np.isnan(self.log_probs)) or np.any(np.isposinf(self.log_probs))):
+            raise ValueError("requires rows of finite or negative-infinite weights over nonnegative arities")
+        m = len(self.log_probs)
         self.arities = np.asarray(alphabet, dtype=np.int64)
         width = m + 2
         self.width = width
         position = np.arange(m + 1)
-        if centre is None or half is None:
+        if centre is None and half is None:
             self.low, self.high = np.zeros(m + 1, dtype=np.int64), m - position
         else:
-            self.low = np.maximum(0, centre - half)
-            self.high = np.minimum(m - position, centre + half)
+            if (centre is None or not isinstance(half, (int, np.integer)) or half < 0
+                    or len(centre) != m + 1
+                    or any(not isinstance(c, (int, np.integer)) for c in centre)):
+                raise ValueError("band requires an integer centre per row and nonnegative half-width")
+            half = int(half)
+            self.low = np.array([max(0, min(m - k + 1, int(c) - half))
+                                 for k, c in enumerate(centre)], dtype=np.int64)
+            self.high = np.array([max(-1, min(m - k, int(c) + half))
+                                  for k, c in enumerate(centre)], dtype=np.int64)
         self.low = np.ascontiguousarray(self.low, dtype=np.int64)
         self.high = np.ascontiguousarray(self.high, dtype=np.int64)
         self._native = (_NATIVE if all(getattr(_NATIVE, name, None) is not None
@@ -323,7 +335,7 @@ class Split:
         self.backward_max = np.full((m + 1, width), -np.inf)
         if self.low[0] <= 1 <= self.high[0]:
             self.forward[0, 1], self.forward_max[0, 1] = 0.0, 0.0
-        if self.low[m] <= 0:
+        if self.low[m] <= 0 <= self.high[m]:
             self.backward[m, 0], self.backward_max[m, 0] = 0.0, 0.0
         self.ahead, self.behind, self.swept = 0, m, 0
         self._advance(m)
@@ -335,7 +347,8 @@ class Split:
         ``s ≥ 1`` at position ``i`` whose successor ``s − 1 + a`` is in band at
         ``i + 1``: ``(j, s0, length, t0)``."""
         moves = []
-        for j, a in enumerate(self.alphabet):
+        for j, value in enumerate(self.alphabet):
+            a = int(value)
             s0 = max(int(self.low[i]), 1, int(self.low[i + 1]) + 1 - a)
             s1 = min(int(self.high[i]), int(self.high[i + 1]) + 1 - a)
             if s1 >= s0:
@@ -387,6 +400,12 @@ class Split:
     def scores(self, k: int, row: np.ndarray) -> tuple[float, float]:
         """``log Z`` and the best log weight with word ``k``'s log weights
         replaced by ``row``, from the vectors before and after it."""
+        if not isinstance(k, (int, np.integer)) or not 0 <= k < len(self.log_probs):
+            raise IndexError("word index is out of range")
+        row = np.asarray(row, dtype=np.float64)
+        if (row.shape != (len(self.alphabet),) or np.any(np.isnan(row))
+                or np.any(np.isposinf(row))):
+            raise ValueError("row must contain one finite or negative-infinite weight per arity")
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
@@ -406,7 +425,10 @@ class Split:
 
     def best(self, k: int) -> tuple[float, tuple[int, ...]]:
         """The best log weight and a sequence attaining it, traced from the
-        max vectors before and after word ``k`` (THEORY §23.4, Theorem 23.10)."""
+        max vectors before and after word ``k`` (THEORY §23.4, Theorem 23.10).
+        If no path has positive weight, return ``(-inf, ())``."""
+        if not isinstance(k, (int, np.integer)) or not 0 <= k < len(self.log_probs):
+            raise IndexError("word index is out of range")
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
@@ -414,13 +436,15 @@ class Split:
                                            self.log_probs.reshape(-1), self.arities, self.low,
                                            self.high, self.width, k))
             return float(out[0]), tuple(int(a) for a in out[1:])
-        m, alphabet = len(self.log_probs), self.alphabet
+        m, alphabet = len(self.log_probs), tuple(map(int, self.alphabet))
         log_x, state, choice = -np.inf, 0, 0
         for j, s0, n, t0 in self._moves(k):
             best = self.forward_max[k, s0:s0 + n] + self.backward_max[k + 1, t0:t0 + n]
             t = int(np.argmax(best))
             if best[t] + self.log_probs[k, j] > log_x:
                 log_x, state, choice = float(best[t] + self.log_probs[k, j]), s0 + t, j
+        if log_x == -np.inf:
+            return -np.inf, ()
         arities = [0] * m
         arities[k] = alphabet[choice]
         before = state

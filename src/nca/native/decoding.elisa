@@ -692,6 +692,7 @@ def trace(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64],
                     log_x <- candidate
                     state <- n
                     choice <- j
+    return [log_x] if log_x == log(0.0)
     result: darray[f64] = [0.0 for i in 0..<(m + 1)]
     result[0] <- log_x
     result[1 + k] <- alphabet[choice].f64()
@@ -711,8 +712,9 @@ def trace(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64],
     for i in (k + 1)..<m |after: i64 = state - 1 + alphabet[choice]|:
         best, target, arity =
             for j in 0..<arities |best: f64 = log(0.0), target: i64 = 0, arity: i64 = 0| -> (best, target, arity):
+                continue if after < 1 or alphabet[j] > high[i + 1]
                 n: i64 = after - 1 + alphabet[j]
-                continue if after < 1 or n < low[i + 1] or n > high[i + 1]
+                continue if n < low[i + 1] or n > high[i + 1]
                 candidate: f64 = log_probs[i * arities + j] + backward_max[(i + 1) * width + n]
                 if candidate > best:
                     best <- candidate

@@ -265,6 +265,85 @@ def test_split_retains_underflowed_products(reference_only: bool, monkeypatch: p
         assert log_z == pytest.approx(expected.log_z, abs=1e-12)
 
 
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_split_best_reports_absent_path_and_recovers_after_climb(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, 0.0, -np.inf], [-np.inf, 0.0, -np.inf],
+                     [-np.inf, 0.0, -np.inf]])
+    split = Split(rows)
+    for k in range(len(rows)):
+        assert split.best(k) == (-np.inf, ())
+    replacement = np.array([0.0, -np.inf, -np.inf])
+    split.climb(2, replacement)
+    for k in range(len(rows)):
+        assert split.best(k) == (0.0, (1, 1, 0))
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_split_best_ignores_unreachable_large_numpy_arity(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    alphabet = np.array([0, 1, 2, 2**63 - 1], dtype=np.int64)
+    rows = np.log(np.tile([0.3, 0.1, 0.5, 0.1], (5, 1)))
+    split = Split(rows, alphabet)
+    full = decode_reference(rows, alphabet)
+    assert full is not None
+    for k in range(len(rows)):
+        score, path = split.best(k)
+        assert parse(path) is not None
+        assert score == pytest.approx(full.log_weight(rows, alphabet, full.arities))
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_split_rejects_invalid_rows_and_indices_before_native_calls(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    split = Split(np.zeros((3, 3)))
+    for row in (np.zeros(1), np.zeros(4), np.array([0.0, np.nan, 0.0]),
+                np.array([0.0, np.inf, 0.0])):
+        with pytest.raises(ValueError, match="row must"):
+            split.scores(0, row)
+        with pytest.raises(ValueError, match="row must"):
+            split.climb(0, row)
+    for k in (-1, 3):
+        with pytest.raises(IndexError, match="out of range"):
+            split.scores(k, np.zeros(3))
+        with pytest.raises(IndexError, match="out of range"):
+            split.best(k)
+
+
+@pytest.mark.parametrize("rows, alphabet", [(np.zeros(3), (0, 1, 2)),
+                                             (np.zeros((2, 1)), (0, 1)),
+                                             (np.zeros((2, 1)), (-1,)),
+                                             (np.full((2, 1), np.nan), (0,))])
+def test_split_rejects_invalid_construction(rows, alphabet) -> None:
+    with pytest.raises(ValueError, match="requires rows"):
+        Split(rows, alphabet)
+
+
+@pytest.mark.parametrize("centre, half", [(None, 1), (np.zeros(4, dtype=int), None),
+                                           (np.zeros(3, dtype=int), 1),
+                                           (np.zeros(4), 1), (np.zeros(4, dtype=int), -1)])
+def test_split_rejects_invalid_band(centre, half) -> None:
+    with pytest.raises(ValueError, match="band requires"):
+        Split(np.zeros((3, 3)), centre=centre, half=half)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("centre", [2**63 - 1, -(2**63)])
+def test_split_handles_out_of_range_band_centres(
+        reference_only: bool, centre: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    split = Split(np.zeros((3, 3)), centre=np.full(4, centre, dtype=np.int64), half=0)
+    assert split.scores(1, np.zeros(3)) == (-np.inf, -np.inf)
+    assert split.best(1) == (-np.inf, ())
+
+
 def test_native_split_scores_sparse_extreme_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(decoding._NATIVE, "advance_log", None) is None:
         pytest.skip("native log cursor is not built")

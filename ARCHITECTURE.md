@@ -278,12 +278,15 @@ NumPy reference that gives the same results within rounding and is used when
 the kernel is not built or `NCA_NATIVE=0`. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
 It also exports `advance_log`, `retreat_log`, `scores_log` and `trace`, the banded cursor of §23.4
-(`trace` reads the decoded sequence off the max tables, `Split.best`):
+(`trace` reads the decoded sequence off the max tables, `Split.best`, and
+returns no sequence when the maximum is unreachable):
 `formulas.Split` keeps the forward and backward tables in NumPy arrays and the
 kernel recomputes rows in place through `mutable view[f64]` parameters, which
 borrow the arrays' writable buffers. Sum and max tables use log weights in
 both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.
+`Split` validates row dimensions, word indices and band bounds before native
+calls; an absent positive-weight path yields an empty trace.
 
 `stats.elisa` computes the Poisson-binomial count recurrence (§21.8) in place;
 `bernoulliStep_zero` and `bernoulliStep_succ` in `NCA.Decoding` state its steps.
