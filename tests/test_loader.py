@@ -393,7 +393,10 @@ def test_lazy_demand_rule_skips_unneeded_expert_without_loading_it() -> None:
     consumer = LazyExpert(consumer_manifest,
                           lambda: loads.append("consumer") or Fn(consumer_manifest, lambda _: "ok"),
                           1, store, demand=lambda _index, _demand: NOTHING)
-    result = execute(Apply(consumer, (Apply(source, ()),)), {}, Workspace(), 2)
+    route = Apply(consumer, (Apply(source, ()),))
+    store.prepare(route, eager=False)
+    assert not store.resident and store.pinned == frozenset({source_manifest.ref, consumer_manifest.ref})
+    result = execute(route, {}, Workspace(), 2)
     assert result.payload == "ok"
     assert loads == ["consumer"] and list(store.resident) == [consumer_manifest.ref]
 
@@ -408,6 +411,27 @@ def test_lazy_demand_rule_skips_unneeded_expert_without_loading_it() -> None:
     eager_store.prepare(route)
     assert execute(route, {}, Workspace(), 2).payload == result.payload
     assert eager_store.stats.loaded_bytes == 2 and store.stats.loaded_bytes == 1
+
+
+def test_deferred_preparation_preserves_route_pins_and_checks_budget() -> None:
+    store = ExpertStore(2)
+    def expert(name: str, size: int = 1) -> LazyExpert:
+        return LazyExpert(Manifest(name, "1", Contract((), name)), placeholder, size, store)
+    spare, first, second, outsider = (expert("spare"), expert("first"),
+                                      expert("second"), expert("outsider"))
+    spare.invoke()
+    route = Apply(first, (Apply(second, ()),))
+    store.prepare(route, eager=False)
+    assert list(store.resident) == ["spare@1"]
+    first.invoke()
+    second.invoke()
+    assert set(store.resident) == {"first@1", "second@1"}
+    with pytest.raises(MemoryError, match="pinned experts"):
+        outsider.invoke()
+    before = (list(store.resident), store.pinned)
+    with pytest.raises(MemoryError, match="route requires"):
+        store.prepare(Apply(expert("huge", 3), ()), eager=False)
+    assert (list(store.resident), store.pinned) == before
 
 
 def test_lazy_relevance_rule_skips_unneeded_request() -> None:

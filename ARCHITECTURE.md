@@ -290,6 +290,10 @@ Lazy wrappers can expose demand and relevance callbacks without loading their
 implementations. Callers must provide rules consistent with the implementations;
 preparing the whole route eagerly still loads all its lazy experts, including
 ones that demand-driven execution might skip.
+With `prepare(route, eager=False)`, the store pins the same route but loads its
+experts on invocation; the entire declared route must still fit its budget.
+Previously resident experts outside the route remain evictable. Additional
+dynamic requests can fail if pinned experts leave insufficient room.
 `prepare` rejects an oversized declared working set before changing pins or
 residency. The bound uses declared expert sizes, not measured process memory.
 Other loading failures can still leave partial store changes; surviving old pins

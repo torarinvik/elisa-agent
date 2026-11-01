@@ -5,18 +5,19 @@ only manifests) and a loader for its implementation. The implementation is
 materialized on first invocation and kept in an ``ExpertStore``, which holds
 at most ``budget`` bytes and evicts the least recently used experts first.
 
-Before executing a route the kernel may call ``ExpertStore.prepare``: experts
-outside the route are evicted (least recently used first) until the route's
-missing experts fit, those are loaded, and the route's experts are pinned
-until the next ``prepare``. Distinct live wrappers with the same reference
+Before executing a route the caller may call ``ExpertStore.prepare``: by
+default it loads the route's missing experts, evicting least recently used
+experts outside the route as needed. The route's experts stay pinned until
+the next ``prepare``; callers may instead defer loading until invocation.
+Distinct live wrappers with the same reference
 are rejected while an implementation is resident, and conflicting wrappers
 in one route are rejected before the store changes. Use distinct versions
 for distinct implementations when provenance must distinguish them.
 Each lazy expert in a prepared route must belong to the preparing store.
 Loaders must not mutate or acquire experts from their own store while loading;
 they may use other stores.
-Every transition that serves a route loads at
-least its missing experts, and this one loads exactly those
+Every transition that makes a route resident loads at
+least its missing experts, and eager preparation loads exactly those
 (``NCA.routeAware_optimal``), so experts shared by consecutive routes are
 never reloaded.
 ``NCA.WellTyped.contracts_subset`` and ``NCA.route_contracts_append`` state
@@ -80,8 +81,12 @@ class ExpertStore:
     def resident_bytes(self) -> int:
         return self._resident_bytes
 
-    def prepare(self, route: Plan) -> None:
-        """Make ``route``'s experts resident, evicting only experts outside it.
+    def prepare(self, route: Plan, *, eager: bool = True) -> None:
+        """Pin ``route``'s experts, optionally loading them immediately.
+
+        With ``eager=False``, route experts load on invocation and remain pinned;
+        the full route must still fit the budget. Existing non-route residents
+        are evicted only when space is needed.
 
         On load failure, keep only surviving old pins; evictions and successful
         partial loads are not rolled back.
@@ -101,6 +106,8 @@ class ExpertStore:
             raise MemoryError(f"route requires {required} B, exceeding the {self.budget} B store budget")
         previous_pins = self.pinned
         self.pinned = frozenset(experts)
+        if not eager:
+            return
         try:
             missing = [e for key, e in experts.items() if key not in self._resident]
             self._make_room(sum(e.size for e in missing))
