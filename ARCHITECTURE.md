@@ -308,6 +308,8 @@ bindings and slots; a candidate that leaves a variable undetermined is skipped
 as ambiguous. Ground sub-goals go through the memoized planner, pattern goals
 are not memoized, and pruning by the forward closure ignores inputs with
 variables.
+Before expanding a nested candidate, `_solutions` rejects any ground slot
+that cannot be filled at the candidate's remaining depth.
 
 `NCA.Skel` (`lean/NCA/PatternSearch.lean`) models a plan skeleton and its
 equations, with each node's variables renamed by its path, as

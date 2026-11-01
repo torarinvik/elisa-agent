@@ -515,6 +515,22 @@ def test_free_expert_ground_slot_pruning_keeps_solvable_instances() -> None:
     assert plan_min([open_slot], available, "out.v1", 1, fuel=3) is not None
 
 
+def test_nested_pattern_prunes_only_unfillable_ground_slots() -> None:
+    from nca import planner
+
+    nested = Fn(Manifest("nested", "1.0.0", Contract(
+        ("seq[?b]",), "seq[?b]", (((TEXT,), "missing.v1"),), ((0,),)),
+        calls=(Calls(1, 0),)), lambda *args: None)
+    provider = fn("provider", [TEXT], "missing.v1", lambda value: value)
+    pattern = App("seq", (Var("x"),))
+    for modules, expected in (([nested], False), ([nested, provider], True)):
+        index = ProducerIndex(modules)
+        solutions = planner._solutions(index, index.size, (f"seq[{INT}]",), pattern,
+                                       {}, 3, index.memo(index.size))
+        assert any(isinstance(partial, planner._Open) and partial.module is nested
+                   for partial, _ in solutions) is expected
+
+
 def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     from nca import planner
 

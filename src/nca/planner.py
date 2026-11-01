@@ -25,6 +25,7 @@ from __future__ import annotations
 import itertools
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Sequence, Union
 
 from nca.abi import (App, Binding, Contract, Module, ScopedName, Term, TypeId, Var, VarName, elem_type, format_type,
@@ -299,6 +300,9 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
         # At depth one, a contract with inputs cannot solve even its first input.
         if fuel == 1 and module.manifest.contract.inputs:
             continue
+        if (module.manifest.contract.slots and
+                not _ground_slots_possible(index, limit, module, (), fuel, memo)):
+            continue
         renaming, inputs, output = rename_apart(module.manifest.contract, ())
         extended = dict(binding)
         if not unify(goal, output, extended):
@@ -441,12 +445,16 @@ def _ground_slots_possible(index: ProducerIndex, limit: int, module: Module,
     contract = module.manifest.contract
     if not contract.slots:
         return True
-    for inputs, output, required in slot_goals(contract.instance(binding)):
-        if any(type_variables(parse_type(t)) for t in (*inputs, output)):
-            continue
+    for inputs, output, required in _ground_slot_goals(contract.instance(binding)):
         if _plan(index, limit, inputs, output, fuel - 1, memo, required) is None:
             return False
     return True
+
+
+@lru_cache(maxsize=65536)
+def _ground_slot_goals(contract: Contract) -> tuple[tuple[tuple[TypeId, ...], TypeId, frozenset[int]], ...]:
+    return tuple((inputs, output, required) for inputs, output, required in slot_goals(contract)
+                 if not any(type_variables(parse_type(t)) for t in (*inputs, output)))
 
 
 def free_bindings(index: ProducerIndex, available: Sequence[TypeId], module: Module,
