@@ -109,6 +109,8 @@ def type_variables(term: Term) -> frozenset[VarName]:
     """The variables occurring in ``term``."""
     if isinstance(term, Var):
         return frozenset((term.name,))
+    if not term.args:
+        return frozenset()
     return frozenset().union(*(type_variables(a) for a in term.args))
 
 
@@ -116,6 +118,8 @@ def substitute(term: Term, binding: Mapping[VarName, Term]) -> Term:
     """``term`` with each bound variable replaced (THEORY §1.2)."""
     if isinstance(term, Var):
         return binding.get(term.name, term)
+    if not term.args:
+        return term
     return App(term.name, tuple(substitute(a, binding) for a in term.args))
 
 
@@ -137,6 +141,8 @@ def resolve(term: Term, binding: Mapping[VarName, Term]) -> Term:
     if isinstance(term, Var):
         bound = binding.get(term.name)
         return term if bound is None else resolve(bound, binding)
+    if not term.args:
+        return term
     return App(term.name, tuple(resolve(a, binding) for a in term.args))
 
 
