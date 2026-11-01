@@ -161,6 +161,8 @@ def train(out: Path, noise: float, formulas: int, xor: float, epochs: int, hidde
 class CorrectionState:
     """Per-solve cursor and priorities; never shared between formulas."""
 
+    answer_cursor: Split | None = None
+    answer_readings: np.ndarray | None = None
     cursor: Split | None = None
     priorities: list[float] | None = None
     steps: int = 0
@@ -213,19 +215,42 @@ class FormulaEvaluator:
         self.manifest = Manifest("nca.logic.formula-evaluator", "1.0.0",
                                  Contract((seq_type(WORD_DISTRIBUTION),), BOOLEAN))
 
-    def words(self, readings: Sequence[Sequence[float]]) -> list[str]:
+    def words(self, readings: Sequence[Sequence[float]],
+              state: CorrectionState | None = None) -> list[str]:
         """The words read: each word's most probable class, or, when decoding,
         the most probable class within its decoded arity group."""
         if not self.decode:
             return [VOCABULARY[int(np.argmax(r))] for r in readings]
-        masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
-                           for r in readings])
-        with np.errstate(divide="ignore"):
-            decoded = decode(np.log(masses), ARITY_ORDER)
-        if decoded is None:
-            return [VOCABULARY[int(np.argmax(r))] for r in readings]
+        if state is None:
+            masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
+                               for r in readings])
+            with np.errstate(divide="ignore"):
+                decoded = decode(np.log(masses), ARITY_ORDER)
+            if decoded is None:
+                return [VOCABULARY[int(np.argmax(r))] for r in readings]
+            arities = decoded.arities
+        else:
+            current = np.asarray(readings, dtype=np.float64)
+            changed = (() if state.answer_readings is None else
+                       np.flatnonzero(np.any(current != state.answer_readings, axis=1)))
+            if state.answer_cursor is None:
+                masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
+                                   for r in readings])
+                with np.errstate(divide="ignore"):
+                    state.answer_cursor = Split(np.log(masses), ARITY_ORDER)
+            anchor = 0
+            for k in changed:
+                anchor = int(k)
+                row = np.array([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+                with np.errstate(divide="ignore"):
+                    state.answer_cursor.climb(anchor, np.log(row))
+            state.answer_readings = current.copy()
+            log_z, _ = state.answer_cursor.scores(anchor, state.answer_cursor.log_probs[anchor])
+            if not math.isfinite(log_z):
+                return [VOCABULARY[int(np.argmax(r))] for r in readings]
+            _, arities = state.answer_cursor.best(anchor)
         return [VOCABULARY[max(ARITY_DECISION[a], key=r.__getitem__)]
-                for r, a in zip(readings, decoded.arities)]
+                for r, a in zip(readings, arities)]
 
     def invoke(self, readings: Sequence[Sequence[float]]) -> bool | None:
         words = self.words(readings)
@@ -355,7 +380,7 @@ class FormulaEvaluator:
                     distribution: Callable[[int, Decision], torch.Tensor],
                     state: CorrectionState | None = None,
                     ) -> dict[int, float] | None:
-        words = self.words(readings)
+        words = self.words(readings, state)
         children = parse([ARITY[VOCABULARY.index(w)] for w in words])
         if children is None:
             return None

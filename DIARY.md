@@ -1067,6 +1067,16 @@ do not establish deployment coverage or large-input speedups. Full raw
 answer decoding, reading conversion and certificate traversal remain costs to
 profile and move into the native execution path.
 
+**Answer cursor integration.** On 575 synthetic Dirichlet reading rows
+(seed 25), 40 single-row replacements produced exactly the same decoded words
+as fresh decoding. Single-run times, including initialization, were 0.04945 s
+fresh and 0.04075 s cached before removing redundant initial cursor updates.
+The regression also checks 30 changes with native execution and with the
+NumPy path forced. This measures word selection only, not full refinement
+coverage. It reuses the splitting and tracing results (23.7–23.10); no new
+mathematical premise is introduced. Tied maxima may select different
+maximizers; the risk account always scores the actual selected sequence.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

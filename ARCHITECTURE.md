@@ -430,3 +430,9 @@ within-group risks are indexed by item and decoded arity, since a different
 word's refinement may change the item's decoded arity. Distribution callbacks
 without revision support recompute every row and invalidate every risk entry.
 The raw answer decode and conversion of readings remain full passes.
+
+The session also owns an independent raw-reading cursor for choosing the
+answer's words. It compares raw rows, updates only changed arity masses, and
+uses `Split.best` (native Elisa `trace` when available). The calibrated cursor
+still computes the risk of that selected sequence, which need not maximize
+the calibrated posterior. Both cursors remain scoped to one solve.

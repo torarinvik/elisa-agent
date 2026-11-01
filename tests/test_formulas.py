@@ -511,3 +511,19 @@ def test_correction_revisions_invalidate_calibration_with_equal_scores() -> None
     fresh = evaluator.certificate(readings, risk, distribution)
     assert cached is not None and fresh is not None
     assert sum(cached.values()) == pytest.approx(sum(fresh.values()), abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules.words import CorrectionState
+
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(25)
+    evaluator = FormulaEvaluator(decode=True)
+    state = CorrectionState()
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=35)
+    for _ in range(30):
+        k = int(rng.integers(len(readings)))
+        readings[k] = rng.dirichlet(np.ones(len(VOCABULARY)))
+        assert evaluator.words(readings, state) == evaluator.words(readings)
