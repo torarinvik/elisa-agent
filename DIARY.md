@@ -1585,6 +1585,27 @@ do not establish canonical tie equivalence generally or transfer deployment
 certification. Banding remains an explicit experiment option, and calibrated
 cursor banding remains a separate integration step.
 
+**Banded calibrated risk cursor.** The option now bands both answer selection
+and the calibrated normalizer. The actual selected arity sequence is charged
+using the normalizer's upper bound, not the calibrated maximizing sequence.
+Twenty evolving calibrated reading states, with native and reference sweeps,
+remain above the exact account and within 1e-4 at identical readings. Revision
+checks cover single-row invalidation and repeated unchanged observations.
+Existing Theorems 23.5–23.6 and their Lean proofs already cover an arbitrary
+accepted answer; no maximum-selection premise is needed for these risk bounds.
+
+A warmed exact/banded/banded/exact comparison on the same three depth-8
+formulas took 0.49866/0.49880/0.49998/0.51752 s at slack 1e-4. There is no
+clear end-to-end speedup. Values, abstentions and per-input expert costs
+matched; final bounds were respectively 0.95262571/0.04221094/0.04836281
+(exact) and 0.95262613/0.04223911/0.04855563 (banded). The last gap exceeds
+1e-4: capturing final reader distributions found two differing rows on that
+input (zero differing rows on the other two), despite equal expert costs.
+Separate refinement runs need not visit identical final reading states. The slack theorem applies
+to a fixed reading state, not the difference between independently stopped
+runs. Exact marginal refreshes and full-sized backing arrays remain. The
+option stays disabled by default pending broader efficiency and audit results.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

@@ -169,6 +169,7 @@ class CorrectionState:
     answer_cursor: Split | None = None
     answer_readings: np.ndarray | None = None
     cursor: Split | None = None
+    risk_band: CertifiedSplit | None = None
     priorities: list[float] | None = None
     steps: int = 0
     changed: tuple[int, ...] = ()
@@ -371,6 +372,8 @@ class FormulaEvaluator:
                   ) -> dict[int, float] | None:
         """The correction account (§21.5–21.6) of the decoded ``words``."""
         n = len(words)
+        if self.band_slack is not None and state is None:
+            state = CorrectionState()
         revision = getattr(distribution, "revision", None)
         versions = tuple(revision(k) for k in range(n)) if revision is not None else None
         invalidated = tuple(k for k in range(n) if state is None or versions is None
@@ -384,6 +387,10 @@ class FormulaEvaluator:
             for k in invalidated:
                 row = torch.as_tensor(distribution(k, ARITY_DECISION)).double()
                 log_probs[k] = row.clamp_min(1e-300).log().numpy()
+        if self.band_slack is not None:
+            # Row factors cancel from both the selected weight and normalizer.
+            for k in invalidated:
+                log_probs[k] -= np.logaddexp.reduce(log_probs[k])
         if state is not None:
             state.revisions = versions
             for k in invalidated:
@@ -399,19 +406,33 @@ class FormulaEvaluator:
                           for k, a in enumerate(arities)]
         else:
             if state.cursor is None:
-                state.cursor = Split(log_probs, ARITY_ORDER)
+                if self.band_slack is None:
+                    state.cursor = Split(log_probs, ARITY_ORDER)
+                else:
+                    state.risk_band = CertifiedSplit(log_probs, ARITY_ORDER, self.band_slack)
+                    state.cursor = state.risk_band.split
             changed = np.flatnonzero(np.any(state.cursor.log_probs != log_probs, axis=1))
             state.changed = tuple(int(k) for k in changed)
-            scored = None
-            for k in state.changed:
-                scored = state.cursor.climb(k, log_probs[k])
-            anchor = state.changed[-1] if state.changed else 0
-            log_z, _ = (scored if scored is not None else
-                        state.cursor.scores(anchor, log_probs[anchor]))
-            if not math.isfinite(log_z):
-                return None
-            weight = sequence_log_weight(log_probs, ARITY_ORDER, arities)
-            sequence_risk = float(-np.expm1(min(0.0, weight - log_z)))
+            if state.risk_band is not None:
+                for k in state.changed:
+                    if state.risk_band.climb(k, log_probs[k]) is None:
+                        return None
+                if (not state.changed and state.risk_band.log_upper is None
+                        and state.risk_band.result() is None):
+                    return None
+                state.cursor = state.risk_band.split
+                sequence_risk = state.risk_band.sequence_risk(arities)
+            else:
+                scored = None
+                for k in state.changed:
+                    scored = state.cursor.climb(k, log_probs[k])
+                anchor = state.changed[-1] if state.changed else 0
+                log_z, _ = (scored if scored is not None else
+                            state.cursor.scores(anchor, log_probs[anchor]))
+                if not math.isfinite(log_z):
+                    return None
+                weight = sequence_log_weight(log_probs, ARITY_ORDER, arities)
+                sequence_risk = float(-np.expm1(min(0.0, weight - log_z)))
             if state.priorities is None or state.steps >= math.isqrt(n):
                 posterior = decode(log_probs, ARITY_ORDER)
                 if posterior is None:

@@ -595,8 +595,13 @@ The evaluator can opt into this wrapper for raw answer selection. Storage remain
 arrays with restricted active bands, and floating-point enclosure is not
 certified by this wrapper.
 
-`logic --band-slack η` enables certified banding for the evaluator's raw
-answer cursor. Calibrated posterior risk still uses the exact cursor.
+`logic --band-slack η` enables certified banding for both the evaluator's raw
+answer cursor and calibrated risk cursor. The latter scores the actual selected
+arity sequence with `sequence_risk`, regardless of the calibrated maximum.
+Revision-invalidated calibrated rows are normalized before updating the band;
+exact marginal refreshes still supply allocation priorities. The relative
+slack bounds compare accounts at identical readings, not final accounts from
+possibly different refinement trajectories.
 Positive raw arity rows are normalized before tail accounting; Theorem 23.14
 explains the unchanged score ordering. Zero-mass rows fall back to the
 existing nondecoded reading behavior. The option defaults to disabled pending

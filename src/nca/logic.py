@@ -298,7 +298,7 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reader", type=Path, default=Path("checkpoints/words.pt"))
-    parser.add_argument("--band-slack", type=float, help="certified band slack for answer selection")
+    parser.add_argument("--band-slack", type=float, help="certified band slack for answer selection and calibrated risk")
     parser.add_argument("--noise", type=float, default=0.1)
     parser.add_argument("--xor", type=float, default=0.0)
     parser.add_argument("--calibration", type=int, default=100, help="validation formulas")

@@ -697,3 +697,47 @@ def test_certified_sequence_risk_scores_answer_outside_band() -> None:
     assert exact is not None
     risk = exact.risk(np.log(weights), (0, 1, 2), alternate)
     assert risk - 1e-12 <= cursor.sequence_risk(alternate) <= risk + 1e-4 + 1e-12
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_banded_correction_charges_selected_answer_conservatively(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(41)
+    words = "and or true false not false".split()
+    readings = np.array(one_hot(words)) * 0.99 + 0.01 / len(VOCABULARY)
+    calibrated = rng.dirichlet(np.ones(3), size=len(words))
+    versions = [0] * len(words)
+    seen: list[int] = []
+
+    def masses(k: int, decision: Decision) -> torch.Tensor:
+        seen.append(k)
+        return torch.tensor(calibrated[k])
+
+    distribution = Distribution(masses, versions.__getitem__)
+    exact = FormulaEvaluator(decode=True)
+    banded = FormulaEvaluator(decode=True, band_slack=1e-4)
+    state = CorrectionState()
+    for step in range(20):
+        if step:
+            k = int(rng.integers(len(words)))
+            calibrated[k] = rng.dirichlet(np.ones(3))
+            versions[k] += 1
+        seen.clear()
+        account = banded.certificate(readings, lambda k, d: 0.001, distribution, state)
+        assert seen == (list(range(len(words))) if not step else [k])
+        baseline = exact.certificate(readings, lambda k, d: 0.001, distribution)
+        assert account is not None and baseline is not None
+        assert sum(baseline.values()) - 1e-12 <= sum(account.values())
+        assert sum(account.values()) <= sum(baseline.values()) + 1e-4 + 1e-12
+        assert state.risk_band is not None
+        seen.clear()
+        repeated = banded.certificate(readings, lambda k, d: 0.001, distribution, state)
+        assert seen == []
+        assert repeated is not None
+        # A scheduled marginal refresh can redistribute the same total charge.
+        assert sum(repeated.values()) == pytest.approx(sum(account.values()), abs=1e-12)
