@@ -475,6 +475,20 @@ def test_free_binding_checks_ground_inputs_without_losing_dependent_inputs() -> 
     assert result is not None and infer([dependent, boxing], (INT,), result[0]) == "out.v1"
 
 
+def test_pattern_search_checks_later_input_after_binding_without_losing_alternatives() -> None:
+    gate = fn("gate", ["trigger[?a]", "seq[?b]", "required[?a]"],
+              "out.v1", lambda *args: None)
+    needed = fn("needed", [TEXT], "required[text.v1]", lambda _: None)
+    available = (f"seq[{INT}]", TEXT, "trigger[int.v1]", "trigger[text.v1]")
+    assert plan_min([gate], available, "out.v1", length=1, fuel=4) is None
+    modules = [gate, needed]
+    result = plan_min(modules, available, "out.v1", length=1, fuel=4)
+    assert result is not None and infer(modules, available, result[0]) == "out.v1"
+    assert isinstance(result[0], Apply) and ("a", TEXT) in result[0].binding
+    frontier = plan_pareto(modules, available, "out.v1", length=1, errors={}, fuel=4)
+    assert frontier and frontier[0].cost == result[1]
+
+
 def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     from nca import planner
 

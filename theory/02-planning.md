@@ -95,6 +95,8 @@ zero-input candidates and available inputs must still be considered.
 For a partially instantiated contract, a ground input is unchanged by every
 later substitution. If that input has no plan at the required depth, the
 contract cannot apply, regardless of solutions to earlier pattern inputs.
+This remains true when the input becomes ground only after an earlier input
+has extended the binding; other bindings must still be explored.
 
 **Map sources.** With polymorphic contracts, the candidate element types of
 step 3 include the elements of the sequence types that instances produce, of

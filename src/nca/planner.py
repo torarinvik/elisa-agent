@@ -339,6 +339,13 @@ def _solve_inputs(index: ProducerIndex, limit: int, available: Sequence[TypeId],
     if not inputs:
         yield (), binding
         return
+    # Later inputs that are already ground cannot be repaired by solving this one.
+    if binding and fuel > 0:
+        for pattern in inputs[1:]:
+            ground = resolve(pattern, binding)
+            if (not type_variables(ground) and
+                    _plan(index, limit, available, format_type(ground), fuel - 1, memo) is None):
+                return
     for first, extended in _solutions(index, limit, available, inputs[0], binding,
                                       fuel - 1, memo):
         for rest, solved in _solve_inputs(index, limit, available, inputs[1:], extended, fuel,

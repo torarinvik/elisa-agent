@@ -353,7 +353,8 @@ At the last search depth, pattern search skips contracts with inputs before
 renaming them, since no input can be solved at depth zero.
 For free-variable instances, ground inputs are checked before expanding the
 remaining pattern inputs; a failed ground check cannot be repaired by a later
-substitution.
+substitution. The check also applies when earlier inputs make a later one
+ground, without discarding alternative earlier bindings.
 
 The index persists. `ProducerIndex.append` indexes a newly installed module
 after the others, and every cached result (closures, candidate sets, plans in
