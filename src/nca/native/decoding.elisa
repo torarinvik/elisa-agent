@@ -603,7 +603,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                 result[k][j] <- marginal
     return PriorDecoded{log_z: log_z, arities: decoded, marginals: marginals}
 
-# The banded cursor of THEORY §23.4, rescaled as in §23.7. The caller owns the tables, `width`
+# The banded cursor of THEORY §23.4. The caller owns the tables, `width`
 # states per row, and keeps rows current around a cursor; these functions recompute rows in
 # place. Row `k` holds states `low[k] ..= high[k]`. Both sum and max tables hold log weights.
 
@@ -625,13 +625,15 @@ def advance_log(forward: mutable view[f64], forward_max: mutable view[f64], log_
             forward[target + n] <- log(0.0)
             forward_max[target + n] <- log(0.0)
         for j in 0..<arities:
+            step: f64 = log_probs[i * arities + j]
+            continue if step == log(0.0)
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
             for t in 0..<run.count:
                 source: i64 = i * width + run.first + t
                 cell: i64 = target + run.first - 1 + alphabet[j] + t
-                step: f64 = log_probs[i * arities + j]
-                if forward[source] != log(0.0) and step != log(0.0):
-                    forward[cell] <- log_add(forward[cell], forward[source] + step)
+                if forward[source] != log(0.0):
+                    incoming: f64 = forward[source] + step
+                    forward[cell] <- incoming if forward[cell] == log(0.0) else log_add_present(forward[cell], incoming)
                 candidate: f64 = forward_max[source] + step
                 forward_max[cell] <- candidate if candidate > forward_max[cell] else forward_max[cell]
     return stop - start
@@ -644,13 +646,15 @@ def retreat_log(backward: mutable view[f64], backward_max: mutable view[f64], lo
             backward[i * width + n] <- log(0.0)
             backward_max[i * width + n] <- log(0.0)
         for j in 0..<arities:
+            step: f64 = log_probs[i * arities + j]
+            continue if step == log(0.0)
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
             for t in 0..<run.count:
                 cell: i64 = i * width + run.first + t
                 source: i64 = (i + 1) * width + run.first - 1 + alphabet[j] + t
-                step: f64 = log_probs[i * arities + j]
-                if backward[source] != log(0.0) and step != log(0.0):
-                    backward[cell] <- log_add(backward[cell], backward[source] + step)
+                if backward[source] != log(0.0):
+                    incoming: f64 = backward[source] + step
+                    backward[cell] <- incoming if backward[cell] == log(0.0) else log_add_present(backward[cell], incoming)
                 candidate: f64 = backward_max[source] + step
                 backward_max[cell] <- candidate if candidate > backward_max[cell] else backward_max[cell]
     return start - stop
@@ -659,12 +663,14 @@ def retreat_log(backward: mutable view[f64], backward_max: mutable view[f64], lo
 def scores_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     total, log_x =
         for j in 0..<alphabet.len.i64() |total: f64 = log(0.0), log_x: f64 = log(0.0)| -> (total, log_x):
+            continue if log_row[j] == log(0.0)
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
             for t in 0..<run.count |total, log_x|:
                 here: i64 = k * width + run.first + t
                 next: i64 = (k + 1) * width + run.first - 1 + alphabet[j] + t
-                if forward[here] != log(0.0) and log_row[j] != log(0.0) and backward[next] != log(0.0):
-                    total <- log_add(total, forward[here] + log_row[j] + backward[next])
+                if forward[here] != log(0.0) and backward[next] != log(0.0):
+                    incoming: f64 = forward[here] + log_row[j] + backward[next]
+                    total <- incoming if total == log(0.0) else log_add_present(total, incoming)
                 candidate: f64 = forward_max[here] + backward_max[next] + log_row[j]
                 log_x <- candidate if candidate > log_x else log_x
     return [total, log_x]

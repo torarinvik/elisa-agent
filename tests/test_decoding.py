@@ -264,6 +264,22 @@ def test_split_retains_underflowed_products(reference_only: bool, monkeypatch: p
         log_z, _ = split.scores(k, rows[k])
         assert log_z == pytest.approx(expected.log_z, abs=1e-12)
 
+
+def test_native_split_scores_sparse_extreme_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "advance_log", None) is None:
+        pytest.skip("native log cursor is not built")
+    rng = np.random.default_rng(245)
+    for m in range(1, 9):
+        for _ in range(10):
+            rows = rng.choice([-np.inf, -1000.0, -40.0, 0.0], size=(m, 3))
+            native = Split(rows)
+            with monkeypatch.context() as patch:
+                patch.setattr(decoding, "_NATIVE", None)
+                reference = Split(rows)
+            for k in range(m):
+                actual, expected = native.scores(k, rows[k]), reference.scores(k, rows[k])
+                np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-12)
+
 def test_split_cursor_follows_climbs() -> None:
     """A sequence of climbs at random words, each rescored after the vectors
     were moved to it, matches a full decode after every climb."""
