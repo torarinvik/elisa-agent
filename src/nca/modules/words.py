@@ -252,6 +252,18 @@ class CorrectionState:
     changed: tuple[int, ...] = ()
     revisions: tuple[int, ...] | None = None
     within: dict[tuple[int, int], float] = field(default_factory=dict)
+    risk_prior: ArityPrior | None = None
+    risk_arities: tuple[int, ...] | None = None
+    risk_value: float | None = None
+
+    def cached_risk(self, prior: ArityPrior | None, arities: Sequence[int],
+                    calculate: Callable[[], float | None]) -> float | None:
+        selected = tuple(arities)
+        if self.risk_value is not None and self.risk_prior is prior and self.risk_arities == selected:
+            return self.risk_value
+        value = calculate()
+        self.risk_prior, self.risk_arities, self.risk_value = prior, selected, value
+        return value
 
 
 class FormulaEvaluator:
@@ -481,6 +493,8 @@ class FormulaEvaluator:
                             or state.revisions is None or versions[k] != state.revisions[k])
         cached = None
         if state is not None:
+            if invalidated:
+                state.risk_value = None
             if self.prior is not None:
                 cached = state.prior_log_probs
             elif state.cursor is not None:
@@ -527,10 +541,14 @@ class FormulaEvaluator:
                 state.priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
                                     for k, a in enumerate(arities)]
                 state.steps = 0
-            chosen_weight, alternative_weight = prior.partition(log_probs, arities)
-            if chosen_weight == -math.inf and alternative_weight == -math.inf:
+            def calculate_prior_risk() -> float | None:
+                chosen_weight, alternative_weight = prior.partition(log_probs, arities)
+                if chosen_weight == -math.inf and alternative_weight == -math.inf:
+                    return None
+                return risk_from_partition(chosen_weight, alternative_weight)
+            sequence_risk = state.cached_risk(prior, arities, calculate_prior_risk)
+            if sequence_risk is None:
                 return None
-            sequence_risk = risk_from_partition(chosen_weight, alternative_weight)
             priorities = state.priorities
         else:
             if state.cursor is None:
@@ -559,7 +577,9 @@ class FormulaEvaluator:
                             state.cursor.scores(anchor, log_probs[anchor]))
                 if not math.isfinite(log_z):
                     return None
-                sequence_risk = format_sequence_risk(log_probs, ARITY_ORDER, arities)
+                sequence_risk = state.cached_risk(
+                    None, arities, lambda: format_sequence_risk(log_probs, ARITY_ORDER, arities))
+                assert sequence_risk is not None
             if state.priorities is None or state.steps >= math.isqrt(n):
                 posterior = decode(log_probs, ARITY_ORDER)
                 if posterior is None:

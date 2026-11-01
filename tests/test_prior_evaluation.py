@@ -100,6 +100,50 @@ def test_format_evaluator_retains_tiny_risk_with_and_without_session(
         assert account is not None
         assert sum(account.values()) == pytest.approx(np.exp(-40.0), rel=1e-14)
 
+
+@pytest.mark.parametrize("use_prior", [False, True])
+def test_partition_cache_tracks_readings_selected_arities_and_prior(
+        use_prior: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    rng = np.random.default_rng(557)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=3)
+    masses = rng.dirichlet(np.ones(3), size=3)
+    versions = [0, 0, 0]
+    distribution = Distribution(lambda k, d: torch.tensor(masses[k]), versions.__getitem__)
+    evaluator = FormulaEvaluator(decode=True, prior=formulas.format_prior if use_prior else None)
+    state = CorrectionState()
+    original = priors.ArityPrior.partition
+    calls = 0
+    def partition(prior: priors.ArityPrior, rows: np.ndarray, selected: tuple[int, ...]) -> tuple[float, float]:
+        nonlocal calls
+        calls += 1
+        return original(prior, rows, selected)
+    monkeypatch.setattr(priors.ArityPrior, "partition", partition)
+    def risk(k: int, d: Decision) -> float:
+        return 0.0
+    first = evaluator.certificate(readings, risk, distribution, state)
+    assert first is not None and calls == 1
+    assert evaluator.certificate(readings, risk, distribution, state) == first and calls == 1
+    masses[0] = rng.dirichlet(np.ones(3))
+    versions[0] += 1
+    assert evaluator.certificate(readings, risk, distribution, state) is not None and calls == 2
+    # The cache also depends on the selected sequence and prior identity.
+    selected = state.risk_arities
+    assert selected is not None
+    changed = tuple((a + 1) % 3 for a in selected)
+    state.cached_risk(state.risk_prior, changed, lambda: 0.25)
+    assert state.cached_risk(state.risk_prior, changed, lambda: 0.5) == 0.25
+    assert state.cached_risk(priors.format_prior(1), changed, lambda: 0.5) == 0.5
+    def unversioned(k: int, d: Decision) -> torch.Tensor:
+        return torch.tensor(masses[k])
+    state = CorrectionState()
+    before = calls
+    assert evaluator.certificate(readings, risk, unversioned, state) is not None
+    assert evaluator.certificate(readings, risk, unversioned, state) is not None
+    assert calls == before + 2
+
 def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
     from nca.abi import Message
     from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior

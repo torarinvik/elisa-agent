@@ -859,6 +859,9 @@ use a separate Elisa sum of selected and alternative sequence weights
 (Theorem 27.16), with a Python reference path. Banded risk continues to use
 its certified normalizer bound and can lose sufficiently small positive risk
 to rounding. Format risk over other alphabets retains the previous calculation.
+Within a correction session, unchanged revision-tagged readings reuse that
+partition risk only for the same selected arities and prior object. Unversioned
+readings and changed revisions force recomputation.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.
