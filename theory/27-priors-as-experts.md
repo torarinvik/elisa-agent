@@ -210,7 +210,9 @@ computed negative infinity is treated as zero mass. The normalizer detects
 overflow in additions of reachable finite edge, reading, and final weights;
 this is conservative because an overflowing reachable prefix may not lead to
 an accepted sequence. It does not constitute a general floating-point error
-bound.
+bound. Native maximum and full decoding also reject detected non-finite
+intermediate sums; this can conservatively reject cases whose final result
+would be representable after cancellation.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

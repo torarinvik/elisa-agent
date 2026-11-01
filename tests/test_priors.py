@@ -382,6 +382,18 @@ def test_older_native_decoder_without_normalizer_can_return_no_result(
     assert prior.best(rows) is None and prior.decode(rows) is None
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_decoders_reject_overflow_even_when_other_paths_exist(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
+                              np.array([[1e308, 0.0]]), np.zeros(1))
+    for operation in (prior.best, prior.decode):
+        with pytest.raises(ValueError, match="normalizer.*finite"):
+            operation(np.zeros((2, 2)))
+
+
 def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
     # Successive supports alternate between a wide range with holes and one cell.
     # The two reusable rows must clear their old, sometimes wider envelopes.

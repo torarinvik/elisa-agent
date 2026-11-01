@@ -174,6 +174,7 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
     width: i64 = alphabet.len.i64()
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
+    unreachable: f64 = log(0.0)
     return [] if m == 0
     rows, choice, bounds =
         for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start, start, 0, -1]| -> (rows, choice, bounds):
@@ -191,7 +192,13 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
-                    candidate: f64 = rows[here + state] + (log_probs[k * width + j] + prior[edge])
+                    reading: f64 = log_probs[k * width + j]
+                    edge_weight: f64 = prior[edge]
+                    continue if reading == unreachable or edge_weight == unreachable
+                    weight: f64 = reading + edge_weight
+                    return [] if weight == unreachable or weight == -unreachable
+                    candidate: f64 = rows[here + state] + weight
+                    return [] if candidate == unreachable or candidate == -unreachable
                     if candidate > rows[next + target]:
                         rows[next + target] <- candidate
                         choice[(k + 1) * states + target] <- edge
@@ -199,7 +206,10 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
                         bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
     terminal: i64 =
         for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |top: f64 = log(0.0), terminal: i64 = -1| -> terminal:
-            candidate: f64 = rows[(m % 2) * states + state] + final[state]
+            last: f64 = rows[(m % 2) * states + state]
+            continue if last == unreachable or final[state] == unreachable
+            candidate: f64 = last + final[state]
+            return [] if candidate == unreachable or candidate == -unreachable
             if candidate > top:
                 top <- candidate
                 terminal <- state
@@ -222,6 +232,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
     width: i64 = alphabet.len.i64()
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
+    unreachable: f64 = log(0.0)
     return null if m == 0
     forward, best, choice =
         for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
@@ -232,16 +243,27 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     target: i64 = transitions[edge]
                     continue if target < 0
                     cell: i64 = (k + 1) * states + target
-                    weight: f64 = log_probs[k * width + j] + prior[edge]
-                    forward[cell] <- log_add(forward[cell], forward[k * states + state] + weight)
+                    reading: f64 = log_probs[k * width + j]
+                    edge_weight: f64 = prior[edge]
+                    continue if reading == unreachable or edge_weight == unreachable
+                    weight: f64 = reading + edge_weight
+                    return null if weight == unreachable or weight == -unreachable
+                    through: f64 = forward[k * states + state] + weight
+                    return null if through == unreachable or through == -unreachable
+                    forward[cell] <- log_add(forward[cell], through)
                     candidate: f64 = best[k * states + state] + weight
+                    return null if candidate == unreachable or candidate == -unreachable
                     if candidate > best[cell]:
                         best[cell] <- candidate
                         choice[cell] <- edge
     log_z, terminal =
         for state in 0..<states |log_z: f64 = log(0.0), top: f64 = log(0.0), terminal: i64 = -1| -> (log_z, terminal):
-            log_z <- log_add(log_z, forward[m * states + state] + final[state])
+            continue if forward[m * states + state] == unreachable or final[state] == unreachable
+            weighted: f64 = forward[m * states + state] + final[state]
+            return null if weighted == unreachable or weighted == -unreachable
+            log_z <- log_add(log_z, weighted)
             candidate: f64 = best[m * states + state] + final[state]
+            return null if candidate == unreachable or candidate == -unreachable
             if candidate > top:
                 top <- candidate
                 terminal <- state
@@ -260,7 +282,12 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
-                    through: f64 = log_probs[k * width + j] + prior[edge] + backward[(k + 1) * states + target]
+                    reading: f64 = log_probs[k * width + j]
+                    edge_weight: f64 = prior[edge]
+                    suffix: f64 = backward[(k + 1) * states + target]
+                    continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
+                    through: f64 = (reading + edge_weight) + suffix
+                    return null if through == unreachable or through == -unreachable
                     backward[k * states + state] <- log_add(backward[k * states + state], through)
     marginals: darray[darray[f64]] =
         for k in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m]| -> result:
@@ -271,7 +298,19 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                         edge: i64 = state * width + j
                         target: i64 = transitions[edge]
                         continue if target < 0
-                        total += exp(forward[k * states + state] + log_probs[k * width + j] + prior[edge] + backward[(k + 1) * states + target] - log_z)
+                        reading: f64 = log_probs[k * width + j]
+                        edge_weight: f64 = prior[edge]
+                        suffix: f64 = backward[(k + 1) * states + target]
+                        continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
+                        first: f64 = forward[k * states + state] + reading
+                        return null if first == unreachable or first == -unreachable
+                        second: f64 = first + edge_weight
+                        return null if second == unreachable or second == -unreachable
+                        third: f64 = second + suffix
+                        return null if third == unreachable or third == -unreachable
+                        exponent: f64 = third - log_z
+                        return null if exponent == unreachable or exponent == -unreachable
+                        total += exp(exponent)
                 result[k][j] <- marginal
     return PriorDecoded{log_z: log_z, arities: decoded, marginals: marginals}
 
