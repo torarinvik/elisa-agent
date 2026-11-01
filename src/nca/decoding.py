@@ -58,7 +58,8 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
     flat = np.ascontiguousarray(log_probs, dtype=np.float64).ravel()
     out = np.asarray(_NATIVE.decode(flat, np.asarray(alphabet, dtype=np.int64)))
     if out[0] <= -1e300:
-        return None
+        # The linear-space kernel can lose all accepted mass to underflow.
+        return decode_reference(log_probs, alphabet)
     return Decoded(tuple(int(a) for a in out[1:m + 1]), float(out[0]),
                    out[m + 1:].reshape(m, len(alphabet)))
 

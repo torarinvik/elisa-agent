@@ -337,3 +337,14 @@ def test_native_accepted_log_weight_matches_prefix_parser() -> None:
         assert native(np.array(weights, dtype=np.float64),
                       np.array(alphabet_values, dtype=np.int64),
                       np.array(selected, dtype=np.int64)) == []
+
+
+def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
+    rows = np.array([[-1488.0, 0.0, -1151.0], [0.0, -1381.0, -1487.0],
+                     [0.0, -1488.0, -1487.0]])
+    result = decode(rows, ARITY_ORDER)
+    reference = decode_reference(rows, ARITY_ORDER)
+    assert result is not None and reference is not None
+    assert result.arities == reference.arities == (2, 0, 0)
+    assert result.log_z == pytest.approx(reference.log_z)
+    np.testing.assert_allclose(result.marginals, reference.marginals)

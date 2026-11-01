@@ -740,7 +740,16 @@ def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.All
             next: f64 = total + adjusted
             correction <- (next - total) - adjusted
             total <- next
-    return [bound * (weights[k] / total) for k in 0..<m]
+    result: darray[f64] = [bound * (weights[k] / total) for k in 0..<m]
+    positive: bool =
+        for k in 0..<m |found: bool = false| -> found:
+            found <- true if result[k] > 0.0 else found
+    if bound > 0.0 and m > 0 and not positive:
+        top: i64 =
+            for k in 1..<m |top: i64 = 0| -> top:
+                top <- k if weights[k] > weights[top] else top
+        result[top] <- bound
+    return result
 
 # Log product of the selected sequence, preserving position order.
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
@@ -787,6 +796,25 @@ def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temper
     return
         for k in 0..<weights.count |result: darray[f64] = [0.0 for _ in 0..<entries]| -> result:
             result[groups[k]] <- result[groups[k]] + weights[k] / total
+
+# Group probabilities in log space, preserving finite underflowed masses.
+def calibrated_log_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return [] if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64() or entries <= 0 or temperature <= 0.0
+    maxima: darray[f64] = [log(0.0) for _ in 0..<entries]
+    state: darray[f64] = [log(0.0), 0.0]
+    for k in 0..<logits.len.i64():
+        group: i64 = groups[k]
+        return [] if group < 0 or group >= entries
+        maxima[group] <- logits[k] if logits[k] > maxima[group] else maxima[group]
+        state[0] <- logits[k] if logits[k] > state[0] else state[0]
+    largest: f64 = state[0]
+    return [] if largest == log(0.0)
+    totals: darray[f64] = [0.0 for _ in 0..<entries]
+    for k in 0..<logits.len.i64():
+        group: i64 = groups[k]
+        totals[group] <- totals[group] + exp((logits[k] - maxima[group]) / temperature) if maxima[group] != log(0.0) else totals[group]
+        state[1] <- state[1] + exp((logits[k] - largest) / temperature)
+    return [(maxima[g] - largest) / temperature + log(totals[g]) - log(state[1]) if maxima[g] != log(0.0) else log(0.0) for g in 0..<entries]
 
 def risk_at_anchor(logits: view[f64], groups: view[i64], chosen: i64, temperature: f64, largest: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
     total, outside =
@@ -864,6 +892,7 @@ export pymodule decoding:
     fn sequence_log_weight
     fn accepted_log_weight
     fn calibrated_groups
+    fn calibrated_log_groups
     fn calibrated_risk
     fn calibrated_risk_at
     fn calibrated_risk_for_reading

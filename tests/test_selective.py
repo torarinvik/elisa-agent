@@ -1964,3 +1964,70 @@ def test_missing_calibration_cache_is_scoped_to_query_type(missing_operation) ->
     result = refine([0, 0], [[partial], [low, high]], 0.05, certificate=certificate)
     assert not result.abstained and result.bound == pytest.approx(0.01)
     assert result.cost == 3.0
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_log_distribution_retains_underflowed_group_mass(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_log_groups", None) is None:
+        pytest.skip("native calibrated log groups are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("log-groups", (1.0, 1.0, 1.0), 1.0))
+    logits = torch.tensor([0.0, -1000.0, -1001.0], dtype=torch.float64)
+    decision = ((0,), (1, 2))
+    assert rung.distribution(logits, decision).tolist() == [1.0, 0.0]
+    logs = rung.log_distribution(logits, decision)
+    assert logs[0].item() == pytest.approx(0.0)
+    assert logs[1].item() == pytest.approx(float(np.logaddexp(-1000.0, -1001.0)))
+
+
+def test_log_distribution_keeps_gradients() -> None:
+    rung = Rung(constant("log-gradient", (0.2, 0.3, 0.5), 1.0))
+    logits = torch.tensor([-1.0, -3.0, -5.0], requires_grad=True)
+    result = rung.log_distribution(logits, ((0, 1), (2,)))
+    result[1].backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert torch.count_nonzero(logits.grad) == 3
+
+
+def test_log_distribution_respects_custom_probability_override() -> None:
+    class CustomRung(Rung):
+        def distribution(self, log, classes=None):
+            return torch.tensor([0.8, 0.2], dtype=torch.float64)
+
+    rung = CustomRung(constant("custom-probabilities", (0.1, 0.9), 1.0))
+    captured = []
+
+    def certificate(readings, risk, distribution):
+        captured.append((distribution(0, None), distribution.log(0, None)))
+        return {0: 0.0}
+
+    result = refine([0], [[rung]], 0.0, certificate=certificate)
+    assert not result.abstained
+    assert torch.allclose(captured[0][0], captured[0][1].exp())
+    assert captured[0][0].tolist() == pytest.approx([0.8, 0.2])
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_risk_allocation_preserves_smallest_positive_bound(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "risk_shares", None) is None:
+        pytest.skip("native risk allocation is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    smallest = math.nextafter(0.0, 1.0)
+    shares = allocate_risk(smallest, [1.0, 2.0, 1.0])
+    assert shares == [0.0, smallest, 0.0]
+
+
+def test_risk_allocation_preserves_positive_bound_with_older_native_kernel(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(risk_shares=lambda bound, p: [0.0] * len(p)))
+    smallest = math.nextafter(0.0, 1.0)
+    assert allocate_risk(smallest, [1.0, 2.0, 1.0]) == [0.0, smallest, 0.0]

@@ -296,8 +296,11 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
             return distribution(position[i], d)
 
         revision = getattr(distribution, "revision", None)
-        calibrated = (Distribution(mapped_distribution, lambda i: revision(position[i]), current_source)
-                      if revision is not None else mapped_distribution)
+        log_lookup = getattr(distribution, "log", None)
+        mapped_log = (lambda i, d: log_lookup(position[i], d)) if log_lookup is not None else None
+        mapped_revision = (lambda i: revision(position[i])) if revision is not None else None
+        calibrated = (Distribution(mapped_distribution, mapped_revision, current_source, mapped_log)
+                      if revision is not None or log_lookup is not None else mapped_distribution)
         mapped_risk = _MappedRisk(risk, position, getattr(risk, "source", risk))
         chosen = declared(list(elements), mapped_risk, calibrated)
         return None if chosen is None else {position[i]: c for i, c in chosen.items()}

@@ -42,7 +42,7 @@ def risk_from_partition(chosen: float, alternative: float) -> float:
     difference = alternative - chosen
     if difference <= 0:
         ratio = math.exp(difference)
-        return ratio / (1.0 + ratio)
+        return math.nextafter(0.0, 1.0) if ratio == 0.0 else ratio / (1.0 + ratio)
     return 1.0 / (1.0 + math.exp(-difference))
 
 

@@ -226,7 +226,7 @@ class RankedReading(Sequence[float]):
     def __len__(self) -> int:
         return len(self.probabilities)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int | slice) -> float | tuple[float, ...]:
         return self.probabilities[index]
 
     def top(self, classes: Sequence[int] | None = None) -> int:
@@ -481,6 +481,28 @@ class Rung:
             reading = reading.to(log.dtype)
         return torch.stack([reading[part].sum() for part in positions])
 
+    def log_distribution(self, log: torch.Tensor | RankedObservation,
+                         classes: Decision = None) -> torch.Tensor:
+        """Log probabilities for decision entries, retaining underflowed mass."""
+        temperature = self.temperature(classes)
+        if isinstance(log, RankedObservation):
+            if not math.isfinite(temperature) or temperature <= 0:
+                raise ValueError("ranked distribution requires a positive finite temperature")
+            log = log.logits
+        if classes is None:
+            return torch.log_softmax(_temperature_scores(log.double(), temperature), dim=-1)
+        key = decision_key(classes)
+        union, positions = _layout(key)
+        native = getattr(_NATIVE, "calibrated_log_groups", None)
+        if native is not None and log.device.type == "cpu" and not log.requires_grad:
+            values = native(log[union].double().numpy(), _group_ids(key), len(positions), temperature)
+            if values:
+                return torch.tensor(values, dtype=torch.float64)
+        scores = _temperature_scores(log[union].double(), temperature)
+        normalizer = torch.logsumexp(scores, dim=-1)
+        return torch.stack([torch.logsumexp(scores[part], dim=-1) - normalizer
+                            for part in positions])
+
     @staticmethod
     def _fit(log: torch.Tensor, labels: torch.Tensor,
              entries: Sequence[Sequence[int]] | None = None) -> float:
@@ -579,14 +601,22 @@ class Distribution:
     A revision identifies the observation and calibration within its source.
     Adapters may share a source token when they preserve that identity.
     Consumers without revision support may call this like any other function.
+    ``log_lookup`` may preserve mass lost in numerical probabilities; without
+    it, ``log`` operates on the returned probabilities and cannot recover it.
     """
 
     lookup: Callable[[int, Decision], torch.Tensor]
-    revision: Callable[[int], int]
+    revision: Callable[[int], int] | None
     source: object = field(default_factory=object, compare=False, repr=False)
+    log_lookup: Callable[[int, Decision], torch.Tensor] | None = None
 
     def __call__(self, i: int, decision: Decision) -> torch.Tensor:
         return self.lookup(i, decision)
+
+    def log(self, i: int, decision: Decision) -> torch.Tensor:
+        if self.log_lookup is not None:
+            return self.log_lookup(i, decision)
+        return torch.as_tensor(self.lookup(i, decision)).double().log()
 
 
 Reading = torch.Tensor | RankedReading
@@ -677,7 +707,9 @@ def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
     """Allocate a current bound using possibly stale, nonnegative priorities.
 
     Priorities guide refinement only; their age does not affect the total
-    charge (THEORY 23.11). Zero priorities receive a uniform allocation.
+    charge in exact arithmetic (THEORY 23.11). Zero priorities receive a
+    uniform allocation. If every share underflows, one retains the bound;
+    this is not a general outward-rounding guarantee.
     """
     if not math.isfinite(bound) or bound < 0:
         raise ValueError("bound must be finite and nonnegative")
@@ -687,11 +719,15 @@ def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
         raise ValueError("priorities must be finite and nonnegative")
     native = getattr(_NATIVE, "risk_shares", None)
     if native is not None:
-        return native(bound, np.asarray(priorities, dtype=np.float64))
-    scale = max(priorities)
-    weights = [p / scale for p in priorities] if scale > 0 else [1.0] * len(priorities)
-    total = math.fsum(weights)
-    return [bound * (w / total) for w in weights]
+        shares = native(bound, np.asarray(priorities, dtype=np.float64))
+    else:
+        scale = max(priorities)
+        weights = [p / scale for p in priorities] if scale > 0 else [1.0] * len(priorities)
+        total = math.fsum(weights)
+        shares = [bound * (w / total) for w in weights]
+    if bound > 0 and not any(shares):
+        shares[max(range(len(priorities)), key=priorities.__getitem__)] = bound
+    return shares
 
 
 def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: float,
@@ -733,6 +769,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
                 dict[DecisionKey, float | _MissingCalibration] | None] = [None] * len(values)
     distributions: list[tuple[DecisionKey, torch.Tensor | _MissingCalibration] |
                         dict[DecisionKey, torch.Tensor | _MissingCalibration] | None] = [None] * len(values)
+    log_distributions: list[dict[DecisionKey, torch.Tensor | _MissingCalibration] | None] = [None] * len(values)
     cost = 0.0
 
     def climb(i: int) -> None:
@@ -740,6 +777,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         rung = ladders[i][levels[i]]
         risks[i] = None
         distributions[i] = None
+        log_distributions[i] = None
         observation = rung.observe_ranked(values[i]) if ranked else rung.observe(values[i])
         logs[i] = observation
         numeric = rung.reading(observation)
@@ -792,7 +830,30 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             raise _UnavailableCalibration(i)
         return result
 
-    current_distribution = Distribution(item_distribution, levels.__getitem__)
+    def item_log_distribution(i: int, decision: Decision) -> torch.Tensor:
+        key = decision_key(decision)
+        cache = log_distributions[i]
+        if cache is None:
+            cache = log_distributions[i] = {}
+        if key not in cache:
+            rung = ladders[i][levels[i]]
+            log_method = getattr(rung, "log_distribution", None)
+            base_log = getattr(log_method, "__func__", None) is Rung.log_distribution
+            base_distribution = getattr(rung.distribution, "__func__", None) is Rung.distribution
+            try:
+                if log_method is None or (base_log and not base_distribution):
+                    cache[key] = item_distribution(i, decision).double().log()
+                else:
+                    cache[key] = log_method(logs[i], decision)
+            except MissingCalibrationError:
+                cache[key] = _MISSING_CALIBRATION
+        result = cache[key]
+        if result is _MISSING_CALIBRATION:
+            raise _UnavailableCalibration(i)
+        return result
+
+    current_distribution = Distribution(item_distribution, levels.__getitem__,
+                                        log_lookup=item_log_distribution)
 
     for i in range(len(values)):
         climb(i)

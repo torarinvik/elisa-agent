@@ -918,3 +918,76 @@ def test_correction_refuses_zero_mass_calibrated_row(mode: str) -> None:
     account = evaluator.certificate_session()(
         readings, lambda k, decision: 0.0, lambda k, decision: torch.tensor(rows[k]))
     assert account is None
+
+
+@pytest.mark.parametrize("mode", ["exact", "banded", "prior"])
+def test_correction_uses_log_distribution_for_underflowed_mass(mode: str) -> None:
+    from nca.ladder import Distribution
+
+    readings = one_hot(["and", "true", "true"])
+    log_rows = np.array([[-np.inf, 0.0, -700.0], [0.0, -1000.0, -np.inf],
+                         [0.0, -np.inf, -np.inf]])
+    linear_rows = np.exp(log_rows)
+    distribution = Distribution(lambda k, d: torch.tensor(linear_rows[k]), lambda k: 0,
+                                log_lookup=lambda k, d: torch.tensor(log_rows[k]))
+    options = ({"band_slack": 0.01} if mode == "banded" else
+               {"prior": priors.format_prior} if mode == "prior" else {})
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, **options)
+
+    def risk(k: int, decision: Decision) -> float:
+        return 0.0
+
+    account = evaluator.certificate_session()(readings, risk, distribution)
+    assert account is not None
+    posterior = decode(log_rows, ARITY_ORDER)
+    assert posterior is not None
+    expected = posterior.risk(log_rows, ARITY_ORDER, [2, 0, 0])
+    assert expected > 0
+    assert sum(account.values()) == pytest.approx(expected, rel=1e-12, abs=0)
+
+
+def test_refinement_carries_underflowed_log_masses_to_formula_correction() -> None:
+    from nca.ladder import decision_key
+    from nca.selective import element_certificate
+
+    def weights(**entries):
+        return tuple(entries.get(word, 0.0) for word in VOCABULARY)
+
+    rows = [weights(**{"not": 1.0, "and": 1e-250}),
+            weights(**{"true": 1.0, "not": 1e-300}), weights(**{"true": 1.0})]
+    rungs = [Rung(Constant(Manifest(f"row-{i}", "1", READER, cost=1.0), row))
+             for i, row in enumerate(rows)]
+    for rung in rungs:
+        rung.temperatures[decision_key(ARITY_DECISION)] = 0.5
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False)
+    adapted = element_certificate(evaluator, [(0, 0), (1, 0), (2, 0)], 3)
+    assert adapted is not None
+
+    def certificate(readings, risk, distribution):
+        return adapted(readings, lambda i, decision: 0.0, distribution)
+
+    result = refine([0, 0, 0], [[rung] for rung in rungs], 1.0,
+                    certificate=certificate, ranked=True)
+    assert result.available and not result.abstained
+    assert result.bound > 0.0
+    log_rows = torch.stack([rung.log_distribution(rung.observe_ranked(0), ARITY_DECISION)
+                            for rung in rungs]).numpy()
+    posterior = decode(log_rows, ARITY_ORDER)
+    assert posterior is not None
+    expected = posterior.risk(log_rows, ARITY_ORDER, [2, 0, 0])
+    assert expected > 0
+    assert result.bound == pytest.approx(expected, rel=1e-12, abs=0)
+
+
+def test_correction_does_not_erase_smallest_positive_sequence_risk() -> None:
+    from nca.ladder import Distribution
+
+    readings = one_hot(["and", "true", "true"])
+    log_rows = np.array([[-np.inf, 0.0, -700.0], [0.0, -1500.0, -np.inf],
+                         [0.0, -np.inf, -np.inf]])
+    distribution = Distribution(lambda k, d: torch.tensor(np.exp(log_rows[k])), lambda k: 0,
+                                log_lookup=lambda k, d: torch.tensor(log_rows[k]))
+    account = FormulaEvaluator(decode=True, short_circuit=False).certificate_session()(
+        readings, lambda k, d: 0.0, distribution)
+    assert account is not None
+    assert sum(account.values()) == np.nextafter(0.0, 1.0)

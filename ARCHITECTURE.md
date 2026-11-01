@@ -666,7 +666,15 @@ and, when a budget is set, allows repeats in the request chain; that is
 **Decoding interface.** The certificate needs the calibrated distribution of
 the arity decision, not only its risk. The controller passes the consumer a
 calibrated distribution for any grouped decision it names, alongside the risk
-(§21.6). If a rung lacks labels needed to fit a requested restricted decision,
+(§21.6). The optional log-distribution interface retains finite group masses
+that underflow in numerical probabilities; native Elisa grouping has a PyTorch
+fallback. Adapters preserve this interface and its revision identity. A
+custom rung overriding probability distributions must also provide a matching
+log distribution to retain underflowed masses; otherwise the adapter logs the
+numerical probabilities. The linear-space format decoder falls back to
+log-space decoding if all accepted mass underflows; banded correction checks an
+exact partition if its risk rounds to zero, which can require more work. If a
+rung lacks labels needed to fit a requested restricted decision,
 the account is unavailable rather than treated as a finite bound; refinement
 can try higher rungs and abstains if none supplies a usable account.
 

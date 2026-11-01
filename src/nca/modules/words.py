@@ -680,15 +680,18 @@ class FormulaEvaluator:
                 cached = state.prior_log_probs
             elif state.cursor is not None:
                 cached = state.cursor.log_probs
+        log_lookup = getattr(distribution, "log", None)
+        def log_row(k: int) -> torch.Tensor:
+            if log_lookup is not None:
+                return torch.as_tensor(log_lookup(k, ARITY_DECISION)).double()
+            return torch.as_tensor(distribution(k, ARITY_DECISION)).double().log()
+
         if cached is None or (self.prior is not None and versions is None):
-            calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
-                                      for k in range(n)]).double()
-            log_probs = calibrated.log().numpy()
+            log_probs = torch.stack([log_row(k) for k in range(n)]).cpu().numpy()
         else:
             log_probs = cached.copy() if invalidated else cached
             for k in invalidated:
-                row = torch.as_tensor(distribution(k, ARITY_DECISION)).double()
-                log_probs[k] = row.log().numpy()
+                log_probs[k] = log_row(k).cpu().numpy()
         if self.band_slack is not None:
             # Row factors cancel from both the selected weight and normalizer.
             for k in invalidated:
@@ -753,6 +756,11 @@ class FormulaEvaluator:
                     return None
                 state.cursor = state.risk_band.split
                 sequence_risk = state.risk_band.sequence_risk(arities)
+                if sequence_risk == 0.0:
+                    recovered = state.partition_risk(format_prior(n), log_probs, arities)
+                    if recovered is None:
+                        return None
+                    sequence_risk = recovered
             else:
                 scored = None
                 if state.changed:
@@ -764,7 +772,8 @@ class FormulaEvaluator:
                     log_z, _ = (scored if scored is not None else
                                 state.cursor.scores(anchor, log_probs[anchor]))
                     if not math.isfinite(log_z):
-                        return None
+                        # The linear cursor can lose every accepted path to underflow.
+                        return self.corrected(words, children, risk, distribution, None, _prior=_prior)
                     state.normalizer_valid = True
                 sequence_risk = state.cached_risk(
                     None, arities, lambda: state.partition_risk(format_prior(n), log_probs, arities))

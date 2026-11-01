@@ -952,3 +952,11 @@ def test_leaf_and_binary_tilts_have_identical_bounded_posteriors(
             assert left.log_z == pytest.approx(right.log_z + log_factor, abs=1e-11)
             np.testing.assert_allclose(left.marginals, right.marginals, atol=1e-11)
             assert leaf.log_evidence(rows, base) == pytest.approx(binary.log_evidence(rows, base), abs=1e-11)
+
+
+def test_sequence_risk_preserves_finite_underflowed_alternative() -> None:
+    import math
+    from nca.priors import risk_from_partition
+
+    assert risk_from_partition(0.0, -1000.0) == math.nextafter(0.0, 1.0)
+    assert risk_from_partition(0.0, -math.inf) == 0.0

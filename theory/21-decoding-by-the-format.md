@@ -128,11 +128,15 @@ gives
 
 > `P(wrong | readings) ≤ R + Σ_{k ∈ E} rₖ`.
 
-Numerically, representable positive calibrated masses are logged without an
-arbitrary positive floor; exact zeros map to `−∞`. A row with no mass cannot
-support a posterior account. This preserves subnormal inputs but cannot
-recover mass that an earlier calculation already rounded to zero, and it is
-not an outward-rounding guarantee.
+Numerically, calibrated group log-masses can be carried directly from logits,
+so a finite group mass need not be rounded to zero before decoding. When only
+probabilities are provided, representable positive masses are logged without
+an arbitrary floor and exact zeros map to `−∞`. A row with no mass cannot
+support a posterior account. These paths do not recover mass already rounded
+to zero by an upstream expert and do not provide an outward-rounding guarantee.
+A finite alternative whose probability is below binary64 range receives the
+smallest positive value; if all allocated shares underflow, one retains that
+value. Other rounding errors are not covered by this safeguard.
 
 ## 21.6 Charges for refinement
 
