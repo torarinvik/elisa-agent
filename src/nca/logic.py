@@ -4,8 +4,10 @@ Installs the formula library (tokenizer, edit reader, character reader,
 formula evaluator), plans a route from formula text to a truth value with the
 stable planner, and refines it with the generic controller (``nca.selective``),
 calibrating the readers' ladder on the words of validation formulas. For each
-depth and target δ it compares static demand (every word decided fully) with
-the evaluator's certificate. It reports coverage, error among answered
+depth and target δ it compares the evaluator's risk accounts (``ACCOUNTS``):
+static demand (every word decided fully), its certificate, and the
+certificate crediting error detection by Markov's inequality or by pairs
+(§19). It reports coverage, error among answered
 formulas, mean bound among answered, error when forced to answer, and compute
 per formula.
 
@@ -14,7 +16,8 @@ valid certificate evaluates, against the bound ``2^⌈d/2⌉`` of
 ``NCA.alternating_cert_leaves``.
 
 With ``--shift ν`` formulas in use have noise ν instead, and the risk control
-of §17 (``nca.ladder.certify``) is applied with audits drawn at that noise.
+of §17 (``nca.ladder.certify``) is applied to one account (``--account``)
+with audits drawn at that noise.
 
     uv run --extra vision python -m nca.logic --reader checkpoints/words.pt
 """
@@ -29,8 +32,8 @@ import torch
 
 from nca.abi import TypeId
 from nca.certify import INFLATIONS
-from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words
-from nca.ladder import Decision, Rung, certification_order, certify
+from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words, parse
+from nca.ladder import Rung, certification_order, certify
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (WORD_DISTRIBUTION, CharReader, EditReader, FormulaEvaluator,
                                FORMULA_TEXT, Tokenizer)
@@ -40,21 +43,25 @@ from nca.selective import build_ladders, solve
 from nca.stats import wilson
 
 
-def library(reader: Path, short_circuit: bool) -> list[Module]:
+ACCOUNTS = {"static": (False, "none"), "certificate": (True, "none"),
+            "markov": (True, "markov"), "pairs": (True, "pairs")}
+"""Evaluator settings compared: short-circuit certificates, and credit for
+error detection (§19)."""
+
+
+def library(reader: Path, short_circuit: bool, detection: str = "none") -> list[Module]:
     return [Tokenizer(), EditReader(), CharReader.load(reader),
-            FormulaEvaluator(short_circuit)]
+            FormulaEvaluator(short_circuit, detection)]
 
 
 def certificate_leaves(sample: FormulaSample) -> int:
     """Leaves of the smallest valid certificate of the true formula."""
-    readings = [tuple(float(w == v) for v in VOCABULARY) for w in sample.words]
-
-    def risk(k: int, decision: Decision) -> float:
-        return float(decision is None and ARITY[VOCABULARY.index(sample.words[k])] == 0)
-
-    demanded = FormulaEvaluator().certificate(readings, risk)
-    assert demanded is not None
-    return int(sum(risk(k, d) for k, d in demanded.items()))
+    arities = [ARITY[VOCABULARY.index(w)] for w in sample.words]
+    children = parse(arities)
+    assert children is not None
+    leaves = [float(a == 0) for a in arities]
+    kept = FormulaEvaluator.evaluated(sample.words, children, leaves, [0.0] * len(leaves))
+    return int(sum(leaves[k] for k in kept))
 
 
 def outcomes(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[FormulaSample],
@@ -82,7 +89,7 @@ def selective(routes: dict[str, Plan], ladders: dict[TypeId, list[Rung]],
         systems = {"bottom rungs": ("certificate", float("inf"), 0),
                    "top rungs": ("certificate", float("inf"), top)}
         for delta in args.targets:
-            systems |= {f"{name} δ={delta:g}": (name, delta, 0) for name in routes}
+            systems |= {f"{name} δ={delta:g}": (name, delta, 0) for name in args.accounts}
         for system, (name, delta, start) in systems.items():
             answered = wrong_answered = wrong_forced = 0
             spent = bound_sum = 0.0
@@ -145,15 +152,19 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--depths", type=int, nargs="+", default=[2, 4, 6])
     parser.add_argument("--targets", type=float, nargs="+", default=[0.2, 0.05, 0.01])
+    parser.add_argument("--accounts", nargs="+", choices=ACCOUNTS, default=list(ACCOUNTS))
     parser.add_argument("--shift", type=float, help="noise in use, for risk control")
+    parser.add_argument("--account", choices=ACCOUNTS, default="certificate",
+                        help="the account risk control certifies")
     parser.add_argument("--audit", type=int, default=200, help="formulas per audit half")
     parser.add_argument("--draws", type=int, default=3)
     parser.add_argument("--alpha", type=float, default=0.1)
     args = parser.parse_args()
 
     routes = {}
-    for name, short_circuit in (("static", False), ("certificate", True)):
-        route = plan_stable(library(args.reader, short_circuit), (FORMULA_TEXT,), BOOLEAN)
+    for name, (short_circuit, detection) in ACCOUNTS.items():
+        route = plan_stable(library(args.reader, short_circuit, detection), (FORMULA_TEXT,),
+                            BOOLEAN)
         assert route is not None
         routes[name] = route
     words, labels = labeled_words(FormulaDataset("validation", args.calibration, 4, args.noise,
@@ -175,7 +186,7 @@ def main() -> None:
     if args.shift is None:
         selective(routes, ladders, args)
     else:
-        shifted(routes["certificate"], ladders, args)
+        shifted(routes[args.account], ladders, args)
 
 
 if __name__ == "__main__":

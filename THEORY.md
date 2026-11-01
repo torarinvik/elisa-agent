@@ -1668,3 +1668,80 @@ Under a target `δ` the length limit on that term moves from `m ≲ δ / ρ` to
    observed error.
 4. **Compute.** Less: arity charges no longer force climbs on words whose
    arity is merely uncertain.
+
+### 19.9 Results
+
+`nca.logic`, with the setup of §18.10 (same readers, calibration and 300
+test formulas per depth). Coverage, with compute in kFLOPs per formula in
+brackets:
+
+| depth | δ | static | certificate | Markov | pairs |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 0.01 | 0.927 (87) | 0.927 (86) | 0.940 (75) | 0.970 (32) |
+| 4 | 0.2 | 0.900 (409) | 0.910 (370) | 0.923 (322) | 0.973 (124) |
+| 4 | 0.05 | 0.813 (720) | 0.843 (608) | 0.857 (559) | 0.963 (162) |
+| 4 | 0.01 | 0 | 0.267 (2719) | 0.713 (1158) | 0.937 (274) |
+| 6 | 0.2 | 0.497 (7602) | 0.557 (6721) | 0.687 (4798) | 0.817 (2833) |
+| 6 | 0.05 | 0 | 0.213 (11864) | 0.440 (8514) | 0.707 (4497) |
+| 6 | 0.01 | 0 | 0 | 0.113 (13302) | 0.557 (6764) |
+| 8 | 0.2 | 0 | 0.017 (58883) | 0.097 (54236) | 0.247 (45391) |
+| 8 | 0.05 | 0 | 0 | 0.003 (59614) | 0.080 (55227) |
+| 8 | 0.01 | 0 | 0 | 0 | 0.007 (59426) |
+
+No answered formula was wrong under any account. The mean bound among
+answered formulas at `δ = 0.2` falls from 0.032 (certificate) to 0.025
+(Markov) and 0.006 (pairs) at depth 4, and from 0.103 to 0.092 and 0.048 at
+depth 6.
+
+**Shift**, noise 0.2 in use with the pairs account, audits as in §18.10:
+
+| depth | δ | uncontrolled: coverage, error answered | risk control: λ per draw | coverage | error answered |
+|---:|---:|---|---|---|---|
+| 6 | 0.2 | 0.410, 0.008 | 0.5, 0.5, 0.5 | 0.460 | 0.029 |
+| 6 | 0.05 | 0.257, 0 | –, 0.5, – | 0, 0.353, 0 | –, 0.009, – |
+| 8 | 0.2 / 0.05 | 0, – | –, –, – | 0 | – |
+
+At depth 6 the certificate account answered 0.157 and 0.007 of these
+formulas uncontrolled (§18.10).
+
+Against the predictions of §19.8:
+
+1. **Validity: confirmed.** The Markov account, which needs no premise,
+   made no error. Neither did the pairs account in distribution. Under shift
+   it made one error in 123 answered formulas at `δ = 0.2`, far within `δ`.
+   This does not establish the pairs premise: with no errors anywhere, every
+   account is conservative, and a mild positive correlation would go
+   unseen. It shows only that, if the premise fails here, it fails by less
+   than the slack the bound already has.
+2. **Coverage: confirmed, more strongly than predicted for Markov.** At
+   depth 6 and `δ = 0.05`, coverage rises from 0.213 to 0.440 (Markov) and
+   0.707 (pairs). At depth 4 and `δ = 0.01`, Markov alone lifts it from 0.267
+   to 0.713, because halving the arity term is decisive where that term
+   barely exceeds `δ`. At depth 8 and `δ = 0.2`, pairs certifies 0.247
+   against 0.017.
+3. **Tightness: confirmed in direction.** Mean bounds fall severalfold,
+   while the observed error stays at zero, so the bound remains conservative.
+4. **Compute: confirmed.** Pairs spends 2.4–10× less than the certificate
+   account where both answer, and Markov 10–57% less. Words whose arity is
+   merely uncertain are no longer climbed.
+
+When forced to answer, the pairs account also errs less (0.040 → 0.027 at
+depth 4 and 0.223 → 0.163 at depth 6, at `δ = 0.2`). Its charges direct the
+climbs to different words; why that helps the readings was not
+investigated.
+
+**Depth 8 is still limited, as §19.7 predicts.** On 30 depth-8 formulas,
+the top rung gives `S ≈ 0.71` per formula, so `e₂ ≈ 0.28` alone exceeds
+`δ = 0.2`. The evaluated words' restricted risk is about 0.02. Most readings
+(18 of 30) do not parse even at the top rung. With the measured per-word
+arity risk, the length limit `√(2δ) / ρ` is about 520 words, below the 575
+of depth 8. Pairs helps only while `S < 1`. Beyond that, what limits depth
+is the readers' arity error itself, not the account.
+
+**Conclusion.** Prefix notation detects every single arity error, a fact
+proved once in Lean and used by the evaluator alone. Crediting it turns the
+arity term from linear in the number of words into half of that with no
+premise, or quadratic under a premise of uncorrelated failures. The kernel
+needed one generic change: certificates return per-item charges instead of
+demands. That roughly doubles to triples certified coverage at depth 6,
+cuts compute severalfold, and keeps every answered formula correct.

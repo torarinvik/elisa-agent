@@ -69,16 +69,11 @@ def test_certificate_is_sound() -> None:
     groups = {c: g for g in ARITY_DECISION for c in g}
     for _ in range(300):
         words = random_formula(rng, int(rng.integers(1, 5)))
-        full = rng.random(len(words))
-        shape = rng.random(len(words))
-
-        def weight(k: int, decision: Decision) -> float:
-            return float(full[k] if decision is None else shape[k])
-
-        demanded = FormulaEvaluator().certificate(one_hot(words), weight)
-        assert demanded is not None and set(demanded) == set(range(len(words)))
-        changed = [w if demanded[k] is None
-                   else VOCABULARY[rng.choice(groups[VOCABULARY.index(w)])]
+        full, shape = rng.random(len(words)), rng.random(len(words))
+        children = parse([ARITY[VOCABULARY.index(w)] for w in words])
+        assert children is not None
+        kept = FormulaEvaluator.evaluated(words, children, full, shape)
+        changed = [w if k in kept else VOCABULARY[rng.choice(groups[VOCABULARY.index(w)])]
                    for k, w in enumerate(words)]
         assert evaluate(changed) == evaluate(words)
 
@@ -117,15 +112,15 @@ def test_certificate_is_least_risk() -> None:
         def weight(k: int, decision: Decision) -> float:
             return float(full[k] if decision is None else shape[k])
 
-        demanded = FormulaEvaluator().certificate(one_hot(words), weight)
-        assert demanded is not None
-        chosen = sum(weight(k, d) for k, d in demanded.items())
+        account = FormulaEvaluator().certificate(one_hot(words), weight)
+        assert account is not None
+        chosen = sum(account.values())
         best = min(sum(full[k] if k in c else shape[k] for k in range(len(words)))
                    for c in certificates(words, 0, children))
         assert chosen == pytest.approx(best)
         static = FormulaEvaluator(short_circuit=False).certificate(one_hot(words), weight)
         assert static is not None
-        assert chosen <= sum(weight(k, d) for k, d in static.items()) + 1e-9
+        assert chosen <= sum(static.values()) + 1e-9
 
 
 @dataclass
@@ -143,7 +138,7 @@ def test_refine_climbs_only_demanded_items() -> None:
                     Constant(Manifest("sure", "1.0.0", contract, cost=10.0), (0.01, 0.99))],
                    contract)
     result = refine([0, 0, 0], [rungs] * 3, delta=0.05,
-                    certificate=lambda readings, risk: {0: None})
+                    certificate=lambda readings, risk: {0: risk(0, None)})
     assert result.cost == pytest.approx(3 * 1.0 + 10.0)
     assert result.bound == pytest.approx(0.01, abs=1e-6) and not result.abstained
     assert refine([0], [rungs], 0.05, certificate=lambda readings, risk: None).abstained
@@ -163,3 +158,34 @@ def test_solve_short_circuits_noisy_formulas() -> None:
     answer = solve(route, ladders, text, delta=1.0)
     assert answer.value is False
     assert answer.bound < solve(static, ladders, text, delta=1.0).bound
+
+
+def test_one_wrong_arity_never_parses() -> None:
+    """``NCA.code_no_single_change``: a single wrong arity is always detected."""
+    rng = np.random.default_rng(3)
+    for _ in range(300):
+        words = random_formula(rng, int(rng.integers(1, 5)))
+        k = int(rng.integers(len(words)))
+        others = [w for w in VOCABULARY if ARITY[VOCABULARY.index(w)] !=
+                  ARITY[VOCABULARY.index(words[k])]]
+        assert evaluate([*words[:k], str(rng.choice(others)), *words[k + 1:]]) is None
+
+
+def test_detection_accounts() -> None:
+    words = "and or true false not false".split()
+    arity = [0.01, 0.02, 0.0, 0.03, 0.04, 0.0]
+    within = [0.1, 0.2, 0.3, 0.4, 0.0, 0.5]
+
+    def risk(k: int, decision: Decision) -> float:
+        return arity[k] if decision == ARITY_DECISION else within[k]
+
+    total = sum(arity)
+    markov = FormulaEvaluator(detection="markov").certificate(one_hot(words), risk)
+    pairs = FormulaEvaluator(detection="pairs").certificate(one_hot(words), risk)
+    assert markov is not None and pairs is not None
+    # "and" is true, so both children are evaluated; "or" reads true and keeps
+    # its cheaper absorbing child, "true" (within risk 0.3 against 0.4).
+    evaluated = within[0] + within[1] + within[2] + within[4] + within[5]
+    assert sum(markov.values()) == pytest.approx(evaluated + total / 2)
+    e2 = sum(a * b for a, b in itertools.combinations(arity, 2))
+    assert sum(pairs.values()) == pytest.approx(evaluated + e2)

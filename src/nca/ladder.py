@@ -16,10 +16,12 @@ decision it serves: among the classes ``C`` it ranges over, possibly grouped,
 the decision picks the group holding the most probable class, with risk
 ``1 - p(group) / p(C)``. This never exceeds ``1 - max p`` when the most
 probable class is in ``C`` (``NCA.restricted_risk_le``,
-``NCA.grouped_risk_le``). Which items enter the bound, and with which
-decisions, may depend on the readings: a consumer's *certificate*
-(``NCA.certificate_error_le``); by default every item, each with a fixed
-decision. It abstains when no rung remains. For
+``NCA.grouped_risk_le``). What each item is charged may depend on the
+readings: a consumer's *certificate* returns a risk account, each item's
+charge, summing to a bound on the answer's error probability (for example
+the risks of the decisions it serves, ``NCA.certificate_error_le``); by
+default every item is charged the risk of a fixed decision. It abstains when
+no rung remains. For
 calibrated risks the error among answered inputs is at most ``δ``
 (``NCA.selective_risk_le``), and refining where the bound falls most per unit
 of compute is the ``NCA.threshold_optimal`` rule; with a floor ``ρ`` per item,
@@ -172,10 +174,11 @@ def risk(reading: torch.Tensor, classes: Decision = None) -> float:
 
 
 Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float]],
-                       dict[int, Decision] | None]
-"""``certificate(readings, risk)``: the items the answer depends on, given the
-current readings, with the decision each serves, chosen using ``risk(i,
-decision)``; ``None`` if the readings determine no answer."""
+                       dict[int, float] | None]
+"""``certificate(readings, risk)``: a risk account for the current readings,
+each charged item's charge, computed with ``risk(i, decision)``; the charges
+sum to a bound on the answer's error probability. ``None`` if the readings
+determine no answer."""
 
 
 def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: float,
@@ -184,10 +187,10 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
     Every item starts at rung ``min(start, top)``, reading each rung below it.
-    The bound sums the risks of the items ``certificate`` demands, each for
-    its decision; by default every item ``i``, for decision ``classes[i]``.
-    While it exceeds ``delta`` the riskiest demanded item climbs a rung; if
-    the readings determine no answer, the riskiest item.
+    The bound sums the charges of ``certificate``'s account; by default every
+    item ``i`` is charged the risk of decision ``classes[i]``. While it exceeds
+    ``delta`` the open item with the largest charge climbs a rung; if the
+    readings determine no answer, the riskiest item.
     """
     decisions = list(classes) if classes is not None else [None] * len(values)
     levels = [0] * len(values)
@@ -215,20 +218,18 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             levels[i] += 1
             climb(i)
     while True:
-        demanded = (dict(enumerate(decisions)) if certificate is None
-                    else certificate(readings, item_risk))
-        if demanded is None:
-            contributions = {i: item_risk(i, d) for i, d in enumerate(decisions)}
-            bound = math.inf
+        account = (certificate(readings, item_risk) if certificate is not None
+                   else {i: item_risk(i, d) for i, d in enumerate(decisions)})
+        if account is None:
+            charges, bound = {i: item_risk(i, d) for i, d in enumerate(decisions)}, math.inf
         else:
-            contributions = {i: item_risk(i, d) for i, d in demanded.items()}
-            bound = sum(contributions.values())
+            charges, bound = account, sum(account.values())
         if bound <= delta:
             break
-        open_ = [i for i in contributions if levels[i] + 1 < len(ladders[i])]
+        open_ = [i for i in charges if levels[i] + 1 < len(ladders[i])]
         if not open_:
             break
-        i = max(open_, key=contributions.__getitem__)
+        i = max(open_, key=charges.__getitem__)
         levels[i] += 1
         climb(i)
     return Refinement(readings, cost, bound, bound > delta)

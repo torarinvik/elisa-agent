@@ -16,9 +16,9 @@ to several readings of the element. Nothing below is specific to glyphs:
   that input's contract, ordered by declared cost and calibrated on held-out
   labeled data;
 * a consumer reading the readings directly may declare a ``certificate``:
-  given the readings and each one's risk under any decision, the readings
-  its answer depends on and the decision each serves, which may depend on
-  the readings' values (``NCA.certificate_error_le``);
+  given the readings and each one's risk under any decision, a risk account
+  charging each reading its share of a bound on the answer's error, which
+  may depend on the readings' values (``NCA.certificate_error_le``);
 * if the map's source offers ``alternatives`` and the consumer would read
   nothing of a candidate, the next candidate is tried without reading it.
 
@@ -141,12 +141,12 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
     position = {i: j for j, (i, _) in enumerate(items)}
 
     def certificate(readings: Sequence[torch.Tensor],
-                    risk: Callable[[int, Decision], float]) -> dict[int, Decision] | None:
+                    risk: Callable[[int, Decision], float]) -> dict[int, float] | None:
         elements: list[Any] = [None] * count
         for (i, _), value in zip(items, readings):
             elements[i] = tuple(value.tolist())
         chosen = declared(elements, lambda i, d: risk(position[i], d))
-        return None if chosen is None else {position[i]: d for i, d in chosen.items()}
+        return None if chosen is None else {position[i]: c for i, c in chosen.items()}
 
     return certificate
 
