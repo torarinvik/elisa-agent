@@ -826,8 +826,9 @@ only decision structure; calibration
 temperatures and observation values remain current. The revision-cache
 invariants (23.12, 23.15) apply to this deterministic metadata. Within a
 refinement run, risk and distribution caches retain only each item’s current
-rung; climbing discards that item’s obsolete entries. A single cached entry
-uses a pair and expands to a dictionary only when needed. For a default account with immutable decisions, a climb replaces only that
+rung; climbing discards that item’s obsolete entries. Missing-calibration
+results are cached separately for risk and distribution queries on that rung.
+A single cached entry uses a pair and expands to a dictionary only when needed. For a default account with immutable decisions, a climb replaces only that
 item’s charge (25.5), while the bound is still summed in the original order.
 Mutable decisions are rechecked at every step. Experts and calibration
 parameters must remain fixed for the run. Gradient-bearing

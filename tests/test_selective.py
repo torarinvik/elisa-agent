@@ -1904,3 +1904,32 @@ def test_unavailable_fixed_item_can_become_irrelevant_after_another_climb(ranked
     assert snapshots[0].abstained and math.isinf(snapshots[0].bound)
     assert not result.abstained and result.bound == pytest.approx(0.01)
     assert result.cost == 4.0
+
+
+@pytest.mark.parametrize("operation", ["risk", "distribution"])
+def test_missing_calibration_is_reused_until_item_changes(operation) -> None:
+    class CountingRung(Rung):
+        missing_checks = 0
+
+        def temperature(self, classes=None):
+            if classes == (1, 2):
+                self.missing_checks += 1
+            return super().temperature(classes)
+
+    missing = CountingRung(constant("missing-count", (0.8, 0.15, 0.05), 1.0))
+    missing.calibrate([0, 1], torch.tensor([0, 0]))
+    low = Rung(constant("many-low", (0.5, 0.5), 1.0))
+    high = Rung(constant("many-high", (0.99, 0.01), 1.0))
+
+    def certificate(readings, risk, distribution):
+        if readings[1][0] < 0.9:
+            if operation == "distribution":
+                distribution(0, (1, 2))
+            else:
+                risk(0, (1, 2))
+            raise AssertionError("missing calibration must make the account unavailable")
+        return {1: risk(1, None)}
+
+    result = refine([0, 0], [[missing], [low] * 8 + [high]], 0.05, certificate=certificate)
+    assert not result.abstained and result.cost == 10.0
+    assert missing.missing_checks == 1

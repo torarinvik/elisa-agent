@@ -69,6 +69,13 @@ class _UnavailableCalibration(Exception):
         self.index = index
 
 
+class _MissingCalibration:
+    """Cache marker for a decision with no matching held-out labels."""
+
+
+_MISSING_CALIBRATION = _MissingCalibration()
+
+
 Decision = Sequence[int | Sequence[int]] | None
 """What a decision chooses among: ``None`` for all classes; otherwise entries,
 each a class or a group of classes. The decision picks the entry holding the
@@ -722,8 +729,10 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     levels = [0] * len(values)
     logs: list[torch.Tensor | RankedObservation] = [torch.empty(0)] * len(values)
     readings: list[Reading] = [torch.empty(0)] * len(values)
-    risks: list[tuple[DecisionKey, float] | dict[DecisionKey, float] | None] = [None] * len(values)
-    distributions: list[tuple[DecisionKey, torch.Tensor] | dict[DecisionKey, torch.Tensor] | None] = [None] * len(values)
+    risks: list[tuple[DecisionKey, float | _MissingCalibration] |
+                dict[DecisionKey, float | _MissingCalibration] | None] = [None] * len(values)
+    distributions: list[tuple[DecisionKey, torch.Tensor | _MissingCalibration] |
+                        dict[DecisionKey, torch.Tensor | _MissingCalibration] | None] = [None] * len(values)
     cost = 0.0
 
     def climb(i: int) -> None:
@@ -742,39 +751,45 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         key = decision_key(decision)
         cache = risks[i]
         if isinstance(cache, tuple) and cache[0] == key:
-            return cache[1]
-        if isinstance(cache, dict) and key in cache:
-            return cache[key]
-        try:
-            result = ladders[i][levels[i]].risk(
-                logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
-        except MissingCalibrationError as exc:
-            raise _UnavailableCalibration(i) from exc
-        if cache is None:
-            risks[i] = (key, result)
-        elif isinstance(cache, tuple):
-            risks[i] = {cache[0]: cache[1], key: result}
+            result = cache[1]
+        elif isinstance(cache, dict) and key in cache:
+            result = cache[key]
         else:
-            cache[key] = result
+            try:
+                result = ladders[i][levels[i]].risk(
+                    logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
+            except MissingCalibrationError:
+                result = _MISSING_CALIBRATION
+            if cache is None:
+                risks[i] = (key, result)
+            elif isinstance(cache, tuple):
+                risks[i] = {cache[0]: cache[1], key: result}
+            else:
+                cache[key] = result
+        if result is _MISSING_CALIBRATION:
+            raise _UnavailableCalibration(i)
         return result
 
     def item_distribution(i: int, decision: Decision) -> torch.Tensor:
         key = decision_key(decision)
         cache = distributions[i]
         if isinstance(cache, tuple) and cache[0] == key:
-            return cache[1]
-        if isinstance(cache, dict) and key in cache:
-            return cache[key]
-        try:
-            result = ladders[i][levels[i]].distribution(logs[i], decision)
-        except MissingCalibrationError as exc:
-            raise _UnavailableCalibration(i) from exc
-        if cache is None:
-            distributions[i] = (key, result)
-        elif isinstance(cache, tuple):
-            distributions[i] = {cache[0]: cache[1], key: result}
+            result = cache[1]
+        elif isinstance(cache, dict) and key in cache:
+            result = cache[key]
         else:
-            cache[key] = result
+            try:
+                result = ladders[i][levels[i]].distribution(logs[i], decision)
+            except MissingCalibrationError:
+                result = _MISSING_CALIBRATION
+            if cache is None:
+                distributions[i] = (key, result)
+            elif isinstance(cache, tuple):
+                distributions[i] = {cache[0]: cache[1], key: result}
+            else:
+                cache[key] = result
+        if result is _MISSING_CALIBRATION:
+            raise _UnavailableCalibration(i)
         return result
 
     current_distribution = Distribution(item_distribution, levels.__getitem__)
