@@ -1,6 +1,6 @@
 # Architecture
 
-How the theory in THEORY.md is realized in code. Each section of THEORY.md is
+How the theory indexed in [THEORY.md](THEORY.md) is realized in code. Each chapter is
 proved in `lean/NCA/` and, where implemented, mirrored in `src/nca/`; the
 Python mirrors are tested against the behavior of the Lean model. The second
 part records implementation details that the theory leaves open.
@@ -12,191 +12,191 @@ run the Python tests with `uv run pytest`.
 
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
 |---|---|---|
-| §1 Types and contracts | `Contract` | `abi`, `registry` |
-| §2 Planning | `Planner`, `Check` | `planner.plan`, `router.infer` |
-| §3 Routing stability | `Routing` | `planner.plan_stable` |
-| §4 Compositional reliability | `Reliability` | |
-| §5 Reliability under distribution shift | `Shift` | `pipeline` |
-| §6 Handwritten-arithmetic pipeline | | `modules.segmenter`, `modules.symbols`, `modules.digit_recognizer`, `modules.operator_recognizer` |
-| §7 Measuring accumulation | `Routing` | `accumulation` |
-| §8 Explicit route upgrades | `Upgrade` | `router.Router`, `router.sign_test` |
-| §9 Module substitution | `Substitution` | `substitution` |
-| §10 Complementarity | | `complementarity` |
-| §11 Evaluation methodology | | `expressions`, `stats` |
-| §12 Lazy loading and discovery | `Loading`, `Pruning`, `Eviction` | `loader`, `planner.plan_stable_indexed`, `scaling` |
-| §13 Efficiency | `Cost`, `MinCost`, `Pareto` | `optimize`, `efficiency`, `workspace` |
-| §14 Kernel-mediated requests | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `cascade` |
-| §15 Normalization against shift | `Normalize` | `modules.normalizer`, `baseline` |
-| §16 Knowing when to be unsure | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `practice` |
-| §17 Calibration under shift | `Calibration` | `certify` |
-| §18 Noisy Boolean formulas | `Certificate` | `logic`, `formulas`, `modules.words` |
-| §19 Error detection by the format | `Detection` | `logic`, `formulas` |
-| §20 Higher-order experts, budgets | `Slots`, `Continuation` | `modules.combinators`, `optimize`, `kernel` |
-| §21 Decoding by the format | `Decoding` | `formulas.decode`, `native.decoding` |
-| §22 Abstaining early | `Detection` | `selective` (`floors`), `ladder` |
-| §23 Efficient decoding | `Banding` | `formulas.decode_banded`, `formulas.Split` (references), `native.decoding` (exact passes) |
-| §24 When the prior is wrong | `Misspecification` | not implemented |
-| §25 Climbing order and stopping | `Stopping` | `ladder.stopping_rule` |
-| §26 Composing cascades | `Composition` | not implemented |
-| §27 Priors as experts | `Product` | not implemented |
+| [§1 Types and contracts](theory/01-types-and-contracts.md) | `Contract` | `abi`, `registry` |
+| [§2 Planning](theory/02-planning.md) | `Planner`, `Check` | `planner.plan`, `router.infer` |
+| [§3 Routing stability](theory/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
+| [§4 Compositional reliability](theory/04-compositional-reliability.md) | `Reliability` | |
+| [§5 Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md) | `Shift` | `pipeline` |
+| [§6 Handwritten-arithmetic pipeline](theory/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `modules.segmenter`, `modules.symbols`, `modules.digit_recognizer`, `modules.operator_recognizer` |
+| [§7 Measuring accumulation](theory/07-measuring-accumulation.md) | `Routing` | `accumulation` |
+| [§8 Explicit route upgrades](theory/08-explicit-route-upgrades.md) | `Upgrade` | `router.Router`, `router.sign_test` |
+| [§9 Module substitution](theory/09-module-substitution.md) | `Substitution` | `substitution` |
+| [§10 Complementarity](theory/10-complementarity.md) | | `complementarity` |
+| [§11 Evaluation methodology](theory/11-evaluation-methodology.md) | | `expressions`, `stats` |
+| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eviction` | `loader`, `planner.plan_stable_indexed`, `scaling` |
+| [§13 Efficiency](theory/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `efficiency`, `workspace` |
+| [§14 Kernel-mediated requests](theory/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `cascade` |
+| [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `modules.normalizer`, `baseline` |
+| [§16 Knowing when to be unsure](theory/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `practice` |
+| [§17 Calibration under shift](theory/17-calibration-under-distribution-shift.md) | `Calibration` | `certify` |
+| [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `logic`, `formulas`, `modules.words` |
+| [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `logic`, `formulas` |
+| [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation` | `modules.combinators`, `optimize`, `kernel` |
+| [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `formulas.decode`, `native.decoding` |
+| [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `ladder` |
+| [§23 Efficient decoding](theory/23-efficient-decoding.md) | `Banding` | `formulas.decode_banded`, `formulas.Split` (references), `native.decoding` (exact passes) |
+| [§24 When the prior is wrong](theory/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
+| [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
+| [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
+| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product` | not implemented |
 
 ## Theorems
 
-Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
+Numbered theorems in the theory chapters and their formal statements in `lean/NCA/`.
 
 | THEORY.md | Lean name | File |
 |---|---|---|
-| 1.1 | `WellTyped.mono` | `Contract` |
-| 2.1 | `plan_sound` | `Planner` |
-| 2.2 | `plan_complete` | `Planner` |
-| 2.3 | `infer_iff` | `Check` |
-| 3.1 | `plan_not_stable` | `Routing` |
-| 3.2 | `planStable_sound` | `Routing` |
-| 3.2 | `planStable_complete` | `Routing` |
-| 3.3 | `planStable_append` | `Routing` |
-| 4.1 | `composition_error_le_sum` | `Reliability` |
-| 4.2 | `composition_success_ge_prod` | `Reliability` |
-| 5.1 | `composition_error_le_shifted` | `Shift` |
-| 5.2 | `offline_rate_insufficient` | `Shift` |
-| 5.3 | `shift_ge_gap` | `Shift` |
-| 8.1 | `route_sound` | `Upgrade` |
-| 8.2 | `upgrade_valid` | `Upgrade` |
-| 8.3 | `upgrade_target` | `Upgrade` |
-| 8.4 | `upgrade_local` | `Upgrade` |
-| 8.5 | `upgrade_rollback` | `Upgrade` |
-| 8.6 | `route_append` | `Upgrade` |
-| 8.7 | `PinsValid.append` | `Upgrade` |
-| 9.1 | `substitution_change_le` | `Substitution` |
-| 9.2 | `accuracy_transfer` | `Substitution` |
-| 9.3 | `substitution_accuracy_ge` | `Substitution` |
-| 12.1 | `WellTyped.contracts_subset` | `Loading` |
-| 12.2 | `route_contracts_append` | `Loading` |
-| 12.3 | `plan_derivable` | `Loading` |
-| 12.4 | `Derivable.mono` | `Loading` |
-| 12.4 | `plan_mono` | `Loading` |
-| 12.5 | `plan_prefix_mono` | `Loading` |
-| 12.6 | `planIdx_eq` | `Loading` |
-| 12.7 | `planPruned_eq` | `Pruning` |
-| 12.8 | `derivable_closure` | `Pruning` |
-| 12.9 | `closure_oracle_sound` | `Pruning` |
-| 12.10 | `load_lower_bound` | `Eviction` |
-| 12.11 | `routeAware_load` | `Eviction` |
-| 12.11 | `routeAware_optimal` | `Eviction` |
-| 12.12 | `routeAware_switch` | `Eviction` |
-| 12.13 | `routeAware_repeat` | `Eviction` |
-| 13.1 | `Plan.cost_le_pow` | `Cost` |
-| 13.2 | `Plan.cost_linear` | `Cost` |
-| 13.3 | `route_cost_append` | `Cost` |
-| 13.4 | `planMin_sound` | `MinCost` |
-| 13.5 | `planMin_optimal` | `MinCost` |
-| 13.6 | `front_cover` | `Pareto` |
-| 13.7 | `planPareto_sound` | `Pareto` |
-| 13.8 | `planPareto_cover` | `Pareto` |
-| 13.9 | `planPareto_within` | `Pareto` |
-| 14.1 | `resolve_sound` | `Request` |
-| 14.2 | `resolve_avoids` | `Request` |
-| 14.3 | `RequestChain.length_le` | `Request` |
-| 14.4 | `cascade_error_eq` | `Cascade` |
-| 14.5 | `cascade_le_fallback` | `Cascade` |
-| 14.6 | `cascade_expected_cost` | `Cascade` |
-| 14.7 | `gated_error_le` | `Cascade` |
-| 14.8 | `gated_error_eq_of_sound` | `Cascade` |
-| 14.9 | `gated_expected_cost` | `Cascade` |
-| 14.10 | `DemandSound.comp` | `Demand` |
-| 14.11 | `DemandSound.pair` | `Demand` |
-| 14.12 | `DemandSound.map` | `Demand` |
-| 14.13 | `DemandSound.exact` | `Demand` |
-| 14.14 | `Safe.run` | `Continuation` |
-| 14.15 | `Safe.bind` | `Continuation` |
-| 14.16 | `Depth.run_le` | `Continuation` |
-| 14.17 | `Depth.bind` | `Continuation` |
-| 15.1 | `ShiftBound.map` | `Normalize` |
-| 15.2 | `shift_le_of_invariant_on` | `Normalize` |
-| 15.3 | `shift_zero_of_invariant` | `Normalize` |
-| 16.1 | `selective_risk_le` | `Selective` |
-| 16.2 | `threshold_optimal` | `Selective` |
-| 16.3 | `bound_ge_floor` | `Selective` |
-| 16.3 | `length_limit` | `Selective` |
-| 16.4 | `restricted_risk_le` | `Selective` |
-| 16.5 | `queued_value` | `Practice` |
-| 16.6 | `unqueued_errors` | `Practice` |
-| 16.7 | `queued_captures` | `Practice` |
-| 16.8 | `proportional_value` | `Practice` |
-| 17.1 | `selective_risk_le_excess` | `Calibration` |
-| 17.2 | `shift_ratio_le` | `Calibration` |
-| 17.3 | `horvitz_thompson` | `Calibration` |
-| 17.4 | `inflated_answered_mono` | `Calibration` |
-| 17.8 | `threshold_trace_prefix` | `Calibration` |
-| 17.7 | `audit_rejection_of_completion` | `Calibration` |
-| 17.6 | `audit_budget_obstruction` | `Calibration` |
-| 17.5 | `fixed_sequence_le` | `Calibration` |
-| 18.1 | `grouped_risk_le` | `Certificate` |
-| 18.2 | `certificate_error_le` | `Certificate` |
-| 18.2 | `certificate_error_le_support` | `Certificate` |
-| 18.3 | `cert_sound` | `Certificate` |
-| 18.4 | `bestCert_valid` | `Certificate` |
-| 18.4 | `bestCert_le` | `Certificate` |
-| 18.5 | `bestCert_le_full` | `Certificate` |
-| 18.6 | `code_prefix` | `Certificate` |
-| 18.7 | `alternating_cert_leaves` | `Certificate` |
-| 19.1 | `code_sum` | `Detection` |
-| 19.2 | `code_no_single_change` | `Detection` |
-| 19.3 | `detected_error_le` | `Detection` |
-| 19.4 | `joint_le_restricted` | `Detection` |
-| 19.5 | `two_occur_le_half` | `Detection` |
-| 19.6 | `two_occur_le_pairs` | `Detection` |
-| 20.1 | `HTyped.mono` | `Slots` |
-| 20.2 | `embed_wellTyped` | `Slots` |
-| 20.3 | `HPlan.cost_le_pow` | `Slots` |
-| 20.4 | `HPlan.cost_mono` | `Slots` |
-| 20.5 | `serve_sound` | `Continuation` |
-| 20.6 | `serve_spent` | `Continuation` |
-| 20.7 | `Prog.runB_le` | `Continuation` |
-| 21.1 | `await_code` | `Decoding` |
-| 21.2 | `code_accepted` | `Decoding` |
-| 21.3 | `accepts_iff_codes` | `Decoding` |
-| 21.4 | `dpSum_eq` | `Decoding` |
-| 21.5 | `dpMax_ge` | `Decoding` |
-| 21.6 | `dpMax_attained` | `Decoding` |
-| 21.7 | `exact_risk_le_union` | `Decoding` |
-| 21.7 | `one_sub_prod_le_sum` | `Decoding` |
-| 22.1 | `detection_account_mono` | `Detection` |
-| 23.1 | `tail_le_esym` | `Banding` |
-| 23.2 | `factorial_mul_esym_le` | `Banding` |
-| 23.3 | `outside_le_tail` | `Banding` |
-| 23.4 | `sum_sub_le_diff` | `Banding` |
-| 23.5 | `banded_risk_le` | `Banding` |
-| 23.6 | `banded_risk_slack` | `Banding` |
-| 23.7 | `dpSum_append` | `Banding` |
-| 23.8 | `dpMax_append` | `Banding` |
-| 23.9 | `sum_pair_dist` | `Banding` |
-| 23.10 | `stitch_attains` | `Banding` |
-| 23.14 | `sum_row_shift`, `row_shift_order` | `Selective` |
-| 23.13 | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
-| 23.12 | `revision_cache_eq` | `Selective` |
-| 23.11 | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
-| 24.1 | `reweighted_odds` | `Misspecification` |
-| 24.2 | `reweighted_risk_le` | `Misspecification` |
-| 24.3 | `reweighted_risk_le_mul` | `Misspecification` |
-| 24.4 | `dominated_risk_le` | `Misspecification` |
-| 24.5 | `adversarial_prior` | `Misspecification` |
-| 25.1 | `cost_ge_of_ratio` | `Stopping` |
-| 25.2 | `pairs_ge_count` | `Stopping` |
-| 25.3 | `lookahead_stop_optimal` | `Stopping` |
-| 25.4 | `lookahead_continue_better` | `Stopping` |
-| 26.1 | `fallback_cost_eq` | `Composition` |
-| 26.2 | `fallback_cost_conditional` | `Composition` |
-| 26.3 | `fallback_cost_sub_independent` | `Composition` |
-| 26.4 | `fallback_cost_ge_independent` | `Composition` |
-| 26.5 | `chain_error_eq` | `Composition` |
-| 26.6 | `chain_cost_eq` | `Composition` |
-| 26.7 | `split_error_eq` | `Composition` |
-| 26.8 | `argmin_within` | `Composition` |
-| 26.9 | `some_deviates_le` | `Composition` |
-| 27.1 | `pdpSum_eq` | `Product` |
-| 27.2 | `pdpMax_ge` | `Product` |
-| 27.3 | `pdpMax_attained` | `Product` |
-| 27.4 | `pdpSum_unit` | `Product` |
+| [1.1](theory/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
+| [2.1](theory/02-planning.md) | `plan_sound` | `Planner` |
+| [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
+| [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
+| [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
+| [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
+| [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
+| [3.3](theory/03-routing-stability.md) | `planStable_append` | `Routing` |
+| [4.1](theory/04-compositional-reliability.md) | `composition_error_le_sum` | `Reliability` |
+| [4.2](theory/04-compositional-reliability.md) | `composition_success_ge_prod` | `Reliability` |
+| [5.1](theory/05-reliability-under-distribution-shift.md) | `composition_error_le_shifted` | `Shift` |
+| [5.2](theory/05-reliability-under-distribution-shift.md) | `offline_rate_insufficient` | `Shift` |
+| [5.3](theory/05-reliability-under-distribution-shift.md) | `shift_ge_gap` | `Shift` |
+| [8.1](theory/08-explicit-route-upgrades.md) | `route_sound` | `Upgrade` |
+| [8.2](theory/08-explicit-route-upgrades.md) | `upgrade_valid` | `Upgrade` |
+| [8.3](theory/08-explicit-route-upgrades.md) | `upgrade_target` | `Upgrade` |
+| [8.4](theory/08-explicit-route-upgrades.md) | `upgrade_local` | `Upgrade` |
+| [8.5](theory/08-explicit-route-upgrades.md) | `upgrade_rollback` | `Upgrade` |
+| [8.6](theory/08-explicit-route-upgrades.md) | `route_append` | `Upgrade` |
+| [8.7](theory/08-explicit-route-upgrades.md) | `PinsValid.append` | `Upgrade` |
+| [9.1](theory/09-module-substitution.md) | `substitution_change_le` | `Substitution` |
+| [9.2](theory/09-module-substitution.md) | `accuracy_transfer` | `Substitution` |
+| [9.3](theory/09-module-substitution.md) | `substitution_accuracy_ge` | `Substitution` |
+| [12.1](theory/12-lazy-loading-and-scalable-discovery.md) | `WellTyped.contracts_subset` | `Loading` |
+| [12.2](theory/12-lazy-loading-and-scalable-discovery.md) | `route_contracts_append` | `Loading` |
+| [12.3](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_derivable` | `Loading` |
+| [12.4](theory/12-lazy-loading-and-scalable-discovery.md) | `Derivable.mono` | `Loading` |
+| [12.4](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_mono` | `Loading` |
+| [12.5](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_mono` | `Loading` |
+| [12.6](theory/12-lazy-loading-and-scalable-discovery.md) | `planIdx_eq` | `Loading` |
+| [12.7](theory/12-lazy-loading-and-scalable-discovery.md) | `planPruned_eq` | `Pruning` |
+| [12.8](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_closure` | `Pruning` |
+| [12.9](theory/12-lazy-loading-and-scalable-discovery.md) | `closure_oracle_sound` | `Pruning` |
+| [12.10](theory/12-lazy-loading-and-scalable-discovery.md) | `load_lower_bound` | `Eviction` |
+| [12.11](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_load` | `Eviction` |
+| [12.11](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_optimal` | `Eviction` |
+| [12.12](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_switch` | `Eviction` |
+| [12.13](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_repeat` | `Eviction` |
+| [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
+| [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
+| [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |
+| [13.4](theory/13-efficiency.md) | `planMin_sound` | `MinCost` |
+| [13.5](theory/13-efficiency.md) | `planMin_optimal` | `MinCost` |
+| [13.6](theory/13-efficiency.md) | `front_cover` | `Pareto` |
+| [13.7](theory/13-efficiency.md) | `planPareto_sound` | `Pareto` |
+| [13.8](theory/13-efficiency.md) | `planPareto_cover` | `Pareto` |
+| [13.9](theory/13-efficiency.md) | `planPareto_within` | `Pareto` |
+| [14.1](theory/14-kernel-mediated-requests-and-refinement.md) | `resolve_sound` | `Request` |
+| [14.2](theory/14-kernel-mediated-requests-and-refinement.md) | `resolve_avoids` | `Request` |
+| [14.3](theory/14-kernel-mediated-requests-and-refinement.md) | `RequestChain.length_le` | `Request` |
+| [14.4](theory/14-kernel-mediated-requests-and-refinement.md) | `cascade_error_eq` | `Cascade` |
+| [14.5](theory/14-kernel-mediated-requests-and-refinement.md) | `cascade_le_fallback` | `Cascade` |
+| [14.6](theory/14-kernel-mediated-requests-and-refinement.md) | `cascade_expected_cost` | `Cascade` |
+| [14.7](theory/14-kernel-mediated-requests-and-refinement.md) | `gated_error_le` | `Cascade` |
+| [14.8](theory/14-kernel-mediated-requests-and-refinement.md) | `gated_error_eq_of_sound` | `Cascade` |
+| [14.9](theory/14-kernel-mediated-requests-and-refinement.md) | `gated_expected_cost` | `Cascade` |
+| [14.10](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.comp` | `Demand` |
+| [14.11](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.pair` | `Demand` |
+| [14.12](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.map` | `Demand` |
+| [14.13](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.exact` | `Demand` |
+| [14.14](theory/14-kernel-mediated-requests-and-refinement.md) | `Safe.run` | `Continuation` |
+| [14.15](theory/14-kernel-mediated-requests-and-refinement.md) | `Safe.bind` | `Continuation` |
+| [14.16](theory/14-kernel-mediated-requests-and-refinement.md) | `Depth.run_le` | `Continuation` |
+| [14.17](theory/14-kernel-mediated-requests-and-refinement.md) | `Depth.bind` | `Continuation` |
+| [15.1](theory/15-normalization-against-shift.md) | `ShiftBound.map` | `Normalize` |
+| [15.2](theory/15-normalization-against-shift.md) | `shift_le_of_invariant_on` | `Normalize` |
+| [15.3](theory/15-normalization-against-shift.md) | `shift_zero_of_invariant` | `Normalize` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `selective_risk_le` | `Selective` |
+| [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
+| [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
+| [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
+| [16.4](theory/16-knowing-when-to-be-unsure.md) | `restricted_risk_le` | `Selective` |
+| [16.5](theory/16-knowing-when-to-be-unsure.md) | `queued_value` | `Practice` |
+| [16.6](theory/16-knowing-when-to-be-unsure.md) | `unqueued_errors` | `Practice` |
+| [16.7](theory/16-knowing-when-to-be-unsure.md) | `queued_captures` | `Practice` |
+| [16.8](theory/16-knowing-when-to-be-unsure.md) | `proportional_value` | `Practice` |
+| [17.1](theory/17-calibration-under-distribution-shift.md) | `selective_risk_le_excess` | `Calibration` |
+| [17.2](theory/17-calibration-under-distribution-shift.md) | `shift_ratio_le` | `Calibration` |
+| [17.3](theory/17-calibration-under-distribution-shift.md) | `horvitz_thompson` | `Calibration` |
+| [17.4](theory/17-calibration-under-distribution-shift.md) | `inflated_answered_mono` | `Calibration` |
+| [17.8](theory/17-calibration-under-distribution-shift.md) | `threshold_trace_prefix` | `Calibration` |
+| [17.7](theory/17-calibration-under-distribution-shift.md) | `audit_rejection_of_completion` | `Calibration` |
+| [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_budget_obstruction` | `Calibration` |
+| [17.5](theory/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
+| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `grouped_risk_le` | `Certificate` |
+| [18.2](theory/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le` | `Certificate` |
+| [18.2](theory/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le_support` | `Certificate` |
+| [18.3](theory/18-a-second-domain-noisy-boolean-formulas.md) | `cert_sound` | `Certificate` |
+| [18.4](theory/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_valid` | `Certificate` |
+| [18.4](theory/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_le` | `Certificate` |
+| [18.5](theory/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_le_full` | `Certificate` |
+| [18.6](theory/18-a-second-domain-noisy-boolean-formulas.md) | `code_prefix` | `Certificate` |
+| [18.7](theory/18-a-second-domain-noisy-boolean-formulas.md) | `alternating_cert_leaves` | `Certificate` |
+| [19.1](theory/19-error-detection-by-the-format.md) | `code_sum` | `Detection` |
+| [19.2](theory/19-error-detection-by-the-format.md) | `code_no_single_change` | `Detection` |
+| [19.3](theory/19-error-detection-by-the-format.md) | `detected_error_le` | `Detection` |
+| [19.4](theory/19-error-detection-by-the-format.md) | `joint_le_restricted` | `Detection` |
+| [19.5](theory/19-error-detection-by-the-format.md) | `two_occur_le_half` | `Detection` |
+| [19.6](theory/19-error-detection-by-the-format.md) | `two_occur_le_pairs` | `Detection` |
+| [20.1](theory/20-higher-order-experts-and-budgeted-requests.md) | `HTyped.mono` | `Slots` |
+| [20.2](theory/20-higher-order-experts-and-budgeted-requests.md) | `embed_wellTyped` | `Slots` |
+| [20.3](theory/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_le_pow` | `Slots` |
+| [20.4](theory/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_mono` | `Slots` |
+| [20.5](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_sound` | `Continuation` |
+| [20.6](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_spent` | `Continuation` |
+| [20.7](theory/20-higher-order-experts-and-budgeted-requests.md) | `Prog.runB_le` | `Continuation` |
+| [21.1](theory/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
+| [21.2](theory/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
+| [21.3](theory/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
+| [21.4](theory/21-decoding-by-the-format.md) | `dpSum_eq` | `Decoding` |
+| [21.5](theory/21-decoding-by-the-format.md) | `dpMax_ge` | `Decoding` |
+| [21.6](theory/21-decoding-by-the-format.md) | `dpMax_attained` | `Decoding` |
+| [21.7](theory/21-decoding-by-the-format.md) | `exact_risk_le_union` | `Decoding` |
+| [21.7](theory/21-decoding-by-the-format.md) | `one_sub_prod_le_sum` | `Decoding` |
+| [22.1](theory/22-abstaining-early.md) | `detection_account_mono` | `Detection` |
+| [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
+| [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
+| [23.3](theory/23-efficient-decoding.md) | `outside_le_tail` | `Banding` |
+| [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff` | `Banding` |
+| [23.5](theory/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |
+| [23.6](theory/23-efficient-decoding.md) | `banded_risk_slack` | `Banding` |
+| [23.7](theory/23-efficient-decoding.md) | `dpSum_append` | `Banding` |
+| [23.8](theory/23-efficient-decoding.md) | `dpMax_append` | `Banding` |
+| [23.9](theory/23-efficient-decoding.md) | `sum_pair_dist` | `Banding` |
+| [23.10](theory/23-efficient-decoding.md) | `stitch_attains` | `Banding` |
+| [23.14](theory/23-efficient-decoding.md) | `sum_row_shift`, `row_shift_order` | `Selective` |
+| [23.13](theory/23-efficient-decoding.md) | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
+| [23.12](theory/23-efficient-decoding.md) | `revision_cache_eq` | `Selective` |
+| [23.11](theory/23-efficient-decoding.md) | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
+| [24.1](theory/24-when-the-prior-is-wrong.md) | `reweighted_odds` | `Misspecification` |
+| [24.2](theory/24-when-the-prior-is-wrong.md) | `reweighted_risk_le` | `Misspecification` |
+| [24.3](theory/24-when-the-prior-is-wrong.md) | `reweighted_risk_le_mul` | `Misspecification` |
+| [24.4](theory/24-when-the-prior-is-wrong.md) | `dominated_risk_le` | `Misspecification` |
+| [24.5](theory/24-when-the-prior-is-wrong.md) | `adversarial_prior` | `Misspecification` |
+| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `cost_ge_of_ratio` | `Stopping` |
+| [25.2](theory/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
+| [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
+| [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
+| [26.1](theory/26-composing-cascades.md) | `fallback_cost_eq` | `Composition` |
+| [26.2](theory/26-composing-cascades.md) | `fallback_cost_conditional` | `Composition` |
+| [26.3](theory/26-composing-cascades.md) | `fallback_cost_sub_independent` | `Composition` |
+| [26.4](theory/26-composing-cascades.md) | `fallback_cost_ge_independent` | `Composition` |
+| [26.5](theory/26-composing-cascades.md) | `chain_error_eq` | `Composition` |
+| [26.6](theory/26-composing-cascades.md) | `chain_cost_eq` | `Composition` |
+| [26.7](theory/26-composing-cascades.md) | `split_error_eq` | `Composition` |
+| [26.8](theory/26-composing-cascades.md) | `argmin_within` | `Composition` |
+| [26.9](theory/26-composing-cascades.md) | `some_deviates_le` | `Composition` |
+| [27.1](theory/27-priors-as-experts.md) | `pdpSum_eq` | `Product` |
+| [27.2](theory/27-priors-as-experts.md) | `pdpMax_ge` | `Product` |
+| [27.3](theory/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
+| [27.4](theory/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
 
 ## Native kernels
 

@@ -1,0 +1,258 @@
+# 27. Priors as experts
+
+## 27.1 The idea
+
+§24 showed that a corrected answer's risk is only as good as the prior over
+arity sequences. The format-only prior of (P) has more support than the
+generator, so the decoder can land outside the generator's support, where
+its risk claim fails completely (§24.3). The remedy suggested there: let an
+expert supply the prior. The evaluator stays generic, decoding under
+whatever prior it is given. The prior is a typed value produced by an
+expert, which the kernel plans and selects like any other.
+
+## 27.2 Weighted automata and the product
+
+A **prior automaton** has states `τ`, a start state, transitions `ε`, a
+weight `v(t, a) ≥ 0` for reading arity `a` in state `t`, and a final weight
+`f(t) ≥ 0`. A sequence's prior weight is the product of the weights along
+its run, times the final weight (`prior`).
+
+Decoding under the format automaton (§21.3) and a prior automaton together
+runs the dynamic program on their product. A product state pairs a format
+state `s` with a prior state `t`. Reading `a` moves to `(δ s a, ε t a)` with
+weight `qₖ(a) · v(t, a)`. A run is accepted when the format accepts, with
+final weight `f(t)`.
+
+| Theorem | Statement |
+|---|---|
+| 27.1 | the product sum-product recursion equals the sum over all sequences of score × prior |
+| 27.2 | with nonnegative weights, no sequence's score × prior exceeds the product max-product recursion |
+| 27.3 | unless the maximum is 0, some sequence attains it; backtracking decodes it |
+| 27.4 | with the one-state prior of weight 1, the product program is the format-only program `dpSum` |
+
+So everything in §21 carries over unchanged under any prior automaton:
+
+- the decoded sequence `â` (`pdpMax`);
+- the normalizer `Z` (`pdpSum`);
+- the risk `R = 1 − score(â) · prior(â) / Z`;
+- the marginals, by forward–backward over product states;
+- the charges and the pairing argument of §21.6.
+
+The pairing argument holds whenever the prior's support lies in `L_m`.
+
+**Cost.** Per position, the work is the number of live product states
+times the arities allowed from each. In general that is at most
+`|σ_live| · |τ|`.
+
+If the prior's support lies inside `L_m` (every sequence it weights
+parses), the prior state determines the format state. The awaited count is
+then a function of the prior state. The product then has no more live
+states than the prior automaton alone, and the format component can be
+dropped.
+
+**Theorem 27.6 (prefix support pruning).** At a split position, let `F(s)`
+be a state's prefix weight and `B(s)` its continuation weight. Then
+`Σ_s F(s) B(s) = Σ_{s : F(s) ≠ 0} F(s) B(s)`: removed terms are zero.
+The same restriction applies to a marginal's split sum. With nonnegative
+transition weights, a zero-weight prefix contributes nothing to any later
+state, so its forward transitions may also be omitted. Backward values need
+only be computed on the forward support when used for these split sums;
+values outside that support are not unrestricted continuation probabilities.
+
+## 27.3 The contract
+
+A prior expert has the contract
+
+> `length → arity.prior.v1`,
+
+producing, for a formula of `m` words, a prior automaton over arities
+`{0, 1, 2}`. The evaluator consumes it alongside the word distributions. It
+decodes under the product, and the format-only prior is the default
+(Theorem 27.4).
+
+Nothing about a generator is written into the evaluator. A generator's
+structure enters as a separately installed, separately chosen expert, as
+readers do.
+
+A prior is a second, cheap input to the evaluator that depends only on the
+length, so it is naturally the filling of a slot `[length] ⇒ arity.prior.v1`
+(§20).
+
+## 27.4 Prior experts
+
+| prior | states | support | `Λ` for complete alternating trees (§24) |
+|---|---|---|---|
+| format only | 1 | `L_m` | unbounded |
+| `n`-gram over arities | `3^{n−1}` (times format states) | `L_m` | unbounded |
+| height at most `D` | at most `(D + 1) · 2^D` | trees of height `≤ D` | unbounded if `D` exceeds the generator's height, else as below |
+| complete alternating trees of depth `d` | about `2^{d+1}` | `S_m` | 1 |
+
+**Format only.** The prior of §21: one state, weight 1.
+
+**`n`-gram.** The state is the last `n − 1` arities. Weights are conditional
+frequencies counted on training formulas. Support is all of `L_m`. It
+lowers the chance of decoding outside `S_m`, but cannot exclude it, so `Λ`
+stays unbounded in the worst case (§24.3).
+
+**Height at most `D`.** In preorder, keep a stack of the height budgets of
+subtrees still awaited, and the current node's budget `h`.
+
+- A node of arity 2 at budget `h ≥ 1` pushes `h − 1` for its right child and
+  continues into its left child with budget `h − 1`.
+- A node of arity 1 continues with `h − 1`.
+- A leaf pops the next budget.
+- No node of positive arity is allowed at budget 0.
+
+Every pushed budget is smaller than the one below it, so the stack is a
+strictly decreasing sequence from `{0, …, D − 1}`, that is, a subset. With
+the current budget, there are at most `(D + 1) · 2^D` states. The language
+is regular, and the stack's size plus one is the format's awaited count, so
+the format component is redundant (§27.2).
+
+**Theorem 27.7 (height-bounded support).** A unary/binary tree of height
+at most `D` has `m + 1 ≤ 2^{D+1}`. Constants satisfy the bound; a unary
+node adds one word, and a binary node joins two smaller-budget trees and
+adds one word. Induction gives the bound. Every complete depth-`d` binary
+skeleton with optional negated leaves has height at most `d + 1`, so the
+height-`d + 1` prior contains the complete prior's support. The inclusion
+does not require internal nodes to alternate connective identity.
+
+**Complete alternating trees of depth `d`.** This is the generator's own
+support `S_m`. The same stack automaton applies, with two restrictions:
+nodes at budget `h ≥ 1` must be connectives (arity 2), and at budget 0 a
+leaf is either a constant (arity 0) or `not` followed by a constant (arity
+1, then 0). The states are the pending budgets, a subset of
+`{0, …, d − 1}`, with one extra flag for "after a `not`": about `2^{d+1}`
+states, with at most two transitions each.
+
+**Theorem 27.5 (complete-shape length).** A complete binary skeleton of
+depth `d`, with each leaf optionally negated once, has
+`2^{d+1} ≤ m + 1 ≤ 3 · 2^d`. At depth zero the lengths are 1 and 2.
+A branch joins two depth-`d` shapes and adds one connective, so both
+bounds follow by induction.
+
+Length determines depth. A depth-`d` formula has
+`m ∈ [2^{d+1} − 1, 3 · 2^d − 1]` words, and these ranges are disjoint for
+different `d`. So `length → arity.prior.v1` is a function.
+
+**Why the complete-tree prior is exact.** On `S_m` the generator's prior and
+(P)'s prior are proportional (§24.3). With the complete-tree prior's
+weights all 1, the effective prior is (P)'s restricted to `S_m`, which is
+proportional to the generator's. The prior ratio `ρ` is constant on the
+whole support, and `â` always lies in it. So `Λ = 1` in both directions
+(Theorem 24.4 and its exchange): under per-word calibration and
+independent readings, `R* = R` exactly. Decodings outside `S_m`, which §24.3
+showed are certainly wrong, cannot occur.
+
+**Height-bounded priors** sit between the two. With `D` equal to the
+generator's height (`d + 1`, since `not` adds a level), the support is a
+superset of `S_m`, much smaller than `L_m`. The two-case analysis of §24.3
+applies with this smaller support in place of `L_m`.
+
+**Cost at depth 8** (`m = 575`, `d = 8`). Every `(position, state)` pair is
+bounded by `m · 2^{d+1} ≈ 294k`, with at most two transitions each, about
+0.6M multiply-adds per pass. The format-only program does about 0.25M per
+pass (`2.25 m²` over three passes, §21.4). The exact prior costs at most a
+few times the format-only one and still well under one top-rung word pass
+per formula. Most stack states are unreachable at a given position, so the
+live count is smaller than this bound. The banding of §23 applies to the
+product unchanged.
+
+## 27.5 Choosing a prior without labels
+
+Which prior expert to use is a choice the kernel can make from **unlabeled**
+readings. Let every candidate use the same independent base prior `πₖ` and
+observation likelihoods `Lₖ(aₖ) = p(xₖ | aₖ)`. Write
+`qₖ(aₖ) = πₖ(aₖ) Lₖ(aₖ) / cₖ`, with `cₖ = p(xₖ) > 0`.
+An expert supplies nonnegative tilt weights `v_e(a)`, inducing the normalized
+sequence prior `P_e(a) = v_e(a) Πₖ πₖ(aₖ) / Z_e(π)`, where `Z_e(π) > 0`.
+
+**Theorem 27.8 (normalized prior evidence).** Its observation evidence is
+
+> `p_e(x) = Σ_a P_e(a) Πₖ Lₖ(aₖ) = (Πₖ cₖ) Z_e(q) / Z_e(π)`.
+
+Here `Z_e(q) = Σ_a v_e(a) Πₖ qₖ(aₖ)` is the calibrated-reading normalizer,
+and `Z_e(π)` is the same program evaluated at the shared base probabilities.
+Substitute Bayes' rule into the sum: `Πₖ πₖ(aₖ) Lₖ(aₖ) = (Πₖ cₖ) Πₖ qₖ(aₖ)`.
+Thus the shared observation-marginal factor cancels when comparing experts.
+There is no extra sequence-dependent divisor outside this sum.
+
+The evidence interpretation requires a common observation model, normalized
+rows and posterior support contained in base support. Normalized calibrated
+scores alone do not establish the shared likelihood assumptions. A candidate
+with zero base normalizer is undefined; zero posterior normalizer gives
+zero evidence. Neither case justifies substituting a finite epsilon.
+
+Both terms are instances of Theorem 27.1. The kernel selects the prior with
+the largest summed log-evidence over held-out formulas, a label-free audit.
+
+**Evidence-only evaluation.** Each normalizer is a sum-product computation;
+maximum backtracking and posterior marginals are unnecessary. Retaining only
+the previous and next forward rows uses O(number of states) working space,
+independent of sequence length, with the same transition work per pass.
+
+**What evidence rewards.** `−log Z_e(π)` rewards small support: an Occam
+term. `log Z_e(q)` penalizes supports that exclude sequences the readings
+favor. A prior that excludes the truth loses evidence on every formula
+whose readings are confident about it. Asymptotically, evidence selects the
+candidate closest to the generator in Kullback–Leibler divergence. This is
+the standard consistency of Bayesian model selection over a finite family,
+used here as a heuristic, not proved.
+
+**The risk of a wrong but confident prior.** Selection can still pick a
+prior that excludes some true sequences, when the readings rarely make the
+exclusion visible. For formulas whose truth lies outside the prior's
+support, §24.4 applies with the roles reversed: `R* = 1` whatever `R` says.
+
+**Theorem 27.9 (priority selection under uniform score error).** Suppose
+each candidate's reported total log score differs from its target score by
+at most `ε`. Let `M` be the largest reported score. Choose the first
+candidate in a declared priority order whose reported score is at least
+`M − 2ε`. Its target score is within `4ε` of the largest target score.
+For any competitor, its target score is at most its report plus `ε`, at
+most `M + ε`, at most the chosen report plus `3ε`, and hence at most
+the chosen target score plus `4ε`.
+
+The bound must hold simultaneously over the candidate set and be expressed
+in total-score units for the selection batch. This is a conditional
+deterministic guarantee, not an estimator of sampling uncertainty or a
+proof that finite scores obey the common-likelihood assumptions. Declaring
+broader supports first implements the support preference below when such
+an error bound is available. A zero supplied bound gives empirical
+maximization, without a population guarantee unless its premise holds.
+
+**Theorem 27.10 (bounded evidence scores).** Fix the reader, shared base,
+candidate providers, sample size `n > 0`, clipping level `B > 0` and
+`0 < α < 1` before drawing IID formula observations. Assume each candidate
+has a valid positive base normalizer almost surely. Define
+`g_e(x) = max(−B, min(B, log Z_e(q(x)) − log Z_e(π)))`, mapping zero
+posterior mass to `−B`. Let `μ_e = E[g_e(X)]` and `S_e = Σ_i g_e(X_i)`.
+For `K` candidates, with probability at least `1 − α`, simultaneously
+
+> `|S_e − n μ_e| ≤ ε_n = B sqrt(2 n log(2K/α))`.
+
+Each score lies in `[−B,B]`. Hoeffding gives failure probability at most
+`2 exp(−ε_n²/(2 n B²))` for each total; a union bound over K gives α.
+Combining this event with Theorem 27.9 bounds the selected expected clipped
+score's regret by `4 ε_n / n`. The event holds for fixed n, not optional
+stopping or arbitrary repeated selection.
+
+Clipping changes the objective: this does not bound raw-evidence regret,
+model misspecification or answer errors. The concentration statement does
+not require that the scores be true likelihoods, but that interpretation
+still requires Theorem 27.8's assumptions. Calibration data may fix the
+reader and base before this sample; selecting B, K or models using the same
+sample is outside this guarantee.
+
+Two safeguards:
+
+1. Prefer the largest support among priors whose evidence is statistically
+   indistinguishable from the best. Of priors that fit equally, keep the one
+   least likely to exclude the truth.
+2. Keep risk control (§24.5) on the deployed policy. It certifies the error
+   rate among answered formulas whatever the prior.
+
+The prior changes which formulas are answered; the audit decides whether
+the guarantee holds.
+
+[Theory index](../THEORY.md)

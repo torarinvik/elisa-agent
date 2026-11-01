@@ -1,0 +1,212 @@
+# 21. Decoding by the format
+
+## 21.1 From detection to correction
+
+§19 used the prefix format to **detect** arity errors: a reading that does
+not parse is refused, and the controller climbs or abstains. Once the summed
+arity risk is near 1, most readings do not parse at any rung, and those
+formulas cannot be answered at any cost.
+
+A refused reading is still evidence. Its words' arity distributions say
+which arities are likely, and the format says which arity sequences are
+possible. The posterior over *possible* sequences picks out the most
+probable formula. An error-detecting code used this way corrects errors.
+
+## 21.2 The model
+
+For each word `k`, let `qₖ(a)` be the calibrated probability that its arity
+is `a ∈ {0, 1, 2}`: the arity decision's grouped reading (§18.3), under that
+decision's temperature. Let `L_m` be the set of arity sequences of formulas
+with `m` words.
+
+**Premise (P).** Given the readings, the posterior probability of an arity
+sequence `a` is
+
+> `π(a) = Πₖ qₖ(aₖ) · 1[a ∈ L_m] / Z`,  `Z = Σ_{a ∈ L_m} Πₖ qₖ(aₖ)`.
+
+(P) holds exactly when two things are true:
+
+1. words are corrupted and read independently given the truth (the channel
+   corrupts each word separately, and each reader sees one word);
+2. the prior over arity sequences is the readers' own per-word prior,
+   restricted to the sequences that parse.
+
+The second part is a modeling choice. The evaluator knows the format, but
+not the process that generated the formulas. Complete alternating trees are
+far more constrained than (P) assumes; for one thing, the word count
+determines the tree's shape. Using that would hardcode the task's generator
+into the expert, against the requirement that experts be generic. (P) uses
+only the format, the least informative prior consistent with it. Whether
+the resulting risks are calibrated is an empirical question (§21.8), and
+risk control (§17) remains the backstop.
+
+## 21.3 The format is a regular language
+
+**Definition** (`await`). The counter automaton
+of prefix notation has states `some n`, meaning `n` subformulas are still
+awaited, and a dead state `none`. A word of arity `a` read while `n + 1`
+subformulas are awaited leaves `n + a` awaited. Reading anything when none
+are awaited kills the run. A sequence is accepted when, started from one
+awaited subformula, it ends with none awaited.
+
+| Theorem | Statement |
+|---|---|
+| 21.1 | reading a formula's arity sequence consumes exactly one awaited subformula |
+| 21.2 | every formula's arity sequence is accepted |
+| 21.3 | a sequence of arities at most 2 is accepted from `n` awaited exactly when it is the concatenated arity sequence of `n` formulas |
+
+So `L_m` is exactly the set of length-`m` words the automaton accepts. The
+decoded sequence is therefore always a formula, and every formula is a
+candidate.
+
+## 21.4 Decoding by dynamic programming
+
+For any deterministic automaton and position-wise weights `wₖ`, define the
+score of a sequence as its weight product if accepted, else 0.
+
+| Theorem | Statement |
+|---|---|
+| 21.4 | the sum-product recursion over states equals the total score of all sequences |
+| 21.5 | with nonnegative weights, no sequence scores more than the max-product recursion |
+| 21.6 | unless the maximum is 0, some sequence attains it; backtracking the maximizing choices finds it |
+
+With `wₖ = qₖ`:
+
+- `dpSum` from state `some 1` is `Z`;
+- `dpMax` is `Πₖ qₖ(âₖ)` for the most probable parseable arity sequence
+  `â`, the **decoded** sequence.
+
+**Marginals.** Forward sums `F_k(n)` and backward sums `B_k(n)` over the
+same states give each word's posterior arity distribution:
+
+> `π(aₖ = a) = Σₙ F_k(n + 1) · qₖ(a) · B_{k+1}(n + a) / Z`.
+
+Each is the sum-product theorem applied to a prefix and a suffix.
+
+**Cost.** At position `k`, at most `min(k + 1, m − k)` subformulas can be
+awaited and still be completed, because every awaited subformula needs at
+least one more word. That leaves about `m² / 4` live states, with three
+arities each. Forward, backward and max passes then take about `2.25 m²`
+multiply-adds.
+
+| depth | words | decoding ops | bottom-rung reading | top-rung reading |
+|---:|---:|---:|---:|---:|
+| 6 | 143 | 46k | 93k | 14.9M |
+| 8 | 575 | 744k | 374k | 59.8M |
+
+Decoding costs at most about 1% of a top-rung pass. It is computed once per
+refinement step, in log space.
+
+When the sequence of each word's most probable arity parses, it is `â`: it
+maximizes the unconstrained product and is feasible. So decoding departs
+from per-word decisions only where those decisions do not parse.
+
+## 21.5 The risk of a decoded formula
+
+Under (P), the decoded arity sequence is wrong with posterior probability
+exactly
+
+> `R = 1 − Πₖ qₖ(âₖ) / Z`.
+
+**Theorem 21.7.** Since `Z ≤ 1`,
+`R ≤ 1 − Πₖ qₖ(âₖ) ≤ Σₖ (1 − qₖ(âₖ))`. Correction is never worse than the
+union bound over the decoded arities.
+
+Detection's bounds charged the probability that two or more arity
+decisions fail, whether or not the failures leave a parseable sequence.
+`R` counts only failures that do, and it conditions on the truth being a
+formula, which §19.4 had to set aside.
+
+**Identities.** Given the arity sequence, (P) makes the words' identities
+independent. Word `k`'s identity is distributed as its reading restricted
+to the group `âₖ`. So each word is decoded as the most probable class within
+its decoded arity group. That pairs every word's identity with its own
+arity, which resolves the objection of §18.3 to choosing groups by mass.
+With `E` the words the decoded formula's least-risk certificate evaluates
+(§19.5), and `rₖ` the restricted risks, the argument of Theorem 19.3
+gives
+
+> `P(wrong | readings) ≤ R + Σ_{k ∈ E} rₖ`.
+
+## 21.6 Charges for refinement
+
+Let `μₖ = 1 − π(aₖ = âₖ)` be word `k`'s posterior arity risk after decoding.
+`μₖ` uses every other word's evidence through the format. A word whose
+reading is uncertain can still have a small `μₖ` when only one arity fits
+its neighbours.
+
+**Errors come in pairs.** The truth and `â` are both formulas of `m` words,
+so they differ in no position or in at least two (Theorem 19.2).
+Applied to the posterior measure, Markov's inequality on the number of
+differing positions (Theorem 19.5) gives
+
+> `R ≤ ½ Σₖ μₖ`.
+
+The account charges word `k`
+
+> `R · μₖ / Σⱼ μⱼ`, plus `rₖ` if `k ∈ E`.
+
+The charges sum to the bound of §21.5. Refinement climbs the word with the
+largest charge, the word most likely misread *given the format*, not merely
+the least confident reading.
+
+## 21.7 Scaling
+
+For words with arity risk `ρ` each and `S = mρ`:
+
+- **detection:** abstains on every unparseable reading, whose probability
+  approaches 1 as `S` grows past 1;
+- **correction:** answers every reading, and charges `R`.
+
+`R` is small when the competitors of `â` are improbable. The nearest
+competitors differ in two positions, with opposite net arity change, so `R`
+behaves like `e₂` restricted to cancelling pairs, divided by `Z`. Correction
+therefore removes the hard limit `S < 1`, beyond which detection answers
+nothing. What remains is the slower growth of the posterior weight of
+cancelling pairs.
+
+## 21.8 Testing the premises
+
+Two premises are now in use. Each yields a prediction about counts over
+independent formulas, which can be tested on held-out data.
+
+**Calibration of `R` (premise P).** Over `N` formulas, let `O` be the number
+whose decoded arity sequence is wrong. Under (P) with calibrated readings,
+`O` is a sum of independent Bernoulli(`R_f`) variables, so
+`E[O] = Σ_f R_f`. The test compares `O` with the Poisson-binomial
+distribution of that sum (two-sided), overall and in bins of `R`. It runs at
+the bottom rung, where errors are frequent enough to count, at depths 4 to
+8 and under the noise shift.
+
+**The pairs premise of §19.** Let `O₂` be the number of formulas whose
+per-word reading has at least two arity failures. If failures are not
+positively correlated, `E[O₂] ≤ Σ_f e₂(f)`. A one-sided Poisson-binomial
+test rejects the premise if `O₂` is significantly larger. A direct check:
+over pairs of words, the observed rate of joint arity failures against the
+product of the marginal rates, for adjacent and for distant pairs
+separately.
+
+Unlike the absence of observed errors, these tests can fail.
+
+## 21.9 What correction cannot do: hard style
+
+In the arithmetic task, the parser fixes the kind of every position:
+digits at even positions, operators at odd ones (§14). A misread digit is
+another digit, and a misread operator another operator. Either way, the
+reading still parses. The format has no redundancy against such errors,
+so neither detection nor correction has anything to work with.
+
+Of the remaining hard-style errors:
+
+- **Ambiguity between operators** (`+` against `×` under rotation) lies
+  inside a decision the format leaves free. Its Bayes risk is
+  a floor: no reader, however strong, certifies such a glyph below it.
+- **Erased digits**, when the segmenter misses them, change the
+  length's parity. Such readings do not parse and are already detected.
+  When an erased digit is segmented but misread, it is an ordinary digit
+  error.
+
+For hard style, the efficient policy is to recognize early that a glyph's
+risk cannot reach the target and abstain, rather than climb (§22).
+
+[Theory index](../THEORY.md)
