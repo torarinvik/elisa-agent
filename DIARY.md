@@ -1165,6 +1165,21 @@ produced invalid LLVM; `.view()` calls were also declined. Explicit borrowed
 slices compile and pass the comparisons. The compiler conversion failure
 remains a separate repair target; this port uses the supported slice form.
 
+**Minimal compiler conversion reproduction.** A function `first(xs:
+view[i64])` returning `xs[0]`, called with a local `darray[i64] = [7,9]`,
+is enough to reproduce the native-port compiler failure. Passing the array
+implicitly produces LLVM passing `{ptr,i64,i64}` to a `{ptr,i64}` parameter.
+Calling `.view()` is declined by the backend. Passing `xs[0:xs.count]` builds
+and executes with result 7. Temporary probes were created outside the
+repository and removed after execution.
+
+The direct-call emitter uses `emit_expression_coerced` in
+`src/backend/codegen_convert.elisa`. Its current branches cover numeric and
+structural-tuple conversion but no owned-array to borrowed-view conversion;
+its fallback forwards the owned header unchanged. The repair target is now
+isolated, but compiler source changes and regression qualification remain
+pending. The NCA native port continues using explicit slices.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
