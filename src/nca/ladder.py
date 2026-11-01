@@ -165,9 +165,31 @@ class Rung:
                 return float(native(log[union].double().numpy(), groups, len(positions),
                                     self.temperature(classes)))
         if classes is None:
-            return risk(self.reading(log))
-        union, positions = _layout(decision_key(classes))
-        return risk(torch.softmax(log[union] / self.temperature(classes), dim=-1), positions)
+            values, positions = log, None
+        else:
+            key = decision_key(classes)
+            union, positions = _layout(key)
+            values = log[union]
+        temperature = self.temperature(classes)
+        result = risk(torch.softmax(values / temperature, dim=-1), positions)
+        if result != 0.0 or (classes is not None and _group_ids(key) is None):
+            return result
+        # A float32 softmax can erase probabilities that fit in binary64.
+        scores = values.double() / temperature
+        top = int(scores.argmax())
+        chosen = (next(part for part in positions if top in part)
+                  if positions is not None else [top])
+        outside = [i for i in range(len(scores)) if i not in chosen]
+        if not outside:
+            return 0.0
+        log_outside = torch.logsumexp(scores[outside], dim=0)
+        if not bool(torch.isfinite(log_outside)):
+            # Temperature scaling can itself overflow a finite negative logit.
+            return (math.nextafter(0.0, 1.0)
+                    if bool(torch.isneginf(log_outside)) and
+                    bool(torch.isfinite(values[outside]).any()) else 0.0)
+        recovered = math.exp(float(log_outside - torch.logsumexp(scores, dim=0)))
+        return math.nextafter(0.0, 1.0) if recovered == 0.0 else recovered
 
     def distribution(self, log: torch.Tensor, classes: Decision = None) -> torch.Tensor:
         """Calibrated probabilities of the decision's entries: each entry's

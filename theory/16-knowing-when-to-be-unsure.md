@@ -30,6 +30,14 @@ an upper bound on the total, by induction over the charges. This statement
 does not establish that a particular floating-point implementation satisfies
 the per-addition premise or that the charges themselves bound real errors.
 
+In exact arithmetic, positive probability mass outside the chosen group
+gives strictly positive risk. When ordinary softmax arithmetic underflows to
+zero despite finite alternative logits, the implementation recomputes the
+alternative mass in log space and returns the smallest positive binary64
+value if the result is still unrepresentable. This avoids reporting zero for
+a finite alternative; it is not a proof that all computed risks are rounded
+upward or are calibrated error bounds.
+
 So the efficient policy is local: refine a glyph when its expected bound
 reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
 trade compute for reliability.

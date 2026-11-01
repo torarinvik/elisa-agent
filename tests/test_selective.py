@@ -644,6 +644,27 @@ def test_native_calibrated_risk_uses_top_class_group(classes: Any,
         assert actual[0] == pytest.approx(0.6, abs=1e-7)
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_calibrated_risk_preserves_tiny_finite_alternatives(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk", None) is None:
+        pytest.skip("native calibrated risk is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("tiny", (0.5, 0.5), 1.0))
+    assert rung.risk(torch.tensor([0.0, -200.0])) == pytest.approx(math.exp(-200), rel=1e-12, abs=0)
+    assert rung.risk(torch.tensor([0.0, -1000.0])) == math.nextafter(0.0, 1.0)
+    assert rung.risk(torch.tensor([0.0, -math.inf])) == 0.0
+    assert rung.risk(torch.tensor([0.0, -1000.0]), ((0, 1),)) == 0.0
+    assert rung.risk(torch.tensor([0.0, -2.0, -math.inf]), ((0, 1), (2,))) == 0.0
+    many = torch.tensor([0.0] + [-746.0] * 10, dtype=torch.float64)
+    assert rung.risk(many) > math.nextafter(0.0, 1.0)
+    rung.temperatures[None] = 0.01
+    assert rung.risk(torch.tensor([0.0, -1e308], dtype=torch.float64)) == math.nextafter(0.0, 1.0)
+
+
 def test_element_certificate_keeps_independent_reading_snapshots() -> None:
     from nca.ladder import Distribution
     from nca.selective import element_certificate

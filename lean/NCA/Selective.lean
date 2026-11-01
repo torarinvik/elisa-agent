@@ -99,6 +99,11 @@ theorem lower_fold_le (add : ℝ → ℝ → ℝ) (xs : List ℝ) (initial : ℝ
 
 variable {I : Type} [DecidableEq I]
 
+/-- Positive alternative mass gives strictly positive decision risk. -/
+theorem positive_alternative_risk {chosen outside : ℝ} (hc : 0 < chosen)
+    (ho : 0 < outside) : 0 < outside / (chosen + outside) := by
+  exact div_pos ho (add_pos hc ho)
+
 /-- Bound plus priced compute after refining the symbols in `T`. -/
 def refinedObjective (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) : ℝ :=
   ∑ i ∈ S, r i - ∑ i ∈ T, β i + lam * ∑ i ∈ T, κ i

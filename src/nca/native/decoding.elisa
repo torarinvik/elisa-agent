@@ -770,7 +770,17 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
             weight: f64 = exp((logits[i] - logits[top]) / temperature)
             total += weight
             outside += weight if groups[i] != chosen else 0.0
-    return outside / total
+    result: f64 = outside / total
+    return result if result != 0.0
+    largest_outside: f64 =
+        for i in 0..<logits.len.i64() |largest: f64 = log(0.0)| -> largest:
+            largest <- logits[i] if groups[i] != chosen and logits[i] > largest else largest
+    return 0.0 if largest_outside == log(0.0)
+    scaled: f64 =
+        for i in 0..<logits.len.i64() |sum: f64 = 0.0| -> sum:
+            sum += exp((logits[i] - largest_outside) / temperature) if groups[i] != chosen else 0.0
+    recovered: f64 = exp((largest_outside - logits[top]) / temperature + log(scaled) - log(total))
+    return nextafter(0.0, 1.0) if recovered == 0.0 else recovered
 
 export pymodule decoding:
     fn upper_sum

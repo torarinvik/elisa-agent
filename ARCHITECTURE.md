@@ -144,6 +144,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [15.2](theory/15-normalization-against-shift.md) | `shift_le_of_invariant_on` | `Normalize` |
 | [15.3](theory/15-normalization-against-shift.md) | `shift_zero_of_invariant` | `Normalize` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `selective_risk_le`, `selective_risk_le_available`, `upper_fold_ge` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_alternative_risk` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
@@ -814,7 +815,12 @@ It sums the other groups' weights directly instead of subtracting the chosen
 probability from one. The PyTorch risk path uses the same formulation for
 partitions; overlapping decisions retain their existing behavior.
 PyTorch remains the fallback under the same device/gradient restrictions as
-grouped distribution. Native double arithmetic can change final rounding.
+grouped distribution. When finite alternative logits underflow, both paths
+recover their aggregate in log space and retain a positive binary64 sentinel
+if it remains unrepresentable. This is not an outward-rounding guarantee.
+`Rung.observe` still clamps input probabilities below `1e-12` before taking
+logs; recovery applies to the logits supplied to `risk`, not to precision
+already lost in observation. Native double arithmetic can change rounding.
 
 The selective certificate adapter caches immutable reading tuples by the
 item's revision within one solve. Consumers still receive independent outer
