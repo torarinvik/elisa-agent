@@ -25,9 +25,45 @@ def _integer_symbols(symbols: Sequence[int]) -> bool:
 
 
 @lru_cache(maxsize=32)
+def _dense_alphabet_needed(alphabet: tuple[int, ...]) -> bool:
+    return any(not -(2**63) <= int(a) < 2**63 for a in alphabet)
+
+
+@lru_cache(maxsize=32)
+def _dense_native_alphabet(size: int) -> np.ndarray:
+    return np.frombuffer(np.arange(size, dtype=np.int64).tobytes(), dtype=np.int64)
+
+
+@lru_cache(maxsize=32)
 def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
     """Immutable native buffer shared by priors with the same alphabet."""
+    if _dense_alphabet_needed(alphabet):
+        return _dense_native_alphabet(len(alphabet))
     return np.frombuffer(np.asarray(alphabet, dtype=np.int64).tobytes(), dtype=np.int64)
+
+
+def _native_symbol_pair(alphabet: tuple[int, ...], selected: Sequence[int]) -> tuple[np.ndarray, np.ndarray]:
+    dense = _dense_alphabet_needed(alphabet)
+    values = np.asarray(selected)
+    if values.dtype.kind == "u" and np.any(values > np.iinfo(np.int64).max):
+        dense = True
+    if not dense:
+        try:
+            return _native_alphabet(alphabet), np.ascontiguousarray(values, dtype=np.int64)
+        except OverflowError:
+            dense = True
+    indices: dict[int, int] = {}
+    for j, symbol in enumerate(alphabet):
+        indices.setdefault(int(symbol), j)
+    encoded = np.fromiter((indices.get(int(symbol), -1) for symbol in selected),
+                          dtype=np.int64, count=len(selected))
+    return _dense_native_alphabet(len(alphabet)), encoded
+
+
+def _native_decoded_symbols(alphabet: tuple[int, ...], selected: Sequence[int]) -> tuple[int, ...]:
+    if _dense_alphabet_needed(alphabet):
+        return tuple(int(alphabet[int(index)]) for index in selected)
+    return tuple(int(symbol) for symbol in selected)
 
 
 def risk_from_log_weight(weight: float, log_z: float) -> float:
@@ -64,9 +100,9 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
         raise ValueError("alphabet and selected symbols must be integers")
     native_weight = getattr(_NATIVE, "sequence_log_weight", None)
     if native_weight is not None:
+        symbols, encoded = _native_symbol_pair(tuple(alphabet), selected)
         return float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
-                                   np.asarray(alphabet, dtype=np.int64),
-                                   np.asarray(selected, dtype=np.int64)))
+                                   symbols, encoded))
     symbols = tuple(alphabet)
     try:
         return float(sum(log_probs[k, symbols.index(a)] for k, a in enumerate(selected)))
@@ -124,9 +160,10 @@ class ArityPrior:
             raise ValueError("selected symbols must be integers")
         native = getattr(_NATIVE, "prior_log_weight", None)
         if native is not None:
-            return float(native(_native_alphabet(self.alphabet),
+            alphabet, selected = _native_symbol_pair(self.alphabet, arities)
+            return float(native(alphabet,
                                 self.transitions.reshape(-1), self.log_weights.reshape(-1),
-                                self.log_final, self.start, np.asarray(arities, dtype=np.int64)))
+                                self.log_final, self.start, selected))
         state, total = self.start, 0.0
         for a in arities:
             if a not in self.alphabet:
@@ -209,9 +246,10 @@ class ArityPrior:
             return -math.inf, self.log_normalizer(rows)
         native = getattr(_NATIVE, "prior_partition", None)
         if native is not None:
-            result = native(np.ascontiguousarray(rows).reshape(-1), _native_alphabet(self.alphabet),
+            alphabet, encoded = _native_symbol_pair(self.alphabet, selected)
+            result = native(np.ascontiguousarray(rows).reshape(-1), alphabet,
                             self.transitions.reshape(-1), self.log_weights.reshape(-1),
-                            self.log_final, self.start, np.asarray(selected, dtype=np.int64))
+                            self.log_final, self.start, encoded)
             if len(result) != 2:
                 raise ValueError("prior partition arithmetic is not finite")
             return float(result[0]), float(result[1])
@@ -279,7 +317,7 @@ class ArityPrior:
                               self.transitions.reshape(-1), self.log_weights.reshape(-1),
                               self.log_final, self.start)
             if selected:
-                return tuple(int(a) for a in selected)
+                return _native_decoded_symbols(self.alphabet, selected)
             if (getattr(_NATIVE, "prior_normalizer", None) is not None
                     and self.log_normalizer(rows) != -math.inf):
                 raise ValueError("prior maximum unavailable despite nonzero mass")
@@ -307,7 +345,7 @@ class ArityPrior:
                 return None
             if not math.isfinite(out["log_z"]):
                 raise ValueError("prior decoder normalizer is not finite")
-            return Decoded(tuple(out["arities"]), out["log_z"],
+            return Decoded(_native_decoded_symbols(self.alphabet, out["arities"]), out["log_z"],
                            np.asarray(out["marginals"], dtype=np.float64), self)
         states = len(self.log_final)
         forward = np.full((m + 1, states), -np.inf)

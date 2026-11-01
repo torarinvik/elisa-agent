@@ -33,6 +33,79 @@ def test_prior_supports_general_integer_arities(reference: bool, monkeypatch: py
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_supports_arities_beyond_native_integer_range(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    big = 10**100
+    alphabet = (0, 1, big)
+    prior = priors.ArityPrior(alphabet, np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    probabilities = np.array([[0.2, 0.3, 0.5], [0.4, 0.1, 0.5]])
+    rows = np.log(probabilities)
+    selected = (big, 0)
+    assert prior.log_weight(selected) == 0.0
+    assert prior.log_weight((10**150, 0)) == -np.inf
+    assert prior.log_normalizer(rows) == pytest.approx(0.0, abs=1e-12)
+    assert prior.sequence_risk(rows, selected) == pytest.approx(0.8)
+    assert prior.best(rows) == (big, big)
+    decoded = prior.decode(rows)
+    assert decoded is not None and decoded.arities == (big, big)
+    np.testing.assert_allclose(decoded.marginals, probabilities, atol=1e-12)
+    assert decoded.log_weight(rows, alphabet, selected) == pytest.approx(np.log(0.2))
+    assert decoded.risk(rows, alphabet, selected) == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_sequence_weight_does_not_wrap_unsigned_unknown_symbols(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    selected = np.array([2**64 - 1], dtype=np.uint64)
+    assert priors.sequence_log_weight(np.zeros((1, 2)), (-1, 0), selected) == -np.inf
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.zeros((1, 2)), np.zeros(1))
+    assert prior.log_weight(selected) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_distinguishes_large_labels(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    big = 10**100
+    alphabet = (big, big + 1)
+    prior = priors.ArityPrior(alphabet, np.zeros((1, 2), dtype=np.int64),
+                              np.zeros((1, 2)), np.zeros(1))
+    rows = np.log(np.array([[0.75, 0.25]]))
+    assert prior.best(rows) == (big,)
+    assert prior.sequence_risk(rows, (big + 1,)) == pytest.approx(0.75)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_large_label_prior_matches_explicit_relabelling(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(260)
+    big = 10**100
+    alphabet = (big, 0, big + 1)
+    transitions = rng.integers(0, 4, size=(4, 3))
+    weights = rng.normal(size=(4, 3))
+    final = rng.normal(size=4)
+    rows = rng.normal(size=(6, 3))
+    labelled = priors.ArityPrior(alphabet, transitions, weights, final, 1)
+    dense = priors.ArityPrior((0, 1, 2), transitions, weights, final, 1)
+    actual, expected = labelled.decode(rows), dense.decode(rows)
+    assert actual is not None and expected is not None
+    assert actual.arities == tuple(alphabet[i] for i in expected.arities)
+    assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
+    np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+    assert labelled.log_weight(actual.arities) == pytest.approx(dense.log_weight(expected.arities), abs=1e-12)
+    np.testing.assert_allclose(labelled.partition(rows, actual.arities),
+                               dense.partition(rows, expected.arities), atol=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_general_arity_prefix_prior_matches_format_decoder(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:

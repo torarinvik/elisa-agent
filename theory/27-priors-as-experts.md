@@ -19,6 +19,10 @@ its run, times the final weight (`prior`).
 The automaton recurrence is independent of the arity values: its alphabet may
 contain any distinct nonnegative integer arities. A prefix-format restriction,
 when needed, remains a separate property of the automaton's support.
+For a finite alphabet, replacing each arity label by its distinct column
+index preserves the transition and weight of every sequence, provided labels
+are mapped back after decoding. This permits a bounded native symbol type
+without imposing that bound on the prior's original labels.
 **Theorem 27.15 (empty sequence).** For the empty sequence there are no
 transition weights, so its weight is the start state's final weight. It is
 accepted exactly when that weight is positive. For an accepted empty

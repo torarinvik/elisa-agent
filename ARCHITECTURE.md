@@ -1005,9 +1005,14 @@ broader timing, tie-choice and deployment-audit comparisons.
 
 `formulas.ArityPrior` represents the weighted deterministic automaton of
 THEORY §27. Its validated transition, log-edge and log-final arrays are copied
-and read-only. Alphabets may contain distinct nonnegative integer arities;
-native calls represent them as signed 64-bit values. Selected symbols are
-checked as integers before native conversion. `decode`
+and read-only. Alphabets may contain distinct nonnegative integer arities.
+When a label exceeds native signed 64-bit range, native calls use dense
+alphabet indices and map decoded labels back to their original integers.
+This relabelling applies to prior automata; the separate format decoder still
+converts its alphabet to signed 64-bit values.
+`prior_relabel` in `NCA.Product` proves path-weight preservation for a
+relabelling with a left inverse.
+Selected symbols are checked as integers before native conversion. `decode`
 uses Elisa `decode_prior` for forward sums, maximum
 backtracking and backward marginals, with a NumPy reference fallback.
 `Decoded` retains the prior so its sequence risks include the edge and final

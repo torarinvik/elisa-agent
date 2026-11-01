@@ -29,6 +29,19 @@ def prior : τ → List α → ℝ
   | t, [] => f t
   | t, a :: l => v t a * prior (ε t a) l
 
+/-- Relabelling the symbols in a path with a left inverse preserves its weight. -/
+theorem prior_relabel {β : Type} (encode : α → β) (decode : β → α)
+    (t : τ) (l : List α) (inverse : ∀ a ∈ l, decode (encode a) = a) :
+    prior (fun s b => ε s (decode b)) (fun s b => v s (decode b)) f t (l.map encode) =
+      prior ε v f t l := by
+  induction l generalizing t with
+  | nil => rfl
+  | cons a l ih =>
+    have head := inverse a List.mem_cons_self
+    have tail := fun b hb => inverse b (List.mem_cons_of_mem _ hb)
+    simp only [List.map_cons, prior, head]
+    rw [ih (ε t a) tail]
+
 /-- The empty sequence has exactly its start state's final weight. -/
 theorem prior_empty (t : τ) : prior ε v f t [] = f t := rfl
 
