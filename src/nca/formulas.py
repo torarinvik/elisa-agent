@@ -1,11 +1,13 @@
 """Noisy Boolean formulas in prefix notation (§18).
 
-A formula is a complete binary tree of depth ``depth`` whose levels alternate
+By default a formula is a complete binary tree of depth ``depth`` whose levels alternate
 between ``and`` and ``or`` (root chosen at random); with probability ``xor``
 a connective is ``xor`` instead. Leaves are uniform random constants, each
 negated with probability ``negation``. It is written in prefix (Polish)
 notation, one word per node, so no brackets are needed: arities alone
 determine the tree (``NCA.code_prefix``).
+An optional ``early_leaf`` probability stops branches before depth zero,
+producing a structural shift while preserving the vocabulary and channel.
 
 Each word passes through a noisy typing channel (``corrupt``) at level
 ``noise``; spaces are never corrupted. Splits are independent random streams:
@@ -67,10 +69,12 @@ def corrupt(word: str, noise: float, rng: np.random.Generator) -> str:
 
 
 def formula(depth: int, rng: np.random.Generator, xor: float = 0.0,
-            negation: float = 0.25) -> list[str]:
-    """Words of a random complete alternating formula, in prefix order."""
+            negation: float = 0.25, early_leaf: float = 0.0) -> list[str]:
+    """Alternating prefix formula, optionally stopping branches before depth zero."""
+    if not 0 <= early_leaf <= 1:
+        raise ValueError("early_leaf must be between zero and one")
     def node(conjunction: bool, d: int) -> list[str]:
-        if d == 0:
+        if d == 0 or (early_leaf > 0 and rng.random() < early_leaf):
             leaf = [VOCABULARY[rng.integers(2)]]
             return ["not", *leaf] if rng.random() < negation else leaf
         op = "xor" if rng.random() < xor else "and" if conjunction else "or"
@@ -974,17 +978,20 @@ class FormulaSample:
 
 class FormulaDataset:
     def __init__(self, split: str, size: int, depth: int, noise: float, seed: int = 0,
-                 xor: float = 0.0, negation: float = 0.25) -> None:
+                 xor: float = 0.0, negation: float = 0.25, early_leaf: float = 0.0) -> None:
+        if not 0 <= early_leaf <= 1:
+            raise ValueError("early_leaf must be between zero and one")
         assert split in SPLITS
         self.split, self.size, self.depth, self.noise = split, size, depth, noise
         self.seed, self.xor, self.negation = seed, xor, negation
+        self.early_leaf = early_leaf
 
     def __len__(self) -> int:
         return self.size
 
     def sample(self, index: int) -> FormulaSample:
         rng = np.random.default_rng([SPLITS.index(self.split), self.seed, index])
-        words = formula(self.depth, rng, self.xor, self.negation)
+        words = formula(self.depth, rng, self.xor, self.negation, self.early_leaf)
         text = " ".join(corrupt(w, self.noise, rng) for w in words)
         value = evaluate(words)
         assert value is not None

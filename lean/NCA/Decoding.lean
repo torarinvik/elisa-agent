@@ -308,4 +308,21 @@ theorem complete_shape_bounded {d : ℕ} {arities : List ℕ}
   | negated => exact BoundedShape.unary (BoundedShape.leaf 0)
   | branch hl hr ihl ihr => exact BoundedShape.branch ihl ihr
 
+/-- Expected leaf-count recurrence when each positive-depth node stops with p. -/
+def prunedLeaves (p : ℝ) : ℕ → ℝ
+  | 0 => 1
+  | d + 1 => p + 2 * (1 - p) * prunedLeaves p d
+
+/-- Expected binary-branch recurrence for the same stopping rule. -/
+def prunedBranches (p : ℝ) : ℕ → ℝ
+  | 0 => 0
+  | d + 1 => (1 - p) * (1 + 2 * prunedBranches p d)
+
+/-- Binary branches remain leaves minus one under the expectation recurrences. -/
+theorem pruned_branches_eq_leaves_sub_one (p : ℝ) (d : ℕ) :
+    prunedBranches p d = prunedLeaves p d - 1 := by
+  induction d with
+  | zero => simp [prunedBranches, prunedLeaves]
+  | succ d ih => simp only [prunedBranches, prunedLeaves, ih]; ring
+
 end NCA

@@ -29,6 +29,21 @@ levels alternate between `and` and `or` (root chosen at random), with uniform
 random leaves, each leaf negated (`not`) with probability ¼. A variant
 replaces each connective by `xor` with probability `x`.
 
+**Structural-shift variant.** At every node with positive remaining depth,
+stop with probability `p ∈ [0,1]` and draw a leaf (optionally negated) instead
+of a binary connective. Otherwise recurse into both children. The default
+`p=0` recovers the complete family; `p=1` stops at the root. Every resulting
+formula has height at most `d+1`, but its length or shape may lie outside
+the complete-tree prior's support. Reader vocabulary and the typing channel
+are unchanged.
+
+Let `L_d` and `I_d` denote expected constant leaves and binary branches.
+The recurrences are `L_0=1`, `I_0=0`,
+`L_{d+1}=p+2(1-p)L_d` and `I_{d+1}=(1-p)(1+2I_d)`.
+Induction gives `I_d=L_d−1`. With independent leaf-negation probability η,
+expected word count is `(2+η)L_d−1`. These are expectations of the generator,
+not posterior risk claims for a decoder.
+
 ## 18.2 What carries over, and what must not be added
 
 The kernel, the planner, ladders, calibration, refinement and certification

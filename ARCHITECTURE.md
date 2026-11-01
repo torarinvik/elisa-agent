@@ -782,3 +782,11 @@ order for the batch. A local cache retains each immutable prior model and
 base normalizer by candidate index and length; observation normalizers are
 still computed for every formula. The cache is discarded when selection
 returns, so no cached denominator crosses calibration or selection runs.
+
+`FormulaDataset(..., early_leaf=p)` and `formula(..., early_leaf=p)` expose
+the structural-shift family in §18.1. The new trailing parameter defaults
+to zero; its disabled branch consumes no random draw, preserving historical
+seeded samples. The CLI still uses the default complete generator.
+`prunedLeaves`, `prunedBranches` and `pruned_branches_eq_leaves_sub_one` in
+`NCA/Decoding.lean` formalize the algebraic count recurrences and identity;
+they do not formalize the RNG's probability law.

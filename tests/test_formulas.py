@@ -1438,3 +1438,39 @@ def test_prior_selection_caches_fixed_base_normalizers_per_length(
     scores = tuple(2 * provider(2).log_evidence(
         observations[0], np.broadcast_to(original_base, (2, 3))) for provider in providers)
     assert formulas.select_prior(providers, stream(), base).scores == scores
+
+
+def test_early_leaf_structural_shift_is_valid_and_reproducible() -> None:
+    dataset = FormulaDataset("test", 100, 4, 0.2, 806, early_leaf=0.2)
+    replica = FormulaDataset("test", 100, 4, 0.2, 806, early_leaf=0.2)
+    height = formulas.height_prior(5)
+    outside_complete = unsupported_length = False
+    for i in range(len(dataset)):
+        sample = dataset.sample(i)
+        assert sample == replica.sample(i)
+        assert evaluate(sample.words) == sample.value
+        assert len(sample.text.split()) == len(sample.words)
+        arities = tuple(ARITY[VOCABULARY.index(word)] for word in sample.words)
+        assert height.log_weight(arities) == 0.0
+        complete = formulas.complete_prior(len(arities))
+        unsupported_length |= complete is None
+        outside_complete |= complete is not None and complete.log_weight(arities) == -np.inf
+    assert outside_complete and unsupported_length
+    for i in range(10):
+        stopped = FormulaDataset("test", 10, 6, 0.0, 806, early_leaf=1).sample(i)
+        assert len(stopped.words) <= 2 and evaluate(stopped.words) == stopped.value
+    for invalid in (-0.1, 1.1, np.nan):
+        with pytest.raises(ValueError):
+            FormulaDataset("test", 1, 4, 0, early_leaf=invalid)
+        with pytest.raises(ValueError):
+            formula(4, np.random.default_rng(0), early_leaf=invalid)
+
+
+def test_zero_early_leaf_preserves_existing_generator_stream() -> None:
+    first = np.random.default_rng(809)
+    second = np.random.default_rng(809)
+    assert formula(4, first) == formula(4, second, early_leaf=0.0)
+    assert first.random() == second.random()
+    default = FormulaDataset("test", 10, 3, 0.1, 809)
+    explicit = FormulaDataset("test", 10, 3, 0.1, 809, early_leaf=0.0)
+    assert [default.sample(i) for i in range(10)] == [explicit.sample(i) for i in range(10)]
