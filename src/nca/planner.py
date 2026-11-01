@@ -297,7 +297,7 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
         module = index.modules[position]
         renaming, inputs, output = rename_apart(module.manifest.contract, ())
         extended = dict(binding)
-        if not unify(goal, parse_type(output), extended):
+        if not unify(goal, output, extended):
             continue
         names = tuple(renaming.items())
         for args, solved in _solve_inputs(index, limit, available, inputs, extended,
@@ -329,14 +329,14 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
 
 
 def _solve_inputs(index: ProducerIndex, limit: int, available: Sequence[TypeId],
-                  inputs: Sequence[TypeId], binding: dict[str, Term], fuel: int, memo: Memo,
+                  inputs: Sequence[Term], binding: dict[str, Term], fuel: int, memo: Memo,
                   ) -> Iterator[tuple[tuple[_Partial, ...], dict[str, Term]]]:
     """Solutions for every input in turn, backtracking over earlier inputs'
     alternatives."""
     if not inputs:
         yield (), binding
         return
-    for first, extended in _solutions(index, limit, available, parse_type(inputs[0]), binding,
+    for first, extended in _solutions(index, limit, available, inputs[0], binding,
                                       fuel - 1, memo):
         for rest, solved in _solve_inputs(index, limit, available, inputs[1:], extended, fuel,
                                           memo):

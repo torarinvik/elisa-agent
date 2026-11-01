@@ -8,7 +8,7 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from nca.abi import Choice, Contract, Manifest, Message, parse_type, type_variables
+from nca.abi import Choice, Contract, Manifest, Message, format_type, parse_type, type_variables
 from nca.index import ProducerIndex
 from nca.modules.combinators import Case, Fold
 from nca.optimize import plan_min, plan_pareto
@@ -439,7 +439,8 @@ def test_free_bindings_retry_after_failed_closure(monkeypatch: pytest.MonkeyPatc
     expert = fn("forget", ["box[?a]"], INT, lambda value: value)
     index = ProducerIndex([expert])
     monkeypatch.setattr(planner, "rename_apart",
-                        lambda contract, binding: ({"a": "fresh"}, contract.inputs, contract.output))
+                        lambda contract, binding: ({"a": "fresh"}, tuple(map(parse_type, contract.inputs)),
+                                                   parse_type(contract.output)))
     def solutions(*args: Any) -> Any:
         solved = {"fresh": parse_type(TEXT)}
         yield (Given("bad"),), solved
@@ -466,6 +467,6 @@ def test_renaming_preserves_inputs_output_and_slot_only_variables() -> None:
     second, _, _ = rename_apart(contract, binding)
     instance = contract.instance(binding)
     expected = instance.instance(tuple((v, f"?{r}") for v, r in first.items()))
-    assert inputs == expected.inputs and output == expected.output
+    assert tuple(map(format_type, inputs)) == expected.inputs and format_type(output) == expected.output
     assert set(first) == {"a", "c"}
     assert set(first.values()).isdisjoint(second.values())

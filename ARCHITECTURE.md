@@ -342,7 +342,8 @@ that binding need not be closed again; failed closures do not suppress later
 solutions for the same binding.
 Pattern search renames the input and output types it needs, retaining fresh
 names for slot-only variables for later closure without constructing a full
-renamed contract at each search node.
+renamed contract at each search node. It passes the renamed terms directly to
+unification instead of formatting and reparsing them.
 
 The index persists. `ProducerIndex.append` indexes a newly installed module
 after the others, and every cached result (closures, candidate sets, plans in
