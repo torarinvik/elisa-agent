@@ -5,6 +5,37 @@ THEORY.md they test. Predictions are recorded before their experiment is run
 and kept afterwards. Unless stated otherwise, results come from the `test`
 split with the seeds and sample counts given in each entry.
 
+## 8. Explicit route upgrades
+
+`nca.accumulation --scenario conflict` applies this rule to the route `plan`
+proposes after the encoder is installed: it rejects a weaker symbol
+classifier and accepts a stronger one, and only the arithmetic route changes.
+Validation samples are drawn with a different seed from the reported test
+samples.
+
+## 9. Module substitution
+
+`nca.substitution` swaps independently trained digit recognizers (different
+architectures, disjoint halves of the training data) into the frozen system
+and reports route shape, type check, accuracy, changed-answer rate, `Σ d`, and
+accuracy drop relative to the reference.
+
+## 11. Evaluation methodology
+
+**Data separation** (`nca.expressions`). Training splits draw digit images
+from the MNIST training set. The MNIST test set is divided: its first half
+supplies the `validation` split, used for every decision taken from data
+(such as accepting route upgrades); its second half supplies `test` and
+`test_unseen`, used only for reporting. No digit image is shared between
+what decisions are made on and what is reported. `test_unseen` additionally
+holds out digit pairs never seen in training.
+
+**Deliberate shift.** The `hard` style renders operators with three times the
+usual geometric jitter and thickens or thins digit strokes (3×3 max or min
+filter). Evaluating on it measures robustness to a shift that no module was
+trained on; by §5 the accuracy loss is bounded by the induced shifts of the
+affected modules.
+
 ## 12. Lazy loading and scalable discovery
 
 **Measured cost structure** (`nca.scaling`). Among up to 100,000 unusable decoy
@@ -47,10 +78,11 @@ Cost is MFLOPs per expression; error is identical to ungated refinement
 demand gate is both exact and cheaper than the heuristic one, because it skips
 the cheap recognizer as well as the request on operator positions.
 
-**Consulting.** `ConsultingRecognizer` uses continuations to combine
-opinions rather than defer: when its confidence is below `τ` it asks for a second opinion on the glyph and
-answers `(1 − w) · own + w · second`. Under the demand gate, at `τ = 0.9` with
-the same 300 expressions and the same cost as demand-gated refinement:
+**Consulting.** `ConsultingRecognizer` uses continuations to combine opinions
+rather than defer: when its confidence is below `τ` it asks for a second
+opinion on the glyph and answers `(1 − w) · own + w · second`. Under the
+demand gate, at `τ = 0.9` with the same 300 expressions and the same cost as
+demand-gated refinement:
 
 | glyphs | refine (replace) | consult `w = 0.3` | `w = 0.5` | `w = 0.7` |
 |---:|---:|---:|---:|---:|
@@ -205,6 +237,12 @@ glyphs, compared with `k` random glyphs from the same stream. Results on
   interval. The one version that made things worse (replay without practice
   data) was rejected by the sign test, as the upgrade rule intends.
 
+**Decision-relative risk.** Renormalizing the full output's calibrated
+probabilities was not enough: in a trial, error among answered expressions
+exceeded the target (0.084 at `δ = 0.05`, interval `[0.050, 0.138]`) because
+the restricted decision was over-confident. Per-decision temperatures fixed
+it.
+
 ## 17. Calibration under distribution shift
 
 ### 17.7 Expected outcomes
@@ -286,6 +324,13 @@ calibration. Calibration (reference or recalibrated) determines only how
 much is certified. A label-efficient path to strict targets on long inputs
 needs larger audits, or better calibrated risks so that fewer candidates
 answer near the boundary.
+
+**Motivation.** Calibration was fitted on the `validation` half of the MNIST
+test set and tested on the other half, written by different people. At 63
+glyphs with the strong ladder (§16), the error among answered expressions was
+0.074 at `δ = 0.05` (interval `[0.041, 0.131]`) and 0.053 at `δ = 0.01`:
+consistent with the target only because the intervals are wide, and leaning
+above it.
 
 ## 18. A second domain: noisy Boolean formulas
 
@@ -546,13 +591,14 @@ Against the predictions of §20.7:
    glyphs, its error and cost equal the hand-built requesting recognizer's
    exactly:
 
-   | target (validation error) | chosen | test error | FLOPs per glyph | hand-built error | hand-built FLOPs |
-   |---:|---|---:|---:|---:|---:|
-   | 0.0245 | fallback τ=0.99 (cheap, expensive) | 0.0063 | 2,312,551 | 0.0063 | 2,312,551 |
-   | 0.0270 | fallback τ=0.95 (cheap, expensive) | 0.0066 | 1,290,303 | 0.0066 | 1,290,303 |
-   | 0.0368 | fallback τ=0.7 (cheap, expensive) | 0.0121 | 677,383 | 0.0121 | 677,383 |
-   | 0.0490 | fallback τ=0.5 (cheap, expensive) | 0.0189 | 501,650 | 0.0189 | 501,650 |
-   | 0.0980 | cheap | 0.0217 | 469,504 | – | – |
+   | target (validation error) | chosen | test error | FLOPs per glyph |
+hand-built error | hand-built FLOPs |    |---:|---|---:|---:|---:|---:|    |
+0.0245 | fallback τ=0.99 (cheap, expensive) | 0.0063 | 2,312,551 | 0.0063 |
+2,312,551 |    | 0.0270 | fallback τ=0.95 (cheap, expensive) | 0.0066 |
+1,290,303 | 0.0066 | 1,290,303 |    | 0.0368 | fallback τ=0.7 (cheap,
+expensive) | 0.0121 | 677,383 | 0.0121 | 677,383 |    | 0.0490 | fallback
+τ=0.5 (cheap, expensive) | 0.0189 | 501,650 | 0.0189 | 501,650 |    | 0.0980 |
+cheap | 0.0217 | 469,504 | – | – |
 
    The expensive recognizer alone (error 0.0058, 8.48M FLOPs) is never
    chosen: τ=0.99 reaches nearly its error at 27% of its cost. Validation
@@ -840,6 +886,9 @@ operation count per step is unchanged, still about seven top-rung word
 readings, so banding and splitting (§23.2–23.4) would still cut it 26-fold.
 They are not yet implemented.
 
+The `S` values of THEORY §23.3 come from the measured top-rung value 0.71 at
+depth 8 (§19.9), scaled by word count to depths 6 and 4.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
@@ -886,6 +935,11 @@ tree (`â ∈ S_m`). The evaluator cannot do this, but the test can.
    ladder with second looks), climbing by charge per unit cost reaches `δ`
    with no more compute than climbing by charge.
 
+**Explanation of the dozen climbs.** §22.5 put the per-word mean top-rung risk,
+about `10⁻³`, in place of `a`, which gives `t ≈ 142` at `δ = 0.01`. The
+observed dozen climbs corresponds to `a ≈ √0.02 / 11 ≈ 0.013`, about thirteen
+times the mean (THEORY §25.2).
+
 ## 26. Composing cascades
 
 ### 26.6 Predictions
@@ -900,6 +954,19 @@ tree (`â ∈ S_m`). The evaluator cannot do this, but the test can.
 3. **Selection margin.** Accepting a deeper composition only when its
    estimated gain exceeds `2ε(n, K)` removes the depth-4 choices that did
    not carry to test, and leaves the depth-3 cascades of §20.8 unchanged.
+
+**The failure.** `Fallback(cheap, Fallback(cheap, expensive))` was predicted
+at 2.01M FLOPs per glyph and measured at 2.41M (§20.8); THEORY §26 explains
+the gap.
+
+**Selection margin applied to §20.8** (THEORY §26.5). There, `e ≈ 0.025` on
+validation glyphs and `n = 2000`. With `K ≈ 100` candidates and `β = 0.1`, `ε
+≈ 0.014`, so candidates whose estimated errors differ by less than about `2ε ≈
+0.03` cannot be told apart. The depth-4 gains of at most 0.0015 are far inside
+that margin, which explains why they did not carry to test. Resolving a gain
+of 0.0015 needs `n ≈ 8 e ln(2K/β) / Δ²`, about `7 · 10⁵` glyphs. Comparing two
+candidates on the same glyphs (paired) replaces `e` by their disagreement
+rate, typically a few times smaller, but the order of magnitude stays.
 
 ## 27. Priors as experts
 

@@ -2,18 +2,15 @@
 
 Mathematical foundations of the agent: composing modules, planning routes,
 answering selectively under a risk target, and decoding by the input format.
-Every theorem stated here is machine-checked in `lean/` (build with
-`cd lean && lake exe cache get && lake build`). ARCHITECTURE.md maps each
-section to its Lean files and its implementation in `src/nca/`; DIARY.md
-records the experiments, predictions and measurements, numbered by the
-section they test.
+Every theorem is machine-checked; names in code font are those of the formal
+statements. ARCHITECTURE.md maps each section to its proofs and its
+implementation, and DIARY.md records the experiments that test it.
 
 ## 1. Types and contracts
 
 Semantic types `Ty` are abstract, with decidable equality and a sequence
 former: `seq : Ty → Ty`, recognized by a partial inverse `elem?` with
-`elem? u = some t ↔ u = seq t` (`NCA.SeqTypes`). In Python, type ids are
-strings and `seq[t]` is the sequence type (`nca.abi.seq_type`).
+`elem? u = some t ↔ u = seq t`.
 
 A **contract** is a list of input types and one output type. Modules are known
 to the system only through their contracts; two values are compatible exactly
@@ -27,7 +24,7 @@ A **plan** is a composition graph:
 | `apply c ps` | contract `c` applied to the outputs of sub-plans `ps` |
 | `map a body src` | `body` run on each element (of type `a`) of the sequence `src` produces; inside `body` the element is the only input |
 
-**Well-typedness** `WellTyped lib avail p t` (`lean/NCA/Contract.lean`): `p` uses
+**Well-typedness** `WellTyped lib avail p t`: `p` uses
 only installed contracts `lib` and available inputs `avail`, and produces `t`.
 
 | Rule | Premises | Conclusion |
@@ -42,7 +39,7 @@ invalidates an existing valid composition.
 
 ## 2. Planning
 
-`plan lib avail n t` (`lean/NCA/Planner.lean`, `nca.planner.plan`) searches
+`plan lib avail n t` searches
 backward from the goal with depth bound `n`:
 
 1. If `t ∈ avail`, return `given t`.
@@ -61,7 +58,7 @@ of depth at most `n` exists (for `map`, with `a` a candidate element type).
 **Theorem (completeness, `plan_complete`).** `Derivable lib avail n t` implies
 `plan lib avail n t` succeeds.
 
-**Type checking** (`lean/NCA/Check.lean`, `nca.router.infer`). `infer lib avail p`
+**Type checking**. `infer lib avail p`
 computes the type a plan produces: `given t` needs `t ∈ avail`; `apply c ps`
 needs `c ∈ lib` and the argument types to equal `c.inputs`; `map a body src`
 needs `body` to type-check under `[a]` and `src` to produce `seq a`.
@@ -80,9 +77,8 @@ With `need1 : [x] → g`, `from2 : [y] → g`, input `y`, the planner routes `g`
 through `from2`; installing `make1 : [y] → x` makes the higher-priority
 `need1` applicable and the route changes, although the old route remains valid.
 
-**Generation-layered planning** `planStable` (`lean/NCA/Routing.lean`,
-`nca.planner.plan_stable`): plan with the first `k` installed contracts, for
-the smallest `k = 0, 1, …, |lib|` that succeeds.
+**Generation-layered planning** `planStable`: plan with the first `k`
+installed contracts, for the smallest `k = 0, 1, …, |lib|` that succeeds.
 
 **Theorem (`planStable_sound`, `planStable_complete`).** Layered planning is
 sound and complete in the same sense as `plan`.
@@ -100,7 +96,7 @@ Let an execution consist of finitely many invocations `i`, invocation `i`
 failing on an event `fail i` with `μ(fail i) ≤ εᵢ`, and suppose the
 **propagation hypothesis**: if no invocation fails, the result is correct
 (`⋂ᵢ (fail i)ᶜ ⊆ correct`). Exact modules (parsers, arithmetic) have
-`εᵢ = 0`. (`lean/NCA/Reliability.lean`.)
+`εᵢ = 0`.
 
 **Theorem (union bound, `composition_error_le_sum`).** For any measure,
 `μ(correctᶜ) ≤ Σᵢ εᵢ`.
@@ -127,7 +123,6 @@ A deterministic module with input space `X` fails on a set `B ⊆ X`. Its
 failure rate depends on the input distribution: offline it is `ν₀(B)` for the
 distribution it was evaluated on; inside a composition it is `(g_*μ)(B)`,
 where `g : Ω → X` is the upstream computation feeding it.
-(`lean/NCA/Shift.lean`.)
 
 **Definition (`ShiftBound ν ν₀ δ`).** `ν(s) ≤ ν₀(s) + δ` for every measurable
 `s`. For probability measures this is equivalent to total variation distance
@@ -145,7 +140,7 @@ rates alone bound nothing; the shift term cannot be dropped.
 **Theorem (`shift_ge_gap`).** Every valid shift bound satisfies
 `δ ≥ ν(B) − ν₀(B)`. The measured excess of in-situ over offline failure rate is
 therefore a lower bound on the distribution shift the composition induces,
-and is reported per recognizer by `nca.pipeline`.
+and can be measured per module.
 
 Design consequence: an upstream module's output convention is part of the
 downstream module's contract. A segmenter that centers crops differently from
@@ -154,25 +149,12 @@ the composition pays for in full.
 
 ## 6. Algorithms of the handwritten-arithmetic pipeline
 
-**Segmentation** (`nca.modules.segmenter`). Ink columns (intensity > 0.1) are
-grouped into runs; runs separated by fewer than 4 blank columns merge (the
-gap was chosen on the `validation` split, where 4 minimizes segmentation
-failures for 2, 8 and 32 operands; results in sections before §15 were
-measured with a gap of 2, which split broken strokes more often). Each
-run is cropped and translated so that its center of ink mass is at the center
-of a 28×28 canvas, the MNIST normalization convention.
-
-**Symbol fusion** (`nca.modules.symbols.SymbolFuser`). With operator
+**Symbol fusion**. With operator
 distribution `q` over `{+, −, ×, none}` and digit distribution `p`:
 `P(op) = q_op`, `P(d) = q_none · p_d`. The result is a probability
 distribution over the 13 symbols whenever `p` and `q` are.
 
-Fusion, parsing and the recognizers are parameterized by an operator
-vocabulary: arithmetic (`+ − ×`, value type `int.v1`) and comparison
-(`< > =`, value type `bool.v1`) use separate module ids and semantic types,
-so installing one family cannot satisfy or alter the other's contracts.
-
-**MAP parsing** (`ExpressionParser`). The grammar `digit (op digit)*` fixes the
+**MAP parsing**. The grammar `digit (op digit)*` fixes the
 class of each position. Under independent per-position distributions the
 probability of a token string factorizes, so the most probable well-formed
 expression is the per-position argmax restricted to the position's class.
@@ -181,7 +163,7 @@ Even-length sequences have no parse.
 **Evaluation** (`Evaluator`). `×` binds tighter than `+` and `−`; terms are
 accumulated left to right.
 
-**Comparison chains** (`ComparisonEvaluator`). `a₀ r₁ a₁ … rₖ aₖ` is true iff
+**Comparison chains**. `a₀ r₁ a₁ … rₖ aₖ` is true iff
 every adjacent relation `aᵢ₋₁ rᵢ aᵢ` holds.
 
 ## 7. Measuring accumulation
@@ -202,7 +184,7 @@ not a side effect of installation.
 A router holds **pins**, per-goal routes that override layered planning:
 `route pins lib avail n t = pins t`, or `planStable lib avail n t` when `t` is
 unpinned. `upgrade pins t p` pins `p` for `t` if `infer lib avail p = some t`
-and fails otherwise. (`lean/NCA/Upgrade.lean`, `nca.router.Router`.)
+and fails otherwise.
 
 | Theorem | Statement |
 |---|---|
@@ -215,7 +197,7 @@ and fails otherwise. (`lean/NCA/Upgrade.lean`, `nca.router.Router`.)
 | `PinsValid.append` | pins remain well-typed after installing modules |
 
 The theorems make upgrades safe to *apply*; whether to apply one is an
-empirical question. **Decision rule** (`nca.router.sign_test`): evaluate the
+empirical question. **Decision rule**: evaluate the
 current and candidate routes on the same validation samples. Let `w` be the
 samples only the candidate answers correctly and `l` those only the current
 route answers correctly. Under the null hypothesis that neither route is
@@ -223,18 +205,12 @@ better, `w ~ Binomial(w + l, 1/2)` conditional on `w + l`; the candidate is
 pinned iff `P(X ≥ w) < α` (default `α = 0.05`). The test is exact and uses
 only discordant samples, so shared successes and failures carry no weight.
 
-`nca.accumulation --scenario conflict` applies this rule to the route `plan`
-proposes after the encoder is installed: it rejects a weaker symbol
-classifier and accepts a stronger one, and only the arithmetic route changes.
-Validation samples are drawn with a different seed from the reported test
-samples.
-
 ## 9. Module substitution
 
 Plans refer to modules only through contracts, so replacing a module by one
-with an identical contract (`Registry.replace` enforces this) leaves every
+with an identical contract leaves every
 plan's shape and type unchanged; `infer` confirms the substituted route still
-type-checks. Behavior is what changes. (`lean/NCA/Substitution.lean`.)
+type-checks. Behavior is what changes.
 
 Let `disagree i` be the event that invocation `i` of the substitute gives a
 different decision than the original's, with in-situ probability at most `dᵢ`,
@@ -249,18 +225,13 @@ substitute-correct, then `P(correct) ≤ P(correct′) + P(answer changes)`.
 `P(correct′) ≥ P(correct) − Σᵢ dᵢ`.
 
 The bound is only as tight as the choice of events. Every invocation of the
-substitute is a valid event set, but `ExpressionParser` reads digit
+substitute is a valid event set, but the arithmetic parser reads digit
 distributions only at even positions and only through their argmax, so the
 answer changes only if an even-position invocation's argmax disagrees.
 Restricting `disagree` to those invocations keeps the hypothesis true and
 removes the substitute's (irrelevant) disagreements on operator glyphs.
 Choosing the smallest event set that still covers every way the output can
 change is how a composition's structure tightens its guarantees.
-
-`nca.substitution` swaps independently trained digit recognizers (different
-architectures, disjoint halves of the training data) into the frozen system
-and reports route shape, type check, accuracy, changed-answer rate, `Σ d`, and
-accuracy drop relative to the reference.
 
 ## 10. Complementarity
 
@@ -269,16 +240,15 @@ Systems are compared by the composition gain
 `G = Q(A⊕B) − max(Q(A), Q(B), Q(A+B), Q(baselines))` on held-out inputs, where
 `A⊕B` adds integration modules to the installed capabilities and the
 baselines are the majority class and a monolithic model trained on the task.
-(`nca.complementarity`.)
 
-**Product-of-experts fusion** (`MixedSymbolFuser`). With operator distribution
+**Product-of-experts fusion**. With operator distribution
 `q`, relation distribution `r` (each including a "none of mine" outcome) and
 digit distribution `p`: `P(op) ∝ q_op r_none`, `P(rel) ∝ r_rel q_none`,
 `P(d) ∝ q_none r_none p_d`. This treats the two recognizers as independent
 evidence; unlike the two-recognizer fuser it is an assumption, not an
 identity.
 
-**Constrained MAP parsing** (`RelationalParser`). Grammar
+**Constrained MAP parsing**. Grammar
 `digit ((op | rel) digit)*` with at least one relation. Under independent
 per-position distributions the unconstrained MAP takes each position's best
 symbol of its class. If it contains no relation, the constrained MAP differs
@@ -298,38 +268,23 @@ decision.
 
 ## 11. Evaluation methodology
 
-**Data separation** (`nca.expressions`). Training splits draw digit images
-from the MNIST training set. The MNIST test set is divided: its first half
-supplies the `validation` split, used for every decision taken from data
-(such as accepting route upgrades); its second half supplies `test` and
-`test_unseen`, used only for reporting. No digit image is shared between
-what decisions are made on and what is reported. `test_unseen` additionally
-holds out digit pairs never seen in training.
-
-**Deliberate shift.** The `hard` style renders operators with three times the
-usual geometric jitter and thickens or thins digit strokes (3×3 max or min
-filter). Evaluating on it measures robustness to a shift that no module was
-trained on; by §5 the accuracy loss is bounded by the induced shifts of the
-affected modules.
-
-**Accuracy intervals** (`nca.stats.wilson`). For `k` successes in `n` samples
+**Accuracy intervals**. For `k` successes in `n` samples
 the 95% Wilson score interval is
 `(p̂ + z²/2n ± z·√(p̂(1−p̂)/n + z²/4n²)) / (1 + z²/n)` with `z ≈ 1.96`. It stays
 inside `[0, 1]` and remains accurate near 0 and 1, where accuracies cluster.
 
-**Paired differences** (`nca.stats.paired_difference`). Systems are compared
+**Paired differences**. Systems are compared
 on the same samples, so their difference is estimated from per-sample
 differences `dᵢ = 1[second correct] − 1[first correct]`: mean `d̄`, interval
 `d̄ ± z·s_d/√n`. Shared successes and failures contribute zero, which makes the
 interval far narrower than one derived from two independent accuracy
-intervals. Composition gain is reported this way against the best competing
-system on that split.
+intervals.
 
 ## 12. Lazy loading and scalable discovery
 
 Planning reads only contracts (manifests), so manifests stay resident while
 implementations load on first use into a memory-budgeted store with
-least-recently-used eviction (`nca.loader`). (`lean/NCA/Loading.lean`.)
+least-recently-used eviction.
 
 **Working set.** `Plan.contracts p` lists the contracts a plan invokes.
 
@@ -342,7 +297,7 @@ least-recently-used eviction (`nca.loader`). (`lean/NCA/Loading.lean`.)
 | `plan_prefix_mono` | success with the first `k` modules implies success with the first `k' ≥ k` |
 | `planIdx_eq` | planning through an index of producers by output type computes exactly `plan` |
 
-**Binary-search layered planning** (`nca.planner.plan_stable_indexed`). By
+**Binary-search layered planning**. By
 `plan_prefix_mono`, success is monotone in the prefix length, so the smallest
 successful prefix (the route `planStable` returns) is found with
 `O(log |lib|)` planner calls instead of `|lib| + 1`.
@@ -352,7 +307,7 @@ of `(available, goal, fuel)`; memoizing it within one call returns exactly what
 recomputation would and bounds the work by the number of distinct subgoals
 rather than search paths.
 
-**Reachability pruning** (`lean/NCA/Pruning.lean`). Dormant producers of a
+**Reachability pruning**. Dormant producers of a
 relevant type, whose inputs nothing can supply, are dead ends the planner would
 otherwise explore. `planPruned` skips producers with an input rejected by a
 reachability oracle `reach`. An oracle is *sound* if it accepts every derivable
@@ -366,12 +321,12 @@ type.
 
 `Closure lib avail` is the least set containing `avail` and closed under
 contracts whose non-sequence inputs it contains. It is computed by Horn-clause
-propagation (`ProducerIndex.reachable`): each contract keeps a count of
+propagation: each contract keeps a count of
 unsatisfied inputs, and each newly reachable type decrements the counts of its
 consumers. The work is proportional to the contracts consuming reachable
 types, independent of dormant modules elsewhere in the library.
 
-**Eviction** (`lean/NCA/Eviction.lean`). The store holds a set `S` of experts
+**Eviction**. The store holds a set `S` of experts
 within a byte budget; serving a route with working set `R` moves it to some
 `S' ⊇ R` at cost `bytes(S' \ S)`.
 
@@ -397,8 +352,8 @@ means linear in input length and constant in library size; quadratic cost
 should appear only in modules whose contracts require all-pairs interaction,
 and only there.
 
-**Cost model** (`lean/NCA/Cost.lean`). Each contract costs `κ(c)` per
-invocation (declared in `Manifest.cost`, counted in `Workspace.spent`). On
+**Cost model**. Each contract costs `κ(c)` per
+invocation . On
 sequences of length `L`:
 `cost(given t) = 0`, `cost(apply c ps) = κ(c) + Σ cost(pᵢ)`,
 `cost(map a body src) = L · cost(body) + cost(src)`.
@@ -414,7 +369,7 @@ its modules.
 Together with `route_contracts_append` (§12), a task's cost and memory are
 independent of library size.
 
-**Minimum-cost planning** (`lean/NCA/MinCost.lean`, `nca.optimize.plan_min`).
+**Minimum-cost planning**.
 `planMin` keeps, at every type and depth, the cheapest candidate: a Bellman
 recursion over the AND/OR structure of plans (a type needs *one* producer; a
 producer needs *all* its inputs). *Searchable* plans are the well-typed plans
@@ -431,7 +386,7 @@ Minimizing total compute is polynomial; minimizing the number of *distinct*
 experts (memory) is a set-cover problem and is handled as a constraint, not an
 objective.
 
-**Cost under an error target** (`nca.optimize.plan_pareto`). By the union bound
+**Cost under an error target**. By the union bound
 (§4) a route's error is at most the sum of its invocations' failure rates, so
 error composes exactly like cost, with map bodies counted `L` times. The
 planner keeps the Pareto frontier of non-dominated (cost, error) pairs at each
@@ -440,7 +395,7 @@ exact frontier for two additive objectives, from which the cheapest route
 within an error target is read off. Since error composes like cost, a plan's
 error bound is `p.cost ε L` for per-invocation failure rates `ε`, and the
 recursion is `planMin` with `best` replaced by dominance pruning
-(`lean/NCA/Pareto.lean`):
+:
 
 | Theorem | Statement |
 |---|---|
@@ -448,9 +403,6 @@ recursion is `planMin` with `best` replaced by dominance pruning
 | `planPareto_sound` | every option is a well-typed plan with its reported cost and error bound |
 | `planPareto_cover` | every searchable plan within the depth bound is dominated by a returned option |
 | `planPareto_within` | if a searchable plan meets error target `τ`, a returned option meets it at no greater cost |
-
-Both planners are also tested against exhaustive enumeration of all
-searchable plans.
 
 **Length–accuracy coupling.** Every route's cost and error bound grow linearly
 in `L`, so the cheapest expert meeting a fixed target changes with length, and
@@ -461,8 +413,8 @@ refinement (sub-goal requests) spent where uncertainty is high.
 
 **Comparison with attention.** A transformer over `T` tokens of width `d` with
 `ℓ` layers costs about `ℓ(24Td² + 4T²d)` floating-point operations; the
-quadratic term dominates once `T > 6d`. At glyph granularity and the lengths
-measured here the linear term dominates and costs are comparable; at
+quadratic term dominates once `T > 6d`. At glyph granularity and moderate
+lengths the linear term dominates and costs are comparable; at
 image-patch granularity the quadratic term dominates and cost grows
 superlinearly. The modular pipeline's cost is proved linear at every length.
 
@@ -473,7 +425,7 @@ its output, delegating that output to the kernel: "produce a value of this type
 from these inputs, without me". The kernel plans the request over the
 installed modules minus every module in the current request chain, executes it
 under the same budget, records it in the workspace, and uses its result as the
-requester's output (`nca.runtime`, `nca.kernel`). (`lean/NCA/Request.lean`.)
+requester's output.
 
 | Theorem | Statement |
 |---|---|
@@ -485,10 +437,9 @@ Termination follows from freshness: each new requester is a module of a plan
 resolved with the chain excluded, so the chain has no repeats and is bounded
 by the library.
 
-**Confidence-triggered refinement** (`lean/NCA/Cascade.lean`,
-`nca.modules.refinement`). A cheap module answers when confident (event `C`)
-and otherwise requests refinement, served by a fallback. With `W₁`, `W₂` the
-cheap and fallback error events, the composite errs exactly on
+**Confidence-triggered refinement**. A cheap module answers when confident
+(event `C`) and otherwise requests refinement, served by a fallback. With
+`W₁`, `W₂` the cheap and fallback error events, the composite errs exactly on
 `(C ∩ W₁) ∪ (Cᶜ ∩ W₂)`.
 
 | Theorem | Statement |
@@ -514,18 +465,10 @@ gated refinement resolves requests only on `Cᶜ ∩ G`.
 | `gated_error_eq_of_sound` | if the gate is sound (`R ⊆ G`), gated and ungated refinement err exactly equally |
 | `gated_expected_cost` | gated refinement costs `κ₁ + κ₂ · P(Cᶜ ∩ G)` |
 
-Requests are therefore resolved lazily (`nca.runtime`): a pending request is
-decided when its value is consumed. The *consumer* declares relevance, since
-only the reader knows what it reads: a module may define
-`relevant(index, provisional)`, judging from the provisional values of all its
-inputs whether input `index` can affect its result. An irrelevant pending
-request is settled with the requester's provisional answer and recorded as
-skipped; requests consumed without a declaration, mapped, or returned are
-always resolved. `SymbolFuser` declares the digit reading irrelevant on glyphs
-the operator recognizer judges to be operators. That gate is not sound (a digit
-misjudged as an operator is skipped), so its cost is the extra term of
-`gated_error_le`, measured by the answers that differ between gated and
-ungated refinement (`nca.cascade`).
+Requests are therefore resolved lazily: a pending request is decided when
+its value is consumed. The *consumer* supplies the gate, since only the reader
+knows what it reads. A gate judged from provisional values is in general not
+sound, and its cost is the extra term of `gated_error_le`.
 
 **Demand-driven evaluation (a sound gate).** Soundness is easy to obtain when
 the gate comes from what a consumer provably reads rather than from what a
@@ -534,7 +477,7 @@ each demand, an agreement relation `v ≈_d v'` ("`v` and `v'` look the same to 
 reader with demand `d`"). A module `f : V → W` with demand map `δ : D_W → D_V`
 is *demand-sound* when `v ≈_{δ d} v'` implies `f v ≈_d f v'`: whatever the
 module's input differs in outside `δ d` cannot be seen in its output under `d`
-(`lean/NCA/Demand.lean`).
+.
 
 | Theorem | Statement |
 |---|---|
@@ -544,18 +487,13 @@ module's input differs in outside `δ d` cannot be seen in its output under `d`
 | `DemandSound.exact` | at a top demand under which agreement is equality, agreeing inputs give equal answers |
 
 So inputs whose demand is empty can be replaced by anything, in particular
-never computed, and the answer is unchanged. In `nca.runtime` a consumer may
-declare `demand(index, demand)`; arguments and `map` elements with empty demand
-are not evaluated, so neither their modules nor the requests raised there run.
-This makes skipping those requests a sound gate: by `gated_error_eq_of_sound`,
-gated and ungated refinement err exactly equally. `ExpressionParser` reads
-digit entries at even positions, operator entries at odd ones, and nothing of
-an even-length sequence; `SymbolFuser` reads its digit input only when digit
-entries are demanded. Hence the digit recognizer never runs on operator positions.
+never computed, and the answer is unchanged. Skipping the requests raised for
+them is therefore a sound gate: by `gated_error_eq_of_sound`, gated and
+ungated refinement err exactly equally.
 
 **Continuation requests.** Delegation replaces the requester's output; an
 expert that needs a sub-result and then keeps computing is instead a program
-over questions (`lean/NCA/Continuation.lean`):
+over questions:
 `Prog := pure a | ask q (k : A q → Prog)`, composed by `bind`. The kernel is a
 handler `h q : Option (A q)` (no route is `none`); `run h p` returns the result
 and the number of requests made. Each question `q` has a specification
@@ -575,7 +513,7 @@ requesting each part).
 
 ## 15. Normalization against shift
 
-**Theory** (`lean/NCA/Normalize.lean`). A normalizer `N : X → Y` is a module
+**Theory**. A normalizer `N : X → Y` is a module
 placed before a recognizer, which is then trained and evaluated on normalized
 inputs. A style shift is a map `T` applied to reference inputs, so the shifted
 distribution is `T_*ν₀` and the recognizer sees `N_*T_*ν₀` instead of `N_*ν₀`.
@@ -596,12 +534,12 @@ them).
 
 **Problem.** A long expression is answered correctly only if every glyph is
 read correctly, so with per-glyph error `ε` the answer error grows like
-`1 − (1 − ε)^L`: about 50% at 63 glyphs even with the expensive recognizer.
+`1 − (1 − ε)^L`: about 47% at `L = 63` for `ε = 0.01`.
 Errors cannot be corrected without redundancy, but they can be *located*:
 calibrated confidences say which glyphs are doubtful, compute can be spent
 there, and the system can decline to answer when doubt remains.
 
-**Theory** (`lean/NCA/Selective.lean`). Each input carries an error bound
+**Theory**. Each input carries an error bound
 `b`, the sum of its glyphs' calibrated error probabilities `1 − max p`
 (union bound, §4). Refining glyph `i` costs `κ i` and lowers the bound by
 `β i`.
@@ -616,32 +554,27 @@ So the efficient policy is local: refine a glyph when its expected bound
 reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
 trade compute for reliability.
 
-**Decision demand.** The body declares `decides(index, demand)`: what of an
-input can change the consumer's *decision*, not only its value. Readings are
-computed, and enter the bound, only where decision-demanded; unread inputs
-are passed as `None`. Agreement on decisions is coarser than agreement on
+**Decision demand.** What of an input can change the consumer's *decision*,
+not only its value, is a demand too. Readings need to enter the bound only
+where decision-demanded. Agreement on decisions is coarser than agreement on
 values, so this is demand-soundness for a coarser reader
-(`DemandSound.coarsen`, `DemandSound.shrink` in `lean/NCA/Demand.lean`).
-The fuser's operator input only rescales digit entries by `q_none`, and a
-positive rescaling leaves the digit argmax unchanged, so digit decisions
-need the digit reading alone and operator decisions the operator reading
-alone. (This holds while `q_none > 0`; a randomized test checks that the
-parse is unchanged.)
+. The fuser's operator input only
+rescales digit entries by `q_none`, and a positive rescaling leaves the digit
+argmax unchanged, so while `q_none > 0` digit decisions need the digit reading
+alone and operator decisions the operator reading alone.
 
 **Decision-relative risk.** A decision may range over only some of a
 reading's classes: at an operator position the parser chooses among
-operators, never "not an operator". The body declares this with
-`decision_classes(index, demand)`, and the item's risk becomes the error
-probability of that restricted decision, `1 − max_C p / Σ_C p`. When the most
-probable class lies in `C` this never exceeds `1 − max p`
-(`restricted_risk_le`), so the bound only tightens. Renormalizing the full
-output's calibrated probabilities is not enough. In a trial, error among
-answered expressions exceeded the target (0.084 at `δ = 0.05`, interval
-`[0.050, 0.138]`), because the restricted decision was over-confident. Each
-rung therefore fits a separate temperature per restricted decision, on the
-held-out inputs whose label is among its classes.
+operators, never "not an operator". With `C` the classes it ranges over, the
+item's risk becomes the error probability of that restricted decision,
+`1 − max_C p / Σ_C p`. When the most probable class lies in `C` this never
+exceeds `1 − max p` (`restricted_risk_le`), so the bound only tightens.
+Renormalizing the full output's calibrated probabilities does not calibrate
+the restricted decision, which can be over-confident. Each rung therefore
+fits a separate temperature per restricted decision, on the held-out inputs
+whose label is among its classes.
 
-**Practice queue** (`lean/NCA/Practice.lean`, `nca.practice`). Abstentions
+**Practice queue**. Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with
 calibrated risk `r ≥ θ` are queued for a teacher's label.
 
@@ -661,14 +594,9 @@ most `δ`, under one premise: the bound is valid, `q(x) ≤ b(x)` for every
 input `x`, where `q(x)` is the true probability that the answer to `x` is
 wrong and `b(x)` the controller's bound. The bound is a sum of calibrated
 per-item risks, and calibration is *fitted*. Temperatures minimize negative
-log-likelihood on held-out data from a reference distribution `P` (the
-`validation` half of the MNIST test set), which makes risks right *on
-average over `P`*. It makes them neither pointwise valid nor right on
-average over the distribution `Q` met in use (the other half, written by
-different people). §16 measured the consequence. At 63 glyphs with the strong
-ladder, the error among answered expressions was 0.074 at `δ = 0.05`
-(interval `[0.041, 0.131]`) and 0.053 at `δ = 0.01`: consistent with the
-target only because the intervals are wide, and leaning above it.
+log-likelihood on held-out data from a reference distribution `P`, which
+makes risks right *on average over `P`*. It makes them neither pointwise
+valid nor right on average over the distribution `Q` met in use.
 
 Three facts organize the repair:
 
@@ -684,7 +612,7 @@ Three facts organize the repair:
 
 Write `A = {x : b(x) ≤ δ}` for the answered inputs and `p` for the input
 distribution. Splitting `q = b + (q − b) ≤ δ + (q − b)⁺` on `A` gives
-(`selective_risk_le_excess`, `lean/NCA/Calibration.lean`):
+(`selective_risk_le_excess`):
 
 > `Σ_{x∈A} p(x) q(x) ≤ δ · Σ_{x∈A} p(x) + Σ_{x∈A} p(x) (q(x) − b(x))⁺`.
 
@@ -786,7 +714,7 @@ everything.
 depend on the data the tests are run on. The natural order, from most to
 least cautious, is a poor one. Cautious candidates answer few audit
 expressions, so their upper bounds are wide, they fail, and testing stops
-before reaching anything useful (DIARY.md §17.8). The audit is therefore split: one
+before reaching anything useful. The audit is therefore split: one
 part runs every candidate and orders them by their Clopper–Pearson bound
 there, most certifiable first; the other part runs the tests. Candidates
 with `λ < 1` (answering above the bound) are admissible too. The test, not
@@ -896,7 +824,7 @@ outside the chosen group. With singleton groups this is the restricted risk
 `1 − max_C p / p(C)` of §16. With `C` all classes and singleton groups, it is
 the class risk `1 − max p`.
 
-**Theorem** (`grouped_risk_le`, `lean/NCA/Certificate.lean`). If the chosen
+**Theorem** (`grouped_risk_le`). If the chosen
 group contains the most probable class `a`, then `p(a) ≤ p(g*)`, so the group
 risk is at most the class risk `1 − p(a) / p(C)`. Coarser decisions never
 carry more risk than finer ones under the same reading.
@@ -954,7 +882,7 @@ with least risk. The choice depends on `r` only, so validity is unaffected.
 
 ### 18.5 Certificates for prefix formulas
 
-**Trees.** The Lean model has formula trees with an annotation at each node
+**Trees.** Formula trees carry an annotation at each node
 (for a reading: the node's risks), evaluated in the usual way. A certificate
 is a tree of choices:
 
@@ -1026,7 +954,7 @@ static demand fails.
 
 **Control.** `xor` has no absorbing value, so on all-`xor` formulas every
 valid certificate evaluates everything, and the certificate bound equals the
-static bound. The `xor` variant is the experiment's control.
+static bound, which makes the `xor` variant a control.
 
 ### 18.7 Refinement with certificates
 
@@ -1063,13 +991,9 @@ Remarks:
 
 ### 19.1 The observation
 
-Two findings of DIARY.md §18.10 point to the same place:
-
-1. the certificate bound was conservative, with no answered formula wrong at
-   mean bounds near 0.1;
-2. its arity term `Σ ρ_shape`, charged at every word, limits depth.
-
-Both suggest the arity term overcharges. It is a union bound that treats
+The certificate bound of §18 charges its arity term `Σ ρ_shape` at every
+word, so that term grows linearly with the formula and limits depth. It
+overcharges: it is a union bound that treats
 every arity error as silent. But the format is redundant. A prefix formula's
 arity sequence is constrained, the reading is answered only if it parses,
 and the truth parses too. Errors that break the constraint are *detected*
@@ -1078,7 +1002,7 @@ an answer wrong.
 
 ### 19.2 Single errors are detected
 
-**Theorem** (`code_sum`, `lean/NCA/Detection.lean`). Every formula's
+**Theorem** (`code_sum`). Every formula's
 preorder arity sequence sums to one less than its length:
 `Σ_k (a_k − 1) = −1`.
 
@@ -1200,7 +1124,7 @@ answer. Both are invisible to the planner, which has two costs:
    serve those requests, and cannot compare a route that delegates with one
    that does not.
 2. **No recursion.** Requests terminate because the requester chain excludes
-   every expert already in it (`RequestChain.length_le`). That also forbids
+   every expert already in it. That also forbids
    an expert from asking its own question again on a smaller input, which is
    exactly what divide and conquer needs.
 
@@ -1216,7 +1140,7 @@ body is a planned sub-goal. Slots make it one library expert among others.
 
 ### 20.2 Slots
 
-A contract with slots (`HContract`, `lean/NCA/Slots.lean`) adds a list of
+A contract with slots (`HContract`) adds a list of
 sub-goals `[a₁, …, aₖ] ⇒ b` to the inputs and output. A plan
 `apply c fs ps` fills slot `i` with the plan `fs[i]` and input `j` with
 `ps[j]`. The expert receives the fillings as functions and may call them
@@ -1299,7 +1223,7 @@ two numbers per slot:
 For fallback, `ν̄ = (1, P(unsure))`, which is `cascade_expected_cost`. The
 premise matters: a filling whose cost is correlated with being called (a
 cascade nested in a cascade, deferring on the same inputs) breaks it
-(DIARY.md §20.8).
+(§26).
 
 ### 20.5 Planning with slots
 
@@ -1341,7 +1265,7 @@ plan of the same type never makes a plan dearer.
 Static slots cover requests whose shape is known before the input is seen.
 Requests that depend on intermediate values, such as recursion on
 subformulas, stay dynamic. For those, chain exclusion is replaced by a
-budget (`serve`, `lean/NCA/Continuation.lean`):
+budget (`serve`):
 
 - A question `q` is answered by an expert program `expert q`, a `Prog` of
   §14, whose invocation costs `κ q > 0`.
@@ -1378,18 +1302,14 @@ The two termination arguments coexist:
 | chain exclusion (§14) | chain length by library size | forbidden |
 | budget | total cost by the budget | allowed |
 
-The runtime already counts invocations against a budget. Measured in cost
-units, with repeats in the chain allowed when a budget is set, it becomes
-`serve`.
-
 ## 21. Decoding by the format
 
 ### 21.1 From detection to correction
 
 §19 used the prefix format to **detect** arity errors: a reading that does
-not parse is refused, and the controller climbs or abstains. At depth 8,
-that is what limits coverage. Even at the top rung, 18 of 30 readings do not
-parse, so the formula cannot be answered at any cost.
+not parse is refused, and the controller climbs or abstains. Once the summed
+arity risk is near 1, most readings do not parse at any rung, and those
+formulas cannot be answered at any cost.
 
 A refused reading is still evidence. Its words' arity distributions say
 which arities are likely, and the format says which arity sequences are
@@ -1426,7 +1346,7 @@ risk control (§17) remains the backstop.
 
 ### 21.3 The format is a regular language
 
-**Definition** (`await`, `lean/NCA/Decoding.lean`). The counter automaton
+**Definition** (`await`). The counter automaton
 of prefix notation has states `some n`, meaning `n` subformulas are still
 awaited, and a dead state `none`. A word of arity `a` read while `n + 1`
 subformulas are awaited leaves `n + a` awaited. Reading anything when none
@@ -1534,17 +1454,12 @@ The charges sum to the bound of §21.5. Refinement climbs the word with the
 largest charge, the word most likely misread *given the format*, not merely
 the least confident reading.
 
-**Interface.** The certificate needs the calibrated distribution of the
-arity decision, not only its risk. The controller already computes it to
-obtain the risk. The generic change is to pass the consumer a calibrated
-distribution for any grouped decision it names, alongside the risk.
-
 ### 21.7 Scaling
 
 For words with arity risk `ρ` each and `S = mρ`:
 
 - **detection:** abstains on every unparseable reading, whose probability
-  approaches 1 as `S` grows past 1 (DIARY.md §19.9);
+  approaches 1 as `S` grows past 1;
 - **correction:** answers every reading, and charges `R`.
 
 `R` is small when the competitors of `â` are improbable. The nearest
@@ -1575,8 +1490,7 @@ over pairs of words, the observed rate of joint arity failures against the
 product of the marginal rates, for adjacent and for distant pairs
 separately.
 
-These replace the indirect evidence of DIARY.md §19.9 (no errors, so no
-contradiction) with a test that can fail.
+Unlike the absence of observed errors, these tests can fail.
 
 ### 21.9 What correction cannot do: hard style
 
@@ -1588,10 +1502,10 @@ so neither detection nor correction has anything to work with.
 
 Of the remaining hard-style errors:
 
-- **Ambiguity between operators** (about 20%: `+` against `×` under
-  rotation) lies inside a decision the format leaves free. Its Bayes risk is
+- **Ambiguity between operators** (`+` against `×` under rotation) lies
+  inside a decision the format leaves free. Its Bayes risk is
   a floor: no reader, however strong, certifies such a glyph below it.
-- **Erased digits** (7%), when the segmenter misses them, change the
+- **Erased digits**, when the segmenter misses them, change the
   length's parity. Such readings do not parse and are already detected.
   When an erased digit is segmented but misread, it is an ordinary digit
   error.
@@ -1604,10 +1518,9 @@ risk cannot reach the target and abstain, rather than climb (§22).
 ### 22.1 The most expensive outcome
 
 An abstention costs the most of any outcome. The controller climbs until no
-item can be climbed, and only then gives up. At depth 8 and `δ = 0.01`, the
-pairs account spent 59.4M FLOPs per formula, nearly the 59.8M of top rungs
-everywhere, to answer 0.7% of formulas (DIARY.md §19.9). Compute spent on a formula
-that will be refused anyway is wasted.
+item can be climbed, and only then gives up, so at strict targets almost
+all compute can go to formulas that are refused in the end. Compute spent on
+a formula that will be refused anyway is wasted.
 
 ### 22.2 Selection never breaks the guarantee
 
@@ -1639,8 +1552,8 @@ Readings at the top rung never change. Call those words *fixed*.
 The consumer declares its floor, alongside its certificate, from the
 readings, the risks and the set of fixed items. The controller abstains as
 soon as the floor exceeds `δ`. Answers are identical. Only the value
-reported for an abstained formula (the "forced" value of the experiments)
-can differ, because it comes from an earlier reading.
+an abstained formula would have been forced to can differ, because it comes
+from an earlier reading.
 
 **Correction has no such floor.** `R` is not monotone in the open words'
 risks. An open word becoming certain can rule out the competitor that made
@@ -1683,7 +1596,7 @@ Fix a reference sequence `r`, for instance each word's most probable arity.
 Word `k` has weights `qₖ` (its calibrated arity probabilities, summing to at
 most 1) and off-reference mass `ρₖ = Σ_{a ≠ rₖ} qₖ(a)`; let `S = Σₖ ρₖ`.
 
-| Theorem | Statement (`lean/NCA/Banding.lean`) |
+| Theorem | Statement |
 |---|---|
 | `tail_le_esym` | the total weight of the sequences differing from `r` in at least `j` positions, parseable or not, is at most `e_j(ρ)`, the elementary symmetric polynomial |
 | `factorial_mul_esym_le` | `j! · e_j(ρ) ≤ S^j` for nonnegative `ρ` (a Maclaurin-type inequality) |
@@ -1695,7 +1608,7 @@ model's weights, so it needs no premise beyond (P).
 
 **From changes to states** (`sum_sub_le_diff`). Arities are at most 2, so
 two sequences differing in `d` positions have sums at most `2d` apart. The
-same holds for every prefix. Hence the counter of `NCA.await` (one plus the
+same holds for every prefix. Hence the counter of `await` (one plus the
 prefix sum of `a − 1`) of a sequence within `j − 1` changes of `r` stays
 within `2(j − 1)` of `r`'s counter at every position. A dynamic program
 restricted to the **band** of counter values `|n − n_r(k)| ≤ 2(j − 1)`
@@ -1736,9 +1649,8 @@ is known before decoding. With `η = 10⁻⁴`:
 | 0.71 | 7 | 25 |
 | 3 | 14 | 53 |
 
-The values of `S` are estimates: 0.71 is the measured top-rung value at
-depth 8 (DIARY.md §19.9); 0.18 and 0.04 scale it to depths 6 and 4 by word count;
-3 is a bottom-rung order of magnitude at depth 8.
+The rows span top-rung readings at depths 8, 6 and 4 (`S` scales with the
+word count) and the order of magnitude of bottom-rung readings at depth 8.
 
 ### 23.4 Splitting at the climbed word
 
@@ -1800,17 +1712,17 @@ from about seven word readings to about a quarter of one, a factor of 26.
 At depth 4 the band already covers every live state, and only splitting
 helps.
 
-### 23.7 Exact decoding in native code
+### 23.7 Exact decoding in linear space
 
 Before banding, the exact passes can be made cheap per operation. The
 log-space recursion of §21.4 pays a logarithm and an exponential for every
 transition. In linear space with each forward row rescaled to total 1, a
 transition is one multiply-add. If `c_k` is the total of forward row `k`
-computed from the rescaled row `k − 1` (`c_0 = 1`), then `log Z = Σ_k log c_k`.
-With the backward rows divided by the same totals, a marginal is
-`F̂_k(n) q_k(a) B̂_{k+1}(δ(n, a)) / c_{k+1}`. The rescaling only factors constants
-out of `dpSum`, so the results are exact. The most probable sequence stays in
-log space, where it needs only additions.
+computed from the rescaled row `k − 1` (`c_0 = 1`), then `log Z = Σ_k log
+c_k`. With the backward rows divided by the same totals, a marginal is
+`F̂_k(n) q_k(a) B̂_{k+1}(δ(n, a)) / c_{k+1}`. The rescaling only factors
+constants out of `dpSum`, so the results are exact. The most probable sequence
+stays in log space, where it needs only additions.
 
 ## 24. When the prior is wrong
 
@@ -1818,8 +1730,8 @@ log space, where it needs only additions.
 
 The decoder of §21 is exact under premise (P): a prior over arity
 sequences that is the readers' per-word prior restricted to sequences that
-parse. The formulas of the experiments come from a different generator,
-complete alternating trees (§18.1). This section asks how wrong the
+parse. The formulas of §18.1 come from a different generator, complete
+alternating trees. This section asks how wrong the
 decoded formula's risk `R` can then be, what can be guaranteed with no
 prior at all, and what the premise tests of §21.8 should show.
 
@@ -1848,19 +1760,18 @@ Let `Λ = C / c`, and `R*` be the true posterior risk of `â`.
 | `reweighted_risk_le_mul` | for `Λ ≥ 1`, `R* ≤ Λ R` |
 | `dominated_risk_le` | if `ρ(â) ≥ ρ(a)` for every competitor (`Λ ≤ 1`), `R* ≤ R` |
 
-(`lean/NCA/Misspecification.lean`.) The bound is in odds: the true odds of
-an error are at most `Λ` times the model's. For small `R` it is close to
-`Λ R`. Exchanging the roles of the two priors (`reweighted_odds` applied
-to the inverse ratio) gives a lower bound of the same form, with the *smallest* ratio at a competitor in place of the
-largest. Together they bracket how far the model's risk can be from the
-truth.
+The bound is in odds: the true odds of an error are at most `Λ` times the
+model's. For small `R` it is close to `Λ R`. Exchanging the roles of the two
+priors (`reweighted_odds` applied to the inverse ratio) gives a lower bound of
+the same form, with the *smallest* ratio at a competitor in place of the
+largest. Together they bracket how far the model's risk can be from the truth.
 
 Only the ratio at competitors *relative to the decoded sequence* enters.
 A prior that differs wildly from (P) does no harm where it treats `â` and
 its competitors alike. A prior that removes mass from competitors, and not
 from `â`, makes the model's risk conservative.
 
-### 24.3 The generator of the experiments
+### 24.3 The generator of complete alternating trees
 
 A complete alternating tree of depth `d` has `2^d − 1` connectives and `2^d`
 leaves, each negated with probability 1/4. With `m` words, the number of
@@ -1950,14 +1861,10 @@ the evaluator stays generic over generators.
 
 ## 25. Which word to climb, and when to stop
 
-DIARY.md §22.6 left two questions open:
-
-1. Floors passed `δ` after about a dozen climbs, not the roughly 140 that
-   DIARY.md §22.5 predicted.
-2. The predictive stopping rule traced only a coarse coverage–compute
-   frontier.
-
-Both depend on how the controller picks the next climb and when it stops.
+Two questions about the controller remain: how many climbs pass before a
+floor exceeds `δ`, and what a predictive stopping rule needs to trace a fine
+coverage–compute frontier. Both depend on how the controller picks the next
+climb and when it stops.
 
 ### 25.1 Climbing order
 
@@ -1965,7 +1872,7 @@ Refinement solves a covering problem. Let `D` be the amount by which the
 bound must fall to reach `δ`. Climbing item `i` costs `cᵢ` and lowers the
 bound by `dᵢ`, a quantity revealed only after the climb.
 
-**Theorem** (`cost_ge_of_ratio`, `lean/NCA/Stopping.lean`). If no climb
+**Theorem** (`cost_ge_of_ratio`). If no climb
 lowers the bound by more than `r` per unit of compute, then any set of
 climbs that lowers it by `D` costs at least `D / r`, in any order.
 
@@ -2013,12 +1920,10 @@ So the pairs floor exceeds `δ` once
 where `a` is the smallest top-rung risk among the words fixed so far. For
 the Markov floor, `S_F / 2 ≥ t a / 2`, which needs `t ≳ 2δ / a`.
 
-DIARY.md §22.5 put the per-word mean top-rung risk, about `10⁻³`, in place of `a`,
-which gives `t ≈ 142` at `δ = 0.01`. The observed dozen climbs corresponds
-to `a ≈ √0.02 / 11 ≈ 0.013`, about thirteen times the mean. The words
-climbed first lie in the upper tail of the risk distribution. The relevant
+Replacing `a` by the per-word mean risk overestimates `t`. The relevant
 quantity is an order statistic: the `t`-th largest top-rung risk among the
-words the controller climbs first.
+words the controller climbs first, which lie in the upper tail of the risk
+distribution.
 
 ### 25.3 Stopping
 
@@ -2028,7 +1933,7 @@ the bound reaches `δ`, refinement stops and earns reward 1, one answered
 formula. Maximizing coverage minus `λ` times compute is maximizing this
 reward.
 
-**Model** (`StopTree`). A finite tree of states. At each state the
+**Model**. A finite tree of states. At each state the
 controller may stop with reward `g`, or pay `c` and move to a random next
 state. The *lookahead set* is the set of states where stopping now is at
 least as good as one more step followed by stopping. The problem is
@@ -2055,8 +1960,8 @@ with the floor still below it, is in the lookahead set for most `λ`: one
 climb rarely reaches `δ`. Yet later climbs can. Such a state can lead to
 states outside the lookahead set, so the one-step rule would stop too
 early. The predictive rule of §22.4 must therefore estimate the eventual
-probability of answering, `P(A | s)`, not the one-step one. That is what
-`nca.ladder.stopping_rule` does, by binning the calibration states.
+probability of answering, `P(A | s)`, not the one-step one, for instance by
+binning calibration states.
 
 ### 25.4 Why the frontier is coarse
 
@@ -2083,19 +1988,18 @@ that will answer with states that will not.
 
 ### 26.1 The failure
 
-DIARY.md §20.8 found the planner's expected-cost objective wrong for nested
-fallbacks. `Fallback(cheap, Fallback(cheap, expensive))` was predicted at
-2.01M FLOPs per glyph and measured at 2.41M. The objective of §20.4
-multiplies the second filling's *average* cost by `P(unsure)`, which assumes
-that cost does not depend on whether the filling is called. An inner cascade
-defers on the same hard glyphs as the outer one, so on the glyphs where it
-is called it is far dearer than on average. This section derives the exact
-quantities, states when the old formula errs and in which direction, and
-says what a planner must know to compose cascades exactly.
+The planner's expected-cost objective is wrong for nested fallbacks. The
+objective of §20.4 multiplies the second filling's *average* cost by
+`P(unsure)`, which assumes that cost does not depend on whether the filling is
+called. An inner cascade defers on the same hard glyphs as the outer one, so
+on the glyphs where it is called it is far dearer than on average. This
+section derives the exact quantities, states when the old formula errs and in
+which direction, and says what a planner must know to compose cascades
+exactly.
 
-All statements are over a finite weighted sample space (`p ω ≥ 0`,
-`lean/NCA/Composition.lean`). That covers both the data distribution and an
-audit's empirical distribution, which is what the planner actually uses.
+All statements are over a finite weighted sample space (`p ω ≥ 0`). That
+covers both the data distribution and an audit's empirical distribution, which
+is what the planner actually uses.
 
 ### 26.2 Exact cost of a fallback
 
@@ -2124,8 +2028,7 @@ inputs the outer one passes it.
 `P(U' | U) < 1 − κ_{a'} / κ_b`, that is, when the inner recognizer is
 confident on a large enough share of what the outer one defers. Re-checking
 with the same recognizer (`a' = a` at a lower threshold) gives
-`P(U' | U)` close to 1 for hard glyphs. That is why DIARY.md §20.8's nested re-check
-lost.
+`P(U' | U)` close to 1 for hard glyphs, so such a re-check loses.
 
 ### 26.3 Error and cost of a chain
 
@@ -2160,9 +2063,8 @@ plan. Its cheapest plan depends on the input distribution conditioned on
 deferral.
 
 **Exact planning.** The planner evaluates each candidate chain on the audit
-restricted to the inputs that reach it, as `Fallback.assess` now does.
-Equivalently, the planning state gains the conditioning context. The
-statistics needed per candidate are:
+restricted to the inputs that reach it. Equivalently, the planning state gains
+the conditioning context. The statistics needed per candidate are:
 
 - `P(U)` for each level, on the audit's inputs reaching it;
 - cost on the deferred inputs, `Σ_U p c`;
@@ -2189,15 +2091,9 @@ error rate near `e` on `n` audit inputs, a Bernstein-type bound gives
 deviation `ε ≈ √(2 e ln(2K/β) / n)` with probability at least `1 − β` for
 all `K` candidates together.
 
-**Prediction for DIARY.md §20.8.** There, `e ≈ 0.025` on validation glyphs and
-`n = 2000`. With `K ≈ 100` candidates and `β = 0.1`, `ε ≈ 0.014`, so
-candidates whose estimated errors differ by less than about `2ε ≈ 0.03`
-cannot be told apart. The depth-4 gains of at most 0.0015 are far inside
-that margin, which explains why they did not carry to test. Resolving a gain
-of 0.0015 needs `n ≈ 8 e ln(2K/β) / Δ²`, about `7 · 10⁵` glyphs. Comparing
-two candidates on the same glyphs (paired) replaces `e` by their
-disagreement rate, typically a few times smaller, but the order of
-magnitude stays.
+Resolving a gain `Δ` therefore needs `n ≈ 8 e ln(2K/β) / Δ²` audit inputs.
+Comparing two candidates on the same inputs (paired) replaces `e` by their
+disagreement rate, typically a few times smaller.
 
 ## 27. Priors as experts
 
@@ -2216,7 +2112,7 @@ expert, which the kernel plans and selects like any other.
 A **prior automaton** has states `τ`, a start state, transitions `ε`, a
 weight `v(t, a) ≥ 0` for reading arity `a` in state `t`, and a final weight
 `f(t) ≥ 0`. A sequence's prior weight is the product of the weights along
-its run, times the final weight (`prior`, `lean/NCA/Product.lean`).
+its run, times the final weight (`prior`).
 
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format
@@ -2266,16 +2162,13 @@ Nothing about a generator is written into the evaluator. A generator's
 structure enters as a separately installed, separately chosen expert, as
 readers do.
 
-**Interface.** The selective controller currently routes one sequence of
-readings into a single-input consumer (§18). A prior is a second, cheap
-input that does not depend on the readings, only on the length. Supporting
-it means passing the consumer's other arguments through `solve`, which the
-slot machinery of §20 makes natural: the prior is a filling of a slot
-`[length] ⇒ arity.prior.v1`.
+A prior is a second, cheap input to the evaluator that depends only on the
+length, so it is naturally the filling of a slot `[length] ⇒ arity.prior.v1`
+(§20).
 
 ### 27.4 Prior experts
 
-| prior | states | support | `Λ` for the experiments' generator (§24) |
+| prior | states | support | `Λ` for complete alternating trees (§24) |
 |---|---|---|---|
 | format only | 1 | `L_m` | unbounded |
 | `n`-gram over arities | `3^{n−1}` (times format states) | `L_m` | unbounded |

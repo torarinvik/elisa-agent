@@ -5,6 +5,9 @@ proved in `lean/NCA/` and, where implemented, mirrored in `src/nca/`; the
 Python mirrors are tested against the behavior of the Lean model. The second
 part records implementation details that the theory leaves open.
 
+Build and check the proofs with `cd lean && lake exe cache get && lake build`;
+run the Python tests with `uv run pytest`.
+
 ## Map
 
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
@@ -45,6 +48,30 @@ NumPy reference that gives the same results within rounding and is used when
 the kernel is not built or `NCA_NATIVE=0`. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
 
+## 1. Types and contracts
+
+Type ids are strings and `seq[t]` is the sequence type (`nca.abi.seq_type`).
+
+## 5. Reliability under distribution shift
+
+`nca.pipeline` reports, per recognizer, the excess of in-situ over offline
+failure rate: the lower bound on induced shift of `shift_ge_gap`.
+
+## 6. Algorithms of the handwritten-arithmetic pipeline
+
+**Segmentation** (`nca.modules.segmenter`). Ink columns (intensity > 0.1) are
+grouped into runs; runs separated by fewer than 4 blank columns merge (the
+gap was chosen on the `validation` split, where 4 minimizes segmentation
+failures for 2, 8 and 32 operands; results in sections before §15 were
+measured with a gap of 2, which split broken strokes more often). Each
+run is cropped and translated so that its center of ink mass is at the center
+of a 28×28 canvas, the MNIST normalization convention.
+
+Fusion, parsing and the recognizers are parameterized by an operator
+vocabulary: arithmetic (`+ − ×`, value type `int.v1`) and comparison
+(`< > =`, value type `bool.v1`) use separate module ids and semantic types,
+so installing one family cannot satisfy or alter the other's contracts.
+
 ## 7. Measuring accumulation
 
 The add-and-freeze runner (`nca.accumulation`) checks the stability theorem
@@ -61,6 +88,11 @@ encoder activates it. `plan` then routes every glyph through the classifier,
 because it precedes the fuser in installation order, and previously correct
 answers change; `planStable` keeps the original route.
 
+## 9. Module substitution
+
+`Registry.replace` refuses a substitute whose contract differs from the
+original's (§9).
+
 ## 12. Lazy loading and scalable discovery
 
 `ExpertStore.prepare(route)` implements the route-aware transition: the kernel
@@ -70,13 +102,41 @@ experts until the next `prepare`. `tests/test_loader.py` reproduces the case
 where least-recently-used eviction is not optimal (16 loads against the
 optimal 11).
 
+## 13. Efficiency
+
+Each manifest declares its cost per invocation (`Manifest.cost`); the
+workspace counts what a run spends (`Workspace.spent`).
+
+`planMin` and `planPareto` are tested against exhaustive enumeration of all
+searchable plans.
+
 ## 14. Kernel-mediated requests and refinement
 
-**Continuations.** In `nca.runtime` a module's `invoke` may return a generator: each yielded
-`Request` (of any type) is resolved at once, with the requester added to the
-chain, so `resolve_avoids` and `RequestChain.length_le` still apply, and the
-resolved value is sent back into the generator until it returns its output.
-Demand-driven evaluation is unaffected: a continuation is just a module.
+**Continuations.** In `nca.runtime` a module's `invoke` may return a
+generator: each yielded `Request` (of any type) is resolved at once, with the
+requester added to the chain, so `resolve_avoids` and `RequestChain.length_le`
+still apply, and the resolved value is sent back into the generator until it
+returns its output. Demand-driven evaluation is unaffected: a continuation is
+just a module.
+
+**Relevance gates.** Requests are resolved lazily (`nca.runtime`). A module
+may define `relevant(index, provisional)`, judging from the provisional values
+of all its inputs whether input `index` can affect its result. An irrelevant
+pending request is settled with the requester's provisional answer and
+recorded as skipped; requests consumed without a declaration, mapped, or
+returned are always resolved. `SymbolFuser` declares the digit reading
+irrelevant on glyphs the operator recognizer judges to be operators. That gate
+is not sound (a digit misjudged as an operator is skipped); `nca.cascade`
+measures its cost as the answers that differ between gated and ungated
+refinement.
+
+**Demand.** In `nca.runtime` a consumer may declare `demand(index, demand)`;
+arguments and `map` elements with empty demand are not evaluated, so neither
+their modules nor the requests raised there run. `ExpressionParser` reads
+digit entries at even positions, operator entries at odd ones, and nothing of
+an even-length sequence; `SymbolFuser` reads its digit input only when digit
+entries are demanded. Hence the digit recognizer never runs on operator
+positions.
 
 ## 15. Normalization against shift
 
@@ -125,12 +185,19 @@ shifts) of all but the cheapest. The stronger recognizer (`--arch wide
 and rescaled digits) reaches 99.19% on MNIST at about 10× the expensive
 recognizer's compute.
 
-**Practice** (`nca.practice`). Practice is offline. A copy of the recognizer is fine-tuned on the queued
-glyphs mixed with 10,000 replayed MNIST training digits, so the normal style
-is not forgotten. The new version is adopted only if it beats the current one
-by a one-sided sign test on `validation` expressions of both styles (§8).
-Training on the system's own unverified answers is excluded, since it
-reinforces errors.
+**Practice** (`nca.practice`). Practice is offline. A copy of the recognizer
+is fine-tuned on the queued glyphs mixed with 10,000 replayed MNIST training
+digits, so the normal style is not forgotten. The new version is adopted only
+if it beats the current one by a one-sided sign test on `validation`
+expressions of both styles (§8). Training on the system's own unverified
+answers is excluded, since it reinforces errors.
+
+**Decision demand.** A map body declares `decides(index, demand)`. Readings are
+computed only where decision-demanded; unread inputs are passed as `None`. A
+randomized test checks that the parse is unchanged.
+
+**Decision classes.** A map body declares `decision_classes(index, demand)`;
+the controller computes the restricted risk from them.
 
 ## 18. A second domain: noisy Boolean formulas
 
@@ -148,3 +215,32 @@ exactly as the digit readers do. The map body applies a reader directly to
 each word. In arithmetic a fuser combines two readings per glyph. The
 refinement adapter accepts both shapes, and a certificate is declared on
 readings the consumer reads directly.
+
+## 20. Higher-order experts and budgeted requests
+
+**Budgets.** The runtime counts invocations against a budget in cost units
+and, when a budget is set, allows repeats in the request chain; that is
+`serve` (§20.6).
+
+## 21. Decoding by the format
+
+**Decoding interface.** The certificate needs the calibrated distribution of
+the arity decision, not only its risk. The controller passes the consumer a
+calibrated distribution for any grouped decision it names, alongside the risk
+(§21.6).
+
+## 25. Which word to climb, and when to stop
+
+`nca.ladder.stopping_rule` estimates `P(A | s)` by binning calibration states
+(§25.3).
+
+## 26. Composing cascades
+
+`Fallback.assess` evaluates a candidate chain on the audit restricted to the
+inputs that reach it (§26.4).
+
+## 27. Priors as experts
+
+**Prior experts (planned).** The selective controller routes one sequence of
+readings into a single-input consumer. A prior expert is a second input, so
+the consumer's other arguments must be passed through `solve` (§27.3).
