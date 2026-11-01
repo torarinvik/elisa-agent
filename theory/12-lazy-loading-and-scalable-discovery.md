@@ -55,6 +55,7 @@ within a byte budget; serving a route with working set `R` moves it to some
 | 12.12 | switching from a state containing exactly `A` to route `B` costs at most `bytes(B \ A)`; shared experts are never reloaded |
 | 12.13 | serving a resident route loads nothing |
 | 12.14 | if `bytes(R)` exceeds the budget, no resident set within budget can serve `R` |
+| 12.15 | for a demanded subset `D ⊆ R`, `bytes(D \\ S) ≤ bytes(R \\ S)` |
 
 By Theorem 12.13, repeating a resident route incurs no loading cost. Grouping
 independent tasks by route reduces route changes, although the resulting byte
@@ -62,5 +63,12 @@ cost also depends on expert sizes and what remains resident. Least-recently-used
 when one route runs a shared expert first and the next route runs its own
 expert first, recency marks the shared expert as the victim, and it is
 reloaded at once.
+
+The working set `R` above is the set required to be resident, not necessarily
+the set actually invoked. Demand-driven execution can skip part of a route;
+if its invoked experts form `D ⊆ R`, Theorem 12.15 bounds the missing bytes
+for `D` by those for `R`. Eager preparation of `R` can therefore load experts
+that execution never invokes. Dynamic requests can invoke experts outside the
+original route, so their working set must be considered separately.
 
 [Theory index](../THEORY.md)

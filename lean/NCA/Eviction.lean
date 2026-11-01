@@ -49,6 +49,11 @@ theorem load_lower_bound {S S' R : Finset E} (hR : R ⊆ S') :
     bytes w (R \ S) ≤ bytes w (S' \ S) :=
   bytes_mono (sdiff_subset_sdiff hR le_rfl)
 
+/-- A demanded subset cannot need more missing bytes than the full route. -/
+theorem demanded_missing_le {S D R : Finset E} (hD : D ⊆ R) :
+    bytes w (D \ S) ≤ bytes w (R \ S) :=
+  bytes_mono (sdiff_subset_sdiff hD le_rfl)
+
 /-- **Route-aware transitions load exactly the missing experts.** -/
 theorem routeAware_load {S R K : Finset E} (hK : K ⊆ S) :
     (R ∪ K) \ S = R \ S := by

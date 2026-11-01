@@ -397,6 +397,18 @@ def test_lazy_demand_rule_skips_unneeded_expert_without_loading_it() -> None:
     assert result.payload == "ok"
     assert loads == ["consumer"] and list(store.resident) == [consumer_manifest.ref]
 
+    eager_store = ExpertStore(2)
+    eager_source = LazyExpert(source_manifest,
+                              lambda: loads.append("eager source") or Fn(source_manifest, lambda: 42),
+                              1, eager_store)
+    eager_consumer = LazyExpert(consumer_manifest,
+                                lambda: Fn(consumer_manifest, lambda _: "ok"),
+                                1, eager_store, demand=lambda _index, _demand: NOTHING)
+    route = Apply(eager_consumer, (Apply(eager_source, ()),))
+    eager_store.prepare(route)
+    assert execute(route, {}, Workspace(), 2).payload == result.payload
+    assert eager_store.stats.loaded_bytes == 2 and store.stats.loaded_bytes == 1
+
 
 def test_lazy_relevance_rule_skips_unneeded_request() -> None:
     store = ExpertStore(1)
