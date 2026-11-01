@@ -2,9 +2,7 @@
 
 Mathematical foundations of the agent: composing modules, planning routes,
 answering selectively under a risk target, and decoding by the input format.
-Theorems are numbered by section. Every one is machine-checked;
-ARCHITECTURE.md gives its formal proof and implementation, and DIARY.md
-records the experiments that test it.
+Theorems are numbered by section.
 
 ## 1. Types and contracts
 
