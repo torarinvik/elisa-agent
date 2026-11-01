@@ -274,6 +274,46 @@ theorem scaled_rows_tail_le (rows : List (ℝ × ((α → ℝ) × α))) (j : ℕ
         tail_le_esym as _ hr j
     _ ≤ _ := by simpa [List.map_map, Function.comp_def] using hb
 
+/-- The scaled bound can use the original, rather than normalized, off-mass. -/
+theorem scaled_rows_tail_le_original (rows : List (ℝ × ((α → ℝ) × α))) (j : ℕ)
+    (hf : ∀ p ∈ rows, 1 ≤ p.1)
+    (hrows : ∀ p ∈ rows, (∀ a, 0 ≤ p.2.1 a) ∧
+      onMass as p.2.1 p.2.2 + offMass as p.2.1 p.2.2 ≤ 1) :
+    tail as (rows.map fun p => ((fun a => p.1 * p.2.1 a), p.2.2)) j ≤
+      (rows.map Prod.fst).prod *
+        ((rows.map fun p => offMass as (fun a => p.1 * p.2.1 a) p.2.2).sum ^ j /
+          j.factorial) := by
+  have hfactor : ∀ p ∈ rows, 0 ≤ p.1 := by
+    intro p hp
+    linarith [hf p hp]
+  have hp : 0 ≤ (rows.map Prod.fst).prod := List.prod_nonneg fun x hx => by
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
+    exact hfactor p hp
+  have hs : 0 ≤ (rows.map fun p => offMass as p.2.1 p.2.2).sum :=
+    List.sum_nonneg fun x hx => by
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
+      exact List.sum_nonneg fun y hy => by
+        obtain ⟨a, _, rfl⟩ := List.mem_map.mp hy
+        exact (hrows p hp).1 a
+  have hle : (rows.map fun p => offMass as p.2.1 p.2.2).sum ≤
+      (rows.map fun p => offMass as (fun a => p.1 * p.2.1 a) p.2.2).sum := by
+    apply List.sum_le_sum
+    intro p hp
+    have hm : 0 ≤ offMass as p.2.1 p.2.2 := List.sum_nonneg fun y hy => by
+      obtain ⟨a, _, rfl⟩ := List.mem_map.mp hy
+      exact (hrows p hp).1 a
+    have he : offMass as (fun a => p.1 * p.2.1 a) p.2.2 =
+        p.1 * offMass as p.2.1 p.2.2 := by
+      simp [offMass, List.sum_map_mul_left]
+    rw [he]
+    nlinarith [hf p hp]
+  calc tail as (rows.map fun p => ((fun a => p.1 * p.2.1 a), p.2.2)) j
+      ≤ (rows.map Prod.fst).prod *
+          ((rows.map fun p => offMass as p.2.1 p.2.2).sum ^ j / j.factorial) :=
+        scaled_rows_tail_le as rows j hfactor hrows
+    _ ≤ _ := by
+      gcongr
+
 /-- **The band.** Sequences of equal length with symbols at most 2 that differ
 in `d` positions have sums at most `2 d` apart: a sequence within `d`
 changes of the reference keeps the counter of `NCA.await`, which moves by

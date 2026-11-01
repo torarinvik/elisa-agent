@@ -33,8 +33,8 @@ off-reference masses sum to at most `S`. Every complete sequence weight is
 divided by the same `C`, so the original tail is bounded by
 `C · S^j / j!`. This covers the small row-mass excess accepted by the
 implementation's numerical tolerance. The Lean proof establishes the scaling
-identity and the bound using the normalized off-reference mass; the comparison
-with `S` follows because each `cₖ ≥ 1`. These bounds
+identity and the bound using the original off-reference mass when each scale
+factor is at least one. These bounds
 are exact-real statements; their floating-point evaluation is not an
 outward-rounded enclosure.
 For `m` positions, the tail is exactly zero when `j > m`: two length-`m`

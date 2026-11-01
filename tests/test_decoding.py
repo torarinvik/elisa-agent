@@ -442,14 +442,16 @@ def test_band_tail_accounts_for_tolerated_row_excess(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("weights", [
+    [[0.7, 0.2, 0.1000000000004], [0.3, 0.6000000000004, 0.1],
+     [0.2000000000004, 0.3, 0.5], [0.4, 0.4, 0.2000000000004]],
+    [[0.7, 0.6, 0.3], [0.3, 0.6, 0.5], [0.2, 0.8, 0.5], [0.4, 0.7, 0.6]],
+])
 def test_scaled_tail_bound_against_enumerated_sequences(
-        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference_only: bool, weights: list[list[float]], monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
-    rows = np.log(np.array([[0.7, 0.2, 0.1000000000004],
-                            [0.3, 0.6000000000004, 0.1],
-                            [0.2000000000004, 0.3, 0.5],
-                            [0.4, 0.4, 0.2000000000004]]))
+    rows = np.log(np.array(weights))
     reference = [0, 1, 2, 0]
     log_off, log_factor = decoding._tail_mass_summary(rows, reference)
     assert log_factor > 0
