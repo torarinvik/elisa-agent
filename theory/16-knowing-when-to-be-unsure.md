@@ -98,7 +98,9 @@ whose label is among its classes. If a calibrated rung has no matching labels,
 a decision with multiple entries has no fitted restricted temperature and is
 rejected. A decision with only one entry has zero conditional decision risk
 regardless of temperature. An entirely uncalibrated rung's default temperature
-is a numerical convention, not evidence of calibration.
+is a numerical convention, not evidence of calibration. Calibration requires
+one in-range integer label per held-out value. Its observations and label
+snapshot replace the previous calibration only after fitting succeeds.
 
 **Practice queue.** Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with

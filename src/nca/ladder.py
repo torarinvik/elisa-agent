@@ -303,9 +303,19 @@ class Rung:
         return RankedObservation(logits, tuple(probabilities.tolist())) if ranked else logits
 
     def calibrate(self, values: Sequence[Any], labels: torch.Tensor) -> None:
-        """Keep held-out observations and fit the full output's temperature."""
-        self.held_out = (torch.stack([self.observe(v) for v in values]), labels)
-        self.temperatures = {None: self._fit(*self.held_out)}
+        """Replace held-out observations and temperature only after fitting succeeds."""
+        integer_types = (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64)
+        if (not isinstance(labels, torch.Tensor) or labels.ndim != 1
+                or labels.dtype not in integer_types or len(values) == 0
+                or labels.numel() != len(values)):
+            raise ValueError("calibration needs nonempty values and one integer label per value")
+        observations = torch.stack([self.observe(v) for v in values])
+        targets = labels.detach().to(device=observations.device, dtype=torch.long).clone()
+        if bool(((targets < 0) | (targets >= observations.shape[1])).any()):
+            raise ValueError("calibration labels must be valid class indices")
+        temperature = self._fit(observations, targets)
+        self.held_out = (observations, targets)
+        self.temperatures = {None: temperature}
 
     def temperature(self, classes: Decision = None) -> float:
         """Temperature of the decision over ``classes``, fitted on first use on

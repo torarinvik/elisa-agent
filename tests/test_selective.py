@@ -1680,3 +1680,30 @@ def test_restricted_temperature_requires_matching_held_out_labels() -> None:
     assert (1, 2) not in rung.temperatures
     assert rung.risk(rung.observe_ranked(None), ((1, 2),)) == 0.0
     assert rung.distribution(rung.observe(None), ((1, 2),)).tolist() == [1.0]
+
+
+def test_failed_recalibration_preserves_state_and_snapshots_labels(monkeypatch) -> None:
+    rung = Rung(constant("calibration-state", (0.6, 0.4), 1.0))
+    labels = torch.tensor([0, 1], dtype=torch.int32)
+    rung.calibrate([0, 1], labels)
+    previous = rung.held_out
+    previous_temperatures = dict(rung.temperatures)
+    labels[:] = 0
+    assert previous is not None and previous[1].tolist() == [0, 1]
+    for values, invalid in (([0, 1], torch.tensor([0, 2])),
+                            ([0], torch.tensor([0, 1])),
+                            ([0], torch.tensor([0.0])),
+                            ([], torch.tensor([], dtype=torch.long))):
+        with pytest.raises(ValueError, match="calibration"):
+            rung.calibrate(values, invalid)
+        assert rung.held_out is previous
+        assert rung.temperatures == previous_temperatures
+
+    def fail_fit(*args):
+        raise RuntimeError("fit failed")
+
+    monkeypatch.setattr(rung, "_fit", fail_fit)
+    with pytest.raises(RuntimeError, match="fit failed"):
+        rung.calibrate([0, 1], torch.tensor([0, 1]))
+    assert rung.held_out is previous
+    assert rung.temperatures == previous_temperatures
