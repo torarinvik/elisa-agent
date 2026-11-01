@@ -5,8 +5,8 @@ from typing import Any, Callable
 import pytest
 
 from nca.abi import NOTHING, Contract, Manifest, Message, Request
-from nca.loader import ExpertStore, LazyExpert
-from nca.planner import Apply, Given, Plan, ProducerIndex, plan, plan_stable_indexed
+from nca.loader import ExpertStore, LazyExpert, route_experts
+from nca.planner import Apply, Given, Map, Plan, ProducerIndex, plan, plan_stable_indexed
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -466,6 +466,22 @@ def test_deferred_route_fits_in_any_invocation_order() -> None:
             current.invoke()
             assert store.resident_bytes <= store.budget
         assert set(store.resident) == {e.manifest.ref for e in route_experts}
+
+
+def test_route_expert_scan_handles_deep_routes_and_preserves_order() -> None:
+    store = ExpertStore(4)
+    def expert(name: str) -> LazyExpert:
+        return LazyExpert(Manifest(name, "1", Contract((), name)), placeholder, 1, store)
+    outer, source, body, slot = (expert("outer"), expert("source"),
+                                 expert("body"), expert("slot"))
+    route = Apply(outer, (Map("element", Apply(body, ()), Apply(source, ())),),
+                  (Apply(slot, ()),))
+    for _ in range(3_000):
+        route = Apply(outer, (route,))
+    found = list(route_experts(route))
+    assert found == [outer] * 3_001 + [source, body, slot]
+    store.prepare(route, eager=False)
+    assert store.pinned == frozenset({"outer@1", "source@1", "body@1", "slot@1"})
 
 
 def test_failed_eager_preparation_restores_pending_pins() -> None:

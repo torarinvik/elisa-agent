@@ -287,6 +287,8 @@ all lazy experts in a prepared route must belong to that store, ensuring their
 later invocations use the same resident set. A lazy expert's manifest and
 owning store cannot be reassigned after construction. Route preparation is not
 automatic in `Kernel` or `execute`.
+Preparation scans route experts iteratively, so its scan does not depend on
+Python's recursion limit. Other planning and execution paths may still recurse.
 Lazy wrappers can expose demand and relevance callbacks without loading their
 implementations. Callers must provide rules consistent with the implementations;
 preparing the whole route eagerly still loads all its lazy experts, including

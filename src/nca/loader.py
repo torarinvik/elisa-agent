@@ -228,12 +228,15 @@ class LazyExpert:
 
 
 def route_experts(route: Plan) -> Iterator[LazyExpert]:
-    """The lazy experts a route invokes."""
-    if isinstance(route, Apply):
-        if isinstance(route.module, LazyExpert):
-            yield route.module
-        for arg in (*route.args, *route.slots):
-            yield from route_experts(arg)
-    elif isinstance(route, Map):
-        yield from route_experts(route.source)
-        yield from route_experts(route.body)
+    """The lazy experts a route may invoke, in preorder."""
+    pending = [route]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, Apply):
+            if isinstance(node.module, LazyExpert):
+                yield node.module
+            pending.extend(reversed(node.slots))
+            pending.extend(reversed(node.args))
+        elif isinstance(node, Map):
+            pending.append(node.body)
+            pending.append(node.source)
