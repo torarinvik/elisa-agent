@@ -2683,6 +2683,28 @@ helps.
 ## 24. When the prior is wrong
 
 ### 24.1 The question
+### 23.7 Exact decoding in native code
+
+Before banding, the exact passes can be made cheap per operation. The
+log-space recursion of §21.4 pays a logarithm and an exponential for every
+transition. In linear space with each forward row rescaled to total 1, a
+transition is one multiply-add. If `c_k` is the total of forward row `k`
+computed from the rescaled row `k − 1` (`c_0 = 1`), then `log Z = Σ_k log c_k`.
+With the backward rows divided by the same totals, a marginal is
+`F̂_k(n) q_k(a) B̂_{k+1}(δ(n, a)) / c_{k+1}`. The rescaling only factors constants
+out of `dpSum`, so the results are exact. The most probable sequence stays in
+log space, where it needs only additions.
+
+`nca.native.decoding` implements this in Elisa, built as a CPython extension
+(`python -m nca.native`). `formulas.decode` uses it when it is built and the
+NumPy recursion otherwise. Over random inputs of up to 1200 words, both give
+the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
+10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in
+NumPy: the 744k operations of §23.5 at about one per nanosecond. The
+operation count per step is unchanged, still about seven top-rung word
+readings, so banding and splitting (§23.2–23.4) would still cut it 26-fold.
+They are not yet implemented.
+
 
 The decoder of §21 is exact under premise (P): a prior over arity
 sequences that is the readers' per-word prior restricted to sequences that

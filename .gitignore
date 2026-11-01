@@ -6,3 +6,5 @@ __pycache__/
 /data/
 /checkpoints/
 /lean/.lake/
+/src/nca/native/*.so
+/src/nca/native/*.pyi

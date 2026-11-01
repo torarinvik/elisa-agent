@@ -28,10 +28,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from nca import native
+
 VOCABULARY = ("true", "false", "not", "and", "or", "xor")
 ARITY = (0, 0, 1, 2, 2, 2)
 ALPHABET = "abcdefghijklmnopqrstuvwxyz"
 SPLITS = ("train", "validation", "test")
+
+_NATIVE = native.load("decoding")
 
 
 def corrupt(word: str, noise: float, rng: np.random.Generator) -> str:
@@ -144,9 +148,25 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
     (``log_probs[k, j]`` for arity ``alphabet[j]``) by the counter automaton:
     the state is the number of subformulas still awaited, starting at 1; a
     word of arity ``a`` read while ``n ≥ 1`` are awaited leaves ``n − 1 + a``;
-    the sequence is accepted when none remain at its end. At position ``k`` only
-    states ``n ≤ m − k`` can still be completed. ``None`` if no parseable
-    sequence has positive weight."""
+    the sequence is accepted when none remain at its end. ``None`` if no
+    parseable sequence has positive weight.
+
+    Uses the native kernel ``nca.native.decoding`` when it is built, and
+    ``decode_reference`` otherwise; the two agree to rounding."""
+    if _NATIVE is None or len(log_probs) == 0:
+        return decode_reference(log_probs, alphabet)
+    m = len(log_probs)
+    flat = np.ascontiguousarray(log_probs, dtype=np.float64).ravel()
+    out = np.asarray(_NATIVE.decode(flat, np.asarray(alphabet, dtype=np.int64)))
+    if out[0] <= -1e300:
+        return None
+    return Decoded(tuple(int(a) for a in out[1:m + 1]), float(out[0]),
+                   out[m + 1:].reshape(m, len(alphabet)))
+
+
+def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
+    """``decode`` in NumPy: the dynamic programs in log space, with all states
+    ``n ≤ m − k`` that can still be completed at position ``k``."""
     m = len(log_probs)
     if m == 0:
         return None

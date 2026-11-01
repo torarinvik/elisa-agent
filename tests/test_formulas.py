@@ -1,5 +1,5 @@
 import itertools
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,8 +9,9 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nca.abi import Contract, Manifest
-from nca.formulas import (ARITY, VOCABULARY, FormulaDataset, corrupt, decode, evaluate, formula,
-                          parse)
+from nca import formulas
+from nca.formulas import (ARITY, VOCABULARY, Decoded, FormulaDataset, corrupt, decode,
+                          decode_reference, evaluate, formula, parse)
 from nca.ladder import Decision, Rung, ladder, refine, risk
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, FORMULA_TEXT, READER, EditReader,
@@ -229,14 +230,15 @@ def parseable(m: int) -> list[tuple[int, ...]]:
     return [a for a in itertools.product(ARITY_ORDER, repeat=m) if parse(list(a)) is not None]
 
 
-def test_decoder_matches_enumeration() -> None:
+@pytest.mark.parametrize("decoder", [decode_reference, decode])
+def test_decoder_matches_enumeration(decoder: Callable[..., Decoded | None]) -> None:
     """``NCA.dpSum_eq``, ``NCA.dpMax_ge`` and ``NCA.dpMax_attained`` against
     every arity sequence, with ``NCA.accepts_iff_codes`` as the language."""
     rng = np.random.default_rng(4)
     for m in range(1, 9):
         for _ in range(10):
             probs = rng.dirichlet(np.full(3, 0.5), size=m)
-            decoded = decode(np.log(probs), ARITY_ORDER)
+            decoded = decoder(np.log(probs), ARITY_ORDER)
             weights = {a: float(np.prod([probs[k, a_k] for k, a_k in enumerate(a)]))
                        for a in parseable(m)}
             if not weights:
@@ -252,6 +254,28 @@ def test_decoder_matches_enumeration() -> None:
             np.testing.assert_allclose(decoded.marginals, marginals, atol=1e-9)
             union = sum(1 - probs[k, a] for k, a in enumerate(decoded.arities))
             assert decoded.risk(np.log(probs), ARITY_ORDER) <= union + 1e-9
+
+
+@pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")
+def test_native_decoder_matches_reference() -> None:
+    """The native kernel against NumPy at formula sizes up to depth 9, with
+    impossible arities (probability 0) and inputs that admit no formula."""
+    rng = np.random.default_rng(7)
+    for trial in range(60):
+        m = int(rng.integers(1, 1200))
+        probs = rng.dirichlet(np.full(3, 0.4), size=m)
+        probs[rng.random((m, 3)) < 0.05] = 0.0
+        if trial % 10 == 0:
+            probs[:, 0] = 0.0
+        with np.errstate(divide="ignore"):
+            log_probs = np.log(probs)
+        native, reference = decode(log_probs, ARITY_ORDER), decode_reference(log_probs, ARITY_ORDER)
+        assert (native is None) == (reference is None)
+        if native is None or reference is None:
+            continue
+        assert native.arities == reference.arities
+        assert native.log_z == pytest.approx(reference.log_z, rel=1e-9)
+        np.testing.assert_allclose(native.marginals, reference.marginals, atol=1e-9)
 
 
 def accepted(arities: Sequence[int]) -> bool:
