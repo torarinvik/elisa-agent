@@ -24,6 +24,8 @@ to several readings of the element. Nothing below is specific to glyphs:
   risks and the elements whose readings can no longer change, a lower bound
   on every bound refinement can still reach, so that refinement abstains as
   soon as it exceeds the target (§22);
+* a consumer may declare ``solve_session()`` to provide a per-solve module;
+  its demand, certificate, floor and answer are used throughout that solve;
 * if the map's source offers ``alternatives`` and the consumer would read
   nothing of a candidate, the next candidate is tried without reading it.
 

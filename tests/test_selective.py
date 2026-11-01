@@ -130,6 +130,42 @@ def test_solve_reads_only_demanded_elements_of_an_accepted_alternative() -> None
     assert not answer.abstained
 
 
+def test_solve_session_is_shared_by_generic_consumer_hooks() -> None:
+    from nca.selective import solve_many
+
+    events = []
+    class Consumer:
+        manifest = Manifest("session-consumer", "1.0.0", Contract(("seq[dist]",), "out"))
+        def solve_session(self) -> Any:
+            token = sum(event[0] == "session" for event in events) + 1
+            events.append(("session", token))
+            class Session:
+                def demand(self, index: int, demand: Demand) -> Demand:
+                    events.append(("demand", token))
+                    return None
+                def certificate(self, readings: Any, risk: Any, distribution: Any) -> dict[int, float]:
+                    events.append(("certificate", token))
+                    return {i: 0.2 for i in range(len(readings))}
+                def floor(self, readings: Any, risk: Any, fixed: Any) -> float:
+                    events.append(("floor", token))
+                    return 0.0
+                def invoke(self, readings: Any) -> int:
+                    events.append(("invoke", token))
+                    return token
+            return Session()
+
+    reader = constant("session-reader", (0.1, 0.9), 1.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), reader, Consumer()], ("text",), "out")
+    assert route is not None
+    ladders = {"dist": [Rung(reader)]}
+    assert solve(route, ladders, "a", 0.1, floors=True).value == 1
+    assert {name for name, token in events if token == 1} == {
+        "session", "demand", "certificate", "floor", "invoke"}
+    answers = solve_many(route, ladders, "a", [0.1, 1.0])
+    assert [answer.value for answer in answers] == [2, 2]
+    assert len([event for event in events if event[0] == "session"]) == 2
+
+
 def test_practice_queue_and_fine_tuning() -> None:
     from nca.practice import practice, proportional, queue
 
