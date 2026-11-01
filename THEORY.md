@@ -2738,3 +2738,136 @@ tree (`â ∈ S_m`). The evaluator cannot do this, but the test can.
    `R` below `δ`), the error among answered formulas exceeds the model's
    prediction. Under shift, risk control (§24.5) is what restores the
    guarantee, at the cost of coverage.
+
+## 26. Composing cascades
+
+### 26.1 The failure
+
+§20.8 found the planner's expected-cost objective wrong for nested
+fallbacks. `Fallback(cheap, Fallback(cheap, expensive))` was predicted at
+2.01M FLOPs per glyph and measured at 2.41M. The objective of §20.4
+multiplies the second filling's *average* cost by `P(unsure)`, which assumes
+that cost does not depend on whether the filling is called. An inner cascade
+defers on the same hard glyphs as the outer one, so on the glyphs where it
+is called it is far dearer than on average. This section derives the exact
+quantities, states when the old formula errs and in which direction, and
+says what a planner must know to compose cascades exactly.
+
+All statements are over a finite weighted sample space (`p ω ≥ 0`,
+`lean/NCA/Composition.lean`). That covers both the data distribution and an
+audit's empirical distribution, which is what the planner actually uses.
+
+### 26.2 Exact cost of a fallback
+
+Let `U` be the inputs on which the first slot is unsure, `κ₁` its cost, and
+`c ω` the second slot's cost on input `ω`. The second slot may itself be a
+cascade, so `c` varies with the input.
+
+| Theorem | Statement |
+|---|---|
+| `fallback_cost_eq` | `E[cost] = κ₁ + Σ_{ω ∈ U} p ω · c ω` |
+| `fallback_cost_conditional` | for `P(U) > 0`, this is `κ₁ + P(U) · E[c \| U]` |
+| `fallback_cost_sub_independent` | `Σ_U p c − P(U) · E[c] = Cov(1_U, c)` |
+| `fallback_cost_ge_independent` | if `Cov(1_U, c) ≥ 0`, the exact cost is at least the independent formula |
+
+So the independent formula `κ₁ + P(U) · E[c]` is exact precisely when the
+deferral indicator is uncorrelated with the second slot's cost. It
+underestimates exactly when the second slot is dearer on the deferred
+inputs than on average. That is the normal case for nested cascades: an
+inner fallback is unsure, and so calls its own expensive slot, mostly on the
+inputs the outer one passes it.
+
+**When nesting is cheaper.** Compare `Fallback(a, b)` with
+`Fallback(a, Fallback(a', b))`. The second pays `κ_{a'}` on `U` and then
+`κ_b` only on `U ∩ U'`, where `U'` is where `a'` is unsure. Nesting saves
+`κ_b · P(U \ U') − κ_{a'} · P(U)`. It is cheaper exactly when
+`P(U' | U) < 1 − κ_{a'} / κ_b`, that is, when the inner recognizer is
+confident on a large enough share of what the outer one defers. Re-checking
+with the same recognizer (`a' = a` at a lower threshold) gives
+`P(U' | U)` close to 1 for hard glyphs. That is why §20.8's nested re-check
+lost.
+
+### 26.3 Error and cost of a chain
+
+A chain of recognizers `0, …, k − 1` answers each input at one level:
+`lev ω`, the first level that is confident, or the last level.
+
+| Theorem | Statement |
+|---|---|
+| `chain_error_eq` | error `= Σᵢ P(lev = i ∩ Wᵢ)`, with `Wᵢ` level `i`'s errors |
+| `chain_cost_eq` | cost `= Σᵢ κᵢ · P(lev ≥ i)`: level `i` is paid wherever it is reached |
+| `split_error_eq` | splitting the level answering on `R` into a cascade that keeps `C ⊆ R` and passes `R \ C` on changes the error by `P((R \ C) ∩ W') − P((R \ C) ∩ W)` |
+
+`chain_error_eq` generalizes `cascade_error_eq` to any depth.
+`split_error_eq` says when depth helps: a new level lowers error exactly
+when it errs less than the old level *on the inputs passed to it*, and it
+adds cost `κ_new · P(R \ C)`. Both quantities are conditional on the
+deferral set, not marginal.
+
+### 26.4 What the planner needs
+
+**Worst-case cost stays compositional.** With worst-case call bounds `ν`,
+cost depends on a filling only through a number fixed in advance.
+`HPlan.cost_mono` applies, and the Bellman recursion of §20.5 is exact.
+
+**Expected cost is not compositional under correlated deferral.** A
+filling's contribution is `E[c | U]`, which depends on the context `U` it is
+called in, not only on the filling. The cheapest filling of a slot is then
+the one minimizing cost *on the inputs reaching it*. A filling that is
+cheapest on average can lose in a context that concentrates hard inputs.
+So the sub-goal "a recognizer for glyphs" no longer has a single cheapest
+plan. Its cheapest plan depends on the input distribution conditioned on
+deferral.
+
+**Exact planning.** The planner evaluates each candidate chain on the audit
+restricted to the inputs that reach it, as `Fallback.assess` now does.
+Equivalently, the planning state gains the conditioning context. The
+statistics needed per candidate are:
+
+- `P(U)` for each level, on the audit's inputs reaching it;
+- cost on the deferred inputs, `Σ_U p c`;
+- errors on the answered inputs per level, `P(lev = i ∩ Wᵢ)`.
+
+All three come from one pass of the chain over the audit. Context-dependence
+multiplies the number of evaluations by the number of distinct deferral
+contexts, which grows with depth. In practice that is one audit pass per
+candidate chain, bounded by the planner's depth limit.
+
+### 26.5 Choosing among many cascades on one audit
+
+The planner picks the candidate with the best audit estimate. With `K`
+candidates:
+
+| Theorem | Statement |
+|---|---|
+| `argmin_within` | if every candidate's estimate is within `ε` of its true value, the chosen one is within `2ε` of the best |
+| `some_deviates_le` | the probability that some estimate deviates is at most the sum over candidates |
+
+The per-candidate deviation probability comes from a standard concentration
+inequality for a binomial error rate, which is not formalized here. For an
+error rate near `e` on `n` audit inputs, a Bernstein-type bound gives
+deviation `ε ≈ √(2 e ln(2K/β) / n)` with probability at least `1 − β` for
+all `K` candidates together.
+
+**Prediction for §20.8.** There, `e ≈ 0.025` on validation glyphs and
+`n = 2000`. With `K ≈ 100` candidates and `β = 0.1`, `ε ≈ 0.014`, so
+candidates whose estimated errors differ by less than about `2ε ≈ 0.03`
+cannot be told apart. The depth-4 gains of at most 0.0015 are far inside
+that margin, which explains why they did not carry to test. Resolving a gain
+of 0.0015 needs `n ≈ 8 e ln(2K/β) / Δ²`, about `7 · 10⁵` glyphs. Comparing
+two candidates on the same glyphs (paired) replaces `e` by their
+disagreement rate, typically a few times smaller, but the order of
+magnitude stays.
+
+### 26.6 Predictions
+
+1. **Cost.** On the audit, the measured covariance `Cov(1_U, c)` of each
+   nested fallback equals its gap between measured cost and the independent
+   formula (§26.2). It is positive for every nested re-check of the same
+   recognizer.
+2. **Nesting rule.** A nested fallback beats a flat one exactly when
+   `P(U' | U) < 1 − κ_{a'} / κ_b` on the audit. No re-check of the cheap
+   recognizer by itself satisfies this.
+3. **Selection margin.** Accepting a deeper composition only when its
+   estimated gain exceeds `2ε(n, K)` removes the depth-4 choices that did
+   not carry to test, and leaves the depth-3 cascades of §20.8 unchanged.
