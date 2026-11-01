@@ -1,3 +1,11 @@
+## General-purpose architecture
+
+Keep the core system extensible to new tasks and expert types without hard-coding
+arithmetic or any other domain expert into generic planning, interfaces, or
+runtime logic. Implement task-specific capabilities as replaceable modules
+registered through general interfaces. Existing task-specific pipelines are
+research examples, not a fixed catalog of the system's possible capabilities.
+
 ## Repository Hygiene and Professionalism
 
 Treat this repository as a professional, production-quality open-source project. Maintain the standards of mature projects such as the Linux kernel, SDL, and other carefully maintained systems software.
