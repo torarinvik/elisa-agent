@@ -147,6 +147,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_alternative_risk` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_observation_floor` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |

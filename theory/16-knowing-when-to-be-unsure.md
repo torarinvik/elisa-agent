@@ -51,6 +51,12 @@ checks the representation, not whether the expert is statistically calibrated.
 Distinct binary64 weights can round to the same binary64 logarithm, so the
 log representation may lose their original ordering. CPU native and fallback
 paths use the platform scalar logarithm; other devices can round differently.
+Once two encoded values coincide, no deterministic decision using only those
+encodings can distinguish their two possible original orders. Preserving
+decisions for arbitrary restricted class groups therefore requires retaining
+the original ordering information, or deciding from the original weights,
+through the consumer interface. Changing logarithm implementations alone
+cannot recover distinctions already lost to rounding.
 
 For independent known reductions, the priced objective has a local threshold
 rule: refine when the reduction pays for its cost. Sweeping `λ` explores a

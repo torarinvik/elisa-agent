@@ -115,6 +115,17 @@ theorem observation_weight_sum_positive (s : Finset I) (w : I → ℝ)
     0 < ∑ j ∈ s, w j := by
   exact lt_of_lt_of_le hp (single_le_sum hn hi)
 
+/-- A deterministic decision over an encoding cannot distinguish two orders
+when the encoded values coincide. -/
+theorem collapsed_pair_cannot_choose_both {α β γ : Type*}
+    (encode : α → β) (choose : β × β → γ) {x y : α}
+    (h : encode x = encode y) {left right : γ} (hne : left ≠ right) :
+    ¬ (choose (encode x, encode y) = left ∧
+       choose (encode y, encode x) = right) := by
+  intro choices
+  have same : choose (encode x, encode y) = choose (encode y, encode x) := by rw [h]
+  exact hne (choices.1.symm.trans (same.trans choices.2))
+
 /-- Bound plus priced compute after refining the symbols in `T`. -/
 def refinedObjective (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) : ℝ :=
   ∑ i ∈ S, r i - ∑ i ∈ T, β i + lam * ∑ i ∈ T, κ i
