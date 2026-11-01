@@ -2738,3 +2738,209 @@ tree (`â ∈ S_m`). The evaluator cannot do this, but the test can.
    `R` below `δ`), the error among answered formulas exceeds the model's
    prediction. Under shift, risk control (§24.5) is what restores the
    guarantee, at the cost of coverage.
+
+## 27. Priors as experts
+
+### 27.1 The idea
+
+§24 showed that a corrected answer's risk is only as good as the prior over
+arity sequences. The format-only prior of (P) has more support than the
+generator, so the decoder can land outside the generator's support, where
+its risk claim fails completely (§24.3). The remedy suggested there: let an
+expert supply the prior. The evaluator stays generic, decoding under
+whatever prior it is given. The prior is a typed value produced by an
+expert, which the kernel plans and selects like any other.
+
+### 27.2 Weighted automata and the product
+
+A **prior automaton** has states `τ`, a start state, transitions `ε`, a
+weight `v(t, a) ≥ 0` for reading arity `a` in state `t`, and a final weight
+`f(t) ≥ 0`. A sequence's prior weight is the product of the weights along
+its run, times the final weight (`prior`, `lean/NCA/Product.lean`).
+
+Decoding under the format automaton (§21.3) and a prior automaton together
+runs the dynamic program on their product. A product state pairs a format
+state `s` with a prior state `t`. Reading `a` moves to `(δ s a, ε t a)` with
+weight `qₖ(a) · v(t, a)`. A run is accepted when the format accepts, with
+final weight `f(t)`.
+
+| Theorem | Statement |
+|---|---|
+| `pdpSum_eq` | the product sum-product recursion equals the sum over all sequences of score × prior |
+| `pdpMax_ge` | with nonnegative weights, no sequence's score × prior exceeds the product max-product recursion |
+| `pdpMax_attained` | unless the maximum is 0, some sequence attains it; backtracking decodes it |
+| `pdpSum_unit` | with the one-state prior of weight 1, the product program is the format-only program `dpSum` |
+
+So everything in §21 carries over unchanged under any prior automaton:
+
+- the decoded sequence `â` (`pdpMax`);
+- the normalizer `Z` (`pdpSum`);
+- the risk `R = 1 − score(â) · prior(â) / Z`;
+- the marginals, by forward–backward over product states;
+- the charges and the pairing argument of §21.6.
+
+The pairing argument holds whenever the prior's support lies in `L_m`.
+
+**Cost.** Per position, the work is the number of live product states
+times the arities allowed from each. In general that is at most
+`|σ_live| · |τ|`.
+
+If the prior's support lies inside `L_m` (every sequence it weights
+parses), the prior state determines the format state. The awaited count is
+then a function of the prior state. The product then has no more live
+states than the prior automaton alone, and the format component can be
+dropped.
+
+### 27.3 The contract
+
+A prior expert has the contract
+
+> `length → arity.prior.v1`,
+
+producing, for a formula of `m` words, a prior automaton over arities
+`{0, 1, 2}`. The evaluator consumes it alongside the word distributions. It
+decodes under the product, and the format-only prior is the default
+(`pdpSum_unit`).
+
+Nothing about a generator is written into the evaluator. A generator's
+structure enters as a separately installed, separately chosen expert, as
+readers do.
+
+**Interface.** The selective controller currently routes one sequence of
+readings into a single-input consumer (§18). A prior is a second, cheap
+input that does not depend on the readings, only on the length. Supporting
+it means passing the consumer's other arguments through `solve`, which the
+slot machinery of §20 makes natural: the prior is a filling of a slot
+`[length] ⇒ arity.prior.v1`.
+
+### 27.4 Prior experts
+
+| prior | states | support | `Λ` for the experiments' generator (§24) |
+|---|---|---|---|
+| format only | 1 | `L_m` | unbounded |
+| `n`-gram over arities | `3^{n−1}` (times format states) | `L_m` | unbounded |
+| height at most `D` | at most `(D + 1) · 2^D` | trees of height `≤ D` | unbounded if `D` exceeds the generator's height, else as below |
+| complete alternating trees of depth `d` | about `2^{d+1}` | `S_m` | 1 |
+
+**Format only.** The prior of §21: one state, weight 1.
+
+**`n`-gram.** The state is the last `n − 1` arities. Weights are conditional
+frequencies counted on training formulas. Support is all of `L_m`. It
+lowers the chance of decoding outside `S_m`, but cannot exclude it, so `Λ`
+stays unbounded in the worst case (§24.3).
+
+**Height at most `D`.** In preorder, keep a stack of the height budgets of
+subtrees still awaited, and the current node's budget `h`.
+
+- A node of arity 2 at budget `h ≥ 1` pushes `h − 1` for its right child and
+  continues into its left child with budget `h − 1`.
+- A node of arity 1 continues with `h − 1`.
+- A leaf pops the next budget.
+- No node of positive arity is allowed at budget 0.
+
+Every pushed budget is smaller than the one below it, so the stack is a
+strictly decreasing sequence from `{0, …, D − 1}`, that is, a subset. With
+the current budget, there are at most `(D + 1) · 2^D` states. The language
+is regular, and the stack's size plus one is the format's awaited count, so
+the format component is redundant (§27.2).
+
+**Complete alternating trees of depth `d`.** This is the generator's own
+support `S_m`. The same stack automaton applies, with two restrictions:
+nodes at budget `h ≥ 1` must be connectives (arity 2), and at budget 0 a
+leaf is either a constant (arity 0) or `not` followed by a constant (arity
+1, then 0). The states are the pending budgets, a subset of
+`{0, …, d − 1}`, with one extra flag for "after a `not`": about `2^{d+1}`
+states, with at most two transitions each.
+
+Length determines depth. A depth-`d` formula has
+`m ∈ [2^{d+1} − 1, 3 · 2^d − 1]` words, and these ranges are disjoint for
+different `d`. So `length → arity.prior.v1` is a function.
+
+**Why the complete-tree prior is exact.** On `S_m` the generator's prior and
+(P)'s prior are proportional (§24.3). With the complete-tree prior's
+weights all 1, the effective prior is (P)'s restricted to `S_m`, which is
+proportional to the generator's. The prior ratio `ρ` is constant on the
+whole support, and `â` always lies in it. So `Λ = 1` in both directions
+(`dominated_risk_le` and its exchange): under per-word calibration and
+independent readings, `R* = R` exactly. Decodings outside `S_m`, which §24.3
+showed are certainly wrong, cannot occur.
+
+**Height-bounded priors** sit between the two. With `D` equal to the
+generator's height (`d + 1`, since `not` adds a level), the support is a
+superset of `S_m`, much smaller than `L_m`. The two-case analysis of §24.3
+applies with this smaller support in place of `L_m`.
+
+**Cost at depth 8** (`m = 575`, `d = 8`). Every `(position, state)` pair is
+bounded by `m · 2^{d+1} ≈ 294k`, with at most two transitions each, about
+0.6M multiply-adds per pass. The format-only program does about 0.25M per
+pass (`2.25 m²` over three passes, §21.4). The exact prior costs at most a
+few times the format-only one and still well under one top-rung word pass
+per formula. Most stack states are unreachable at a given position, so the
+live count is smaller than this bound. The banding of §23 applies to the
+product unchanged.
+
+### 27.5 Choosing a prior without labels
+
+Which prior expert to use is a choice the kernel can make from **unlabeled**
+readings. For readings `x` of a formula, the evidence under prior expert
+`e`, with support weights `π_e`, is
+
+> `p_e(x) = Σ_a π_e(a) Πₖ p(xₖ | aₖ) ∝ Z_e(q) / Z_e(π)`,
+
+where:
+
+- `Z_e(q)` is the product program with the calibrated arity
+  distributions as weights (the decoder's normalizer);
+- `Z_e(π)` is the same program with the readers' per-word priors `πₖ` as
+  weights (the prior's own normalizer);
+- the constant `Πₖ p(xₖ) / Πₖ πₖ(·)` is shared by all priors, so it cancels.
+
+Both terms are instances of `pdpSum_eq`. The kernel selects the prior with
+the largest summed log-evidence over held-out formulas, a label-free audit.
+
+**What evidence rewards.** `−log Z_e(π)` rewards small support: an Occam
+term. `log Z_e(q)` penalizes supports that exclude sequences the readings
+favor. A prior that excludes the truth loses evidence on every formula
+whose readings are confident about it. Asymptotically, evidence selects the
+candidate closest to the generator in Kullback–Leibler divergence. This is
+the standard consistency of Bayesian model selection over a finite family,
+used here as a heuristic, not proved.
+
+**The risk of a wrong but confident prior.** Selection can still pick a
+prior that excludes some true sequences, when the readings rarely make the
+exclusion visible. For formulas whose truth lies outside the prior's
+support, §24.4 applies with the roles reversed: `R* = 1` whatever `R` says.
+
+Two safeguards:
+
+1. Prefer the largest support among priors whose evidence is statistically
+   indistinguishable from the best. Of priors that fit equally, keep the one
+   least likely to exclude the truth.
+2. Keep risk control (§24.5) on the deployed policy. It certifies the error
+   rate among answered formulas whatever the prior.
+
+The prior changes which formulas are answered; the audit decides whether
+the guarantee holds.
+
+### 27.6 Predictions
+
+The experiment decodes with three prior experts: format only, height at most
+`d + 1`, and complete trees of depth `d`. It runs at depths 4, 6 and 8, at
+calibration noise and under noise 0.2.
+
+1. **Calibration.** Under the complete-tree prior, the calibration test of
+   §21.8 passes two-sided at every depth and rung in distribution
+   (`R* = R`). No decoding falls outside `S_m`. Any residual miscalibration
+   comes from the readers' per-word calibration and independence, not from
+   the prior, and grows under noise 0.2 as the readers' calibration
+   degrades.
+2. **Coverage.** At depth 8, coverage under the complete-tree prior exceeds
+   format-only correction at every target. Competitors outside `S_m` no
+   longer contribute to `R`. The error among answered formulas stays within
+   `δ`. The height-bounded prior lies between the two.
+3. **Selection.** Label-free evidence over held-out readings ranks the
+   priors complete trees, then height-bounded, then format only, at every
+   depth, from a few dozen formulas.
+4. **Cost.** Decoding under the complete-tree prior costs within a small
+   factor of format-only decoding. Compute per formula is dominated by
+   reading, as before.
