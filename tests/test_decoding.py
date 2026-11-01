@@ -427,6 +427,29 @@ def test_band_tail_for_empty_input_is_zero() -> None:
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+def test_full_band_cursor_does_not_rescan_tail(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.full((3, 3), 1 / 3))
+    cursor = decoding.CertifiedSplit(rows)
+    assert cursor.arity_bound * (cursor.changes - 1) >= cursor.cover_half
+    expected = decoding.decode_reference(rows)
+    assert expected is not None
+
+    def unexpected_scan(*args: object) -> tuple[float, float]:
+        raise AssertionError("a full band has no outside tail")
+
+    monkeypatch.setattr(decoding, "_tail_mass_summary", unexpected_scan)
+    assert cursor.normalizer() == pytest.approx(expected.log_z)
+    updated = np.log(np.array([0.6, 0.3, 0.1]))
+    rows[1] = updated
+    expected = decoding.decode_reference(rows)
+    assert expected is not None
+    assert cursor.climb_normalizer(1, updated) == pytest.approx(expected.log_z)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_band_tail_accounts_for_tolerated_row_excess(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:

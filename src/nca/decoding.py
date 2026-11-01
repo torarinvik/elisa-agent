@@ -607,7 +607,12 @@ class CertifiedSplit:
                  maximum: bool) -> tuple[float, int] | None:
         """Certify the normalizer, optionally requiring a global maximum."""
         self.log_upper = None
-        log_off, log_factor = _tail_mass_summary(self.log_probs, self.reference)
+        half = self.arity_bound * (self.changes - 1)
+        # The band only widens, so a full band has no tail to summarize.
+        if half >= self.cover_half or self.changes > len(self.log_probs):
+            log_off, log_factor = -math.inf, 0.0
+        else:
+            log_off, log_factor = _tail_mass_summary(self.log_probs, self.reference)
         while True:
             half = self.arity_bound * (self.changes - 1)
             log_tail = (-math.inf if half >= self.cover_half or self.changes > len(self.log_probs)
