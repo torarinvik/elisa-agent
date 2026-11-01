@@ -150,6 +150,7 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                    stop: Stop | None = None, trace: list[State] | None = None) -> list[Answer]:
     delta = min(targets)
     chain, mapped = split_route(route)
+    chain = [getattr(module, "solve_session", lambda: module)() for module in chain]
     consumer, body, source = chain[-1], mapped.body, mapped.source
     experts = readers(mapped)
     fuse = None if experts == [body] else body.module

@@ -21,6 +21,7 @@ Train the character reader with::
 from __future__ import annotations
 
 import argparse
+import copy
 import math
 from dataclasses import dataclass, field
 from collections.abc import Callable, Sequence
@@ -372,6 +373,14 @@ class FormulaEvaluator:
         if prior is not None and prior.alphabet != ARITY_ORDER:
             raise ValueError("evaluator prior must use ARITY_ORDER")
         return prior
+
+    def solve_session(self) -> FormulaEvaluator:
+        """Keep one prior per length for an entire selective solve."""
+        if self.prior is None:
+            return self
+        session = copy.copy(self)
+        session.prior = lru_cache(maxsize=None)(self.prior)
+        return session
 
     def words(self, readings: Sequence[Sequence[float]],
               state: CorrectionState | None = None, *,

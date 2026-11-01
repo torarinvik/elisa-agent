@@ -333,6 +333,27 @@ def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
             provider, ladders, text, [0.05, 0.01])
         assert prior.calls == 1
 
+
+def test_selective_solve_pins_prior_for_certificate_and_answer() -> None:
+    from nca.modules.words import WORD_DISTRIBUTION
+
+    calls = []
+    def provider(length: int) -> priors.ArityPrior:
+        calls.append(length)
+        return priors.height_prior(3) if len(calls) % 2 else priors.format_prior(length)
+
+    evaluator = FormulaEvaluator(decode=True, prior=provider)
+    modules = [Tokenizer(), EditReader(), evaluator]
+    route = plan_stable(modules, (FORMULA_TEXT,), BOOLEAN)
+    assert route is not None
+    words = list(VOCABULARY) * 10
+    ladders = build_ladders(modules, route, {WORD_DISTRIBUTION: (
+        words, torch.tensor([VOCABULARY.index(w) for w in words]))})
+    solve(route, ladders, "and true false", 1.0)
+    assert calls == [3]
+    solve(route, ladders, "and true false", 1.0)
+    assert calls == [3, 3]
+
 def test_height_expert_fills_evaluator_slot_with_relaxed_support() -> None:
     from nca.abi import Message, seq_type
     from nca.modules.words import HeightBoundedPrior, PriorFormulaEvaluator, WORD_DISTRIBUTION
