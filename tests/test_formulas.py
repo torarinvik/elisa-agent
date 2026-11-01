@@ -799,3 +799,94 @@ def test_native_accepted_log_weight_matches_prefix_parser() -> None:
         assert native(np.array(weights, dtype=np.float64),
                       np.array(alphabet_values, dtype=np.int64),
                       np.array(selected, dtype=np.int64)) == []
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_weighted_prior_decode_matches_exhaustive_sequences(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(53)
+    alphabet = (2, 0, 1)
+    transitions = rng.integers(-1, 4, size=(4, 3))
+    weights = rng.normal(size=(4, 3))
+    final = rng.normal(size=4)
+    final[1] = -np.inf
+    prior = formulas.ArityPrior(alphabet, transitions, weights, final, start=2)
+    # The prior owns a stable copy, even if the expert reuses its source arrays.
+    transitions[:] = -1
+    weights[:] = 99
+    final[:] = -np.inf
+    for size in range(1, 7):
+        rows = rng.normal(size=(size, 3)) - 1000
+        candidates = list(itertools.product(alphabet, repeat=size))
+        scores = np.array([sum(rows[k, alphabet.index(a)] for k, a in enumerate(selected))
+                           + prior.log_weight(selected) for selected in candidates])
+        posterior = prior.decode(rows)
+        log_z = float(np.logaddexp.reduce(scores))
+        if not np.isfinite(log_z):
+            assert posterior is None
+            continue
+        assert posterior is not None
+        assert posterior.log_z == pytest.approx(log_z, abs=1e-10)
+        assert posterior.arities == candidates[int(np.argmax(scores))]
+        probabilities = np.exp(scores - log_z)
+        expected = np.array([[sum(p for selected, p in zip(candidates, probabilities)
+                                 if selected[k] == a) for a in alphabet] for k in range(size)])
+        np.testing.assert_allclose(posterior.marginals, expected, atol=1e-10)
+        assert posterior.risk(rows, alphabet) == pytest.approx(
+            -np.expm1(scores.max() - log_z), abs=1e-10)
+        for selected, score in zip(candidates, scores):
+            assert posterior.risk(rows, alphabet, selected) == pytest.approx(
+                -np.expm1(score - log_z), abs=1e-10)
+    with pytest.raises(ValueError):
+        prior.transitions[0, 0] = 0
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_weighted_prior_empty_support_and_validation(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    prior = formulas.ArityPrior((0,), np.array([[0]]), np.zeros((1, 1)), np.array([-np.inf]))
+    assert prior.decode(np.zeros((3, 1))) is None
+    assert prior.decode(np.empty((0, 1))) is None
+    assert prior.log_weight((2,)) == -np.inf
+    for rows in (np.zeros((3, 2)), np.array([[np.nan]]), np.array([[np.inf]])):
+        with pytest.raises(ValueError):
+            prior.decode(rows)
+    for transitions, weights, final in (([[1]], [[0]], [0]),
+                                        ([[0.5]], [[0]], [0]),
+                                        ([[0]], [[np.nan]], [0]),
+                                        ([[0]], [[0]], [np.inf])):
+        with pytest.raises(ValueError):
+            formulas.ArityPrior((0,), np.array(transitions), np.array(weights), np.array(final))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_counter_prior_matches_format_decoder(reference: bool,
+                                              monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(59)
+    alphabet = (2, 0, 1)
+    for size in (1, 3, 9, 35):
+        states = size + 2
+        transitions = np.full((states, 3), -1, dtype=np.int64)
+        for state in range(1, states):
+            for j, a in enumerate(alphabet):
+                if state - 1 + a < states:
+                    transitions[state, j] = state - 1 + a
+        final = np.full(states, -np.inf)
+        final[0] = 0.0
+        prior = formulas.ArityPrior(alphabet, transitions, np.zeros_like(transitions), final, 1)
+        rows = np.log(rng.dirichlet(np.ones(3), size=size))
+        actual = prior.decode(rows)
+        expected = decode(rows, alphabet)
+        assert actual is not None and expected is not None
+        assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
+        assert actual.arities == expected.arities
+        np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+        assert actual.risk(rows, alphabet) == pytest.approx(expected.risk(rows, alphabet))
+        with pytest.raises(ValueError, match="alphabet"):
+            actual.risk(rows, (0, 1, 2))

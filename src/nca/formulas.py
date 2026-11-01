@@ -147,20 +147,133 @@ def evaluate(words: Sequence[str]) -> bool | None:
 
 
 @dataclass(frozen=True)
+class ArityPrior:
+    """Weighted deterministic arity automaton (§27).
+
+    Missing transitions are -1. Log edge and final weights may be -inf.
+    Formula priors must incorporate the format constraint in their automaton.
+    Arrays are copied and made read-only so decoded risks retain their prior.
+    """
+
+    alphabet: tuple[int, ...]
+    transitions: np.ndarray
+    log_weights: np.ndarray
+    log_final: np.ndarray
+    start: int = 0
+
+    def __post_init__(self) -> None:
+        alphabet = tuple(self.alphabet)
+        transitions = np.array(self.transitions, copy=True)
+        weights = np.array(self.log_weights, dtype=np.float64, copy=True)
+        final = np.array(self.log_final, dtype=np.float64, copy=True)
+        if (not alphabet or len(set(alphabet)) != len(alphabet)
+                or any(a not in (0, 1, 2) for a in alphabet)
+                or final.ndim != 1 or not len(final)
+                or transitions.shape != (len(final), len(alphabet))
+                or not np.issubdtype(transitions.dtype, np.integer)
+                or weights.shape != transitions.shape
+                or not isinstance(self.start, (int, np.integer))
+                or not 0 <= self.start < len(final)
+                or np.any(transitions < -1) or np.any(transitions >= len(final))
+                or np.any(np.isnan(weights)) or np.any(np.isposinf(weights))
+                or np.any(np.isnan(final)) or np.any(np.isposinf(final))):
+            raise ValueError("invalid weighted arity automaton")
+        object.__setattr__(self, "alphabet", alphabet)
+        for name, array in (("transitions", transitions.astype(np.int64)),
+                            ("log_weights", weights), ("log_final", final)):
+            array.setflags(write=False)
+            object.__setattr__(self, name, array)
+
+    def log_weight(self, arities: Sequence[int]) -> float:
+        """Log prior weight, or -inf for a forbidden sequence."""
+        state, total = self.start, 0.0
+        for a in arities:
+            if a not in self.alphabet:
+                return -math.inf
+            j = self.alphabet.index(a)
+            target = int(self.transitions[state, j])
+            if target < 0:
+                return -math.inf
+            total += float(self.log_weights[state, j])
+            state = target
+        return total + float(self.log_final[state])
+
+    def decode(self, log_probs: np.ndarray) -> Decoded | None:
+        """Sum, maximize and marginalize reading weight times prior weight."""
+        rows = np.asarray(log_probs, dtype=np.float64)
+        if (rows.ndim != 2 or rows.shape[1] != len(self.alphabet)
+                or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
+            raise ValueError("requires finite or -inf log weights over the prior alphabet")
+        m, width = rows.shape
+        if not m:
+            return None
+        native = getattr(_NATIVE, "decode_prior", None)
+        if native is not None:
+            out = np.asarray(native(np.ascontiguousarray(rows).reshape(-1),
+                                    np.asarray(self.alphabet, dtype=np.int64),
+                                    self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                                    self.log_final, self.start))
+            if not len(out):
+                return None
+            return Decoded(tuple(int(a) for a in out[1:m + 1]), float(out[0]),
+                           out[m + 1:].reshape(m, width), self)
+        states = len(self.log_final)
+        forward = np.full((m + 1, states), -np.inf)
+        backward = np.full_like(forward, -np.inf)
+        best = np.full_like(forward, -np.inf)
+        forward[0, self.start] = 0.0
+        backward[m] = best[m] = self.log_final
+        for k in range(m):
+            for state in range(states):
+                for j, target in enumerate(self.transitions[state]):
+                    if target >= 0:
+                        weight = rows[k, j] + self.log_weights[state, j]
+                        forward[k + 1, target] = np.logaddexp(
+                            forward[k + 1, target], forward[k, state] + weight)
+        log_z = float(np.logaddexp.reduce(forward[m] + self.log_final))
+        if not math.isfinite(log_z):
+            return None
+        marginals = np.zeros_like(rows)
+        for k in reversed(range(m)):
+            for state in range(states):
+                for j, target in enumerate(self.transitions[state]):
+                    if target >= 0:
+                        weight = rows[k, j] + self.log_weights[state, j]
+                        through = weight + backward[k + 1, target]
+                        backward[k, state] = np.logaddexp(backward[k, state], through)
+                        best[k, state] = max(best[k, state], weight + best[k + 1, target])
+                        marginals[k, j] += math.exp(forward[k, state] + through - log_z)
+        selected, state = [], self.start
+        for k in range(m):
+            candidates = [rows[k, j] + self.log_weights[state, j] + best[k + 1, target]
+                          if target >= 0 else -np.inf
+                          for j, target in enumerate(self.transitions[state])]
+            j = int(np.argmax(candidates))
+            selected.append(self.alphabet[j])
+            state = int(self.transitions[state, j])
+        return Decoded(tuple(selected), log_z, marginals, self)
+
+
+@dataclass(frozen=True)
 class Decoded:
-    """The most probable parseable arity sequence under per-word arity
-    probabilities, with the log of the total weight of all parseable
-    sequences, and each word's posterior arity distribution (rows over the
-    arity alphabet)."""
+    """Maximum-weight accepted arity sequence, log normalizer and marginals.
+
+    Acceptance is the prefix format by default, or the supplied prior automaton.
+    Posterior weights include the prior when present.
+    """
 
     arities: tuple[int, ...]
     log_z: float
     marginals: np.ndarray
+    prior: ArityPrior | None = None
 
     def log_weight(self, log_probs: np.ndarray, alphabet: Sequence[int],
                    arities: Sequence[int]) -> float:
-        """Log weight of a sequence under the per-word log-probabilities."""
-        return float(sum(log_probs[k, alphabet.index(a)] for k, a in enumerate(arities)))
+        """Log weight of a sequence under readings and the optional prior."""
+        if self.prior is not None and tuple(alphabet) != self.prior.alphabet:
+            raise ValueError("alphabet must match the decoded prior")
+        reading = float(sum(log_probs[k, alphabet.index(a)] for k, a in enumerate(arities)))
+        return reading + (0.0 if self.prior is None else self.prior.log_weight(arities))
 
     def risk(self, log_probs: np.ndarray, alphabet: Sequence[int],
              arities: Sequence[int] | None = None) -> float:

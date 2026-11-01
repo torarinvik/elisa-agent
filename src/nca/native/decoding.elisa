@@ -78,6 +78,67 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                 result[1 + m + k * width + j] <- through_total / totals[k]
     return result
 
+# Stable log-sum, including unreachable states.
+def log_add(x: f64, y: f64) -> f64:
+    return y if x == log(0.0)
+    return x if y == log(0.0)
+    return x + log(1.0 + exp(y - x)) if x >= y else y + log(1.0 + exp(x - y))
+
+# Weighted deterministic prior automaton (§27), including any format restriction.
+# Caller validates dimensions and state indices; -1 denotes a forbidden transition.
+def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    states: i64 = final.len.i64()
+    m: i64 = log_probs.len.i64() / width
+    return [] if m == 0
+    forward, best, choice =
+        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
+            for state in 0..<states |forward, best, choice|:
+                for j in 0..<width |forward, best, choice|:
+                    edge: i64 = state * width + j
+                    target: i64 = transitions[edge]
+                    continue if target < 0
+                    cell: i64 = (k + 1) * states + target
+                    weight: f64 = log_probs[k * width + j] + prior[edge]
+                    forward[cell] <- log_add(forward[cell], forward[k * states + state] + weight)
+                    candidate: f64 = best[k * states + state] + weight
+                    if candidate > best[cell]:
+                        best[cell] <- candidate
+                        choice[cell] <- edge
+    log_z, terminal =
+        for state in 0..<states |log_z: f64 = log(0.0), top: f64 = log(0.0), terminal: i64 = -1| -> (log_z, terminal):
+            log_z <- log_add(log_z, forward[m * states + state] + final[state])
+            candidate: f64 = best[m * states + state] + final[state]
+            if candidate > top:
+                top <- candidate
+                terminal <- state
+    return [] if terminal < 0
+    decoded: darray[f64] =
+        for step in 0..<m |decoded: darray[f64] = [log_z if i == 0 else 0.0 for i in 0..<(1 + m + m * width)], state: i64 = terminal| -> decoded:
+            edge: i64 = choice[(m - step) * states + state]
+            decoded[m - step] <- alphabet[edge % width].f64()
+            state <- edge / width
+    backward: darray[f64] =
+        for step in 0..<m |backward: darray[f64] = [final[i - m * states] if i >= m * states else log(0.0) for i in 0..<((m + 1) * states)]| -> backward:
+            k: i64 = m - 1 - step
+            for state in 0..<states |backward|:
+                for j in 0..<width |backward|:
+                    edge: i64 = state * width + j
+                    target: i64 = transitions[edge]
+                    continue if target < 0
+                    through: f64 = log_probs[k * width + j] + prior[edge] + backward[(k + 1) * states + target]
+                    backward[k * states + state] <- log_add(backward[k * states + state], through)
+    return
+        for k in 0..<m |result: darray[f64] = decoded| -> result:
+            for j in 0..<width |result|:
+                marginal: f64 =
+                    for state in 0..<states |total: f64 = 0.0| -> total:
+                        edge: i64 = state * width + j
+                        target: i64 = transitions[edge]
+                        continue if target < 0
+                        total += exp(forward[k * states + state] + log_probs[k * width + j] + prior[edge] + backward[(k + 1) * states + target] - log_z)
+                result[1 + m + k * width + j] <- marginal
+
 # The banded cursor of THEORY §23.4, rescaled as in §23.7. The caller owns the tables, `width`
 # states per row, and keeps rows current around a cursor; these functions recompute rows in
 # place. Row `k` holds states `low[k] ..= high[k]`. The sum tables hold linear rows of total 1
@@ -354,6 +415,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
 
 export pymodule decoding:
     fn decode
+    fn decode_prior
     fn advance
     fn retreat
     fn scores

@@ -618,3 +618,18 @@ Positive raw arity rows are normalized before tail accounting; Theorem 23.14
 explains the unchanged score ordering. Zero-mass rows fall back to the
 existing nondecoded reading behavior. The option defaults to disabled pending
 broader timing, tie-choice and deployment-audit comparisons.
+
+`formulas.ArityPrior` represents the weighted deterministic automaton of
+THEORY §27. Its validated transition, log-edge and log-final arrays are copied
+and read-only. `decode` uses Elisa `decode_prior` for forward sums, maximum
+backtracking and backward marginals, with a NumPy reference fallback.
+`Decoded` retains the prior so its sequence risks include the edge and final
+weights. The recurrences correspond to `pdpSum_eq`, `pdpMax_ge` and
+`pdpMax_attained` in `NCA/Product.lean`; the format-only comparison exercises
+the unit-prior specialization of §27.4.
+
+The automaton must include any required format restriction: this interface
+does not automatically intersect an arbitrary expert with prefix syntax.
+It is not yet connected to the evaluator or planner. Both implementations
+use dense position-by-state tables, with O(length × states × alphabet) work
+and O(length × states) storage. Tie choices may differ between implementations.

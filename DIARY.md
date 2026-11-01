@@ -1782,6 +1782,26 @@ rate, typically a few times smaller, but the order of magnitude stays.
 
 ## 27. Priors as experts
 
+### 27.5 Weighted automaton decoding implementation
+
+The weighted deterministic decoder now computes a normalizer, maximum
+sequence and position marginals using Elisa, with a NumPy reference. Sequence
+risk retains the automaton's edge and final weights. The existing §27.1–27.4
+Lean results supply the recursion semantics; no new theorem is needed for
+this implementation step. Exhaustive sequences up to length six check
+weighted sums, maxima, marginals and risks, including non-unit final weights
+and logs shifted by -1000 per position. Counter automata at lengths 1, 3, 9
+and 35 reproduce the existing format decoder. Missing support, invalid inputs
+and independent copies of prior arrays are covered. Full tests: 148 native,
+134 fallback with 14 skips; Lean and Ruff pass.
+
+A 127-position, 129-state counter automaton with Dirichlet readings (seed 61)
+took 0.00063231 s per native decode over 30 repetitions, versus 0.07950089 s
+for the reference over three. Log normalizers were -7.469034803167754 and
+-7.469034803167755. This measures the new dense decoder, not a speedup over
+the specialized format kernel or an end-to-end ML improvement. Structural
+prior experts and evaluator/planner integration remain to be implemented.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most
