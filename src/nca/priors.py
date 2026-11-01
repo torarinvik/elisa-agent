@@ -154,14 +154,14 @@ class ArityPrior:
             return None
         native = getattr(_NATIVE, "decode_prior", None)
         if native is not None:
-            out = np.asarray(native(np.ascontiguousarray(rows).reshape(-1),
-                                    np.asarray(self.alphabet, dtype=np.int64),
-                                    self.transitions.reshape(-1), self.log_weights.reshape(-1),
-                                    self.log_final, self.start))
-            if not len(out):
+            out = native(np.ascontiguousarray(rows).reshape(-1),
+                         np.asarray(self.alphabet, dtype=np.int64),
+                         self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                         self.log_final, self.start)
+            if out is None:
                 return None
-            return Decoded(tuple(int(a) for a in out[1:m + 1]), float(out[0]),
-                           out[m + 1:].reshape(m, width), self)
+            return Decoded(tuple(out["arities"]), out["log_z"],
+                           np.asarray(out["marginals"], dtype=np.float64), self)
         states = len(self.log_final)
         forward = np.full((m + 1, states), -np.inf)
         backward = np.full_like(forward, -np.inf)

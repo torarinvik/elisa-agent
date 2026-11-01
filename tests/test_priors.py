@@ -381,3 +381,37 @@ def test_complete_prior_unary_tilts_cancel_at_fixed_length() -> None:
             assert result.log_z == pytest.approx(original.log_z + (size - 7) * np.log(factor))
             np.testing.assert_allclose(result.marginals, original.marginals, atol=1e-12)
             assert tilted.log_evidence(rows, base) == pytest.approx(model.log_evidence(rows, base))
+
+
+def test_native_prior_decode_returns_owned_typed_record() -> None:
+    import copy
+    import gc
+
+    native = getattr(priors._NATIVE, "decode_prior", None)
+    if native is None:
+        pytest.skip("requires native prior decoding")
+    model = priors.complete_prior(3)
+    assert model is not None
+    rows = np.log(np.array([[.1, .2, .7], [.8, .1, .1], [.6, .2, .2]]))
+    args = (np.array(model.alphabet, dtype=np.int64), model.transitions.reshape(-1),
+            model.log_weights.reshape(-1), model.log_final, model.start)
+    result = native(rows.reshape(-1), *args)
+    assert set(result) == {"log_z", "arities", "marginals"}
+    assert result["arities"] == [2, 0, 0]
+    assert all(type(a) is int for a in result["arities"])
+    assert len(result["marginals"]) == 3
+    assert all(len(row) == 3 for row in result["marginals"])
+    np.testing.assert_allclose(np.sum(result["marginals"], axis=1), 1, atol=1e-12)
+    saved = copy.deepcopy(result)
+    for _ in range(30):
+        other = native(rows.reshape(-1), *args)
+        other["arities"][0] = 99
+        other["marginals"][0][0] = 99
+    gc.collect()
+    assert result == saved
+    decoded = model.decode(rows)
+    assert decoded is not None
+    assert decoded.arities == tuple(result["arities"])
+    np.testing.assert_array_equal(decoded.marginals, result["marginals"])
+    assert native(np.empty(0), *args) is None
+    assert native(np.full(9, -np.inf), *args) is None

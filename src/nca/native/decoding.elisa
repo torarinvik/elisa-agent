@@ -175,13 +175,19 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
             selected[m - step - 1] <- alphabet[edge % width]
             state <- edge / width
 
+# A typed Python result; absence is represented by null, not an empty packed array.
+struct PriorDecoded:
+    log_z: f64
+    arities: darray[i64]
+    marginals: darray[darray[f64]]
+
 # Weighted deterministic prior automaton (§27), including any format restriction.
 # Caller validates dimensions and state indices; -1 denotes a forbidden transition.
-def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> PriorDecoded? can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
-    return [] if m == 0
+    return null if m == 0
     forward, best, choice =
         for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
             for state in 0..<states |forward, best, choice|:
@@ -204,11 +210,11 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             if candidate > top:
                 top <- candidate
                 terminal <- state
-    return [] if terminal < 0
-    decoded: darray[f64] =
-        for step in 0..<m |decoded: darray[f64] = [log_z if i == 0 else 0.0 for i in 0..<(1 + m + m * width)], state: i64 = terminal| -> decoded:
+    return null if terminal < 0
+    decoded: darray[i64] =
+        for step in 0..<m |decoded: darray[i64] = [0 for _ in 0..<m], state: i64 = terminal| -> decoded:
             edge: i64 = choice[(m - step) * states + state]
-            decoded[m - step] <- alphabet[edge % width].f64()
+            decoded[m - step - 1] <- alphabet[edge % width]
             state <- edge / width
     backward: darray[f64] =
         for step in 0..<m |backward: darray[f64] = [final[i - m * states] if i >= m * states else log(0.0) for i in 0..<((m + 1) * states)]| -> backward:
@@ -221,8 +227,8 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     continue if target < 0
                     through: f64 = log_probs[k * width + j] + prior[edge] + backward[(k + 1) * states + target]
                     backward[k * states + state] <- log_add(backward[k * states + state], through)
-    return
-        for k in 0..<m |result: darray[f64] = decoded| -> result:
+    marginals: darray[darray[f64]] =
+        for k in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m]| -> result:
             for j in 0..<width |result|:
                 marginal: f64 =
                     for state in 0..<states |total: f64 = 0.0| -> total:
@@ -231,7 +237,8 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                         target: i64 = transitions[edge]
                         continue if target < 0
                         total += exp(forward[k * states + state] + log_probs[k * width + j] + prior[edge] + backward[(k + 1) * states + target] - log_z)
-                result[1 + m + k * width + j] <- marginal
+                result[k][j] <- marginal
+    return PriorDecoded{log_z: log_z, arities: decoded, marginals: marginals}
 
 # The banded cursor of THEORY §23.4, rescaled as in §23.7. The caller owns the tables, `width`
 # states per row, and keeps rows current around a cursor; these functions recompute rows in

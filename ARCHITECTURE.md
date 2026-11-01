@@ -880,3 +880,12 @@ Theorem 27.13 maps to `prior_tilt` and `prior_tilt_ne_zero` in `Product`.
 A caller can predeclare tilted providers in `select_prior`; no catalog or
 CLI default changes automatically. Constant feature counts cancel after
 conditioning, as tested for unary tilts of complete-skeleton priors.
+
+The native prior decoder returns `PriorDecoded?`, exposed to Python as a
+`PriorDecoded | None` record with `log_z`, integer `arities`, and nested
+`marginals` rows. The compiler-generated record converter copies owned
+arrays before releasing the call arena. `ArityPrior.decode` consumes named
+fields; no float-encoded symbols, packed offsets or empty-array absence
+sentinel are used for this result. Generated stubs describe the nullable
+record directly. Native extensions must be rebuilt after this interface
+change. The dynamic-programming recurrences and Python fallback are unchanged.
