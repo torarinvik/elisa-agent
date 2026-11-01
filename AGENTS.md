@@ -1,5 +1,10 @@
 ## General-purpose architecture
 
+Design the system to scale and remain extensible toward performing any task at
+any level of complexity. Avoid fixed architectural limits on the kinds or
+combinations of capabilities it can accommodate; resource limits and actual
+capabilities must still be represented honestly and tested.
+
 Keep the core system extensible to new tasks and expert types without hard-coding
 arithmetic or any other domain expert into generic planning, interfaces, or
 runtime logic. Implement task-specific capabilities as replaceable modules
