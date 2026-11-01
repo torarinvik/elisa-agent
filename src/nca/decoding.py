@@ -70,8 +70,18 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
         out = np.asarray(native_log(flat, np.asarray(alphabet, dtype=np.int64)))
         if not len(out):
             return None
+        if np.isnan(out[0]):
+            raise ValueError("format decoding arithmetic is not finite")
     return Decoded(tuple(int(a) for a in out[1:m + 1]), float(out[0]),
                    out[m + 1:].reshape(m, len(alphabet)))
+
+def _checked_log_sum(left: np.ndarray | float, right: np.ndarray | float) -> np.ndarray:
+    with np.errstate(over="ignore", invalid="ignore"):
+        result = np.add(left, right)
+    if np.any(np.isfinite(left) & np.isfinite(right) & ~np.isfinite(result)):
+        raise ValueError("format decoding arithmetic is not finite")
+    return result
+
 
 def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
     """``decode`` in NumPy: the dynamic programs in log space, with all states
@@ -91,13 +101,13 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
         for j, a in enumerate(alphabet):
             a = int(a)
             low, high = a, a + width - 1  # state n ≥ 1 moves to n − 1 + a
-            span = min(high, width) - low
+            span = min(high, width, live + 1) - low
             if span <= 0:
                 continue
             step = log_probs[k, j]
-            forward[k + 1, low:low + span] = np.logaddexp(forward[k + 1, low:low + span],
-                                                          forward[k, 1:1 + span] + step)
-            candidate = best[k, 1:1 + span] + step
+            forward[k + 1, low:low + span] = np.logaddexp(
+                forward[k + 1, low:low + span], _checked_log_sum(forward[k, 1:1 + span], step))
+            candidate = _checked_log_sum(best[k, 1:1 + span], step)
             better = candidate > best[k + 1, low:low + span]
             best[k + 1, low:low + span][better] = candidate[better]
             choice[k + 1, low:low + span][better] = j
@@ -118,9 +128,9 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
         for j, a in enumerate(alphabet):
             a = int(a)
             span = min(a + width - 1, width) - a
-            through = log_probs[k, j] + backward[k + 1, a:a + span]
+            through = _checked_log_sum(log_probs[k, j], backward[k + 1, a:a + span])
             backward[k, 1:1 + span] = np.logaddexp(backward[k, 1:1 + span], through)
-            marginals[k, j] = np.exp(np.logaddexp.reduce(forward[k, 1:1 + span] + through)
+            marginals[k, j] = np.exp(np.logaddexp.reduce(_checked_log_sum(forward[k, 1:1 + span], through))
                                      - log_z)
     return Decoded(tuple(reversed(arities)), log_z, marginals)
 

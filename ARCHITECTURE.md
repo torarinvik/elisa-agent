@@ -676,7 +676,7 @@ custom rung overriding probability distributions must also provide a matching
 log distribution to retain underflowed masses; otherwise the adapter logs the
 numerical probabilities. The linear-space format decoder falls back to an
 Elisa log-space decoder when weights or forward contributions underflow or
-backward scaling overflows, or to the NumPy
+linear weights or backward scaling overflow, or to the NumPy
 reference when the native kernel is unavailable; banded correction checks an
 exact partition if its risk rounds to zero, which can require more work. If a
 rung lacks labels needed to fit a requested restricted decision,

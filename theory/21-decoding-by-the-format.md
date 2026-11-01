@@ -157,7 +157,9 @@ shift makes the rounded total equal the selected weight.
 If adding two finite log weights overflows the representable log range, the
 general-arity partition reports the calculation as unavailable instead of
 interpreting the resulting infinity as a zero-weight path. This check does
-not bound ordinary finite rounding errors.
+not bound ordinary finite rounding errors. The full format decoder likewise
+reports non-finite sums of finite log weights; finite log weights whose
+exponentials overflow are handled by its log-space pass.
 
 ## 21.6 Charges for refinement
 

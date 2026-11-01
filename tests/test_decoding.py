@@ -255,6 +255,32 @@ def test_generic_format_risk_rejects_log_arithmetic_overflow(
     with pytest.raises(ValueError, match="format partition arithmetic is not finite"):
         priors.format_sequence_risk(rows, alphabet, selected)
 
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+@pytest.mark.parametrize("value", [-1e308, 1e308])
+def test_format_decoder_rejects_finite_log_weight_overflow(decoder, value) -> None:
+    rows = np.array([[-np.inf, value, -np.inf], [value, -np.inf, -np.inf]])
+    with pytest.raises(ValueError, match="format decoding arithmetic is not finite"):
+        decoder(rows)
+
+
+def test_format_decoder_handles_large_positive_log_weights() -> None:
+    rows = np.array([[-np.inf, 1000.0, -np.inf], [1000.0, -np.inf, -np.inf]])
+    actual, expected = decode(rows), decode_reference(rows)
+    assert actual is not None and expected is not None
+    assert actual.arities == expected.arities == (1, 0)
+    assert actual.log_z == expected.log_z == 2000.0
+    np.testing.assert_allclose(actual.marginals, expected.marginals)
+
+
+def test_native_log_decoder_signals_finite_log_weight_overflow() -> None:
+    native = getattr(decoding._NATIVE, "decode_log", None)
+    if native is None:
+        pytest.skip("native log decoder is not built")
+    rows = np.array([[-np.inf, -1e308, -np.inf], [-1e308, -np.inf, -np.inf]])
+    result = native(rows.reshape(-1), np.asarray((0, 1, 2), dtype=np.int64))
+    assert len(result) == 1 and np.isnan(result[0])
+
 def test_split_matches_full_decoding() -> None:
     """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one
     word's weights, the cached vectors give the full programs' results."""
