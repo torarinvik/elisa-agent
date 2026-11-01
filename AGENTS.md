@@ -43,6 +43,8 @@ Prefer improving existing files over introducing unnecessary new files, director
 - Keep documentation concise, accurate, technically useful, and maintainable.
 - Create new documentation files only when they serve a clear, lasting need.
 
+The user-authorized research diary is an exception to the general prohibition on agent diaries. Record scientific predictions, experiments, and measurements in `diary/diary-DD_MM_YY.md`, using the Europe/Oslo calendar date (for example, `diary/diary-01_11_26.md`). Append to that day's file; start a new file on a new date. Keep these entries focused on research evidence, not agent progress logs or session summaries. Preserve existing historical entries when reorganizing diary files.
+
 ### 5. Clean, Focused Changes
 
 - Make the smallest coherent change that correctly solves the task.
