@@ -209,3 +209,22 @@ def test_budget_cannot_drop_below_resident_bytes() -> None:
     assert store.budget == 2 and store.resident_bytes == 2
     store.budget = None
     assert store.budget is None
+
+
+def test_failed_load_releases_partial_route_pins() -> None:
+    store = ExpertStore(2)
+    def make(name: str, loader: Callable[[], Any]) -> LazyExpert:
+        return LazyExpert(Manifest(name, "1", Contract((), name)), loader, 1, store)
+    previous = make("previous", lambda: object())
+    store.prepare(Apply(previous, ()))
+    partial = make("partial", lambda: object())
+    def fail() -> Any:
+        raise RuntimeError("load failed")
+    broken = make("broken", fail)
+    with pytest.raises(RuntimeError, match="load failed"):
+        store.prepare(Apply(partial, (Apply(broken, ()),)))
+    assert store.pinned == frozenset()
+    assert list(store.resident) == ["partial@1"]
+    extra = make("extra", lambda: object())
+    store.acquire(extra)
+    assert store.resident_bytes <= 2

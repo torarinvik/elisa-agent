@@ -69,7 +69,11 @@ class ExpertStore:
         return sum(size for _, size in self.resident.values())
 
     def prepare(self, route: Plan) -> None:
-        """Make ``route``'s experts resident, evicting only experts outside it."""
+        """Make ``route``'s experts resident, evicting only experts outside it.
+
+        On load failure, keep only surviving old pins; evictions and successful
+        partial loads are not rolled back.
+        """
         experts: dict[str, LazyExpert] = {}
         for expert in route_experts(route):
             key = expert.manifest.ref
@@ -80,11 +84,18 @@ class ExpertStore:
         required = sum(e.size for e in experts.values())
         if self.budget is not None and required > self.budget:
             raise MemoryError(f"route requires {required} B, exceeding the {self.budget} B store budget")
+        previous_pins = self.pinned
         self.pinned = frozenset(experts)
-        missing = [e for key, e in experts.items() if key not in self.resident]
-        self._make_room(sum(e.size for e in missing))
-        for expert in missing:
-            self.acquire(expert)
+        try:
+            missing = [e for key, e in experts.items() if key not in self.resident]
+            self._make_room(sum(e.size for e in missing))
+            for expert in missing:
+                self.acquire(expert)
+        except BaseException:
+            # Evicted implementations cannot be restored without reloading them.
+            # Keep only prior pins that are still resident and release partial-route pins.
+            self.pinned = previous_pins.intersection(self.resident)
+            raise
 
     def _make_room(self, size: int) -> None:
         if self.budget is None:
