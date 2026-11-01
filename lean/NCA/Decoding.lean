@@ -150,6 +150,11 @@ end Automaton
 def bernoulliStep (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) : ℝ :=
   (1 - p) * mass k + if k = 0 then 0 else p * mass (k - 1)
 
+/-- The number of successes cannot exceed the number of Bernoulli events. -/
+theorem bernoulli_count_le_length (events : List Bool) :
+    events.count true ≤ events.length := by
+  exact List.count_le_length
+
 theorem bernoulliStep_zero (mass : ℕ → ℝ) (p : ℝ) :
     bernoulliStep mass p 0 = (1 - p) * mass 0 := by
   simp [bernoulliStep]

@@ -93,6 +93,27 @@ def test_clopper_pearson_upper_matches_closed_form_and_sample_sizes() -> None:
     assert clopper_pearson_upper(0, 0, 0.1) == 1.0
 
 
+def test_binomial_cdf_outside_count_support() -> None:
+    from nca.stats import binomial_cdf
+
+    for n in (0, 1, 10):
+        for rate in (0.0, 0.25, 1.0):
+            assert binomial_cdf(-1, n, rate) == 0.0
+            assert binomial_cdf(n, n, rate) == 1.0
+            assert binomial_cdf(n + 10, n, rate) == 1.0
+    with pytest.raises(ValueError, match="trial count"):
+        binomial_cdf(0, -1, 0.5)
+
+
+def test_poisson_binomial_tails_outside_count_support() -> None:
+    from nca.stats import poisson_binomial_tails
+
+    for probabilities in ([], [0.1, 0.2, 0.3]):
+        assert poisson_binomial_tails(-1, probabilities) == (1.0, 0.0)
+        assert poisson_binomial_tails(-10, probabilities) == (1.0, 0.0)
+        assert poisson_binomial_tails(len(probabilities) + 1, probabilities) == (0.0, 1.0)
+
+
 def test_certify_stops_at_first_failure() -> None:
     from nca.ladder import certify
 

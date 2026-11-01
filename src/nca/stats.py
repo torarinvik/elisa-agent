@@ -61,6 +61,12 @@ def format_interval(value: float, low: float, high: float) -> str:
 
 def binomial_cdf(k: int, n: int, r: float) -> float:
     """``P(Binomial(n, r) <= k)``."""
+    if n < 0:
+        raise ValueError("binomial trial count must be nonnegative")
+    if k < 0:
+        return 0.0
+    if k >= n:
+        return 1.0
     if r <= 0.0:
         return 1.0
     if r >= 1.0:
@@ -91,6 +97,10 @@ def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tup
     independent Bernoulli variables with the given probabilities (clipped to
     ``[0, 1]``). If each event's probability is only bounded above by its
     entry, the first is still a valid one-sided p-value for an excess."""
+    if observed < 0:
+        return 1.0, 0.0
+    if observed > len(probabilities):
+        return 0.0, 1.0
     clipped = np.clip(probabilities, 0.0, 1.0)
     native = getattr(_NATIVE, "poisson_binomial_pmf", None)
     if (native is not None and clipped.ndim == 1 and clipped.dtype.kind in "biuf"

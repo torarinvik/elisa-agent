@@ -182,6 +182,8 @@ The count distribution starts with mass 1 at zero. Adding an independent
 Bernoulli event of probability `p` changes mass `q(k)` to
 `(1-p)q(k) + p q(k-1)`, taking `q(-1) = 0`. Updating counts in descending
 order retains the previous masses needed for this recurrence.
+The sum is always between zero and the number of events, so its lower tail
+below zero and upper tail above that number are zero.
 
 **The pairs premise of §19.** Let `O₂` be the number of formulas whose
 per-word reading has at least two arity failures. If failures are not
