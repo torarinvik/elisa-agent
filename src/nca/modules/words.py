@@ -64,10 +64,21 @@ ARITY_PRIOR = "logic.arity.prior.v1"
 
 def _most_likely_words(readings: Sequence[Sequence[float]]) -> list[str]:
     native = getattr(_NATIVE, "row_argmax", None)
-    if native is not None and len(readings):
-        scores = np.asarray(readings, dtype=np.float64)
-        if scores.ndim == 2 and scores.shape[1] == len(VOCABULARY):
-            return [VOCABULARY[i] for i in native(scores.reshape(-1), scores.shape[1])]
+    # A shared NumPy dtype must not round one row merely because another row
+    # has a different dtype. Python float tuples and binary float arrays are
+    # safe to convert together; other inputs retain per-row NumPy semantics.
+    if (native is not None and len(readings) and
+            (isinstance(readings, np.ndarray) or
+             all(isinstance(row, (tuple, list)) and
+                 set(map(type, row)) <= {float} for row in readings))):
+        try:
+            scores = np.asarray(readings)
+        except (TypeError, ValueError):
+            scores = None
+        if (scores is not None and scores.ndim == 2 and scores.shape[1] == len(VOCABULARY)
+                and scores.dtype.kind == "f" and scores.dtype.itemsize <= 8):
+            values = np.asarray(scores, dtype=np.float64).reshape(-1)
+            return [VOCABULARY[i] for i in native(values, scores.shape[1])]
     return [VOCABULARY[int(np.argmax(r))] for r in readings]
 
 

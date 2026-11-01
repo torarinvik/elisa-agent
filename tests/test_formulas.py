@@ -1,5 +1,6 @@
 import itertools
 from dataclasses import dataclass
+from decimal import Decimal
 from fractions import Fraction
 from typing import Any
 
@@ -43,6 +44,22 @@ def test_batched_word_argmax_matches_reference(monkeypatch) -> None:
     assert list(native(np.array([1.0], dtype=np.float64), 2)) == []
     monkeypatch.setattr(words, "_NATIVE", None)
     assert words._most_likely_words(rows) == expected
+
+
+def test_word_argmax_preserves_higher_precision_inputs(monkeypatch) -> None:
+    import nca.modules.words as words
+
+    decimal_row = [Decimal(0)] * len(VOCABULARY)
+    decimal_row[:2] = [Decimal("0.5"), Decimal("0.50000000000000000001")]
+    integer_row = [0] * len(VOCABULARY)
+    integer_row[:2] = [2**53, 2**53 + 1]
+    for row in (decimal_row, integer_row):
+        assert words._most_likely_words([row]) == [VOCABULARY[1]]
+    assert words._most_likely_words([integer_row, [0.0] * len(VOCABULARY)]) == [
+        VOCABULARY[1], VOCABULARY[0]]
+    monkeypatch.setattr(words, "_NATIVE", None)
+    for row in (decimal_row, integer_row):
+        assert words._most_likely_words([row]) == [VOCABULARY[1]]
 
 
 def test_premise_diagnostic_handles_zero_expected_pairs(monkeypatch, capsys) -> None:
