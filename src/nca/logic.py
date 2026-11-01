@@ -47,9 +47,10 @@ import torch
 
 from nca.abi import TypeId
 from nca.certify import INFLATIONS
-from nca.formulas import (ARITY, VOCABULARY, ArityPrior, FormulaDataset, FormulaSample, decode,
-                          PriorSelection, complete_prior, format_prior, height_prior,
-                          labeled_words, parse, select_prior)
+from nca.decoding import decode, parse
+from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words
+from nca.priors import (ArityPrior, PriorSelection, complete_prior, format_prior,
+                        height_prior, select_prior)
 from nca.ladder import (Rung, State, Stop, certification_order, certification_possible, certify,
                         stopping_rule)
 from nca.modules.symbols import BOOLEAN

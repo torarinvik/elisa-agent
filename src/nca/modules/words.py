@@ -33,8 +33,9 @@ from torch import nn
 
 from nca.abi import Calls, Contract, Manifest, seq_type
 from nca.efficiency import network_flops
-from nca.formulas import (ALPHABET, ARITY, VOCABULARY, ArityPrior, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
-                          complete_prior, height_prior, labeled_words, parse, sequence_log_weight)
+from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
+from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
+from nca.priors import ArityPrior, complete_prior, height_prior, sequence_log_weight
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
 

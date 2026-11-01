@@ -32,13 +32,19 @@ run the Python tests with `uv run pytest`.
 | [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `logic`, `formulas`, `modules.words` |
 | [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `logic`, `formulas` |
 | [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation` | `modules.combinators`, `optimize`, `kernel` |
-| [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `formulas.decode`, `native.decoding` |
+| [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `native.decoding` |
 | [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `ladder` |
-| [§23 Efficient decoding](theory/23-efficient-decoding.md) | `Banding` | `formulas.decode_banded`, `formulas.Split` (references), `native.decoding` (exact passes) |
+| [§23 Efficient decoding](theory/23-efficient-decoding.md) | `Banding` | `decoding.decode_banded`, `decoding.Split` (references), `native.decoding` (exact passes) |
 | [§24 When the prior is wrong](theory/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
 | [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
-| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `formulas.ArityPrior`, `formulas.select_prior`, `modules.words`, `logic` |
+| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `modules.words`, `logic` |
+
+Formula data generation and evaluation live in `formulas`; counter decoding and
+incremental bands live in `decoding`; weighted automata and prior selection live
+in `priors`. Existing decoding and prior imports from `formulas` remain available
+as compatibility aliases. Numerical kernels remain in `native/decoding.elisa`,
+with Python reference implementations for validation and fallback.
 
 ## Theorems
 
