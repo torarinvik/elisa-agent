@@ -482,3 +482,8 @@ reduction preserves position order, and accepts an explicit alphabet.
 Unknown symbols have weight zero (log weight minus infinity); incompatible
 matrix dimensions are rejected before entering native code. A Python
 ordered-sum reference remains available when the export is absent.
+
+Both correction cursors retain the last `Split.climb` return value for their
+current normalizer, avoiding a second `scores` call at that same position.
+When no row changes, they still obtain a score from the current tables. This
+reuses the split result of §23.4 without altering its weights or arithmetic.

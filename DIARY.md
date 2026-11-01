@@ -1296,6 +1296,24 @@ Every result was exactly -845.5237732560112, consistent with retaining the
 same position-order summation. This includes wrapper conversion costs but
 not full refinement, whose timing remains to be compared.
 
+**Sequence-weight reduction in full refinement.** Six depth-8 test
+formulas, seed 3, noise 0.1, target 0.05, shared the existing reader and
+100 depth-4 calibration formulas. Only the sequence-weight export was
+switched in reference/native/native/reference order. Times were
+2.61856/2.43474/2.44114/2.54816 s. All outcomes, bounds and declared costs
+agreed exactly; each run answered one formula without error and spent
+297,811,392 declared cost units. This small sample suggests a local benefit,
+not a general reliability guarantee.
+
+**Reuse climb scores.** Profiling showed that both cursor clients discarded
+the normalizer returned by `climb` and immediately recomputed it. Reusing
+that split result reduces `scores` calls from 2,414 to 1,210 on the familiar
+three-formula profile; 1,204 climbs and 605 certificate calls are unchanged.
+Profiled time changed from 0.965 s to 0.945 s, too small a single-run change
+to claim a robust speedup. All 114 native tests pass; fallback gives 107
+passes and seven skips. Existing multi-climb comparisons against fresh
+accounts cover the reused normalizers and mutable reading updates.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

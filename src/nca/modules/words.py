@@ -242,13 +242,15 @@ class FormulaEvaluator:
                 with np.errstate(divide="ignore"):
                     state.answer_cursor = Split(np.log(masses), ARITY_ORDER)
             anchor = 0
+            scored = None
             for k in changed:
                 anchor = int(k)
                 row = np.array([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
                 with np.errstate(divide="ignore"):
-                    state.answer_cursor.climb(anchor, np.log(row))
+                    scored = state.answer_cursor.climb(anchor, np.log(row))
             state.answer_readings = current.copy()
-            log_z, _ = state.answer_cursor.scores(anchor, state.answer_cursor.log_probs[anchor])
+            log_z, _ = (scored if scored is not None else
+                        state.answer_cursor.scores(anchor, state.answer_cursor.log_probs[anchor]))
             if not math.isfinite(log_z):
                 return [VOCABULARY[int(np.argmax(r))] for r in readings]
             _, arities = state.answer_cursor.best(anchor)
@@ -360,10 +362,12 @@ class FormulaEvaluator:
                 state.cursor = Split(log_probs, ARITY_ORDER)
             changed = np.flatnonzero(np.any(state.cursor.log_probs != log_probs, axis=1))
             state.changed = tuple(int(k) for k in changed)
+            scored = None
             for k in state.changed:
-                state.cursor.climb(k, log_probs[k])
+                scored = state.cursor.climb(k, log_probs[k])
             anchor = state.changed[-1] if state.changed else 0
-            log_z, _ = state.cursor.scores(anchor, log_probs[anchor])
+            log_z, _ = (scored if scored is not None else
+                        state.cursor.scores(anchor, log_probs[anchor]))
             if not math.isfinite(log_z):
                 return None
             weight = sequence_log_weight(log_probs, ARITY_ORDER, arities)
