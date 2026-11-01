@@ -76,8 +76,7 @@ theorem routeAware_switch {A B K : Finset E} (hK : K ⊆ A) :
   rw [routeAware_load hK]
 
 /-- **Repetition is free.** Serving a route whose experts are resident loads
-nothing, so a task sequence costs only at route changes, and grouping tasks
-by route minimizes the number of changes. -/
+nothing. -/
 theorem routeAware_repeat {S R K : Finset E} (hK : K ⊆ S) (hR : R ⊆ S) :
     bytes w ((R ∪ K) \ S) = 0 := by
   rw [routeAware_load hK, sdiff_eq_empty_iff_subset.mpr hR]

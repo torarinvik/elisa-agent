@@ -52,13 +52,13 @@ within a byte budget; serving a route with working set `R` moves it to some
 |---|---|
 | 12.10 | every transition serving `R` loads at least `bytes(R \ S)` |
 | 12.11 | keeping `R ∪ K` with `K ⊆ S` loads exactly `bytes(R \ S)`, the minimum |
-| 12.12 | alternating routes `A`, `B` costs `bytes(B \ A)` per switch: shared experts are never reloaded |
+| 12.12 | switching from a state containing exactly `A` to route `B` costs at most `bytes(B \ A)`; shared experts are never reloaded |
 | 12.13 | serving a resident route loads nothing |
 | 12.14 | if `bytes(R)` exceeds the budget, no resident set within budget can serve `R` |
 
-By Theorem 12.13, a task sequence costs only at route changes, so the
-remaining lever is the number of changes: independent tasks grouped by route
-switch once per route. Least-recently-used eviction is not optimal in general:
+By Theorem 12.13, repeating a resident route incurs no loading cost. Grouping
+independent tasks by route reduces route changes, although the resulting byte
+cost also depends on expert sizes and what remains resident. Least-recently-used eviction is not optimal in general:
 when one route runs a shared expert first and the next route runs its own
 expert first, recency marks the shared expert as the victim, and it is
 reloaded at once.

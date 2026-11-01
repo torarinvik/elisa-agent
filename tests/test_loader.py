@@ -348,3 +348,21 @@ def test_loader_can_use_another_store() -> None:
                        load, 1, outer_store)
     outer_store.acquire(outer)
     assert outer_store.resident_bytes == inner_store.resident_bytes == 1
+
+
+def test_foreign_expert_is_rejected_before_store_changes() -> None:
+    store, foreign_store = ExpertStore(2), ExpertStore(2)
+    def expert(name: str, owner: ExpertStore) -> LazyExpert:
+        return LazyExpert(Manifest(name, "1", Contract((), name)), placeholder, 1, owner)
+    resident = expert("resident", store)
+    store.prepare(Apply(resident, ()))
+    local, foreign = expert("local", store), expert("foreign", foreign_store)
+    before = (list(store.resident), store.pinned, store.resident_bytes, store.stats.loads)
+    with pytest.raises(ValueError, match="different store"):
+        store.prepare(Apply(local, (Apply(foreign, ()),)))
+    with pytest.raises(ValueError, match="different store"):
+        store.acquire(foreign)
+    assert (list(store.resident), store.pinned, store.resident_bytes, store.stats.loads) == before
+    assert not foreign_store.resident
+    foreign.invoke()
+    assert list(foreign_store.resident) == ["foreign@1"]

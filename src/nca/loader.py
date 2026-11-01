@@ -12,6 +12,7 @@ until the next ``prepare``. Distinct live wrappers with the same reference
 are rejected while an implementation is resident, and conflicting wrappers
 in one route are rejected before the store changes. Use distinct versions
 for distinct implementations when provenance must distinguish them.
+Each lazy expert in a prepared route must belong to the preparing store.
 Loaders must not mutate or acquire experts from their own store while loading;
 they may use other stores.
 Every transition that serves a route loads at
@@ -88,6 +89,8 @@ class ExpertStore:
         self._check_not_loading()
         experts: dict[str, LazyExpert] = {}
         for expert in route_experts(route):
+            if expert.store is not self:
+                raise ValueError("expert belongs to a different store")
             key = expert.manifest.ref
             if (key in experts and experts[key] is not expert) or (
                     key in self._owners and self._owners[key] is not expert):
@@ -131,6 +134,8 @@ class ExpertStore:
 
     def acquire(self, expert: LazyExpert) -> Any:
         self._check_not_loading()
+        if expert.store is not self:
+            raise ValueError("expert belongs to a different store")
         key = expert.manifest.ref
         if key in self._resident:
             if self._owners[key] is not expert:
