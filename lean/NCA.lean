@@ -27,3 +27,4 @@ import NCA.Slots
 import NCA.Banding
 import NCA.Misspecification
 import NCA.Stopping
+import NCA.Composition
