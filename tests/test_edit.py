@@ -71,3 +71,17 @@ def test_native_edit_empty_inputs_and_batch() -> None:
     assert native.edit_distance(empty, text) == len(text)
     assert native.edit_distance(text, empty) == len(text)
     assert native.edit_distances(empty, text, [0, 0, len(text)]) == [0, len(text)]
+
+
+def test_native_edit_identical_and_near_identical_sequences() -> None:
+    native = words._EDIT_NATIVE
+    if getattr(native, "edit_distance", None) is None:
+        pytest.skip("requires the native edit kernel")
+    rng = np.random.default_rng(162)
+    values = rng.integers(0, 500, size=500, dtype=np.int64)
+    assert native.edit_distance(values, values.copy()) == 0
+    for index in (0, len(values) // 2, len(values) - 1):
+        changed = values.copy()
+        changed[index] = 1000
+        assert native.edit_distance(values, changed) == 1
+        assert native.edit_distance(changed, values) == 1

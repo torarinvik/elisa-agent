@@ -3,6 +3,13 @@
 def edit_distance(a: view[i64], b: view[i64]) -> i64 can[Memory.Allocate, Abort.Panic]:
     return b.len.i64() if a.len == 0
     return a.len.i64() if b.len == 0
+    if a.len == b.len:
+        same: bool =
+            for i in 0..<a.len.i64() |same: bool = true| -> same:
+                if a[i] != b[i]:
+                    same <- false
+                    break
+        return 0 if same
     return edit_rows(b, a) if b.len > a.len else edit_rows(a, b)
 
 def edit_rows(a: view[i64], b: view[i64]) -> i64 can[Memory.Allocate, Abort.Panic]:
