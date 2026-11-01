@@ -293,6 +293,53 @@ def test_native_tail_blocks_remain_stable_across_many_updates() -> None:
         np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-13)
 
 
+def test_native_tail_blocks_track_sparse_anchor_transitions() -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    m, width, block_size = 17, 8, 4
+    reference = np.arange(m, dtype=np.int64) % width
+    rows = np.full((m, width), -np.inf)
+    rows[np.arange(m), reference] = 0.0
+    blocks = np.empty(2 * ((m - 1) // block_size + 1))
+    assert native(rows.reshape(-1), reference, blocks, block_size, -1) == [-math.inf, 0.0]
+    for k, log_weights in [(0, [-40.0]), (8, [-700.0, -701.0]),
+                           (16, [-1000.0]), (0, []), (8, []), (16, [])]:
+        rows[k, :] = -np.inf
+        rows[k, reference[k]] = 0.0
+        for j, log_weight in enumerate(log_weights, 1):
+            rows[k, (reference[k] + j) % width] = log_weight
+        off, factor = native(rows.reshape(-1), reference, blocks, block_size, k)
+        with localcontext() as context:
+            context.prec = 500
+            weights = [[Decimal(0) if x == -np.inf else Decimal.from_float(float(x)).exp()
+                        for x in row] for row in rows]
+            exact_off = sum((w for row, r in zip(weights, reference)
+                             for j, w in enumerate(row) if j != r), Decimal(0))
+            exact_factor = sum((sum(row).ln() for row in weights), Decimal(0))
+            if exact_off:
+                assert off == pytest.approx(float(exact_off.ln()), abs=1e-12)
+            else:
+                assert off == -math.inf
+            assert factor == pytest.approx(float(exact_factor), rel=1e-13, abs=0.0)
+
+
+def test_native_tail_blocks_preserve_mass_when_zero_weights_move() -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rng = np.random.default_rng(282)
+    finite = np.log(rng.dirichlet(np.full(32, 0.4)) * (1 + 5e-13))
+    row = np.concatenate((finite, np.full(96, -np.inf)))
+    reference = 0
+    baseline = native(row, np.array([reference], dtype=np.int64), np.empty(2), 1, -1)
+    for _ in range(20):
+        order = rng.permutation(len(row))
+        moved_reference = int(np.flatnonzero(order == reference)[0])
+        actual = native(row[order], np.array([moved_reference], dtype=np.int64), np.empty(2), 1, -1)
+        np.testing.assert_allclose(actual, baseline, rtol=0.0, atol=2e-15)
+
+
 @pytest.mark.parametrize("shift", [0.0, -40.0])
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_risk_retains_tiny_accepted_alternative(

@@ -276,10 +276,12 @@ def tail_block_summary(log_probs: view[f64], reference: view[i64], blocks: mutab
                         if j != reference[k] and reading > peak:
                             peak <- reading
                             peak_index <- j
+                last: i64 = width if peak_index >= 0 else 0
                 rest, _ =
-                    for j in 0..<width |rest: f64 = 0.0, correction: f64 = 0.0| -> (rest, correction):
-                        if j != reference[k] and j != peak_index and peak_index >= 0:
-                            adjusted: f64 = exp(log_probs[k * width + j] - peak) - correction
+                    for j in 0..<last |rest: f64 = 0.0, correction: f64 = 0.0| -> (rest, correction):
+                        reading: f64 = log_probs[k * width + j]
+                        if j != reference[k] and j != peak_index and reading != log(0.0):
+                            adjusted: f64 = exp(reading - peak) - correction
                             next: f64 = rest + adjusted
                             correction <- (next - rest) - adjusted
                             rest <- next
