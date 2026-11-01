@@ -218,6 +218,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.16](theory/27-priors-as-experts.md) | `risk_from_other_mass` | `Product` |
 | [27.17](theory/27-priors-as-experts.md) | `partitionCompose_assoc`, `partitionCompose_identity`, `partitionCompose_nonneg` | `Product` |
 | [27.18](theory/27-priors-as-experts.md) | `partitionBoundary_total`, `partitionBoundary_nonneg`, `partitionBoundary_assoc`, `partitionBoundary_identity` | `Product` |
+| [27.19](theory/27-priors-as-experts.md) | `partition_prefix_reuse` | `Product` |
 
 ## Native kernels
 

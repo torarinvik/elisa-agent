@@ -385,6 +385,18 @@ theorem partitionBoundary_identity {S : Type} [Fintype S] [DecidableEq S]
     simp_rw [h]
     exact partitionSum_single finish (a start finish)
 
+/-- A deterministic prefix summary can be reused when the paired inputs agree. -/
+theorem partition_prefix_reuse {Input State : Type} (step : State → Input → State)
+    (initial : State) (old new : List Input) (k : ℕ)
+    (same : old.take k = new.take k) :
+    new.foldl step initial = (new.drop k).foldl step ((old.take k).foldl step initial) := by
+  calc
+    new.foldl step initial = ((new.take k) ++ new.drop k).foldl step initial := by
+      rw [List.take_append_drop]
+    _ = (new.drop k).foldl step ((new.take k).foldl step initial) := by
+      rw [List.foldl_append]
+    _ = (new.drop k).foldl step ((old.take k).foldl step initial) := by rw [same]
+
 /-- A one-symbol factor product is the factor raised to its occurrence count. -/
 theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
     (symbols.map (fun a => if a = key then factor else 1)).prod =

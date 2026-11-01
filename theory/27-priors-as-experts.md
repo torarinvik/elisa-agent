@@ -53,6 +53,13 @@ The current incremental implementation retains prefix summaries, rather than
 using a general boundary-composition tree; its state invariants are tested but
 not formally proved by these scalar and boundary identities.
 
+**Theorem 27.19 (prefix reuse).** For any deterministic state update over a
+sequence of inputs, if the old and new sequences have the same first `k`
+inputs, folding the new sequence equals folding its suffix from the old
+prefix's state. Here an input must include both the reading and the selected
+symbol. This generic result justifies the dependency boundary; it does not
+prove that the Elisa state implements the mathematical partition recurrence.
+
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format
 state `s` with a prior state `t`. Reading `a` moves to `(δ s a, ε t a)` with

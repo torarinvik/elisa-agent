@@ -151,6 +151,32 @@ def test_partition_cursor_recomputes_from_first_changed_position(
             assert cursor.last_start == len(rows)
 
 
+def test_partition_cursor_tracks_independent_reading_and_selection_changes() -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    rng = np.random.default_rng(772)
+    prior = priors.height_prior(4)
+    rows = np.log(rng.dirichlet(np.ones(3), size=12))
+    selected = [0] * len(rows)
+    cursor = incremental.PartitionCursor(prior)
+    cursor.partition(rows, tuple(selected))
+    selected[6] = 1
+    np.testing.assert_allclose(cursor.partition(rows, tuple(selected)),
+                               prior.partition(rows, selected), atol=1e-12)
+    assert cursor.last_start == 6
+    rows[4] = np.log(rng.dirichlet(np.ones(3)))
+    np.testing.assert_allclose(cursor.partition(rows, tuple(selected)),
+                               prior.partition(rows, selected), atol=1e-12)
+    assert cursor.last_start == 4
+    selected[10] = 2
+    rows[3] = np.log(rng.dirichlet(np.ones(3)))
+    np.testing.assert_allclose(cursor.partition(rows, tuple(selected)),
+                               prior.partition(rows, selected), atol=1e-12)
+    assert cursor.last_start == 3
+
+
 def test_partition_cursor_recovers_after_overflow() -> None:
     import nca.partition as incremental
 
