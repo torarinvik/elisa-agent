@@ -1606,6 +1606,23 @@ to a fixed reading state, not the difference between independently stopped
 runs. Exact marginal refreshes and full-sized backing arrays remain. The
 option stays disabled by default pending broader efficiency and audit results.
 
+**Normalizer-only certification.** Profiling the integrated banded evaluator
+on the three depth-8 formulas found 1,210 maximum traces: 605 for raw answer
+selection and 605 unused by the calibrated risk account. The calibrated
+cursor now checks relative tail slack without certifying or tracing a
+maximum; raw answer selection retains the stronger certificate. Existing
+Theorems 23.5–23.6 justify this separation. Tests prohibit tracing during
+normalizer-only updates and compare twenty evolving states with exact risks
+in both native and reference modes, including invalidation after zero mass
+and later switching back to maximum selection.
+
+A warmed traced/normalizer/normalizer/traced comparison took
+0.51790/0.51285/0.47822/0.50248 s; all returned Answers were exactly equal.
+The timing is noisy and does not establish a robust end-to-end speedup.
+Profiling confirms maximum traces fell to 605; the 605 normalizer-only calls
+took 0.01680 s cumulatively. The native suite passes 141 tests, fallback
+128 with 13 skips; Lean and Ruff pass.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

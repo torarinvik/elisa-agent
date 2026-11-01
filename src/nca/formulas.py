@@ -535,9 +535,9 @@ class CertifiedSplit:
     def _build(self) -> Split:
         return Split(self.log_probs, self.alphabet, self.centre, 2 * (self.changes - 1))
 
-    def result(self, k: int = 0,
-               scores: tuple[float, float] | None = None) -> Banded | None:
-        """Widen until both relative slack and exact-maximum certificates hold."""
+    def _certify(self, k: int, scores: tuple[float, float] | None,
+                 maximum: bool) -> tuple[float, int] | None:
+        """Certify the normalizer, optionally requiring a global maximum."""
         self.log_upper = None
         m = len(self.log_probs)
         probabilities = np.exp(self.log_probs)
@@ -550,12 +550,10 @@ class CertifiedSplit:
             log_z, log_x = (scores if scores is not None else
                             self.split.scores(k, self.log_probs[k]))
             if (math.isfinite(log_z) and log_tail <= math.log(self.slack) + log_z
-                    and log_x >= log_tail):
-                _, arities = self.split.best(k)
+                    and (not maximum or log_x >= log_tail)):
                 upper = float(np.logaddexp(log_z, log_tail))
                 self.log_upper = upper
-                risk = max(0.0, float(-np.expm1(min(0.0, log_x - upper))))
-                return Banded(arities, risk, True, self.changes, 2 * half + 1)
+                return log_x, half
             if half > m:
                 return None
             self.changes += 1
@@ -563,10 +561,29 @@ class CertifiedSplit:
             self.split = self._build()
             scores = None
 
+    def normalizer(self, k: int = 0,
+                   scores: tuple[float, float] | None = None) -> float | None:
+        """Upper-bound total accepted weight in log space without tracing an answer."""
+        self._certify(k, scores, maximum=False)
+        return self.log_upper
+
+    def result(self, k: int = 0,
+               scores: tuple[float, float] | None = None) -> Banded | None:
+        """Widen until both relative slack and exact-maximum certificates hold."""
+        certified = self._certify(k, scores, maximum=True)
+        if certified is None:
+            return None
+        log_x, half = certified
+        _, arities = self.split.best(k)
+        assert self.log_upper is not None
+        risk = max(0.0, float(-np.expm1(min(0.0, log_x - self.log_upper))))
+        return Banded(arities, risk, True, self.changes, 2 * half + 1)
+
     def sequence_risk(self, arities: Sequence[int]) -> float:
         """Upper-bound any accepted sequence's risk, including outside the band.
 
-        Requires a successful result for the current rows. The normalizer bound
+        Requires a successful result or normalizer certificate for the current rows.
+        The normalizer bound
         and relative slack apply independently of which accepted answer is scored
         (THEORY §23.3). This is a model bound, not a floating-point enclosure.
         """
@@ -579,15 +596,24 @@ class CertifiedSplit:
         weight = sequence_log_weight(self.log_probs, self.alphabet, arities)
         return max(0.0, float(-np.expm1(min(0.0, weight - self.log_upper))))
 
-    def climb(self, k: int, row: np.ndarray) -> Banded | None:
-        """Replace one probability row while retaining the reference and band."""
+    def _replace(self, k: int, row: np.ndarray) -> tuple[float, float]:
+        """Replace one validated row and retain the reference and band."""
         row = np.asarray(row, dtype=np.float64)
         if row.shape != (len(self.alphabet),):
             raise ValueError("row width must match the alphabet")
         self._validate(row)
         scores = self.split.climb(k, row)
         self.log_probs[k] = row
-        return self.result(k, scores)
+        self.log_upper = None
+        return scores
+
+    def climb(self, k: int, row: np.ndarray) -> Banded | None:
+        """Replace one probability row and certify a maximum and its risk."""
+        return self.result(k, self._replace(k, row))
+
+    def climb_normalizer(self, k: int, row: np.ndarray) -> float | None:
+        """Replace one probability row and certify only the normalizer."""
+        return self.normalizer(k, self._replace(k, row))
 
 
 @dataclass(frozen=True)

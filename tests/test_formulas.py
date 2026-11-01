@@ -741,3 +741,36 @@ def test_banded_correction_charges_selected_answer_conservatively(
         assert repeated is not None
         # A scheduled marginal refresh can redistribute the same total charge.
         assert sum(repeated.values()) == pytest.approx(sum(account.values()), abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_normalizer_only_updates_bound_risk_without_tracing(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+
+    def no_trace(*args: Any) -> Any:
+        raise AssertionError("normalizer computation must not trace an answer")
+
+    rng = np.random.default_rng(43)
+    weights = np.log(rng.dirichlet(np.full(3, 0.3), size=35))
+    cursor = formulas.CertifiedSplit(weights)
+    selected = (1,) * 34 + (0,)
+    with monkeypatch.context() as patch:
+        patch.setattr(Split, "best", no_trace)
+        for step in range(20):
+            if step:
+                k = int(rng.integers(len(weights)))
+                weights[k] = np.log(rng.dirichlet(np.full(3, 0.3)))
+                upper = cursor.climb_normalizer(k, weights[k])
+            else:
+                upper = cursor.normalizer()
+            exact = decode(weights)
+            assert exact is not None and upper is not None
+            risk = exact.risk(weights, (0, 1, 2), selected)
+            assert risk - 1e-12 <= cursor.sequence_risk(selected) <= risk + 1e-4 + 1e-12
+    # The same cursor can later request the stronger maximum certificate.
+    assert cursor.result() is not None
+    assert cursor.climb_normalizer(0, np.full(3, -np.inf)) is None
+    with pytest.raises(ValueError, match="successful result"):
+        cursor.sequence_risk(selected)

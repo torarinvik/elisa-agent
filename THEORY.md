@@ -1684,7 +1684,9 @@ numerator's second factor is at most `U`, and `x / Z ≤ 1`.
 These two risk bounds apply to any accepted sequence of weight `x`, not just
 the maximizing sequence or one inside the band: acceptance gives `0 ≤ x ≤ Z`.
 Only the exactness certificate requires the selected sequence to maximize the
-banded weight. This distinction permits one distribution to select an answer
+banded weight. When the answer is already selected, normalizer certification
+can stop at the relative-tail condition without establishing or tracing a
+maximum. This distinction permits one distribution to select an answer
 and another to bound that same answer’s posterior risk.
 
 So a slack target must be relative: `U_j ≤ η · Z_band` gives a charged risk

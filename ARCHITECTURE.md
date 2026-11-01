@@ -588,7 +588,10 @@ it until the relative tail and exact-maximum conditions of §23.3 hold.
 Single-row updates reuse native cursor sweeps; rebuilds preserve the reference.
 Its `Banded` result bounds model risk with the requested slack. After a
 successful result, `sequence_risk` scores any accepted arity sequence with the
-same upper normalizer, even outside the band (the existing `banded_risk_le`
+same upper normalizer, even outside the band. `normalizer` and
+`climb_normalizer` certify that bound without requiring or tracing a maximum;
+the calibrated account uses these while raw answer selection uses `result`
+and `climb` (the existing `banded_risk_le`
 and `banded_risk_slack` proofs apply). Failed updates invalidate this bound. It validates
 probability row mass and arities 0–2; zero accepted mass returns `None`.
 The evaluator can opt into this wrapper for raw answer selection. Storage remains full-sized

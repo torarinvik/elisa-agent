@@ -415,10 +415,10 @@ class FormulaEvaluator:
             state.changed = tuple(int(k) for k in changed)
             if state.risk_band is not None:
                 for k in state.changed:
-                    if state.risk_band.climb(k, log_probs[k]) is None:
+                    if state.risk_band.climb_normalizer(k, log_probs[k]) is None:
                         return None
                 if (not state.changed and state.risk_band.log_upper is None
-                        and state.risk_band.result() is None):
+                        and state.risk_band.normalizer() is None):
                     return None
                 state.cursor = state.risk_band.split
                 sequence_risk = state.risk_band.sequence_risk(arities)
