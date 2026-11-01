@@ -640,6 +640,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
            priority: ClimbPriority | None = None, ranked: bool = False) -> Refinement:
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
+    Each value requires one nonempty ladder and, when supplied, one decision.
     Every item starts at rung ``min(start, top)``, reading each rung below it.
     The bound sums the charges of ``certificate``'s account; by default every
     item ``i`` is charged the risk of decision ``classes[i]``. While it exceeds
@@ -656,6 +657,10 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     if math.isnan(delta) or delta < 0:
         raise ValueError("target must be nonnegative and not NaN")
     decisions = list(classes) if classes is not None else [None] * len(values)
+    if len(decisions) != len(values):
+        raise ValueError("classes must contain exactly one decision per value")
+    if len(ladders) != len(values) or any(not ladder for ladder in ladders):
+        raise ValueError("ladders must contain one nonempty ladder per value")
     levels = [0] * len(values)
     logs: list[torch.Tensor | RankedObservation] = [torch.empty(0)] * len(values)
     readings: list[Reading] = [torch.empty(0)] * len(values)

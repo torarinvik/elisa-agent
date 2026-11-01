@@ -1614,3 +1614,26 @@ def test_incremental_default_account_matches_explicit_decisions(ranked, with_flo
         return result.cost, result.bound, result.abstained, states, trace
 
     assert run(None) == run([None] * 5)
+
+
+@pytest.mark.parametrize("classes,ladders", [([None], 2), ([None] * 3, 2), (None, 1), (None, 3)])
+def test_refinement_rejects_mismatched_inputs_before_invocation(classes, ladders) -> None:
+    class CountingExpert:
+        manifest = Manifest("length-validation", "1", Contract(("x",), "dist"))
+        calls = 0
+
+        def invoke(self, value):
+            self.calls += 1
+            return (0.5, 0.5)
+
+    expert = CountingExpert()
+    rung = Rung(expert)
+    with pytest.raises(ValueError, match="one decision per value|one nonempty ladder per value"):
+        refine([0, 0], [[rung]] * ladders, 0.5, classes=classes)
+    assert expert.calls == 0
+
+
+def test_refinement_rejects_empty_ladder_before_invocation() -> None:
+    rung = Rung(constant("present", (0.5, 0.5), 1.0))
+    with pytest.raises(ValueError, match="one nonempty ladder per value"):
+        refine([0, 0], [[rung], []], 0.5)
