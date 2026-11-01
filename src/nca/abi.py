@@ -7,7 +7,7 @@ import itertools
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 TypeId = str
 """A semantic type in its canonical text form (THEORY §1.1): a constructor
@@ -20,8 +20,7 @@ never implies compatibility. Conversions between types are modules.
 """
 
 
-@dataclass(frozen=True)
-class ScopedName:
+class ScopedName(NamedTuple):
     """Internal variable identity, disjoint from names parsed from contracts."""
 
     name: str
