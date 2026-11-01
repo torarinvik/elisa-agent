@@ -16,6 +16,26 @@ def upper_add(a: f64, b: f64) -> f64:
     return 1.0 if total >= 1.0
     return nextafter(total, 1.0)
 
+def upper_power(base: f64, n: i64) -> f64:
+    return
+        for _ in 0..<63 |value: f64 = 1.0, factor: f64 = base, remaining: i64 = n| -> value:
+            break if remaining == 0
+            value <- upper_product(value, factor) if remaining % 2 == 1 else value
+            remaining <- remaining / 2
+            factor <- upper_product(factor, factor) if remaining > 0 else factor
+
+# Upper bisection endpoint for the zero-error Clopper–Pearson limit.
+def clopper_zero_upper(n: i64, alpha: f64) -> f64:
+    return 1.0 if n <= 0
+    return
+        for _ in 0..<60 |low: f64 = 0.0, high: f64 = 1.0| -> high:
+            mid: f64 = (low + high) / 2.0
+            cdf: f64 = 0.0 if mid >= 1.0 else upper_power(nextafter(1.0 - mid, 1.0), n)
+            if cdf >= alpha:
+                low <- mid
+            else:
+                high <- mid
+
 # Upper bound on min(1, sum of unordered products) without subtraction.
 def pair_risk_upper(risks: view[f64]) -> f64:
     total: f64 =
@@ -111,3 +131,4 @@ export pymodule stats:
     fn poisson_binomial_pmf
     fn poisson_binomial_upper
     fn pair_risk_upper
+    fn clopper_zero_upper

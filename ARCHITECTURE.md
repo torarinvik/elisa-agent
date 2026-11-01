@@ -159,6 +159,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [17.9](theory/17-calibration-under-distribution-shift.md) | `audit_family_le` | `Calibration` |
 | [17.7](theory/17-calibration-under-distribution-shift.md) | `audit_rejection_of_completion` | `Calibration` |
 | [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_budget_obstruction` | `Calibration` |
+| [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_cdf_upper_refutes`, `audit_cdf_lower_proves` | `Calibration` |
 | [17.5](theory/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `grouped_risk_le` | `Certificate` |
 | [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `risk_as_alternative_mass` | `Selective` |

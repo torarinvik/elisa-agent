@@ -112,6 +112,14 @@ satisfies `P(R(λ) > U(k_λ, n_λ; α)) ≤ α`. Declare `λ` safe when
 requires `U < R(λ)`, which has probability at most `α`: each test is valid
 at level `α`.
 
+The implementation bounds the binomial CDF upward when locating `U` and
+returns the upper endpoint of the search interval. For an acceptance decision
+it can instead prove the CDF at `δ` is strictly below `α`; an inconclusive
+rounded comparison does not certify. Early rejection uses a lower CDF bound
+above `α`, so numerical uncertainty cannot turn an inconclusive case into an
+irreversible rejection. These numerical claims use the IEEE 754 assumptions
+of the count-tail bounds in §21.8; they do not establish the sampling premise.
+
 **Fixed sequence.** Fix an order of the candidates, test them in that
 order, and stop at the first one not declared safe. By Theorem 17.5:
 

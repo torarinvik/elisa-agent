@@ -60,7 +60,7 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
                                pair_risk_upper)
 from nca.planner import Plan, plan_stable
 from nca.selective import Answer, build_ladders, solve, solve_many
-from nca.stats import (clopper_pearson_upper, family_audit_alpha, format_upper_bound,
+from nca.stats import (clopper_pearson_exceeds, family_audit_alpha, format_upper_bound,
                        poisson_binomial_tails, poisson_binomial_upper_bound, wilson)
 
 
@@ -134,7 +134,7 @@ def outcomes(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[F
             incorrect = answer.value != sample.value
             wrong += incorrect
             if (incorrect and reject_above is not None
-                    and clopper_pearson_upper(wrong, len(samples), alpha) > reject_above):
+                    and clopper_pearson_exceeds(wrong, len(samples), alpha, reject_above)):
                 break
     return answered, wrong
 

@@ -230,6 +230,87 @@ def test_clopper_pearson_upper_matches_closed_form_and_sample_sizes() -> None:
     assert clopper_pearson_upper(0, 0, 0.1) == 1.0
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_clopper_pearson_numerically_bounds_exact_limit(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import math
+    from fractions import Fraction
+    import nca.stats as stats
+
+    if reference:
+        monkeypatch.setattr(stats, "_NATIVE", None)
+    for n in range(1, 13):
+        for k in range(n):
+            for alpha in (0.01, 0.05, 0.1, 0.5, 0.9):
+                bound = stats.clopper_pearson_upper(k, n, alpha)
+                p = Fraction.from_float(bound)
+                exact_cdf = sum((Fraction(math.comb(n, i)) * p**i * (1 - p)**(n - i)
+                                 for i in range(k + 1)), Fraction())
+                assert exact_cdf <= Fraction.from_float(alpha)
+    # The previous result, float(0.95), lies below the exact one-trial limit.
+    bound = stats.clopper_pearson_upper(0, 1, 0.05)
+    assert Fraction.from_float(bound) >= 1 - Fraction.from_float(0.05)
+    assert stats.clopper_pearson_upper(3, 100, 0.9) < 0.03
+    for k, n, alpha in ((-1, 2, 0.1), (3, 2, 0.1), (0, -1, 0.1), (0, 2, 0.0)):
+        with pytest.raises(ValueError):
+            stats.clopper_pearson_upper(k, n, alpha)
+
+
+def test_zero_error_native_bound_matches_fallback(monkeypatch) -> None:
+    import nca.stats as stats
+
+    native = stats._NATIVE
+    if getattr(native, "clopper_zero_upper", None) is None:
+        pytest.skip("Elisa zero-error bound is not built")
+    for n in (1, 100, 1000, 100_000):
+        for alpha in (0.01, 0.1, 0.9):
+            monkeypatch.setattr(stats, "_NATIVE", None)
+            expected = stats.clopper_pearson_upper(0, n, alpha)
+            monkeypatch.setattr(stats, "_NATIVE", native)
+            assert stats.clopper_pearson_upper(0, n, alpha) == expected
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_clopper_pearson_early_rejection_is_sound(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import math
+    from fractions import Fraction
+    import nca.stats as stats
+
+    if reference:
+        monkeypatch.setattr(stats, "_NATIVE", None)
+    for n in range(1, 10):
+        for k in range(n + 1):
+            for delta in (0.0, 0.05, 0.25, 0.5, 0.9):
+                alpha = 0.1
+                if stats.clopper_pearson_exceeds(k, n, alpha, delta):
+                    p = Fraction.from_float(delta)
+                    exact_cdf = sum((Fraction(math.comb(n, i)) * p**i * (1 - p)**(n - i)
+                                     for i in range(k + 1)), Fraction())
+                    assert exact_cdf > Fraction.from_float(alpha)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_clopper_pearson_direct_acceptance_is_sound(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import math
+    from fractions import Fraction
+    import nca.stats as stats
+
+    if reference:
+        monkeypatch.setattr(stats, "_NATIVE", None)
+    for n in range(1, 10):
+        for k in range(n + 1):
+            for delta in (0.05, 0.25, 0.5, 0.9, 0.95):
+                alpha = 0.1
+                if stats.clopper_pearson_within(k, n, alpha, delta):
+                    p = Fraction.from_float(delta)
+                    exact_cdf = sum((Fraction(math.comb(n, i)) * p**i * (1 - p)**(n - i)
+                                     for i in range(k + 1)), Fraction())
+                    assert exact_cdf < Fraction.from_float(alpha)
+    assert not stats.clopper_pearson_within(0, 1, 0.05, float("nan"))
+
+
 def test_binomial_cdf_outside_count_support() -> None:
     from nca.stats import binomial_cdf
 
@@ -259,6 +340,7 @@ def test_certify_stops_at_first_failure() -> None:
     assert certify([(100, 0), (150, 1), (200, 30), (300, 0)], 0.05, 0.1) == [0, 1]
     assert certify([(10, 0)], 0.05, 0.1) == []
     assert certify([(10, 0), (300, 0)], 0.05, 0.1, order=[1, 0]) == [1]
+    assert certify([(1, 0)], 0.95, 0.05) == []
 
 
 def test_certification_order_puts_certifiable_candidates_first() -> None:

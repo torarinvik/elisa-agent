@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 from decimal import ROUND_CEILING, Context, Decimal, localcontext
+from numbers import Integral
 from typing import Sequence
 
 import numpy as np
@@ -88,19 +89,88 @@ def binomial_cdf(k: int, n: int, r: float) -> float:
 
 
 def clopper_pearson_upper(k: int, n: int, alpha: float) -> float:
-    """Exact one-sided upper confidence bound on a binomial rate: the largest
-    ``r`` with ``P(Binomial(n, r) <= k) >= alpha``, so that the true rate
-    exceeds it with probability at most ``alpha``."""
+    """Conservative numerical upper bound for the Clopper–Pearson limit.
+
+    The exact limit is the largest ``r`` with ``P(Binomial(n, r) <= k)``
+    at least ``alpha``. CDF comparisons round upward and the upper bisection
+    endpoint is returned, under the IEEE assumptions of
+    :func:`poisson_binomial_upper_bound`.
+    """
+    _validate_binomial_audit(k, n, alpha)
     if n == 0 or k >= n:
         return 1.0
-    low, high = k / n, 1.0
+    native_zero = getattr(_NATIVE, "clopper_zero_upper", None)
+    if k == 0 and native_zero is not None and n < 2**63:
+        return float(native_zero(n, alpha))
+    low, high = 0.0, 1.0
     for _ in range(60):
         mid = (low + high) / 2
-        if binomial_cdf(k, n, mid) >= alpha:
+        if _binomial_cdf_upper(k, n, mid) >= alpha:
             low = mid
         else:
             high = mid
-    return low
+    return high
+
+
+def _validate_binomial_audit(k: int, n: int, alpha: float) -> None:
+    if not isinstance(k, Integral) or not isinstance(n, Integral) or n < 0 or not 0 <= k <= n:
+        raise ValueError("requires integer counts 0 <= k <= n")
+    if not math.isfinite(alpha) or not 0 < alpha < 1:
+        raise ValueError("alpha must be strictly between zero and one")
+
+
+def _binomial_cdf_upper(k: int, n: int, rate: float) -> float:
+    """Upper bound on P(Binomial(n, rate) <= k), for 0 <= k < n."""
+    if rate <= 0.0:
+        return 1.0
+    if rate >= 1.0:
+        return 0.0
+    failure = math.nextafter(1.0 - rate, 1.0)
+    if k == 0:
+        # P(no failures) = (1-rate)^n; exponentiation by squaring, rounded up.
+        power, result, exponent = failure, 1.0, n
+        while exponent:
+            if exponent & 1:
+                result = min(1.0, math.nextafter(result * power, 1.0))
+            exponent //= 2
+            if exponent:
+                power = min(1.0, math.nextafter(power * power, 1.0))
+        return result
+    return poisson_binomial_upper_bound(n - k, [failure] * n)
+
+
+def clopper_pearson_exceeds(k: int, n: int, alpha: float, threshold: float) -> bool:
+    """Prove that the exact Clopper–Pearson limit exceeds ``threshold``.
+
+    A false result is inconclusive; this is intended for safe early rejection.
+    """
+    _validate_binomial_audit(k, n, alpha)
+    if math.isnan(threshold):
+        return False
+    if threshold < 0:
+        return True
+    if threshold >= 1:
+        return False
+    if n == 0 or k >= n:
+        return True
+    tail = poisson_binomial_upper_bound(k + 1, [threshold] * n)
+    lower_cdf = math.nextafter(1.0 - tail, 0.0) if tail < 1.0 else 0.0
+    return lower_cdf > alpha
+
+
+def clopper_pearson_within(k: int, n: int, alpha: float, threshold: float) -> bool:
+    """Prove the exact Clopper–Pearson limit is at most ``threshold``.
+
+    A false result is inconclusive, so uncertain cases are not certified.
+    """
+    _validate_binomial_audit(k, n, alpha)
+    if math.isnan(threshold) or threshold <= 0:
+        return False
+    if threshold >= 1:
+        return True
+    if n == 0 or k >= n:
+        return False
+    return _binomial_cdf_upper(k, n, threshold) < alpha
 
 
 def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tuple[float, float]:

@@ -132,6 +132,26 @@ theorem fixed_sequence_le (safe : ℕ → Set Ω) (violates : ℕ → Prop) [Dec
 
 end FixedSequence
 
+/-- An upper CDF estimate below alpha safely puts a decreasing root to its left. -/
+theorem audit_cdf_upper_refutes (cdf : ℝ → ℝ) (alpha root point upper : ℝ)
+    (hmono : ∀ x y, x ≤ y → cdf y ≤ cdf x)
+    (hroot : alpha ≤ cdf root) (hupper : cdf point ≤ upper) (hbelow : upper < alpha) :
+    root < point := by
+  by_contra h
+  have horder : point ≤ root := le_of_not_gt h
+  have := hmono point root horder
+  linarith
+
+/-- A lower CDF estimate above alpha proves a decreasing root lies to the right. -/
+theorem audit_cdf_lower_proves (cdf : ℝ → ℝ) (alpha root point lower : ℝ)
+    (hmono : ∀ x y, x ≤ y → cdf y ≤ cdf x)
+    (hroot : cdf root ≤ alpha) (hlower : lower ≤ cdf point) (habove : alpha < lower) :
+    point < root := by
+  by_contra h
+  have horder : root ≤ point := le_of_not_gt h
+  have := hmono root point horder
+  linarith
+
 /-- Too few checking examples cannot meet even the zero-error acceptance condition. -/
 theorem audit_budget_obstruction {base α : ℝ} {n N : ℕ}
     (hbase : 0 ≤ base) (hunit : base ≤ 1) (hcount : n ≤ N)

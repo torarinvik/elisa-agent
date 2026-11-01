@@ -480,11 +480,11 @@ def recalibrated(rungs: Sequence[Rung], values: Sequence[Any], labels: torch.Ten
 
 def certification_possible(budget: int, delta: float, alpha: float) -> bool:
     """Whether a zero-error, full-coverage checking sample could pass (§17.6)."""
-    from nca.stats import clopper_pearson_upper
+    from nca.stats import clopper_pearson_within
 
     if budget < 0 or not 0 < delta < 1 or not 0 < alpha < 1:
         raise ValueError("requires a nonnegative budget and delta, alpha strictly between 0 and 1")
-    return clopper_pearson_upper(0, budget, alpha) <= delta
+    return clopper_pearson_within(0, budget, alpha, delta)
 
 
 def certify(candidates: Sequence[tuple[int, int]], delta: float, alpha: float,
@@ -502,12 +502,12 @@ def certify(candidates: Sequence[tuple[int, int]], delta: float, alpha: float,
     rate among answered inputs is at most ``delta``, so any of them may be
     deployed, such as the one answering most.
     """
-    from nca.stats import clopper_pearson_upper
+    from nca.stats import clopper_pearson_within
 
     accepted = []
     for index in order if order is not None else range(len(candidates)):
         answered, wrong = candidates[index]
-        if clopper_pearson_upper(wrong, answered, alpha) > delta:
+        if not clopper_pearson_within(wrong, answered, alpha, delta):
             break
         accepted.append(index)
     return accepted
