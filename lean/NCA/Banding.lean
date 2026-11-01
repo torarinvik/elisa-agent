@@ -252,6 +252,14 @@ theorem sum_sub_le_diff_bounded (bound : ℕ) : ∀ (l r : List ℕ),
             linarith
         _ = bound * (1 + diff l r) := by ring
 
+/-- A band covers the whole interval when its half-width reaches both ends. -/
+theorem band_covers_interval (centre last half state : ℤ)
+    (left : centre ≤ half) (right : last - centre ≤ half)
+    (state_left : 0 ≤ state) (state_right : state ≤ last) :
+    |state - centre| ≤ half := by
+  apply abs_le.mpr
+  constructor <;> omega
+
 variable {σ : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F]
 
 /-- Accepted sequences outside the band weigh at most the tail: the

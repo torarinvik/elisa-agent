@@ -299,7 +299,7 @@ class Split:
     positions recomputed."""
 
     def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
-                 centre: np.ndarray | None = None, half: int | None = None) -> None:
+                 centre: Sequence[int] | None = None, half: int | None = None) -> None:
         self.log_probs = np.array(log_probs, dtype=np.float64)
         self.alphabet = tuple(alphabet)
         if (self.log_probs.ndim != 2 or not self.alphabet
@@ -475,7 +475,7 @@ class CertifiedSplit:
     """Fixed-reference banded cursor with relative-tail and maximum certificates.
 
     Uses the native Split sweeps when built. Weights must be probabilities
-    over arities 0–2; bounds refer to this decoding model (THEORY §23.3–23.4).
+    over distinct nonnegative arities (THEORY §23.3–23.4).
     """
 
     def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
@@ -487,13 +487,15 @@ class CertifiedSplit:
         if (self.log_probs.ndim != 2 or not len(self.log_probs)
                 or self.log_probs.shape[1] != len(alphabet) or not self.alphabet
                 or len(set(self.alphabet)) != len(self.alphabet)
-                or any(a not in (0, 1, 2) for a in alphabet)):
-            raise ValueError("requires nonempty rows of arity 0–2 weights")
+                or any(not isinstance(a, (int, np.integer)) or a < 0 for a in alphabet)):
+            raise ValueError("requires nonempty rows over distinct nonnegative arities")
         self._validate(self.log_probs)
         self.slack = slack
         self.reference = np.argmax(self.log_probs, axis=1)
-        self.centre = 1 + np.concatenate(([0], np.cumsum(
-            np.asarray(alphabet)[self.reference] - 1)))
+        self.centre = tuple(accumulate((int(alphabet[j]) - 1 for j in self.reference), initial=1))
+        self.arity_bound = int(max(alphabet))
+        self.cover_half = max(max(c, len(self.log_probs) - k - c)
+                              for k, c in enumerate(self.centre))
         self.changes = band_changes(self.log_probs, self.reference, slack)[0]
         self.rebuilds = 0
         self.log_upper: float | None = None
@@ -506,17 +508,18 @@ class CertifiedSplit:
             raise ValueError("rows must contain log probabilities with mass at most one")
 
     def _build(self) -> Split:
-        return Split(self.log_probs, self.alphabet, self.centre, 2 * (self.changes - 1))
+        return Split(self.log_probs, self.alphabet, self.centre,
+                     self.arity_bound * (self.changes - 1))
 
     def _certify(self, k: int, scores: tuple[float, float] | None,
                  maximum: bool) -> tuple[float, int] | None:
         """Certify the normalizer, optionally requiring a global maximum."""
         self.log_upper = None
-        m = len(self.log_probs)
         log_off = _off_reference_log_mass(self.log_probs, self.reference)
         while True:
-            half = 2 * (self.changes - 1)
-            log_tail = -math.inf if half > m else _band_log_tail(log_off, self.changes)
+            half = self.arity_bound * (self.changes - 1)
+            log_tail = (-math.inf if half >= self.cover_half
+                        else _band_log_tail(log_off, self.changes))
             log_z, log_x = (scores if scores is not None else
                             self.split.scores(k, self.log_probs[k]))
             if (math.isfinite(log_z) and log_tail <= math.log(self.slack) + log_z
@@ -524,7 +527,7 @@ class CertifiedSplit:
                 upper = float(np.logaddexp(log_z, log_tail))
                 self.log_upper = upper
                 return log_x, half
-            if half > m:
+            if log_tail == -math.inf:
                 return None
             self.changes += 1
             self.rebuilds += 1

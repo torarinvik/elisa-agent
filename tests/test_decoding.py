@@ -509,6 +509,52 @@ def test_certified_cursor_rejects_invalid_weights_and_handles_zero_mass() -> Non
     cursor = formulas.CertifiedSplit(np.full((3, 3), -np.inf))
     assert cursor.result() is None
 
+
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("alphabet", [(0,), (1,), (0, 3), (0, 1, 3),
+                                      (0, 1, 3, 2**63 - 1)])
+def test_certified_cursor_supports_general_arities(
+        reference_only: bool, alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(247)
+    for m in range(1, 9):
+        rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+        cursor = decoding.CertifiedSplit(rows, alphabet)
+        for step in range(4):
+            if step:
+                k = int(rng.integers(m))
+                rows[k] = np.log(rng.dirichlet(np.ones(len(alphabet))))
+                result = cursor.climb(k, rows[k])
+            else:
+                result = cursor.result()
+            exact = decode_reference(rows, alphabet)
+            assert (result is None) == (exact is None)
+            if result is not None and exact is not None:
+                weight = exact.log_weight(rows, alphabet, result.arities)
+                assert weight == pytest.approx(exact.log_weight(rows, alphabet, exact.arities), abs=1e-12)
+                risk = exact.risk(rows, alphabet, result.arities)
+                assert risk - 1e-12 <= result.risk <= risk + 1e-4 + 1e-12
+                assert risk - 1e-12 <= cursor.sequence_risk(result.arities) <= risk + 1e-4 + 1e-12
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_certified_cursor_scores_ternary_alternative(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    alphabet = (0, 1, 3, 2**63 - 1)
+    rows = np.log(np.tile([0.4, 0.3, 0.2, 0.1], (4, 1)))
+    cursor = decoding.CertifiedSplit(rows, alphabet)
+    assert cursor.normalizer() is not None
+    exact = decode_reference(rows, alphabet)
+    assert exact is not None
+    alternative = (3, 0, 0, 0)
+    expected = exact.risk(rows, alphabet, alternative)
+    assert expected - 1e-12 <= cursor.sequence_risk(alternative) <= expected + 1e-4 + 1e-12
+    with pytest.raises(ValueError):
+        cursor.sequence_risk((2**63 - 1, 0, 0, 0))
+
 def test_certified_sequence_risk_requires_current_normalizer_and_valid_answer() -> None:
     cursor = formulas.CertifiedSplit(np.log(np.full((3, 3), 1 / 3)))
     with pytest.raises(ValueError, match="successful result"):

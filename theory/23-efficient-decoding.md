@@ -114,7 +114,9 @@ Then no sequence lies outside it, the tail term can be taken as 0, and the
 banded result is exact. Each widening costs one more banded pass.
 For a general alphabet, check coverage against every row's actual reference
 counter and the live range `0 .. m − k`; the binary-specific width test does
-not apply when the reference contains larger arities.
+not apply when the reference contains larger arities. Since the reference is
+fixed during cursor updates, the smallest half-width covering all rows is
+`maxₖ max(n_r(k), m − k − n_r(k))` and can be computed once.
 The starting `j` for `η = 10⁻⁴`:
 
 | `S` | `j` | band width `W` |

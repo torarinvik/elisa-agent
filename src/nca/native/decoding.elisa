@@ -888,7 +888,7 @@ def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
             return log(0.0) if column < 0
             total += log_probs[k * width + column]
 
-# Validate a complete binary prefix formula and sum its selected log weights.
+# Validate a complete prefix formula and sum its selected log weights.
 # Empty output denotes invalid shape or syntax; [-inf] is a valid zero-weight answer.
 def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
@@ -897,7 +897,7 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
     pending, total =
         for k in 0..<m |pending: i64 = 1, total: f64 = 0.0| -> (pending, total):
             arity: i64 = selected[k]
-            return [] if pending == 0 or arity < 0 or arity > 2
+            return [] if pending == 0 or arity < 0 or arity > m - k - 1
             column: i64 =
                 for c in 0..<width |found: i64 = -1| -> found:
                     if alphabet[c] == arity:
