@@ -254,8 +254,10 @@ class FormulaEvaluator:
             _, arities = state.answer_cursor.best(anchor)
         native = getattr(_NATIVE, "grouped_argmax", None)
         if native is not None:
-            chosen = native(np.asarray(readings, dtype=np.float64).reshape(-1),
-                            np.asarray(ARITY, dtype=np.int64),
+            scores = (state.answer_readings if state is not None else
+                      np.asarray(readings, dtype=np.float64))
+            assert scores is not None
+            chosen = native(scores.reshape(-1), np.asarray(ARITY, dtype=np.int64),
                             np.asarray(arities, dtype=np.int64))
             return [VOCABULARY[c] for c in chosen]
         return [VOCABULARY[max(ARITY_DECISION[a], key=r.__getitem__)]

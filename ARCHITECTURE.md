@@ -463,3 +463,9 @@ class groups. `FormulaEvaluator.words` uses it after arity decoding; group ids
 and scores are arguments, so the kernel is independent of the vocabulary.
 Strict score comparison preserves the first class on ties, matching the
 reference restricted argmax of §21.5. The Python loop remains the fallback.
+
+Native grouped selection reuses the current `answer_readings` snapshot when
+running inside a correction session. That snapshot is copied from the input
+after changed rows have updated the cursor, so later caller mutation cannot
+alter cached observations. Stateless word selection still prepares its own
+score array. No extra observation/calibration cache assumption is needed.

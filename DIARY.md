@@ -1235,6 +1235,20 @@ than restricted argmax as the remaining costs. The next incremental change
 should reuse the score array already held by the answer cursor and measure
 that allocation reduction, before expanding the native interface further.
 
+**Reuse the answer score snapshot.** Native grouped selection now reads
+the array the answer cursor already copied from current readings, removing
+one full score conversion per certificate step. Existing random-climb tests
+mutate the input array and compare selected words against fresh decoding,
+both with native execution and the NumPy cursor fallback. All 111 tests pass.
+The copied snapshot still isolates session state from caller mutations.
+
+On the same three-formula profile, total calls fell by 605 (the number of
+certificate steps), word-selection cumulative time changed from 0.247 s to
+0.206 s, and total profiled time from 1.084 s to 1.046 s. These single-run
+numbers show the eliminated work but do not establish a statistically
+resolved runtime gain. Corrected-account preparation remains the larger
+cost, about 0.576 s cumulatively in this run.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
