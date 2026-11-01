@@ -33,7 +33,7 @@ from torch import nn
 from nca.abi import Contract, Manifest, seq_type
 from nca.efficiency import network_flops
 from nca.formulas import (ALPHABET, ARITY, VOCABULARY, FormulaDataset, Split, apply, decode,
-                          labeled_words, parse)
+                          labeled_words, parse, sequence_log_weight)
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
 
@@ -366,7 +366,7 @@ class FormulaEvaluator:
             log_z, _ = state.cursor.scores(anchor, log_probs[anchor])
             if not math.isfinite(log_z):
                 return None
-            weight = sum(log_probs[k, ARITY_ORDER.index(a)] for k, a in enumerate(arities))
+            weight = sequence_log_weight(log_probs, ARITY_ORDER, arities)
             sequence_risk = float(-np.expm1(min(0.0, weight - log_z)))
             if state.priorities is None or state.steps >= math.isqrt(n):
                 posterior = decode(log_probs, ARITY_ORDER)

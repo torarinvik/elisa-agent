@@ -590,3 +590,21 @@ def test_native_grouped_argmax_preserves_first_class_ties() -> None:
         expected = [max((c for c, g in enumerate(groups) if g == d), key=row.__getitem__)
                     for row, d in zip(scores, decisions)]
         assert native(scores.reshape(-1), groups, decisions) == expected
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(31)
+    alphabet = (7, 2, 9)
+    rows = np.log(rng.dirichlet(np.ones(3), size=575))
+    selected = rng.choice(alphabet, size=575).tolist()
+    expected = sum(rows[k, alphabet.index(a)] for k, a in enumerate(selected))
+    assert formulas.sequence_log_weight(rows, alphabet, selected) == expected
+    assert formulas.sequence_log_weight(np.empty((0, 3)), alphabet, []) == 0.0
+    assert formulas.sequence_log_weight(np.zeros((1, 3)), alphabet, [99]) == -np.inf
+    rows[0] = -np.inf
+    assert formulas.sequence_log_weight(rows, alphabet, selected) == -np.inf
+    with pytest.raises(ValueError):
+        formulas.sequence_log_weight(rows, alphabet, selected[:-1])

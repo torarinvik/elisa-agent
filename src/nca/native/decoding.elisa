@@ -298,6 +298,19 @@ def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.All
             total <- next
     return [bound * (weights[k] / total) for k in 0..<m]
 
+# Log product of the selected sequence, preserving position order.
+def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    return
+        for k in 0..<selected.len.i64() |total: f64 = 0.0| -> total:
+            column: i64 =
+                for c in 0..<width |found: i64 = -1| -> found:
+                    if alphabet[c] == selected[k]:
+                        found <- c
+                        break
+            return log(0.0) if column < 0
+            total += log_probs[k * width + column]
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -309,3 +322,4 @@ export pymodule decoding:
     fn certificate_words
     fn grouped_argmax
     fn risk_shares
+    fn sequence_log_weight

@@ -78,6 +78,23 @@ def formula(depth: int, rng: np.random.Generator, xor: float = 0.0,
     return node(bool(rng.integers(2)), depth)
 
 
+def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
+                        selected: Sequence[int]) -> float:
+    """Log product of a selected sequence's position-wise weights (§21.5)."""
+    if log_probs.shape != (len(selected), len(alphabet)):
+        raise ValueError("weights must have one row per selected symbol and one column per class")
+    native_weight = getattr(_NATIVE, "sequence_log_weight", None)
+    if native_weight is not None:
+        return float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
+                                   np.asarray(alphabet, dtype=np.int64),
+                                   np.asarray(selected, dtype=np.int64)))
+    symbols = tuple(alphabet)
+    try:
+        return float(sum(log_probs[k, symbols.index(a)] for k, a in enumerate(selected)))
+    except ValueError:
+        return -math.inf
+
+
 def parse(arities: Sequence[int]) -> list[list[int]] | None:
     """Parse a prefix formula, using the native binary-arity parser when built."""
     native = getattr(_NATIVE, "parse_tree", None)

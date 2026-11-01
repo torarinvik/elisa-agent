@@ -475,3 +475,10 @@ when available. The Elisa loop rescales by the largest priority and uses
 compensated summation; all-zero priorities get uniform weights. The existing
 Python `math.fsum` path remains the fallback. Both implement Theorem 23.11;
 small floating-point differences in charges can affect refinement tie order.
+
+The correction account uses `formulas.sequence_log_weight` to score the
+actual selected arity sequence under calibrated weights (§21.5). The native
+reduction preserves position order, and accepts an explicit alphabet.
+Unknown symbols have weight zero (log weight minus infinity); incompatible
+matrix dimensions are rejected before entering native code. A Python
+ordered-sum reference remains available when the export is absent.

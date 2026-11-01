@@ -1283,6 +1283,19 @@ reference run indicates warm-up effects. The depth-8 pairs support a modest
 local runtime improvement of roughly 4–5%, with only two repeats. The
 sample does not establish general coverage or reliability equivalence.
 
+**Native selected-sequence weight.** The correction account's full
+selected-sequence log-weight reduction now runs in Elisa, using the product
+score already defined in §21.5. Tests cover a nonstandard alphabet, empty
+sequences, missing symbols, minus-infinity weights and mismatched dimensions,
+with both native and reference paths. Native-enabled suite: 114 pass;
+fallback suite: 107 pass, seven native-only skips.
+
+On 575 Dirichlet reading rows (seed 31), 3,000 reductions in
+reference/native/native/reference order took 0.12650/0.02226/0.02220/0.12612 s.
+Every result was exactly -845.5237732560112, consistent with retaining the
+same position-order summation. This includes wrapper conversion costs but
+not full refinement, whose timing remains to be compared.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
