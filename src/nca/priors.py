@@ -122,7 +122,12 @@ class ArityPrior:
         denominator = self.log_normalizer(base)
         if denominator == -math.inf:
             raise ValueError("candidate prior has zero mass under the base")
-        return self.log_normalizer(posterior) - denominator
+        if not math.isfinite(denominator):
+            raise ValueError("candidate base normalizer must be finite")
+        evidence = self.log_normalizer(posterior) - denominator
+        if math.isnan(evidence) or evidence == math.inf:
+            raise ValueError("candidate evidence must be finite or negative infinity")
+        return evidence
 
     def _rows(self, log_probs: np.ndarray) -> np.ndarray:
         rows = np.asarray(log_probs, dtype=np.float64)
@@ -196,8 +201,10 @@ class ArityPrior:
                         forward[k + 1, target] = np.logaddexp(
                             forward[k + 1, target], forward[k, state] + weight)
         log_z = float(np.logaddexp.reduce(forward[m] + self.log_final))
-        if not math.isfinite(log_z):
+        if log_z == -math.inf:
             return None
+        if not math.isfinite(log_z):
+            raise ValueError("prior normalizer is not finite")
         marginals = np.zeros_like(rows)
         for k in reversed(range(m)):
             for state in range(states):
@@ -327,6 +334,8 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                     denominator = prior.log_normalizer(np.broadcast_to(base, rows.shape))
                     if denominator == -math.inf:
                         raise ValueError("candidate prior has zero mass under the base")
+                    if not math.isfinite(denominator):
+                        raise ValueError("candidate base normalizer must be finite")
                     models[key] = prior, denominator
             model = models[key]
             if model is None:

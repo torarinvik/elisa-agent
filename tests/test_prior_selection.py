@@ -136,6 +136,21 @@ def test_prior_selection_rejects_missing_or_incompatible_evidence() -> None:
     with pytest.raises(ValueError, match="alphabet"):
         formulas.select_prior([lambda length: wrong], [rows], base)
 
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_evidence_rejects_overflowed_base_normalizer(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    extreme = priors.ArityPrior((0, 1, 2), np.zeros((1, 3), dtype=np.int64),
+                                np.full((1, 3), 1e308), np.zeros(1))
+    rows = np.log(np.full((2, 3), 1 / 3))
+    with np.errstate(over="ignore", invalid="ignore"):
+        with pytest.raises(ValueError, match="normalizer.*finite"):
+            extreme.log_evidence(rows, rows)
+        with pytest.raises(ValueError, match="normalizer.*finite"):
+            priors.select_prior([lambda length: extreme], [rows], rows[0])
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_prior_selection_prefers_declared_priority_within_supplied_error(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -204,6 +204,11 @@ rows and posterior support contained in base support. Normalized calibrated
 scores alone do not establish the shared likelihood assumptions. A candidate
 with zero base normalizer is undefined; zero posterior normalizer gives
 zero evidence. Neither case justifies substituting a finite epsilon.
+Numerical implementations must reject a computed NaN or positive infinity:
+overflow or invalid arithmetic does not establish positive finite mass. A
+computed negative infinity is treated as zero mass, though sufficiently
+negative finite values can also underflow to it; detecting every such case is
+not guaranteed by this check.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
