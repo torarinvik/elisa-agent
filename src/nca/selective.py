@@ -2,8 +2,8 @@
 
 The kernel plans a route and refines it generically (``nca.ladder``). The
 route must end in a chain of single-input consumers applied to a ``map``
-whose body applies one module to readings of the element. Nothing below is
-specific to glyphs:
+whose body either reads the element with one expert, or applies one module
+to several readings of the element. Nothing below is specific to glyphs:
 
 * what is read of element ``i`` comes from the map consumer's ``demand``
   declaration, and what the body reads of each input from its ``decides``
@@ -15,6 +15,10 @@ specific to glyphs:
 * every demanded input is produced by a ladder: all installed experts with
   that input's contract, ordered by declared cost and calibrated on held-out
   labeled data;
+* a consumer reading the readings directly may declare a ``certificate``:
+  given the readings and each one's risk under any decision, the readings
+  its answer depends on and the decision each serves, which may depend on
+  the readings' values (``NCA.certificate_error_le``);
 * if the map's source offers ``alternatives`` and the consumer would read
   nothing of a candidate, the next candidate is tried without reading it.
 
@@ -32,7 +36,7 @@ calibration check), error when forced to answer, and compute per expression.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -42,7 +46,7 @@ import torch
 from nca.abi import NOTHING, Contract, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
-from nca.ladder import Rung, SecondLook, ladder, refine
+from nca.ladder import Certificate, Decision, Rung, SecondLook, ladder, refine
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
 from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
@@ -67,6 +71,17 @@ class Answer:
     abstained: bool
 
 
+def readers(mapped: Map) -> list[Apply]:
+    """The expert applications reading each element: the body itself if it
+    reads the element directly, otherwise its arguments."""
+    body = mapped.body
+    assert isinstance(body, Apply)
+    if body.args == (Given(mapped.element),):
+        return [body]
+    assert all(isinstance(a, Apply) and a.args == (Given(mapped.element),) for a in body.args)
+    return list(body.args)
+
+
 def split_route(route: Plan) -> tuple[list[Module], Map]:
     """The consumer chain (outermost first) and the map it consumes."""
     chain: list[Module] = []
@@ -82,7 +97,8 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
           start: int = 0) -> Answer:
     chain, mapped = split_route(route)
     consumer, body, source = chain[-1], mapped.body, mapped.source
-    assert all(isinstance(a, Apply) and a.args == (Given(mapped.element),) for a in body.args)
+    experts = readers(mapped)
+    fuse = None if experts == [body] else body.module
     assert isinstance(source, Apply) and isinstance(source.args[0], Given)
     producer = source.module
     candidates = getattr(producer, "alternatives", lambda v: iter([producer.invoke(v)]))
@@ -95,22 +111,44 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
             break
     else:
         return Answer(None, 0.0, 1.0, True)
-    declare = getattr(body.module, "decides", getattr(body.module, "demand", None))
+    declare = getattr(fuse, "decides", getattr(fuse, "demand", None))
     items = [(i, k) for i, read in enumerate(reads) if read != NOTHING
-             for k in range(len(body.args))
+             for k in range(len(experts))
              if declare is None or declare(k, read) != NOTHING]
-    types = body.module.manifest.contract.inputs
-    ranges = getattr(body.module, "decision_classes", lambda k, d: None)
+    types = [r.module.manifest.contract.output for r in experts]
+    ranges = getattr(fuse, "decision_classes", lambda k, d: None)
+    certificate = element_certificate(consumer, items, len(elements))
+    assert certificate is None or fuse is None, "certificates are declared on direct readings"
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
-                     delta, start, [ranges(k, reads[i]) for i, k in items])
-    inputs: list[list[Any]] = [[None] * len(body.args) for _ in elements]
-    for (i, k), reading in zip(items, refined.readings):
-        inputs[i][k] = tuple(reading.tolist())
-    result: Any = [body.module.invoke(*args) if read != NOTHING else None
-                   for args, read in zip(inputs, reads)]
+                     delta, start, [ranges(k, reads[i]) for i, k in items], certificate)
+    inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]
+    for (i, k), observed in zip(items, refined.readings):
+        inputs[i][k] = tuple(observed.tolist())
+    result: Any = ([args[0] for args in inputs] if fuse is None else
+                   [fuse.invoke(*args) if read != NOTHING else None
+                    for args, read in zip(inputs, reads)])
     for module in reversed(chain):
         result = module.invoke(result)
     return Answer(result, refined.cost, refined.bound, refined.abstained)
+
+
+def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
+                        count: int) -> Certificate | None:
+    """The consumer's certificate over its elements, as one over refined items."""
+    declared = getattr(consumer, "certificate", None)
+    if declared is None:
+        return None
+    position = {i: j for j, (i, _) in enumerate(items)}
+
+    def certificate(readings: Sequence[torch.Tensor],
+                    risk: Callable[[int, Decision], float]) -> dict[int, Decision] | None:
+        elements: list[Any] = [None] * count
+        for (i, _), value in zip(items, readings):
+            elements[i] = tuple(value.tolist())
+        chosen = declared(elements, lambda i, d: risk(position[i], d))
+        return None if chosen is None else {position[i]: d for i, d in chosen.items()}
+
+    return certificate
 
 
 def build_ladders(modules: Sequence[Module], route: Plan,
@@ -119,7 +157,7 @@ def build_ladders(modules: Sequence[Module], route: Plan,
     """A calibrated ladder for every input type of the route's map body."""
     _, mapped = split_route(route)
     ladders = {}
-    for t in mapped.body.module.manifest.contract.inputs:
+    for t in (r.module.manifest.contract.output for r in readers(mapped)):
         ladders[t] = ladder(modules, Contract((mapped.element,), t))
         values, labels = validation[t]
         for rung in ladders[t]:

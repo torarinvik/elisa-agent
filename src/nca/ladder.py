@@ -12,9 +12,14 @@ of several views of the input; it joins ladders like any other expert.
 ``refine`` reads every item at the bottom of its ladder and, while the sum of
 risks (the union bound) exceeds the target ``δ``, moves the riskiest item one
 rung up, using its latest reading. An item's risk is measured against the
-classes its decision ranges over, ``1 - max_C p / Σ_C p``, which never exceeds
-``1 - max p`` when the most probable class is in ``C``
-(``NCA.restricted_risk_le``). It abstains when no rung remains. For
+decision it serves: among the classes ``C`` it ranges over, possibly grouped,
+the decision picks the group holding the most probable class, with risk
+``1 - p(group) / p(C)``. This never exceeds ``1 - max p`` when the most
+probable class is in ``C`` (``NCA.restricted_risk_le``,
+``NCA.grouped_risk_le``). Which items enter the bound, and with which
+decisions, may depend on the readings: a consumer's *certificate*
+(``NCA.certificate_error_le``); by default every item, each with a fixed
+decision. It abstains when no rung remains. For
 calibrated risks the error among answered inputs is at most ``δ``
 (``NCA.selective_risk_le``), and refining where the bound falls most per unit
 of compute is the ``NCA.threshold_optimal`` rule; with a floor ``ρ`` per item,
@@ -23,8 +28,10 @@ of compute is the ``NCA.threshold_optimal`` rule; with a floor ``ρ`` per item,
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
+from functools import cache
 from typing import Any
 
 import numpy as np
@@ -33,6 +40,28 @@ from torch import nn
 
 from nca.abi import Contract
 from nca.registry import Module
+
+
+Decision = Sequence[int | Sequence[int]] | None
+"""What a decision chooses among: ``None`` for all classes; otherwise entries,
+each a class or a group of classes. The decision picks the entry holding the
+most probable of the classes listed."""
+
+DecisionKey = tuple[int | tuple[int, ...], ...] | None
+
+
+def decision_key(decision: Decision) -> DecisionKey:
+    if decision is None:
+        return None
+    return tuple(e if isinstance(e, int) else tuple(e) for e in decision)
+
+
+@cache
+def _layout(key: tuple[int | tuple[int, ...], ...]) -> tuple[list[int], list[list[int]]]:
+    """The classes a decision ranges over, and each entry's positions among them."""
+    parts = [[e] if isinstance(e, int) else list(e) for e in key]
+    union = [c for part in parts for c in part]
+    return union, [[union.index(c) for c in part] for part in parts]
 
 
 class SecondLook:
@@ -72,34 +101,45 @@ class Rung:
         self.held_out = (torch.stack([self.observe(v) for v in values]), labels)
         self.temperatures = {None: self._fit(*self.held_out)}
 
-    def temperature(self, classes: Sequence[int] | None = None) -> float:
+    def temperature(self, classes: Decision = None) -> float:
         """Temperature of the decision over ``classes``, fitted on first use on
-        the held-out inputs whose label is among them."""
-        key = None if classes is None else tuple(classes)
+        the held-out inputs whose label is among them, by the likelihood of
+        the label's entry."""
+        key = decision_key(classes)
         if key not in self.temperatures:
-            if self.held_out is None:
+            if self.held_out is None or key is None:
                 return 1.0
             log, labels = self.held_out
-            inside = torch.isin(labels, torch.tensor(key))
-            remap = {c: k for k, c in enumerate(key)}
-            restricted = torch.tensor([remap[int(y)] for y in labels[inside]])
-            self.temperatures[key] = self._fit(log[inside][:, list(key)], restricted)
+            union, positions = _layout(key)
+            entry = {union[i]: k for k, part in enumerate(positions) for i in part}
+            inside = torch.isin(labels, torch.tensor(union))
+            targets = torch.tensor([entry[int(y)] for y in labels[inside]])
+            self.temperatures[key] = self._fit(log[inside][:, union], targets, positions)
         return self.temperatures[key]
 
     def reading(self, log: torch.Tensor) -> torch.Tensor:
         return torch.softmax(log / self.temperature(), dim=-1)
 
-    def risk(self, log: torch.Tensor, classes: Sequence[int] | None = None) -> float:
+    def risk(self, log: torch.Tensor, classes: Decision = None) -> float:
         """Calibrated error probability of the decision over ``classes``."""
         if classes is None:
             return risk(self.reading(log))
-        return risk(torch.softmax(log[list(classes)] / self.temperature(classes), dim=-1))
+        union, positions = _layout(decision_key(classes))
+        return risk(torch.softmax(log[union] / self.temperature(classes), dim=-1), positions)
 
     @staticmethod
-    def _fit(log: torch.Tensor, labels: torch.Tensor) -> float:
-        """The temperature minimizing negative log-likelihood."""
+    def _fit(log: torch.Tensor, labels: torch.Tensor,
+             entries: Sequence[Sequence[int]] | None = None) -> float:
+        """The temperature minimizing negative log-likelihood of the labels,
+        each label naming an entry (a group of columns) when ``entries`` is given."""
+        grouped = entries is not None and any(len(e) > 1 for e in entries)
+
         def nll(t: float) -> float:
-            return nn.functional.cross_entropy(log / t, labels).item()
+            scaled = torch.log_softmax(log / t, dim=-1)
+            if grouped:
+                scaled = torch.stack([scaled[:, list(e)].logsumexp(dim=-1) for e in entries],
+                                     dim=-1)
+            return nn.functional.nll_loss(scaled, labels).item()
 
         return float(min(np.geomspace(0.1, 8.0, 120), key=nll))
 
@@ -118,47 +158,79 @@ class Refinement:
     abstained: bool
 
 
-def risk(reading: torch.Tensor, classes: Sequence[int] | None = None) -> float:
-    """Error probability of the decision over ``classes`` (all if ``None``)."""
-    mass = reading if classes is None else reading[list(classes)]
-    return 1.0 - (mass.max() / mass.sum()).item()
+def risk(reading: torch.Tensor, classes: Decision = None) -> float:
+    """Error probability of the decision over ``classes`` (all if ``None``):
+    one minus the share of the chosen entry, the one holding the most
+    probable class listed."""
+    if classes is None:
+        return 1.0 - (reading.max() / reading.sum()).item()
+    union, positions = _layout(decision_key(classes))
+    mass = reading[union]
+    top = int(mass.argmax())
+    chosen = next(part for part in positions if top in part)
+    return 1.0 - (mass[chosen].sum() / mass.sum()).item()
+
+
+Certificate = Callable[[Sequence[torch.Tensor], Callable[[int, Decision], float]],
+                       dict[int, Decision] | None]
+"""``certificate(readings, risk)``: the items the answer depends on, given the
+current readings, with the decision each serves, chosen using ``risk(i,
+decision)``; ``None`` if the readings determine no answer."""
 
 
 def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: float,
-           start: int = 0, classes: Sequence[Sequence[int] | None] | None = None,
-           ) -> Refinement:
+           start: int = 0, classes: Sequence[Decision] | None = None,
+           certificate: Certificate | None = None) -> Refinement:
     """Read ``values[i]`` with ``ladders[i]``, refining until the bound meets ``delta``.
 
     Every item starts at rung ``min(start, top)``, reading each rung below it.
-    ``classes[i]`` restricts the decision item ``i`` serves.
+    The bound sums the risks of the items ``certificate`` demands, each for
+    its decision; by default every item ``i``, for decision ``classes[i]``.
+    While it exceeds ``delta`` the riskiest demanded item climbs a rung; if
+    the readings determine no answer, the riskiest item.
     """
-    decisions = classes if classes is not None else [None] * len(values)
+    decisions = list(classes) if classes is not None else [None] * len(values)
     levels = [0] * len(values)
+    logs: list[torch.Tensor] = [torch.empty(0)] * len(values)
     readings: list[torch.Tensor] = [torch.empty(0)] * len(values)
-    risks = [0.0] * len(values)
+    risks: dict[tuple[int, int, DecisionKey], float] = {}
     cost = 0.0
 
     def climb(i: int) -> None:
         nonlocal cost
         rung = ladders[i][levels[i]]
-        log = rung.observe(values[i])
-        readings[i] = rung.reading(log)
-        risks[i] = rung.risk(log, decisions[i])
+        logs[i] = rung.observe(values[i])
+        readings[i] = rung.reading(logs[i])
         cost += rung.cost
+
+    def item_risk(i: int, decision: Decision) -> float:
+        key = (i, levels[i], decision_key(decision))
+        if key not in risks:
+            risks[key] = ladders[i][levels[i]].risk(logs[i], decision)
+        return risks[key]
 
     for i in range(len(values)):
         climb(i)
         while levels[i] < min(start, len(ladders[i]) - 1):
             levels[i] += 1
             climb(i)
-    while sum(risks) > delta:
-        open_ = [i for i in range(len(values)) if levels[i] + 1 < len(ladders[i])]
+    while True:
+        demanded = (dict(enumerate(decisions)) if certificate is None
+                    else certificate(readings, item_risk))
+        if demanded is None:
+            contributions = {i: item_risk(i, d) for i, d in enumerate(decisions)}
+            bound = math.inf
+        else:
+            contributions = {i: item_risk(i, d) for i, d in demanded.items()}
+            bound = sum(contributions.values())
+        if bound <= delta:
+            break
+        open_ = [i for i in contributions if levels[i] + 1 < len(ladders[i])]
         if not open_:
             break
-        i = max(open_, key=risks.__getitem__)
+        i = max(open_, key=contributions.__getitem__)
         levels[i] += 1
         climb(i)
-    bound = sum(risks)
     return Refinement(readings, cost, bound, bound > delta)
 
 

@@ -1404,7 +1404,7 @@ Remarks:
 |---|---|---|
 | tokenizer | text → sequence of noisy words | splits on spaces |
 | edit reader | noisy word → word distribution | `p(w) ∝ exp(−d(x, w))`, with `d` the edit distance counting adjacent transpositions; symbolic, no training |
-| character reader | noisy word → word distribution | a small network on one-hot characters, trained on channel samples at the calibration noise level |
+| character reader | noisy word → word distribution | a small network on one-hot characters, trained on the noisy words of training formulas at the calibration noise level, with a quarter of the connectives `xor` so that it knows every word |
 | formula evaluator | sequence of word distributions → truth value | parses the most probable words; declares the certificate of §18.5 |
 
 The two readers share a contract, so they form one ladder, cheapest first,
@@ -1428,3 +1428,102 @@ readings the consumer reads directly.
 5. **Shift.** At a higher noise level in use, the uncontrolled error among
    answered formulas can exceed `δ`, and the risk control of §17 restores the
    target, with `certify` unchanged.
+
+### 18.10 Results
+
+`nca.logic`, calibration noise `ν = 0.1`. The edit reader (650 operations
+per word) and the character reader (103k FLOPs per word, trained on 6000
+depth-4 training formulas) form the ladder. Calibration uses the words of
+100 depth-4 validation formulas, and evaluation 300 test formulas per depth.
+On noisy words of uniformly drawn vocabulary words, the edit reader errs on
+1.8% of words (0.29% in arity), the character reader on 0.8% (0.32%). A
+wider character reader (807k FLOPs) did no better, so the character reader
+sits at the channel's floor. Arithmetic output of `nca.selective` is
+identical before and after the two generic extensions.
+
+**Certificate size** (true formulas, fewest leaves a valid certificate
+evaluates): 2, 4, 8 and 16 leaves at depths 2, 4, 6 and 8, for every one of
+the 300 formulas. This is exactly `2^⌈d/2⌉` (`alternating_cert_leaves` is
+tight at even depths). On all-`xor` formulas it is all `2^d` leaves.
+
+**Selective answering**, `and`/`or` formulas (coverage; compute in kFLOPs per
+formula):
+
+| depth | words | δ | static coverage | certificate coverage | static compute | certificate compute |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 8 | 0.2 / 0.05 / 0.01 | 0.977 / 0.957 / 0.927 | 0.977 / 0.957 / 0.927 | 31 / 47 / 87 | 31 / 47 / 86 |
+| 4 | 35 | 0.2 | 0.900 | 0.910 | 409 | 370 |
+| 4 | 35 | 0.05 | 0.813 | 0.843 | 720 | 608 |
+| 4 | 35 | 0.01 | **0** | **0.267** | 3641 | 2719 |
+| 6 | 143 | 0.2 | 0.497 | 0.557 | 7602 | 6721 |
+| 6 | 143 | 0.05 | **0** | **0.213** | 14892 | 11864 |
+| 8 | 575 | 0.2 | 0 | 0.017 | 59800 | 58883 |
+
+Across every row, no answered formula was wrong. The upper ends of the 95%
+intervals are below each `δ` wherever more than 100 formulas were answered.
+When forced to answer, error is 0.02, 0.04, 0.23 and 0.58 at depths 2 to 8.
+
+**Control**, all-`xor` formulas: the two systems agree to within one or two
+formulas at every depth and target. Coverage is 0.877/0.877 at depth 2 and
+`δ = 0.2`, and 0.383/0.390 at depth 4. The error among answered formulas
+stays within `δ` (at most 0.060 at `δ = 0.2`). The tiny differences come
+from `xor` words misread as `and`/`or`, which allow a skip. Here the
+character reader matters: it halves the depth-4 error when forced to answer
+(0.38 → 0.19), because `xor` and `or` differ by one letter.
+
+**Shift**, noise 0.2 in use with the certificate system, three audit draws
+of 200 + 200 formulas at the deployment noise:
+
+| depth | δ | uncontrolled: coverage, error answered | risk control: λ per draw | coverage | error answered |
+|---:|---:|---|---|---|---|
+| 4 | 0.2 | 0.687, 0.024 | 0.5, 0.5, 0.5 | 0.757 | 0.026 |
+| 4 | 0.05 | 0.520, 0.013 | 0.5, 0.5, 0.75 | 0.58, 0.58, 0.56 | 0.023, 0.023, 0.024 |
+| 6 | 0.2 | 0.157, 0 | 0.5, 0.5, 0.5 | 0.313 | 0.011 |
+| 6 | 0.05 | 0.007, 0 | –, –, – | 0 | – |
+
+Against the predictions of §18.9:
+
+1. **Validity: confirmed.** Error among answered formulas is within `δ`
+   everywhere, and far below it in the `and`/`or` family.
+2. **Coverage: confirmed.** Certificates answer at least as many formulas
+   everywhere. The gap grows with depth and strictness: where static demand
+   answers nothing (depth 4 at `δ = 0.01`, depth 6 at `δ = 0.05`),
+   certificates answer 27% and 21%. The gap vanishes on the `xor` control.
+3. **Scaling: confirmed, exactly.** Evaluated leaves are `2^⌈d/2⌉ = √n` on
+   every formula.
+4. **Compute: confirmed.** At equal targets certificates spend 10–16% less
+   where both answer, because skipped words are never climbed.
+5. **Shift: refuted as stated.** At double the noise, the uncontrolled
+   policy never exceeded `δ`: the bound is conservative here, unlike for
+   handwriting (§17.8). Risk control, unchanged, therefore did the opposite
+   of repair: it certified the boldest candidate (`λ = 0.5`) and *raised*
+   coverage, from 0.16 to 0.31 at depth 6. Where the audit could not support
+   the claim (depth 6, `δ = 0.05`), it abstained.
+
+**The arity term limits depth.** The theory assumed `ρ_shape ≪ ρ_full`
+because `true`/`false` look nothing like connectives. That holds for them,
+but `not` looks like `and`, `or` and `xor` (`xor` → `not` is the commonest
+arity confusion). Measured arity error is a third (edit reader) to
+two-fifths (character reader) of word error, not orders of magnitude below
+it. The arity term `m · ρ_shape` grows with all `m` words. At depth 8
+(575 words) it alone nearly exhausts `δ = 0.2`, and only 1.7% of formulas
+are certified.
+
+**Why the bound is conservative.** A hypothesis, not yet tested: prefix
+notation is an error-detecting code. A single wrong arity changes
+`Σ (arity − 1)`, so the words no longer parse, the certificate reports no
+answer, and the controller climbs or abstains. A wrong arity can go
+undetected only if at least one other compensates, so the arity term,
+summed as if every arity error were silent, overstates the risk roughly
+quadratically. A bound that credits this detection would charge the arity
+term only for pairs of errors. That needs either a premise of independent
+word errors, or the audit's test of §17 to stay valid. It is the natural
+next refinement, and it targets exactly what limits depth.
+
+**Conclusion.** The kernel, planner, ladders, calibration, refinement and
+certification carried over to a task with different inputs, different
+experts and a different dependency structure. The new domain needed two
+generic extensions, grouped decisions and value-dependent certificates.
+Both reduce exactly to the old behavior on arithmetic. Certificates turn
+the union bound's `n` into `√n` for the decisions that matter, and that
+makes formulas answerable where static demand must abstain.
