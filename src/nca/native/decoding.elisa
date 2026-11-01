@@ -155,8 +155,56 @@ def scores(forward: view[f64], forward_scale: view[f64], forward_max: view[f64],
                 log_x <- candidate if candidate > log_x else log_x
     return [log(0.0) if total <= 0.0 else forward_scale[k] + backward_scale[k + 1] + log(total), log_x]
 
+# [best log weight, its arities (m)], with forward max row `k` and backward max row `k + 1`
+# current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
+# prefix traced back through the forward max rows and the best suffix forward through the
+# backward max rows.
+def trace(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    arities: i64 = alphabet.len.i64()
+    m: i64 = low.len.i64() - 1
+    log_x, state, choice =
+        for j in 0..<arities |log_x: f64 = log(0.0), state: i64 = 0, choice: i64 = 0| -> (log_x, state, choice):
+            run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
+            for t in 0..<run.count |log_x, state, choice|:
+                n: i64 = run.first + t
+                candidate: f64 = forward_max[k * width + n] + backward_max[(k + 1) * width + n - 1 + alphabet[j]] + log_probs[k * arities + j]
+                if candidate > log_x:
+                    log_x <- candidate
+                    state <- n
+                    choice <- j
+    result: darray[f64] = [0.0 for i in 0..<(m + 1)]
+    result[0] <- log_x
+    result[1 + k] <- alphabet[choice].f64()
+    for back in 0..<k |before: i64 = state|:
+        i: i64 = k - 1 - back
+        best, source, arity =
+            for j in 0..<arities |best: f64 = log(0.0), source: i64 = 1, arity: i64 = 0| -> (best, source, arity):
+                n: i64 = before + 1 - alphabet[j]
+                continue if n < 1 or n < low[i] or n > high[i]
+                candidate: f64 = forward_max[i * width + n] + log_probs[i * arities + j]
+                if candidate > best:
+                    best <- candidate
+                    source <- n
+                    arity <- alphabet[j]
+        result[1 + i] <- arity.f64()
+        before <- source
+    for i in (k + 1)..<m |after: i64 = state - 1 + alphabet[choice]|:
+        best, target, arity =
+            for j in 0..<arities |best: f64 = log(0.0), target: i64 = 0, arity: i64 = 0| -> (best, target, arity):
+                n: i64 = after - 1 + alphabet[j]
+                continue if after < 1 or n < low[i + 1] or n > high[i + 1]
+                candidate: f64 = log_probs[i * arities + j] + backward_max[(i + 1) * width + n]
+                if candidate > best:
+                    best <- candidate
+                    target <- n
+                    arity <- alphabet[j]
+        result[1 + i] <- arity.f64()
+        after <- target
+    return result
+
 export pymodule decoding:
     fn decode
     fn advance
     fn retreat
     fn scores
+    fn trace

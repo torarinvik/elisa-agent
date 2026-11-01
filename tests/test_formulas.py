@@ -316,6 +316,30 @@ def test_split_cursor_follows_climbs() -> None:
                                                           full.arities))
 
 
+@pytest.mark.parametrize("native", [True, False])
+def test_split_traces_best_sequence(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    """After each climb, the sequence traced from the vectors around the
+    climbed word parses and attains the best weight (Theorem 23.10)."""
+    if not native:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    elif formulas._NATIVE is None:
+        pytest.skip("native kernel not built")
+    rng = np.random.default_rng(9)
+    for m in (1, 5, 17, 40):
+        probs = rng.dirichlet(np.full(3, 0.5), size=m)
+        split = Split(np.log(probs), ARITY_ORDER)
+        for _ in range(10):
+            k = int(rng.integers(m))
+            probs[k] = rng.dirichlet(np.full(3, 0.5))
+            split.climb(k, np.log(probs[k]))
+            log_x, arities = split.best(k)
+            full = decode_reference(np.log(probs), ARITY_ORDER)
+            assert full is not None
+            assert parse(list(arities)) is not None
+            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER, full.arities))
+            assert full.log_weight(np.log(probs), ARITY_ORDER, arities) == pytest.approx(log_x)
+
+
 def test_banded_split_matches_banded_passes() -> None:
     """With the band fixed, climbs rescored by the cursor match the banded
     programs run in full on the changed weights (Theorems 23.7 and 23.8

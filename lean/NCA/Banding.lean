@@ -346,6 +346,35 @@ theorem dpMax_append : ∀ (ws₁ ws₂ : List (α → ℝ)), (∀ w ∈ ws₁, 
     simp only [Function.comp_apply, weightOf, List.foldl_cons]
     ring
 
+theorem weightOf_append : ∀ (ws₁ ws₂ : List (α → ℝ)) (l₁ l₂ : List α),
+    l₁.length = ws₁.length → weightOf (ws₁ ++ ws₂) (l₁ ++ l₂) = weightOf ws₁ l₁ * weightOf ws₂ l₂
+  | [], _, [], _, _ => by simp [weightOf]
+  | w :: ws₁, ws₂, a :: l₁, l₂, h => by
+    simp only [List.cons_append, weightOf]
+    rw [weightOf_append ws₁ ws₂ l₁ l₂ (by simpa using h)]
+    ring
+  | [], _, _ :: _, _, h => by simp at h
+  | _ :: _, _, [], _, h => by simp at h
+
+/-- A sequence split at a position scores the prefix's weight times the
+suffix's score from the state the prefix ends in. -/
+theorem score_append (ws₁ ws₂ : List (α → ℝ)) (s : σ) (l₁ l₂ : List α)
+    (h : l₁.length = ws₁.length) :
+    score δ F (ws₁ ++ ws₂) s (l₁ ++ l₂) = weightOf ws₁ l₁ * score δ F ws₂ (l₁.foldl δ s) l₂ := by
+  unfold score
+  rw [List.foldl_append, weightOf_append ws₁ ws₂ l₁ l₂ h]
+  split_ifs <;> ring
+
+/-- **Stitching.** A prefix whose weight times the best suffix score attains
+the split maximum, followed by a best suffix from its end state, is a best
+sequence: the decoded sequence is traced from the split vectors. -/
+theorem stitch_attains (ws₁ ws₂ : List (α → ℝ)) (s : σ) (l₁ l₂ : List α)
+    (h : l₁.length = ws₁.length)
+    (hpre : weightOf ws₁ l₁ * dpMax δ F as ws₂ (l₁.foldl δ s) = dpMax δ F as (ws₁ ++ ws₂) s)
+    (hsuf : score δ F ws₂ (l₁.foldl δ s) l₂ = dpMax δ F as ws₂ (l₁.foldl δ s)) :
+    score δ F (ws₁ ++ ws₂) s (l₁ ++ l₂) = dpMax δ F as (ws₁ ++ ws₂) s := by
+  rw [score_append δ F ws₁ ws₂ s l₁ l₂ h, hsuf, hpre]
+
 end Split
 
 section Sweep

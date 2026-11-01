@@ -1717,8 +1717,24 @@ only change which word climbs next, never the validity of the bound. A full
 refresh of the marginals costs one banded forward–backward pass and can be
 amortized, for instance once every `√m` climbs.
 
-The decoded sequence must still be backtracked after each step (`O(m)`), to
-evaluate the formula and find `E`.
+The decoded sequence must still be recovered after each step, to evaluate
+the formula and find `E`. It too is read from the split, without a sweep.
+
+**Theorem 23.10.** Let a prefix `u` of the first `k` words end in state `n`,
+let `v` be a suffix of the remaining words from state `δ(n, a)`, and let
+`u a v` be accepted. Its weight is
+
+> `w(u) · qₖ(a) · w(v)`.
+
+If `w(u) = F^max_k(n)`, `w(v) = B^max_{k+1}(δ(n, a))`, and `(n, a)` attains
+the maximum of Theorem 23.8, then `u a v` is a best sequence.
+
+The best prefix ending in `n` is traced backwards through the forward max
+vectors: at each position, a predecessor state and arity whose product
+attains the vector entry. The best suffix is traced forwards through the
+backward max vectors in the same way. With the vectors current on either
+side of the climbed word, as they are after Theorem 23.8 scores it, the
+decoded sequence costs `O(3 m)` comparisons and no recomputed vectors.
 
 **Banding with a moving cursor.** Theorems 23.1–23.6 hold for *any*
 reference sequence `r`, not only the per-word argmax. So the reference, and

@@ -993,6 +993,22 @@ word's reading, but every per-word quantity is recomputed for all `m` words.
 Replacing the decodes by the banded cursor would remove at most a quarter of
 the time; the per-word work must become incremental as well.
 
+**Traced decoded sequence** (THEORY §23.4, Theorem 23.10). The decoded
+sequence read from the max vectors on either side of the climbed word,
+predicted at `O(3 m)` comparisons, negligible beside the cursor's sweep.
+Unbanded native cursor, 200 random climbs per size, Dirichlet(0.3) rows:
+
+| words `m` | climb (sweep and rescore) | trace | full native decode |
+|---:|---:|---:|---:|
+| 35 | 0.005 ms | 0.004 ms | 0.009 ms |
+| 143 | 0.028 ms | 0.012 ms | 0.065 ms |
+| 575 | 0.451 ms | 0.042 ms | 0.738 ms |
+
+The traced sequence equals the full decode's in all 600 climbs. At 575 words
+the trace costs a tenth of the climb, so a climb with its decoded sequence
+stays at 0.49 ms unbanded, against 0.74 ms for a full decode, which also
+yields the marginals that the cursor does not.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

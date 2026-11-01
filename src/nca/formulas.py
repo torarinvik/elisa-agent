@@ -426,6 +426,39 @@ class Split:
             log_x = max(log_x, float(best.max()) + row[j])
         return float(log_z), log_x
 
+    def best(self, k: int) -> tuple[float, tuple[int, ...]]:
+        """The best log weight and a sequence attaining it, traced from the
+        max vectors before and after word ``k`` (THEORY §23.4, Theorem 23.10)."""
+        self._advance(k)
+        self._retreat(k + 1)
+        if _NATIVE is not None:
+            out = np.asarray(_NATIVE.trace(self.forward_max.reshape(-1), self.backward_max.reshape(-1),
+                                           self.log_probs.reshape(-1), self.arities, self.low,
+                                           self.high, self.width, k))
+            return float(out[0]), tuple(int(a) for a in out[1:])
+        m, alphabet = len(self.log_probs), self.alphabet
+        log_x, state, choice = -np.inf, 0, 0
+        for j, s0, n, t0 in self._moves(k):
+            best = self.forward_max[k, s0:s0 + n] + self.backward_max[k + 1, t0:t0 + n]
+            t = int(np.argmax(best))
+            if best[t] + self.log_probs[k, j] > log_x:
+                log_x, state, choice = float(best[t] + self.log_probs[k, j]), s0 + t, j
+        arities = [0] * m
+        arities[k] = alphabet[choice]
+        before = state
+        for i in reversed(range(k)):
+            options = [(self.forward_max[i, n] + self.log_probs[i, j], n, a)
+                       for j, a in enumerate(alphabet)
+                       for n in (before + 1 - a,) if max(1, self.low[i]) <= n <= self.high[i]]
+            _, before, arities[i] = max(options)
+        after = state - 1 + alphabet[choice]
+        for i in range(k + 1, m):
+            options = [(self.log_probs[i, j] + self.backward_max[i + 1, n], n, a)
+                       for j, a in enumerate(alphabet)
+                       for n in (after - 1 + a,) if after >= 1 and self.low[i + 1] <= n <= self.high[i + 1]]
+            _, after, arities[i] = max(options)
+        return log_x, tuple(arities)
+
     def climb(self, k: int, row: np.ndarray) -> tuple[float, float]:
         """Replace word ``k``'s log weights by ``row`` and return the new
         ``log Z`` and best log weight. Vectors that depend on word ``k`` (forward

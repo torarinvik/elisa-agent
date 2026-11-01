@@ -167,6 +167,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.7 | `dpSum_append` | `Banding` |
 | 23.8 | `dpMax_append` | `Banding` |
 | 23.9 | `sum_pair_dist` | `Banding` |
+| 23.10 | `stitch_attains` | `Banding` |
 | 24.1 | `reweighted_odds` | `Misspecification` |
 | 24.2 | `reweighted_risk_le` | `Misspecification` |
 | 24.3 | `reweighted_risk_le_mul` | `Misspecification` |
@@ -197,7 +198,8 @@ extensions with `python -m nca.native` (needs `elisac-stage1`). Each has a
 NumPy reference that gives the same results within rounding and is used when
 the kernel is not built or `NCA_NATIVE=0`. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
-It also exports `advance`, `retreat` and `scores`, the banded cursor of §23.4:
+It also exports `advance`, `retreat`, `scores` and `trace`, the banded cursor of §23.4
+(`trace` reads the decoded sequence off the max tables, `Split.best`):
 `formulas.Split` keeps the forward and backward tables in NumPy arrays and the
 kernel recomputes rows in place through `mutable view[f64]` parameters, which
 borrow the arrays' writable buffers. With the kernel built, the sum tables are
