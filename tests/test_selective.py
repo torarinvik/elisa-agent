@@ -1351,3 +1351,54 @@ def test_extreme_temperature_preserves_tied_calibrated_readings(native, monkeypa
         assert rung.reading(value).tolist() == [0.5, 0.5]
         assert rung.distribution(value, decision).tolist() == [0.5, 0.5]
         assert rung.risk(value, decision) == 0.5
+
+
+@pytest.mark.parametrize("decision", [None, ((0,), (1,))])
+@pytest.mark.parametrize("temperature", [0.0, -1.0, math.inf, math.nan])
+def test_ranked_distribution_rejects_invalid_temperature(decision, temperature) -> None:
+    from nca.ladder import decision_key
+
+    rung = Rung(constant("bad-distribution-temperature", (0.4, 0.6), 1.0))
+    observation = rung.observe_ranked(None)
+    rung.temperatures[decision_key(decision)] = temperature
+    with pytest.raises(ValueError, match="ranked distribution requires a positive finite temperature"):
+        rung.distribution(observation, decision)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_legacy_risk_follows_numerical_reading_when_temperature_merges_order(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_at", None) is None:
+        pytest.skip("native selected-risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("warm-tie", (1.0, 2.0, 1.0), 1.0))
+    rung.temperatures[None] = 1e308
+    observed = rung.observe(None)
+    reading = rung.reading(observed)
+    assert reading.tolist() == [1 / 3] * 3
+    groups = ((0,), (1, 2))
+    assert rung.risk(observed, groups) == pytest.approx(0.75)
+    assert rung.risk(observed, groups, reading=reading) == pytest.approx(0.75)
+
+
+def test_legacy_consumer_does_not_understate_risk_after_reading_tie() -> None:
+    class Consumer:
+        manifest = Manifest("warm-consumer", "1", Contract(("seq[dist]",), "out"))
+
+        def certificate(self, readings, risk, distribution):
+            return {0: risk(0, ((0,), (1, 2)))}
+
+        def invoke(self, readings):
+            return max(range(3), key=readings[0].__getitem__)
+
+    reader = constant("warm-reader", (1.0, 2.0, 1.0), 1.0, Contract(("ch",), "dist"))
+    rung = Rung(reader)
+    rung.temperatures[None] = 1e308
+    route = plan_stable([Splitter(), reader, Consumer()], ("text",), "out")
+    assert route is not None
+    answer = solve(route, {"dist": [rung]}, "a", 0.5)
+    assert answer.value == 0
+    assert answer.bound == pytest.approx(0.75)
+    assert answer.abstained

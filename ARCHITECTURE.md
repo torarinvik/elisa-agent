@@ -818,10 +818,10 @@ temperatures and observation values remain current. The revision-cache
 invariant (23.12) applies to this deterministic metadata. Gradient-bearing
 observations continue through PyTorch and retain differentiability.
 
-`Rung.risk` also dispatches to native `calibrated_risk` for supported CPU
+`Rung.risk` also dispatches to native `calibrated_risk_at` for supported CPU
 observations and partitioned groups. It chooses the group containing the
-highest individual logit, preserving first-class ties, rather than choosing
-the group with greatest total mass. Full-class risk uses singleton groups.
+class selected from the ranked weights or numerical reading, rather than
+choosing the group with greatest total mass. Full-class risk uses singleton groups.
 It sums the other groups' weights directly instead of subtracting the chosen
 probability from one. The PyTorch risk path uses the same formulation for
 partitions; overlapping decisions retain their existing behavior.
@@ -839,7 +839,8 @@ weights into a tie, so it does not always preserve the original weight order.
 `Rung.observe_ranked` retains a separate immutable weight snapshot for exact
 binary64 class ordering. `Rung.risk` can use that ordering to select its group;
 numeric readings may still tie, so the consumer must use the same ranked
-choice. The selective controller does not yet propagate it to consumers.
+choice. The selective controller propagates it to consumers and fusers that
+explicitly support the handoff.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.
 

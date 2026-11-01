@@ -275,12 +275,14 @@ class Rung:
         result = torch.softmax(_temperature_scores(log, temperature), dim=-1)
         return result.to(log.dtype) if log.is_floating_point() else result
 
-    def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> float:
+    def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None, *,
+             reading: torch.Tensor | None = None) -> float:
         """Calibrated error probability of the decision over ``classes``.
 
         A ranked observation chooses the winning class by its original weights;
-        a tensor retains the legacy logit-based choice. Consumers must use the
-        same ranked choice: the numerical reading can still contain ties.
+        a tensor chooses from its numerical reading. Consumers must use the
+        same choice: the numerical reading can contain ties. The optional
+        ``reading`` reuses the numerical reading of this observation.
         """
         ranked = log if isinstance(log, RankedObservation) else None
         if ranked is not None:
@@ -288,23 +290,21 @@ class Rung:
             temperature = self.temperature(classes)
             if not math.isfinite(temperature) or temperature <= 0:
                 raise ValueError("ranked risk requires a positive finite temperature")
-        selected = None
+        union = (list(range(len(log))) if classes is None else
+                 _layout(decision_key(classes))[0])
         if ranked is not None:
-            union = (list(range(len(log))) if classes is None else
-                     _layout(decision_key(classes))[0])
             selected = union.index(ranked.top(union))
-        native = getattr(_NATIVE, "calibrated_risk_at" if ranked is not None
-                         else "calibrated_risk", None)
+        else:
+            probabilities = self.reading(log) if reading is None else reading
+            selected = int(probabilities[union].argmax())
+        native = getattr(_NATIVE, "calibrated_risk_at", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
             key = decision_key(classes) if classes is not None else tuple(range(len(log)))
             union, positions = _layout(key)
             groups = _group_ids(key)
             if groups is not None:
-                if selected is not None:
-                    return float(native(log[union].double().numpy(), groups, len(positions),
-                                        self.temperature(classes), selected))
                 return float(native(log[union].double().numpy(), groups, len(positions),
-                                    self.temperature(classes)))
+                                    self.temperature(classes), selected))
         if classes is None:
             values, positions = log, None
         else:
@@ -338,6 +338,9 @@ class Rung:
         """Calibrated probabilities of the decision's entries: each entry's
         share of the classes it ranges over, under the decision's temperature."""
         if isinstance(log, RankedObservation):
+            temperature = self.temperature(classes)
+            if not math.isfinite(temperature) or temperature <= 0:
+                raise ValueError("ranked distribution requires a positive finite temperature")
             log = log.logits
         if classes is None:
             return self.reading(log)
@@ -614,7 +617,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     def item_risk(i: int, decision: Decision) -> float:
         key = (i, levels[i], decision_key(decision))
         if key not in risks:
-            risks[key] = ladders[i][levels[i]].risk(logs[i], decision)
+            risks[key] = ladders[i][levels[i]].risk(
+                logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
         return risks[key]
 
     def item_distribution(i: int, decision: Decision) -> torch.Tensor:
