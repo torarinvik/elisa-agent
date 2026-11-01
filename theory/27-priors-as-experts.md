@@ -348,6 +348,20 @@ therefore changes no conditional model there. It can change format-only
 and height-bounded models, whose unary counts vary at fixed length. This
 limits what parameter learning can express even with perfect observations.
 
+
+**Theorem 27.14 (leaf and binary tilt equivalence).** For a finite rooted
+prefix tree whose nodes have arities 0, 1, or 2, let L and B be the numbers
+of leaves and binary nodes. Counting edges gives `L + U + B - 1 = U + 2B`,
+so `L = B + 1`. Multiplying every leaf weight by a positive factor r and
+multiplying every binary-node weight by r therefore produce unnormalized
+sequence weights that differ by the same factor r for every valid tree.
+Consequently their normalized sequence distributions, position marginals,
+and normalized evidence against the same base agree whenever the relevant
+normalizers are positive and finite. This equivalence applies only to priors
+whose support consists entirely of complete single-root trees; partial forests
+or other alphabets need not satisfy the count identity. Floating-point
+implementations can differ by rounding.
+
 Two safeguards:
 
 1. Prefer the largest support among priors whose evidence is statistically
