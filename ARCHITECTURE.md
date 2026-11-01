@@ -242,6 +242,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
 | [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
 | [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `split_bin_gain_nonneg` | `Stopping` |
+| [25.5](theory/25-which-word-to-climb-and-when-to-stop.md) | `single_climb_account` | `Stopping` |
 | [26.1](theory/26-composing-cascades.md) | `fallback_cost_eq` | `Composition` |
 | [26.2](theory/26-composing-cascades.md) | `fallback_cost_conditional` | `Composition` |
 | [26.3](theory/26-composing-cascades.md) | `fallback_cost_sub_independent` | `Composition` |
@@ -824,7 +825,9 @@ temperatures and observation values remain current. The revision-cache
 invariants (23.12, 23.15) apply to this deterministic metadata. Within a
 refinement run, risk and distribution caches retain only each item’s current
 rung; climbing discards that item’s obsolete entries. A single cached entry
-uses a pair and expands to a dictionary only when needed. Experts and calibration
+uses a pair and expands to a dictionary only when needed. For the unrestricted
+default account, a climb replaces only that item’s charge (25.5), while the
+bound is still summed in the original order. Experts and calibration
 parameters must remain fixed for the run. Gradient-bearing
 observations continue through PyTorch and retain differentiability.
 

@@ -26,6 +26,19 @@ Three facts about refinement's control decisions.
 
 namespace NCA
 
+/-- Replacing the only changed account entry matches a full recomputation. -/
+theorem single_climb_account {I : Type} [DecidableEq I] (items : Finset I)
+    (old current : I → ℝ) (climbed : I)
+    (unchanged : ∀ i, i ≠ climbed → old i = current i) :
+    (∑ i ∈ items, if i = climbed then current i else old i) =
+      ∑ i ∈ items, current i := by
+  apply Finset.sum_congr rfl
+  intro i hi
+  by_cases h : i = climbed
+  · simp [h]
+  · simp [h, unchanged i h]
+
+
 open Finset
 
 /-- A positive target preserves strict order between bounds when rescaling. -/

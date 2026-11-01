@@ -63,6 +63,14 @@ optimality guarantee. Each selected answer must still meet the same bound;
 the conditional error-bound premise must hold for the states selected by
 the new policy, rather than being inferred from another policy's calibration.
 
+**Theorem 25.5 (incremental independent account).** Suppose each item's
+charge depends only on its current observation and fixed calibration. After
+one item climbs, replacing its old charge with its newly computed charge
+produces the same account as recomputing all charges. This does not apply to
+a certificate whose charges may depend on other items. The implementation
+still sums the current charges in the same order at every step, so this
+identity does not rely on floating-point addition being associative.
+
 ## 25.2 Why floors pass `δ` early
 
 Fixing a word means bringing it to its top rung. The controller fixes the

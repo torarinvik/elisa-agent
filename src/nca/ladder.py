@@ -715,8 +715,11 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         while levels[i] < min(start, len(ladders[i]) - 1):
             levels[i] += 1
             climb(i)
+    default_account = ({i: item_risk(i, None) for i in range(len(values))}
+                       if certificate is None and classes is None else None)
     while True:
         account = (certificate(readings, item_risk, current_distribution) if certificate is not None
+                   else default_account if default_account is not None
                    else {i: item_risk(i, d) for i, d in enumerate(decisions)})
         if account is None:
             charges = {i: item_risk(i, d) for i, d in enumerate(decisions)}
@@ -768,6 +771,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             i = max(open_, key=score)
         levels[i] += 1
         climb(i)
+        if default_account is not None:
+            default_account[i] = item_risk(i, None)
     return Refinement(readings, cost, bound, not available or bound > delta, available)
 
 

@@ -1590,3 +1590,27 @@ def test_decision_tuple_with_mutable_groups_is_not_stale() -> None:
     group.append(True)
     with pytest.raises(ValueError, match="nonempty partition"):
         decision_key(decision)
+
+
+@pytest.mark.parametrize("ranked", [False, True])
+@pytest.mark.parametrize("with_floor", [False, True])
+@pytest.mark.parametrize("with_stop", [False, True])
+def test_incremental_default_account_matches_explicit_decisions(ranked, with_floor, with_stop) -> None:
+    from nca.ladder import charge_per_cost
+
+    low = Rung(constant("incremental-low", (0.55, 0.45), 1.0))
+    high = Rung(constant("incremental-high", (0.98, 0.02), 2.0))
+    ladders = [[low, high]] * 5
+    floor = (lambda readings, risk, fixed: sum(risk(i, None) for i in fixed)) if with_floor else None
+    stop = (lambda state: state.cost >= 9.0) if with_stop else None
+
+    def run(classes):
+        snapshots, trace = [], []
+        result = refine([0] * 5, ladders, 0.01, classes=classes, floor=floor,
+                        stop=stop, trace=trace, observe=snapshots.append,
+                        priority=charge_per_cost, ranked=ranked)
+        states = [(s.cost, s.bound, s.abstained, s.available,
+                   [reading.tolist() for reading in s.readings]) for s in snapshots]
+        return result.cost, result.bound, result.abstained, states, trace
+
+    assert run(None) == run([None] * 5)
