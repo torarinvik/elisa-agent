@@ -1929,6 +1929,27 @@ budget and a fresh workspace. The selective solver's reported cost retains
 its reader-compute meaning; it does not include consumer or prior-slot
 execution. Ordinary whole-route runtime budgeting still charges manifests.
 
+**Native selected-prior scoring.** The remaining Python automaton traversal
+in `ArityPrior.log_weight` now delegates to Elisa `prior_log_weight`; decoded
+reading scores use the existing native ordered reduction. These implement
+the existing product-of-edge-and-final-weights semantics, with the Python
+paths retained as references. All 3,906 sequences of lengths zero through
+five over {-1,0,1,2,3} compare exactly against the reference, covering
+reordered alphabets, forbidden transitions, zero edge/final weights and
+empty-sequence final weights. Native tests: 158 passes; fallback: 143 passes
+and 15 skips. Lean and Ruff pass.
+
+On a 150-word complete-prior fixture with Dirichlet readings (seed 83),
+10,000 repeated calls measured prior scoring at 17.86569 µs before and
+2.65271 µs after; complete posterior risk scoring measured 30.18568 µs and
+5.10209 µs. The selected prior log weight stayed 0 and risk stayed
+0.9999297928224652. These are operation timings, not a claim of sixfold
+end-to-end speedup. A paired real-reader comparison on 20 depth-6 noise-0.2
+seed-106 inputs at target 1%, with the usual seed-6 depth-4 noise-0.1
+validation calibration, produced identical Answers and complete refinement
+traces with native scoring enabled and disabled: 12 answered, no observed
+errors. This checks behavior preservation, not a new audit certification.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

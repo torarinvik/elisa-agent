@@ -78,6 +78,24 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                 result[1 + m + k * width + j] <- through_total / totals[k]
     return result
 
+# Product of prior edge and final weights, in log space (NCA.prior, §27).
+def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[f64], final: view[f64], start: i64, selected: view[i64]) -> f64 can[Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    state, total =
+        for k in 0..<selected.len.i64() |state: i64 = start, total: f64 = 0.0| -> (state, total):
+            column: i64 =
+                for j in 0..<width |found: i64 = -1| -> found:
+                    if alphabet[j] == selected[k]:
+                        found <- j
+                        break
+            return log(0.0) if column < 0
+            edge: i64 = state * width + column
+            target: i64 = transitions[edge]
+            return log(0.0) if target < 0
+            total += weights[edge]
+            state <- target
+    return total + final[state]
+
 # Stable log-sum, including unreachable states.
 def log_add(x: f64, y: f64) -> f64:
     return y if x == log(0.0)
@@ -419,6 +437,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
 export pymodule decoding:
     fn decode
     fn decode_prior
+    fn prior_log_weight
     fn advance
     fn retreat
     fn scores

@@ -684,3 +684,11 @@ refinement compute, excluding consumer and auxiliary-slot execution. The
 ordinary runtime charges slot and consumer manifests when executing the
 whole typed route. The consumer chain still has one ordinary data input per
 module; slots add explicitly bound higher-order dependencies.
+
+`ArityPrior.log_weight` uses Elisa `prior_log_weight` to traverse selected
+arities, accumulate ordered log edge weights and include the final-state
+weight, corresponding to `prior` in `NCA/Product.lean`. Forbidden symbols or
+transitions yield negative infinity; an empty sequence retains the start
+state's final weight. The Python traversal remains the reference fallback.
+`Decoded.log_weight` also uses the native selected-reading reduction, keeping
+both position-wise scoring loops out of Python during posterior risk checks.

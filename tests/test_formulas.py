@@ -1081,3 +1081,20 @@ def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
         assert solve_many(route, ladders, text, [0.05, 0.01]) == solve_many(
             provider, ladders, text, [0.05, 0.01])
         assert prior.calls == 1
+
+
+def test_native_prior_log_weight_matches_reference_for_all_short_sequences(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(formulas._NATIVE, "prior_log_weight", None) is None:
+        pytest.skip("native prior scoring kernel is not built")
+    native = formulas._NATIVE
+    prior = formulas.ArityPrior((2, 0, 1), np.array([[1, 0, -1], [0, -1, 1]]),
+        np.array([[0.3, -0.7, 0.0], [-np.inf, 0.8, 1.2]]), np.array([-0.2, -np.inf]))
+    for size in range(6):
+        for selected in itertools.product((-1, 0, 1, 2, 3), repeat=size):
+            monkeypatch.setattr(formulas, "_NATIVE", None)
+            expected = prior.log_weight(selected)
+            monkeypatch.setattr(formulas, "_NATIVE", native)
+            assert prior.log_weight(selected) == expected
+    # Empty input retains the initial state's final weight; source arrays are read-only.
+    assert prior.log_weight(()) == -0.2

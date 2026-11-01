@@ -187,6 +187,11 @@ class ArityPrior:
 
     def log_weight(self, arities: Sequence[int]) -> float:
         """Log prior weight, or -inf for a forbidden sequence."""
+        native = getattr(_NATIVE, "prior_log_weight", None)
+        if native is not None:
+            return float(native(np.asarray(self.alphabet, dtype=np.int64),
+                                self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                                self.log_final, self.start, np.asarray(arities, dtype=np.int64)))
         state, total = self.start, 0.0
         for a in arities:
             if a not in self.alphabet:
@@ -306,7 +311,7 @@ class Decoded:
         """Log weight of a sequence under readings and the optional prior."""
         if self.prior is not None and tuple(alphabet) != self.prior.alphabet:
             raise ValueError("alphabet must match the decoded prior")
-        reading = float(sum(log_probs[k, alphabet.index(a)] for k, a in enumerate(arities)))
+        reading = sequence_log_weight(log_probs, alphabet, arities)
         return reading + (0.0 if self.prior is None else self.prior.log_weight(arities))
 
     def risk(self, log_probs: np.ndarray, alphabet: Sequence[int],
