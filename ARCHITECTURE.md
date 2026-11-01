@@ -224,6 +224,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [23.8](theory/23-efficient-decoding.md) | `dpMax_append` | `Banding` |
 | [23.9](theory/23-efficient-decoding.md) | `sum_pair_dist` | `Banding` |
 | [23.10](theory/23-efficient-decoding.md) | `stitch_attains` | `Banding` |
+| [23.15](theory/23-efficient-decoding.md) | `cache_lookup_correct`, `cache_evict_sound`, `cache_store_sound` | `Selective` |
 | [23.14](theory/23-efficient-decoding.md) | `sum_row_shift`, `row_shift_order` | `Selective` |
 | [23.13](theory/23-efficient-decoding.md) | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
 | [23.12](theory/23-efficient-decoding.md) | `revision_cache_eq` | `Selective` |
@@ -818,7 +819,7 @@ immutable decision key and marked read-only. Each metadata cache retains at most
 metadata is recomputed; group IDs are expanded by Elisa when available. The
 metadata contains only decision structure; calibration
 temperatures and observation values remain current. The revision-cache
-invariant (23.12) applies to this deterministic metadata. Gradient-bearing
+invariants (23.12, 23.15) apply to this deterministic metadata. Gradient-bearing
 observations continue through PyTorch and retain differentiability.
 
 `Rung.risk` dispatches to native `calibrated_risk_for_reading` for supported

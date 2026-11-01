@@ -238,6 +238,37 @@ theorem priority_allocation_nonneg (h : X → ℝ) (R : ℝ)
 theorem revision_cache_eq {V Y : Type} (f : V → Y) {old current : V}
     (h : current = old) : f current = f old := congrArg f h
 
+/-- Every retained entry agrees with the deterministic computation. -/
+def CacheSound {K V : Type} (f : K → V) (cache : K → Option V) : Prop :=
+  ∀ k v, cache k = some v → v = f k
+
+/-- A hit or a recomputation returns the same value. -/
+theorem cache_lookup_correct {K V : Type} (f : K → V) (cache : K → Option V)
+    (sound : CacheSound f cache) (k : K) :
+    (cache k).getD (f k) = f k := by
+  cases h : cache k with
+  | none => simp
+  | some value => simpa [h] using sound k value h
+
+/-- Evicting any set of entries preserves cache soundness. -/
+theorem cache_evict_sound {K V : Type} (f : K → V) (cache : K → Option V)
+    (sound : CacheSound f cache) (keep : K → Bool) :
+    CacheSound f (fun k => if keep k then cache k else none) := by
+  intro k v h
+  cases hk : keep k <;> simp [hk] at h
+  exact sound k v h
+
+/-- Reinserting the computed value preserves cache soundness. -/
+theorem cache_store_sound {K V : Type} [DecidableEq K] (f : K → V)
+    (cache : K → Option V) (sound : CacheSound f cache) (target : K) :
+    CacheSound f (fun k => if k = target then some (f target) else cache k) := by
+  intro k v h
+  by_cases hk : k = target
+  · subst k
+    simpa using h.symm
+  · simp [hk] at h
+    exact sound k v h
+
 /-- A certified upper envelope absorbs numerical underestimation before selection. -/
 theorem selective_risk_le_approx (p q b reported allowance : X → ℝ) (δ : ℝ)
     (hp : ∀ x, 0 ≤ p x) (hq : ∀ x, q x ≤ b x)

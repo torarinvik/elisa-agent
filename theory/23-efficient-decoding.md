@@ -238,6 +238,14 @@ positive-mass row leaves the set of maximizing sequences unchanged.
 Zero-mass rows admit no positive-weight complete sequence and must be
 handled separately.
 
+**Theorem 23.15 (eviction preserves exact lookup).** Let `f : K → V` be a
+deterministic computation and let a cache contain only pairs `(k, f(k))`.
+A lookup that returns the cached value on a hit and computes `f(k)` on a
+miss always returns `f(k)`. Removing any entries or inserting a freshly
+computed pair preserves this invariant, independently of the eviction policy
+or capacity. The key must include every input on which `f` depends; the result
+does not justify reusing a value after an unrepresented input changes.
+
 ## 23.5 Predicted operation counts
 
 Per refinement step, counting multiply-adds over the arity alternatives:
