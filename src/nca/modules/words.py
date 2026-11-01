@@ -38,7 +38,7 @@ from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
 from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
 from nca.priors import ArityPrior, complete_prior, format_prior, height_prior, risk_from_partition
 from nca.partition import PartitionCursor
-from nca.ladder import Decision, _lower_sum, _upper_sum, allocate_risk
+from nca.ladder import Decision, _lower_sum, _lower_values, _upper_sum, allocate_risk
 from nca.native import load
 
 _NATIVE = load("decoding")
@@ -159,6 +159,23 @@ def _combine_shares(shares: Sequence[float], within: Sequence[float]) -> list[fl
     if native is not None:
         return list(native(np.asarray(shares, dtype=np.float64), np.asarray(additions, dtype=np.float64)))
     return [_upper_sum([share, addition]) for share, addition in zip(shares, additions, strict=True)]
+
+
+def _detection_floors(risks: Sequence[float]) -> tuple[float, float]:
+    values = _lower_values(risks)
+    native = getattr(_NATIVE, "detection_floors", None)
+    if native is not None:
+        markov, pairs = native(np.asarray(values, dtype=np.float64))
+        return float(markov), float(pairs)
+    prefix = pairs = 0.0
+    for value in values:
+        product = prefix * value
+        if product > 0.0:
+            product = math.nextafter(product, 0.0)
+        pairs = _lower_sum([pairs, product])
+        prefix = _lower_sum([prefix, value])
+    half = prefix * 0.5
+    return (math.nextafter(half, 0.0) if half + half > prefix else half), pairs
 
 
 DETECTION = ("none", "markov", "pairs")
@@ -792,11 +809,10 @@ class FormulaEvaluator:
             # fitted temperatures either may be the smaller (§18.3).
             return _lower_sum([min(risk(k, None), risk(k, ARITY_DECISION)) for k in fixed])
         arity = [risk(k, ARITY_DECISION) for k in fixed]
-        total = sum(arity)
-        markov = total / 2
+        markov, pairs = _detection_floors(arity)
         if self.detection == "markov":
             return markov
-        return min(markov, (total * total - sum(r * r for r in arity)) / 2)
+        return min(markov, pairs)
 
 
 class PriorFormulaEvaluator(FormulaEvaluator):

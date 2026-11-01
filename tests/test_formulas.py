@@ -290,6 +290,34 @@ def test_unconstrained_formula_floor_rounds_down(short_circuit: bool) -> None:
     assert Fraction.from_float(result) <= exact
 
 
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_detection_floors_round_down(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both detection floors bound their exact values from below, keeping tiny
+    risks and inputs that need rounding to binary64."""
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    elif getattr(word_module._NATIVE, "detection_floors", None) is None:
+        pytest.skip("native kernel not built")
+    rng = np.random.default_rng(10)
+    cases: list[list[float | Fraction]] = [[1.0, 1e-18], [float(np.nextafter(0.0, 1.0))] * 3,
+                                           [Fraction(1, 3), Fraction(1, 10 ** 400), Fraction(2, 7)]]
+    cases += [list(rng.random(int(rng.integers(1, 30))) * 10.0 ** rng.integers(-20, 1))
+              for _ in range(300)]
+    for risks in cases:
+        markov, pairs = word_module._detection_floors(risks)
+        exact = [Fraction(r) if isinstance(r, Fraction) else Fraction.from_float(r) for r in risks]
+        total = sum(exact, Fraction())
+        assert Fraction.from_float(markov) <= total / 2
+        assert Fraction.from_float(pairs) <= (total * total - sum(r * r for r in exact)) / 2
+        evaluator = FormulaEvaluator(detection="pairs")
+        def risk(k: int, decision: Decision) -> float | Fraction:
+            return risks[k]
+        floor = evaluator.floor(one_hot(["true"] * len(risks)), risk, frozenset(range(len(risks))))
+        assert floor == min(markov, pairs)
+
 def test_decoding_agrees_with_parseable_readings() -> None:
     rng = np.random.default_rng(5)
     for _ in range(100):

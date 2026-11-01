@@ -40,6 +40,22 @@ def lower_sum(values: view[f64]) -> f64 can[Abort.Panic]:
         for i in 0..<values.len.i64() |total: f64 = 0.0| -> total:
             total <- lower_add(total, values[i])
 
+def lower_product(a: f64, b: f64) -> f64:
+    product: f64 = a * b
+    return nextafter(product, 0.0) if product > 0.0 else 0.0
+
+def lower_half(x: f64) -> f64:
+    half: f64 = x * 0.5
+    return nextafter(half, 0.0) if half + half > x else half
+
+# Lower bounds for half the sum and the sum of unordered pair products.
+def detection_floors(risks: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    state: darray[f64] = [0.0, 0.0]
+    for i in 0..<risks.len.i64():
+        state[1] <- lower_add(state[1], lower_product(state[0], risks[i]))
+        state[0] <- lower_add(state[0], risks[i])
+    return [lower_half(state[0]), state[1]]
+
 # Upper-bounding products of nonnegative binary64 operands.
 def upper_product(a: f64, b: f64) -> f64:
     product: f64 = a * b
@@ -742,6 +758,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
 export pymodule decoding:
     fn upper_sum
     fn lower_sum
+    fn detection_floors
     fn pair_shares
     fn markov_shares
     fn combine_shares

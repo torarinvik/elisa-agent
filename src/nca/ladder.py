@@ -228,12 +228,17 @@ def _upper_sum(values: Sequence[float]) -> float:
     return total
 
 
-def _lower_sum(values: Sequence[float]) -> float:
-    """Bound the exact sum of nonnegative inputs from below."""
+def _lower_values(values: Sequence[float]) -> list[float]:
     rounded_values = []
     for value in values:
         rounded = float(value)
         rounded_values.append(math.nextafter(rounded, 0.0) if rounded > value else rounded)
+    return rounded_values
+
+
+def _lower_sum(values: Sequence[float]) -> float:
+    """Bound the exact sum of nonnegative inputs from below."""
+    rounded_values = _lower_values(values)
     native = getattr(_NATIVE, "lower_sum", None)
     if native is not None:
         return float(native(np.asarray(rounded_values, dtype=np.float64)))
