@@ -1488,6 +1488,23 @@ This single ordered timing pair includes warm-up effects. The invariant is
 that checking work after the first failure is removed without changing the
 accepted prefix, not a universal speedup factor.
 
+**Reject checking candidates before completing inference.** Theorem 17.7
+and its conditional Lean proof show that a candidate cannot recover when
+its current error count would fail even with all `N` checking examples
+credited as answers. Checking now stops at this condition, only after a
+new error. Acceptance still uses the full fixed sample. Tests distinguish
+first-error rejection after one solve from zero-error acceptance after all
+60 solves. Native tests: 128 pass; fallback: 115 pass and 13 skips.
+
+On the same depth-4, noise-0.2, 60-per-half audit at target 5% (test seed 6,
+100 evaluation examples, reader calibration seed 0), complete checking used
+580 solves and 0.94580 s. Early rejection used 524 solves and 0.78594 s.
+Both reported uncontrolled coverage 0.85 with one error and no certified
+policy. The failed candidate required only four of its 60 checking solves.
+The call-count reduction is exact; the single ordered timing pair includes
+warm-up effects. No early acceptance or optional-stopping confidence claim
+was introduced.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

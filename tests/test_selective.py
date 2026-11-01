@@ -385,7 +385,8 @@ def test_impossible_audit_skips_candidate_evaluations(monkeypatch: pytest.Monkey
 
     calls: list[int] = []
 
-    def outcomes(route: Any, ladders: Any, samples: Any, delta: float) -> tuple[int, int]:
+    def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
+                 **kwargs: Any) -> tuple[int, int]:
         calls.append(len(samples))
         assert len(samples) == 3  # Only the unchanged uncontrolled evaluation remains.
         return 3, 0
@@ -404,7 +405,8 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
 
     calls: list[tuple[int, float]] = []
 
-    def outcomes(route: Any, ladders: Any, samples: Any, delta: float) -> tuple[int, int]:
+    def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
+                 **kwargs: Any) -> tuple[int, int]:
         calls.append((len(samples), delta))
         if len(calls) <= 8:  # Seven fit candidates, then the first checking candidate.
             assert len(samples) == 60
@@ -425,3 +427,28 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
     assert calls[8][1] == pytest.approx(0.05 / logic.INFLATIONS[0])
     assert calls[-1][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
     assert "risk   1.5" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("wrong_first", [False, True])
+def test_checking_rejects_early_but_never_accepts_early(wrong_first: bool,
+                                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+    from nca.ladder import certify
+    from nca.selective import Answer
+
+    samples = [SimpleNamespace(text=str(i), value=True) for i in range(60)]
+    calls: list[str] = []
+
+    def solve(route: Any, ladders: Any, text: str, delta: float) -> Answer:
+        calls.append(text)
+        return Answer(not (wrong_first and text == "0"), 1.0, 0.01, False)
+
+    monkeypatch.setattr(logic, "solve", solve)
+    counts = logic.outcomes(None, {}, samples, 0.05, reject_above=0.05, alpha=0.1)
+    if wrong_first:
+        assert len(calls) == 1 and counts == (1, 1)
+        assert certify([counts], 0.05, 0.1) == []
+    else:
+        assert len(calls) == 60 and counts == (60, 0)
+        assert certify([counts], 0.05, 0.1) == [0]

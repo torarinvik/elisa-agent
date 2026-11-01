@@ -762,6 +762,15 @@ regardless of its predictions. This precheck uses only the declared sample
 budget and target, not checking labels, so it introduces no data-dependent
 policy selection.
 
+**Theorem 17.7 (irreversible checking failure).** Suppose an upper-bound
+function `U(k,n)` increases with errors `k` and decreases with answered
+sample size `n`. After observing `k` errors, any completion has at least
+`k` errors and at most the full budget `N` answers. Therefore its bound is
+at least `U(k,N)`. If `U(k,N) > δ`, the candidate must fail regardless of
+the unseen examples. Evaluation may stop and reject it immediately.
+The binomial upper bound has these monotonicities. Acceptance still requires
+the complete fixed checking sample; no early-acceptance rule follows.
+
 These are *answered* audit expressions with no errors. With errors the
 requirement grows, since `U(k, n; α) ≈ k/n + O(√(k log(1/α))/n)`. Two
 consequences follow. Strict targets need audits in the hundreds. And because

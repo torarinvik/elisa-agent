@@ -142,4 +142,12 @@ theorem audit_budget_obstruction {base α : ℝ} {n N : ℕ}
     exact mul_le_of_le_one_right (pow_nonneg hbase _) (pow_le_one₀ hbase hunit)
   linarith
 
+/-- An optimistic completed count that fails makes rejection irreversible. -/
+theorem audit_rejection_of_completion (U : ℕ → ℕ → ℝ) {k K n N : ℕ} {δ : ℝ}
+    (herrors : k ≤ K) (hcount : n ≤ N)
+    (herror_mono : ∀ a b size, a ≤ b → U a size ≤ U b size)
+    (hcount_anti : ∀ errors a b, a ≤ b → U errors b ≤ U errors a)
+    (hfail : δ < U k N) : δ < U K n :=
+  hfail.trans_le ((herror_mono k K N herrors).trans (hcount_anti K n N hcount))
+
 end NCA

@@ -56,7 +56,7 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
 from nca.selective import Answer, build_ladders, solve
-from nca.stats import poisson_binomial_tails, wilson
+from nca.stats import clopper_pearson_upper, poisson_binomial_tails, wilson
 
 
 ACCOUNTS = {"static": (False, "none", False), "certificate": (True, "none", False),
@@ -83,14 +83,19 @@ def certificate_leaves(sample: FormulaSample) -> int:
 
 
 def outcomes(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[FormulaSample],
-             delta: float) -> tuple[int, int]:
-    """Formulas answered and answered wrongly under target ``delta``."""
+             delta: float, *, reject_above: float | None = None,
+             alpha: float = 0.1) -> tuple[int, int]:
+    """Answer/error counts; checking may stop only on irreversible rejection."""
     answered = wrong = 0
     for sample in samples:
         answer = solve(route, ladders, sample.text, delta)
         if not answer.abstained:
             answered += 1
-            wrong += answer.value != sample.value
+            incorrect = answer.value != sample.value
+            wrong += incorrect
+            if (incorrect and reject_above is not None
+                    and clopper_pearson_upper(wrong, len(samples), alpha) > reject_above):
+                break
     return answered, wrong
 
 
@@ -191,7 +196,8 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
                     stats: dict[int, tuple[int, int]] = {}
                     accepted = []
                     for i in order:
-                        stats[i] = outcomes(route, ladders, check, delta / INFLATIONS[i])
+                        stats[i] = outcomes(route, ladders, check, delta / INFLATIONS[i],
+                                            reject_above=delta, alpha=args.alpha)
                         if not certify([stats[i]], delta, args.alpha):
                             break
                         accepted.append(i)

@@ -126,6 +126,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 17.2 | `shift_ratio_le` | `Calibration` |
 | 17.3 | `horvitz_thompson` | `Calibration` |
 | 17.4 | `inflated_answered_mono` | `Calibration` |
+| 17.7 | `audit_rejection_of_completion` | `Calibration` |
 | 17.6 | `audit_budget_obstruction` | `Calibration` |
 | 17.5 | `fixed_sequence_le` | `Calibration` |
 | 18.1 | `grouped_risk_le` | `Certificate` |
@@ -550,3 +551,11 @@ in the fit-half-determined order. It stops at the first rejected candidate
 and chooses maximum coverage only among the accepted prefix. Fit-half
 candidate evaluation remains complete, and the order never changes in
 response to checking labels. This implements §17.5's existing stopping rule.
+
+Checking calls to `logic.outcomes` pass `reject_above` and `alpha`. After a
+new error, the runner tests the optimistic bound that credits every checking
+example as answered. If even it fails, the routine returns partial counts,
+which are used only to reject that candidate. Accepted candidates still
+consume the full checking sample; fit and evaluation calls remain complete.
+Theorem 17.7 proves rejection under the supplied monotonicity premises;
+binomial-bound monotonicity itself is not newly formalized here.
