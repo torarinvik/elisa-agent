@@ -303,6 +303,10 @@ class Split:
                                  for k, c in enumerate(centre)], dtype=np.int64)
             self.high = np.array([max(-1, min(m - k, int(c) + half))
                                   for k, c in enumerate(centre)], dtype=np.int64)
+        growth = max(0, int(max(self.alphabet)) - 1)
+        reachable = np.fromiter((min(m - k, 1 + k * growth) for k in range(m + 1)),
+                                dtype=np.int64, count=m + 1)
+        self.high = np.minimum(self.high, reachable)
         self.low = np.ascontiguousarray(self.low, dtype=np.int64)
         self.high = np.ascontiguousarray(self.high, dtype=np.int64)
         self._native = (_NATIVE if all(getattr(_NATIVE, name, None) is not None

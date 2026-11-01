@@ -287,6 +287,8 @@ both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.
 Both paths reject non-finite results of finite log-weight additions during
 sweeps and split scoring; a rejected climb does not replace its row.
+Cursor bands also exclude states beyond the configured alphabet's prefix
+reachability bound (`counter_growth_bound` in `NCA.Decoding`).
 `Split` validates row dimensions, word indices and band bounds before native
 calls; an absent positive-weight path yields an empty trace.
 

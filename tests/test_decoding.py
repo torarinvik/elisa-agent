@@ -302,6 +302,27 @@ def test_split_matches_full_decoding() -> None:
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3), (0, 1, 3, 2**63 - 1)])
+def test_split_reachable_bounds_preserve_general_arity_updates(
+        reference_only: bool, alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(251)
+    m = 9
+    rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+    cursor = Split(rows, alphabet)
+    growth = max(0, max(alphabet) - 1)
+    assert cursor.high.tolist() == [min(m - k, 1 + k * growth) for k in range(m + 1)]
+    for _ in range(12):
+        k = int(rng.integers(m))
+        rows[k] = np.log(rng.dirichlet(np.ones(len(alphabet))))
+        score, _ = cursor.climb(k, rows[k])
+        exact = decode_reference(rows, alphabet)
+        assert exact is not None
+        assert score == pytest.approx(exact.log_z, abs=1e-12)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_split_retains_underflowed_paths_through_climbs(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
