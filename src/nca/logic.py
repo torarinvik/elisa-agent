@@ -122,16 +122,38 @@ def certificate_leaves(sample: FormulaSample) -> int:
     return int(sum(leaves[k] for k in kept))
 
 
+class _AuditPaths:
+    """Lazily share deterministic sample paths among fixed candidate targets."""
+
+    def __init__(self, route: Plan, ladders: dict[TypeId, list[Rung]],
+                 samples: Sequence[FormulaSample], targets: Sequence[float]) -> None:
+        self.route, self.ladders, self.samples, self.targets = route, ladders, samples, targets
+        self.flags: list[tuple[bool | None, ...] | None] = [None] * len(samples)
+
+    def outcome(self, sample_index: int, target_index: int) -> bool | None:
+        flags = self.flags[sample_index]
+        if flags is None:
+            sample = self.samples[sample_index]
+            answers = solve_many(self.route, self.ladders, sample.text, self.targets)
+            flags = tuple(None if a.abstained else a.value != sample.value for a in answers)
+            self.flags[sample_index] = flags
+        return flags[target_index]
+
+
 def outcomes(route: Plan, ladders: dict[TypeId, list[Rung]], samples: Sequence[FormulaSample],
              delta: float, *, reject_above: float | None = None,
-             alpha: float = 0.1) -> tuple[int, int]:
+             alpha: float = 0.1, shared: _AuditPaths | None = None,
+             target_index: int = 0) -> tuple[int, int]:
     """Answer/error counts; checking may stop only on irreversible rejection."""
     answered = wrong = 0
-    for sample in samples:
-        answer = solve(route, ladders, sample.text, delta)
-        if not answer.abstained:
+    for index, sample in enumerate(samples):
+        if shared is None:
+            answer = solve(route, ladders, sample.text, delta)
+            incorrect = None if answer.abstained else answer.value != sample.value
+        else:
+            incorrect = shared.outcome(index, target_index)
+        if incorrect is not None:
             answered += 1
-            incorrect = answer.value != sample.value
             wrong += incorrect
             if (incorrect and reject_above is not None
                     and clopper_pearson_exceeds(wrong, len(samples), alpha, reject_above)):
@@ -262,14 +284,16 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
             for delta in args.targets:
                 chosen = None
                 if certification_possible(args.audit, delta, alpha):
+                    targets = [delta / lam for lam in INFLATIONS]
                     order = certification_order(
-                        outcomes_many(route, ladders, fit, [delta / lam for lam in INFLATIONS]),
-                        alpha)
+                        outcomes_many(route, ladders, fit, targets), alpha)
+                    shared = _AuditPaths(route, ladders, check, targets)
                     stats: dict[int, tuple[int, int]] = {}
                     accepted = []
                     for i in order:
-                        stats[i] = outcomes(route, ladders, check, delta / INFLATIONS[i],
-                                            reject_above=delta, alpha=alpha)
+                        stats[i] = outcomes(route, ladders, check, targets[i],
+                                            reject_above=delta, alpha=alpha,
+                                            shared=shared, target_index=i)
                         if not certify([stats[i]], delta, alpha):
                             break
                         accepted.append(i)

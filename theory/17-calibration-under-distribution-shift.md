@@ -211,6 +211,12 @@ the unseen examples. Evaluation may stop and reject it immediately.
 The binomial upper bound has these monotonicities. Acceptance still requires
 the complete fixed checking sample; no early-acceptance rule follows.
 
+For deterministic experts, fixed candidate thresholds can share the same
+per-sample refinement path. Caching each threshold's answer/error flag does
+not change the candidate order or the sequence of flags seen by a candidate;
+the irreversible-rejection rule still applies at the same sample. This
+sharing does not make checking labels available for reordering candidates.
+
 These are *answered* audit expressions with no errors. With errors the
 requirement grows, since `U(k, n; α) ≈ k/n + O(√(k log(1/α))/n)`. Two
 consequences follow. Strict targets need audits in the hundreds. And because

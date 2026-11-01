@@ -808,6 +808,43 @@ def test_checking_rejects_early_but_never_accepts_early(wrong_first: bool,
         assert certify([counts], 0.05, 0.1) == [0]
 
 
+def test_shared_checking_paths_preserve_counts_and_early_rejection(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+    from nca.selective import Answer
+
+    samples = [SimpleNamespace(text=str(i), value=True) for i in range(60)]
+    targets = [0.1, 0.2, 0.3]
+    individual: list[tuple[str, float]] = []
+    batched: list[str] = []
+
+    def answer(text: str, target: float) -> Answer:
+        i = int(text)
+        return Answer(not (target == 0.2 and i == 7), 1.0, 0.01,
+                      target == 0.3 and i % 3 == 0)
+
+    def solve(route: Any, ladders: Any, text: str, target: float) -> Answer:
+        individual.append((text, target))
+        return answer(text, target)
+
+    def solve_many(route: Any, ladders: Any, text: str, targets: Any) -> list[Answer]:
+        batched.append(text)
+        return [answer(text, target) for target in targets]
+
+    monkeypatch.setattr(logic, "solve", solve)
+    monkeypatch.setattr(logic, "solve_many", solve_many)
+    separate = [logic.outcomes(None, {}, samples, target, reject_above=0.05)
+                for target in targets]
+    shared = logic._AuditPaths(None, {}, samples, targets)
+    combined = [logic.outcomes(None, {}, samples, target, reject_above=0.05,
+                               shared=shared, target_index=i)
+                for i, target in enumerate(targets)]
+    assert combined == separate
+    assert separate[1] == (8, 1)  # An irreversible failure stops at the same sample.
+    assert len(batched) == len(samples) and len(individual) > len(batched)
+
+
 def test_shared_refinement_trace_matches_independent_thresholds() -> None:
     rungs = [Rung(constant(str(i), output, float(i + 1))) for i, output in
              enumerate(((0.4, 0.6), (0.1, 0.9), (0.001, 0.999)))]

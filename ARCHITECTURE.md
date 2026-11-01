@@ -880,9 +880,10 @@ deterministic consumers. Audit fitting uses this API to share thresholds for eac
 
 `logic.outcomes_many` accumulates fit-half answer/error counts from
 `solve_many` for all inflation thresholds. These counts determine the same
-candidate order as independent solves. Checking retains lazy candidate
-evaluation and irreversible-rejection stopping; its labels do not influence
-the fit trajectory or ordering.
+candidate order as independent solves. Checking lazily computes one shared
+path per visited sample and retains only its answer/error flags. Candidates
+still consume those flags in the predetermined order and stop on irreversible
+rejection; checking labels do not influence the fit trajectory or ordering.
 
 `formulas.CertifiedSplit` manages a fixed-reference `Split` band and widens
 it until the relative tail and exact-maximum conditions of §23.3 hold.
