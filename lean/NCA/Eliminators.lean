@@ -1,6 +1,6 @@
 import NCA.Pruning
 import NCA.Slots
-import NCA.Terms
+import NCA.Unification
 
 /-!
 # Closure through eliminators
@@ -124,9 +124,6 @@ theorem HContract.mem_subst_slots {d : HContract Term} (σ : Nat → Term) {s : 
     (hs : s ∈ d.slots) :
     (s.1.map (Term.subst σ), Term.subst σ s.2) ∈ (d.subst σ).slots :=
   List.mem_map_of_mem (f := fun s => (s.1.map (Term.subst σ), Term.subst σ s.2)) hs
-
-theorem Term.subst_var (σ : Nat → Term) (v : Nat) : Term.subst σ (.var v) = σ v := by
-  rw [Term.subst]
 
 theorem elem?_seq_isSome (e : Term) : (elem? (seq e)).isSome = true := by
   simp [elem?_eq_some.mpr rfl]

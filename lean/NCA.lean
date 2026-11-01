@@ -3,6 +3,7 @@ import NCA.Check
 import NCA.Contract
 import NCA.Terms
 import NCA.Unification
+import NCA.PatternSearch
 import NCA.Demand
 import NCA.Cost
 import NCA.Loading

@@ -13,7 +13,7 @@ run the Python tests with `uv run pytest`.
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
 |---|---|---|
 | [§1 Types and contracts](theory/01-types-and-contracts.md) | `Contract`, `Terms` | `abi`, `registry` |
-| [§2 Planning](theory/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification` | `planner.plan`, `router.infer` |
+| [§2 Planning](theory/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification`, `PatternSearch` | `planner.plan`, `router.infer` |
 | [§3 Routing stability](theory/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
 | [§4 Compositional reliability](theory/04-compositional-reliability.md) | `Reliability` | |
 | [§5 Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md) | `Shift` | `pipeline` |
@@ -62,6 +62,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.6](theory/02-planning.md) | `Term.subst_app_ne` | `Terms` |
 | [2.7](theory/02-planning.md) | `mgu_exists` | `Unification` |
 | [2.8](theory/02-planning.md) | `unifies_eqSubst`, `isMGU_append` | `Unification` |
+| [2.9](theory/02-planning.md) | `Skel.sound`, `Skel.complete`, `Skel.most_general` | `PatternSearch` |
+| [2.10](theory/02-planning.md) | `SeqMGU.isMGU`, `SeqMGU.exists` | `PatternSearch` |
 | [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
@@ -280,6 +282,12 @@ bindings and slots; a candidate that leaves a variable undetermined is skipped
 as ambiguous. Ground sub-goals go through the memoized planner, pattern goals
 are not memoized, and pruning by the forward closure ignores inputs with
 variables.
+
+`NCA.Skel` (`lean/NCA/PatternSearch.lean`) models a plan skeleton and its
+equations, with each node's variables renamed by its path, as
+`index.rename_apart` does with fresh tags. Each input pattern the search
+unifies with a candidate's output is one equation of `Skel.eqs`, solved in
+search order with the bindings found so far applied, as in `SeqMGU`.
 
 `map` candidates are pruned by the same closure oracle
 (`ProducerIndex.may_derive`, THEORY §12): an element `a` is tried only if the

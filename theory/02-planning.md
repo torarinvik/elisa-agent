@@ -152,8 +152,28 @@ contract or available type sits at each node, without the types. Rename the
 variables of the contract at each node apart, by tagging them with the node.
 The skeleton then produces an instance of the goal `P` exactly when one
 finite list of equations has a solution: at every node, the node's output
-equals the pattern its parent asks for. A ground plan whose skeleton is this
-one gives such a solution, namely its own instantiation of every node.
+equals the pattern its parent asks for. A `map` node asks its body for a
+fresh variable and its source for the sequence of its element. A ground plan
+whose skeleton is this one gives such a solution, namely its own
+instantiation of every node. Variables are renamed apart by the node's path
+in the skeleton, into a set disjoint from the goal's.
+
+**Theorem 2.9 (skeleton equations).** Let `s` be a skeleton over installed
+contracts and ground available types.
+
+1. Every solution `σ` of the equations of `s` for `P` types `s`: with each
+   node's contract instantiated by `σ`, `s` is a plan over instances of
+   installed contracts producing `σ(P)`.
+2. If a ground plan over ground instances of installed contracts produces an
+   instance `θ₀(P)`, then it is the plan of its own skeleton at a solution of
+   that skeleton's equations for `P`, one agreeing with `θ₀` on `P`.
+3. If the equations of `s` for `P` have a solution, their most general
+   unifier `θ` types `s`, and the plan of every solution `σ` is `σ` applied
+   to the plan at `θ`.
+
+Part 2 builds the solution node by node: each node's own instantiation is
+placed on its renamed variables, which no other node uses. Part 3 combines
+part 1 with Theorem 2.7 and the defining property `σ = σ ∘ θ`.
 
 Pattern search does not solve that list at once. It solves the equations
 node by node, in search order, applying each node's most general unifier to
@@ -166,8 +186,15 @@ of `E₁`.
 2. If `θ₂` is a most general unifier of `θ₁(E₂)`, then `θ₂ ∘ θ₁` is a most
    general unifier of `E₁ ++ E₂`.
 
-By induction over the nodes, the sequential solution never fails while the
-equations still have a solution. When it finishes, it is a most general
+**Theorem 2.10 (solving block by block).** Split a list of equations into
+blocks, and solve them in order, each with the substitution found so far
+applied, most generally, composing the results. If the whole list has a
+solution, this never fails, and it ends with a most general unifier of the
+whole list.
+
+This is Theorem 2.8 by induction over the blocks, with Theorem 2.7 for each
+block. With one block per node, the sequential solution never fails while
+the equations still have a solution. When it finishes, it is a most general
 unifier of the whole list, which exists by Theorem 2.7. So for every skeleton
 of depth at most `n`, pattern search finds the most general typing of that
 skeleton, and every ground instance of the skeleton's result factors through
