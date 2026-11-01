@@ -4,11 +4,14 @@ from nca.stats import paired_difference, wilson
 
 
 def test_wilson_contains_estimate_and_shrinks_with_n() -> None:
+    import numpy as np
+
     low, high = wilson(95, 100)
     assert low < 0.95 < high
     assert high - low > (lambda b: b[1] - b[0])(wilson(950, 1000))
     assert wilson(0, 10)[0] == 0.0 and wilson(10, 10)[1] == pytest.approx(1.0)
     assert wilson(50, 100) == pytest.approx((0.4038, 0.5962), abs=1e-4)
+    assert wilson(np.int64(2**39), np.int64(2**40)) == pytest.approx(wilson(2**39, 2**40))
 
 
 def test_paired_difference() -> None:
@@ -18,6 +21,28 @@ def test_paired_difference() -> None:
     assert mean == pytest.approx(0.05)
     assert 0 < low < mean < high
     assert paired_difference(first, first) == (0.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize("first, second", [([], []), ([False], [True]),
+                                           ([False, False, False], [True]),
+                                           ([False, False], [True, False, True])])
+def test_paired_difference_requires_matched_sample_pairs(first, second) -> None:
+    with pytest.raises(ValueError, match="equal lengths of at least two"):
+        paired_difference(first, second)
+
+
+@pytest.mark.parametrize("successes, n", [(1, -1), (2, 1), (-1, 2), (1.5, 3), (1, 2.5)])
+def test_wilson_rejects_invalid_counts(successes, n) -> None:
+    with pytest.raises(ValueError, match="integer counts"):
+        wilson(successes, n)
+
+
+@pytest.mark.parametrize("z", [-1, float("nan"), float("inf")])
+def test_intervals_reject_invalid_normal_quantiles(z) -> None:
+    with pytest.raises(ValueError, match="z must"):
+        wilson(1, 2, z)
+    with pytest.raises(ValueError, match="z must"):
+        paired_difference([False, True], [True, True], z)
 
 
 def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch) -> None:

@@ -32,6 +32,12 @@ def family_audit_alpha(total: float, audits: int) -> float:
 
 def wilson(successes: int, n: int, z: float = Z95) -> tuple[float, float]:
     """Wilson score interval for a binomial proportion."""
+    if (not isinstance(successes, Integral) or not isinstance(n, Integral)
+            or n < 0 or not 0 <= successes <= n):
+        raise ValueError("requires integer counts 0 <= successes <= n")
+    if not math.isfinite(z) or z < 0:
+        raise ValueError("z must be finite and nonnegative")
+    successes, n = int(successes), int(n)
     if n == 0:
         return 0.0, 1.0
     p = successes / n
@@ -45,14 +51,17 @@ def paired_difference(first: Sequence[bool], second: Sequence[bool],
                       z: float = Z95) -> tuple[float, float, float]:
     """Mean of ``second − first`` over paired samples, with a normal-approximation interval.
 
-    Pairing removes the variance shared by both systems on the same samples,
-    so the interval is much narrower than one built from two separate
-    accuracy intervals.
+    Requires at least two matched observations. The normal approximation can
+    be unreliable for small samples or few discordant pairs.
     """
     n = len(first)
+    if n != len(second) or n < 2:
+        raise ValueError("paired inputs must have equal lengths of at least two")
+    if not math.isfinite(z) or z < 0:
+        raise ValueError("z must be finite and nonnegative")
     diffs = [int(b) - int(a) for a, b in zip(first, second)]
     mean = sum(diffs) / n
-    variance = sum((d - mean) ** 2 for d in diffs) / (n - 1) if n > 1 else 0.0
+    variance = sum((d - mean) ** 2 for d in diffs) / (n - 1)
     half = z * math.sqrt(variance / n)
     return mean, mean - half, mean + half
 

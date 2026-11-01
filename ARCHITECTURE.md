@@ -92,6 +92,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [9.1](theory/09-module-substitution.md) | `substitution_change_le` | `Substitution` |
 | [9.2](theory/09-module-substitution.md) | `accuracy_transfer` | `Substitution` |
 | [9.3](theory/09-module-substitution.md) | `substitution_accuracy_ge` | `Substitution` |
+| [11](theory/11-evaluation-methodology.md) | `paired_zip_length` | `Calibration` |
 | [12.1](theory/12-lazy-loading-and-scalable-discovery.md) | `WellTyped.contracts_subset` | `Loading` |
 | [12.2](theory/12-lazy-loading-and-scalable-discovery.md) | `route_contracts_append` | `Loading` |
 | [12.3](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_derivable` | `Loading` |

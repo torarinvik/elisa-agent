@@ -38,6 +38,11 @@ namespace NCA
 
 open Finset
 
+/-- Pairwise traversal discards the excess of the longer input list. -/
+theorem paired_zip_length {α β : Type*} (xs : List α) (ys : List β) :
+    (xs.zip ys).length = min xs.length ys.length := by
+  simp
+
 section Excess
 
 variable {X : Type} [Fintype X]
