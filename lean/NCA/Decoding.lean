@@ -165,6 +165,13 @@ theorem bernoulli_step_upper (p q p' q' x y x' y' : ℝ)
     _ ≤ q' * x' + p' * y' :=
       add_le_add (mul_le_mul_of_nonneg_right hqq hx') (mul_le_mul_of_nonneg_right hpp hy')
 
+/-- A bounded tail stays bounded when mass crosses its threshold. -/
+theorem bernoulli_tail_step_upper (tail p mass tailUpper pUpper massUpper : ℝ)
+    (hTail : tail ≤ tailUpper) (hP : p ≤ pUpper) (hMass : mass ≤ massUpper)
+    (hMass0 : 0 ≤ mass) (hPUpper0 : 0 ≤ pUpper) :
+    tail + p * mass ≤ tailUpper + pUpper * massUpper := by
+  exact add_le_add hTail (mul_le_mul hP hMass hMass0 hPUpper0)
+
 /-- The number of successes cannot exceed the number of Bernoulli events. -/
 theorem bernoulli_count_le_length (events : List Bool) :
     events.count true ≤ events.length := by

@@ -140,6 +140,11 @@ def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch) -> No
                 answers.append(bound)
             assert answers[0] == answers[1]
     assert stats.poisson_binomial_upper_bound(2, [1e-200, 1e-200]) > 0.0
+    sparse = [1e-200, 1e-200] + [0.0] * 8
+    for implementation in (None, native):
+        monkeypatch.setattr(stats, "_NATIVE", implementation)
+        assert stats.poisson_binomial_upper_bound(2, sparse) > 0.0
+        assert stats.poisson_binomial_upper_bound(8, sparse) == 0.0
     assert math.isnan(stats.poisson_binomial_upper_bound(0, [float("nan")]))
     assert stats.poisson_binomial_upper_bound(-1, []) == 1.0
     assert stats.poisson_binomial_upper_bound(1, []) == 0.0

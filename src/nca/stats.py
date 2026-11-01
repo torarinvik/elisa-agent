@@ -176,7 +176,7 @@ def poisson_binomial_upper_bound(observed: int, probabilities: Sequence[float]) 
 
 def _poisson_binomial_upper_reference(observed: int, probabilities: np.ndarray,
                                       complements: np.ndarray) -> float:
-    """Directed-rounding reference for the truncated failure-count recurrence."""
+    """Directed-rounding reference using a short truncated count range."""
     def product(a: float, b: float) -> float:
         if a == 0 or b == 0:
             return 0.0
@@ -190,6 +190,16 @@ def _poisson_binomial_upper_reference(observed: int, probabilities: np.ndarray,
         return min(1.0, math.nextafter(a + b, 1.0))
 
     width = len(probabilities) - observed
+    if observed < width:
+        pmf = [1.0] + [0.0] * (observed - 1)
+        tail = 0.0
+        for i, (p, q) in enumerate(zip(probabilities, complements)):
+            p, q = float(p), float(q)
+            tail = add(tail, product(p, pmf[-1]))
+            for k in range(min(i + 1, observed - 1), 0, -1):
+                pmf[k] = add(product(q, pmf[k]), product(p, pmf[k - 1]))
+            pmf[0] = product(q, pmf[0])
+        return tail
     pmf = [1.0] + [0.0] * width
     for i, (p, q) in enumerate(zip(probabilities, complements)):
         p, q = float(p), float(q)
