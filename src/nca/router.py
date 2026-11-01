@@ -2,7 +2,8 @@
 
 ``infer`` mirrors ``NCA.infer`` (``lean/NCA/Check.lean``), proved to accept
 exactly the well-typed plans; slot fillings are checked against the slots'
-inputs alone, as in ``NCA.HTyped``. ``Router`` mirrors ``NCA.route`` and
+inputs alone, as in ``NCA.HTyped``, and must use the inputs the slot declares
+relevant. ``Router`` mirrors ``NCA.route`` and
 ``NCA.upgrade`` (``lean/NCA/Upgrade.lean``): pins override stable planning,
 an upgrade pins a checked plan for one goal, and upgrades are proved local,
 reversible, and stable under module installation.
@@ -16,13 +17,16 @@ import math
 from typing import Sequence
 
 from nca.abi import Module, TypeId, canonical_type, parse_type, seq_type, type_variables
-from nca.planner import Apply, Given, Plan, plan_stable
+from nca.planner import Apply, Given, Plan, plan_stable, slot_goals, uses
 
 
 def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) -> TypeId | None:
     """The type ``node`` produces, or ``None`` if it is not well-typed."""
     if isinstance(node, Given):
-        return node.type_id if node.type_id in available else None
+        if node.position is None:
+            return node.type_id if node.type_id in available else None
+        in_range = 0 <= node.position < len(available)
+        return node.type_id if in_range and available[node.position] == node.type_id else None
     if isinstance(node, Apply):
         if not any(m is node.module for m in modules) or not _instantiates(node):
             return None
@@ -30,7 +34,8 @@ def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) ->
         arg_types = [infer(modules, available, arg) for arg in node.args]
         if len(node.slots) != len(contract.slots) or any(
                 infer(modules, inputs, filling) != output
-                for filling, (inputs, output) in zip(node.slots, contract.slots)):
+                or not required <= uses(filling, inputs)
+                for filling, (inputs, output, required) in zip(node.slots, slot_goals(contract))):
             return None
         return contract.output if tuple(arg_types) == contract.inputs else None
     body = infer(modules, (node.element,), node.body)

@@ -235,13 +235,51 @@ onto `s`, which ignores the element. That plan is well-typed, so planning by
 type alone cannot tell a meaningful step from the trivial one. A step is
 determined either by a state type that says more, as `running-total(int)`
 says more than `int`, or by a filling given explicitly and admitted by type
-checking (§2). Eliminators whose slots do not contain their output, like
-`case` with `l ≠ b`, are not affected.
+checking (§2), or by requiring the filling to use its inputs (§20.8).
+Eliminators whose slots do not contain their output, like `case` with
+`l ≠ b`, are not affected.
 
 **Search.** An eliminator's output is a bare variable, so it is a candidate
 for every goal. Pattern search then enumerates every value of the eliminated
 type it can derive, and every way of filling the slots. Without further
 pruning, installing `case` and `fold` makes every failing goal pay for that
-enumeration.
+enumeration; §12 (Theorem 12.19) prunes it.
+
+## 20.8 Positional inputs and relevant slots
+
+A plan that names an available input by its type cannot tell two inputs of
+the same type apart. In `fold` with state and elements of one type, the step
+`[s, a] ⇒ s` has two inputs of type `s`, and a step meant to add the element
+to the state may read either one twice. A **positional plan** names each
+input by its position among the available types instead.
+
+**Theorem 20.9 (positions are types).** Reading each position as the type
+available there turns a positionally typed plan into a plan typed in the
+sense of §1, of the same type. Conversely, every plan typed in that sense
+has a positional version, reading each input at a position where its type
+is available.
+
+So positions change which input a plan reads, never which plans exist. The
+inputs a positional plan **uses** are the positions of its leaves; a `map`
+body reads only its element, so a `map` uses what its source uses.
+
+A slot may declare **relevant** inputs, positions that every filling must
+use. `fold` declares both of its step's inputs relevant, and a planning goal
+may require some of its own inputs in the same way.
+
+**Theorem 20.10 (requirements).**
+
+1. An application uses every position in `R` exactly when each position in
+   `R` is used by one of its arguments.
+2. A single input never uses two distinct positions.
+3. A typed plan uses only positions that exist.
+
+By part 1, a requirement is planned by giving each required position to one
+argument and requiring it there, trying every such assignment. By part 2,
+the projection that returns a fold's state unchanged is not a step of
+`fold`. Relevance excludes fillings that ignore an input. It does not choose
+between fillings that use the same inputs differently, such as `s + a` and
+`s · a`: types and relevance still underdetermine those, and a filling is
+then fixed by a type that says more, by cost (§13), or explicitly.
 
 [Theory index](../THEORY.md)

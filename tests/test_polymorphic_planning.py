@@ -12,7 +12,7 @@ from nca.abi import Choice, Contract, Manifest, Message, parse_type, type_variab
 from nca.index import ProducerIndex
 from nca.modules.combinators import Case, Fold
 from nca.optimize import plan_min, plan_pareto
-from nca.planner import Apply, Given, Map, Plan, plan, plan_stable
+from nca.planner import Apply, Given, Map, Plan, plan, plan_stable, uses
 from nca.router import infer
 from nca.runtime import execute
 from nca.workspace import Workspace
@@ -276,6 +276,36 @@ def test_case_and_fold_are_planned_as_generic_eliminators() -> None:
     workspace.post(items)
     workspace.post(text)
     assert execute(route, {f"seq[{INT}]": items, TEXT: text}, workspace, budget=10).payload == 6
+
+
+def test_slot_inputs_are_addressed_by_position_and_relevant_ones_are_used() -> None:
+    """A fold whose state and elements share a type sums correctly: its step
+    reads each input by position (THEORY §20.8). The step must use both
+    inputs, so a step reading one of them twice is rejected and the planner
+    finds ``add(state, element)``; a task may require its own inputs too."""
+    fold, zero = Fold(), fn("zero", [TEXT], INT, lambda _: 0)
+    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
+    modules, available = [zero, fold, add], (f"seq[{INT}]", TEXT)
+
+    def run(route: Plan) -> Any:
+        workspace = Workspace()
+        inputs = {f"seq[{INT}]": Message(f"seq[{INT}]", [1, 2, 4], "input"),
+                  TEXT: Message(TEXT, "", "input")}
+        for message in inputs.values():
+            workspace.post(message)
+        return execute(route, inputs, workspace, budget=20).payload
+
+    by_type = Apply(fold, (Given(f"seq[{INT}]"), Apply(zero, (Given(TEXT),))),
+                    (Apply(add, (Given(INT), Given(INT))),), (("a", INT), ("s", INT)))
+    assert infer(modules, available, by_type) is None
+    step = Apply(add, (Given(INT), Given(INT, 1)))
+    assert uses(step, (INT, INT)) == {0, 1}
+    route = plan(modules, available, INT, fuel=5, required=frozenset({0}))
+    assert route == Apply(fold, by_type.args, (step,), by_type.binding)
+    assert infer(modules, available, route) == INT and run(route) == 7
+    assert plan(modules, available, INT, fuel=5) == Apply(zero, (Given(TEXT),))
+    cheapest = plan_min(modules, available, INT, 3, fuel=5, required=frozenset({0}))
+    assert cheapest is not None and cheapest[0] == route and run(cheapest[0]) == 7
 
 
 def test_map_sources_made_by_polymorphic_producers_are_found() -> None:

@@ -34,7 +34,11 @@ from nca.index import ProducerIndex, rename_apart
 
 @dataclass(frozen=True)
 class Given:
+    """An available input: the one at ``position`` among the available types,
+    or the first of type ``type_id`` when ``position`` is ``None``."""
+
     type_id: TypeId
+    position: int | None = None
 
 
 @dataclass(frozen=True)
@@ -62,7 +66,40 @@ class Map:
 
 
 Plan = Union[Given, Apply, Map]
-Memo = dict[tuple[tuple[TypeId, ...], TypeId, int], Union[Given, Apply, Map, None]]
+Memo = dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]], Union[Given, Apply, Map, None]]
+
+
+def uses(node: Plan, available: Sequence[TypeId]) -> frozenset[int]:
+    """The positions of the available inputs ``node`` reads (THEORY §20.8). A
+    ``map`` body reads only its element, so a ``map`` uses what its source uses."""
+    if isinstance(node, Given):
+        position = available.index(node.type_id) if node.position is None else node.position
+        return frozenset((position,))
+    if isinstance(node, Apply):
+        return frozenset().union(*(uses(a, available) for a in node.args))
+    return uses(node.source, available)
+
+
+def slot_goals(contract: Contract) -> list[tuple[tuple[TypeId, ...], TypeId, frozenset[int]]]:
+    """Each slot of ``contract`` as a sub-goal: its inputs, its output, and the
+    positions of the inputs every filling must use."""
+    return [(inputs, output, frozenset(contract.relevant[i]) if i < len(contract.relevant)
+             else frozenset())
+            for i, (inputs, output) in enumerate(contract.slots)]
+
+
+def assignments(required: frozenset[int], count: int) -> Iterator[tuple[frozenset[int], ...]]:
+    """Ways to give each required position to one of ``count`` arguments: a
+    requirement is met by an application exactly when it is met this way by
+    its arguments (THEORY §20.8, Theorem 20.10). Ways that spread the positions over more
+    arguments come first, so that each argument has as little to use as
+    possible."""
+    ordered = sorted(required)
+    choices = sorted(itertools.product(range(count), repeat=len(ordered)),
+                     key=lambda choice: (max((choice.count(j) for j in range(count)), default=0),
+                                         choice))
+    for choice in choices:
+        yield tuple(frozenset(r for r, c in zip(ordered, choice) if c == j) for j in range(count))
 
 
 def output_type(node: Plan) -> TypeId:
@@ -81,9 +118,11 @@ def elem_candidates(modules: Sequence[Module], available: Sequence[TypeId]) -> l
 
 
 def _plan(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
-          fuel: int, memo: Memo | None = None) -> Plan | None:
-    """The planner, memoized on ``(available, goal, fuel)`` per library prefix,
-    across calls on the same index (Theorem 12.18).
+          fuel: int, memo: Memo | None = None, required: frozenset[int] = frozenset(),
+          ) -> Plan | None:
+    """The planner, memoized on ``(available, goal, fuel, required)`` per library
+    prefix, across calls on the same index (Theorem 12.18). The plan uses every
+    available input whose position is in ``required``.
 
     Producers with a non-sequence input outside the forward closure are skipped,
     as in ``NCA.planPruned``, which is proved to return exactly ``NCA.plan``
@@ -94,31 +133,46 @@ def _plan(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: T
     by the number of distinct subgoals instead of the number of search paths.
     """
     memo = index.memo(limit) if memo is None else memo
-    key = (tuple(available), goal, fuel)
+    key = (tuple(available), goal, fuel, required)
     if key not in memo:
-        memo[key] = _search(index, limit, available, goal, fuel, memo)
+        memo[key] = _search(index, limit, available, goal, fuel, memo, required)
     return memo[key]
 
 
 def _plan_all(index: ProducerIndex, limit: int,
-              goals: Sequence[tuple[Sequence[TypeId], TypeId]], fuel: int,
+              goals: Sequence[tuple[Sequence[TypeId], TypeId, frozenset[int]]], fuel: int,
               memo: Memo) -> tuple[Plan, ...] | None:
-    """Plans for every ``(available, goal)`` sub-goal at depth ``fuel - 1``."""
+    """Plans for every ``(available, goal, required)`` sub-goal at depth
+    ``fuel - 1``."""
     found = []
-    for available, goal in goals:
-        sub = _plan(index, limit, available, goal, fuel - 1, memo)
+    for available, goal, required in goals:
+        sub = _plan(index, limit, available, goal, fuel - 1, memo, required)
         if sub is None:
             return None
         found.append(sub)
     return tuple(found)
 
 
+def _plan_args(index: ProducerIndex, limit: int, available: Sequence[TypeId],
+               inputs: Sequence[TypeId], required: frozenset[int], fuel: int,
+               memo: Memo) -> tuple[Plan, ...] | None:
+    """Plans for ``inputs`` that together use every position in ``required``."""
+    for shares in assignments(required, len(inputs)):
+        args = _plan_all(index, limit, [(available, t, r) for t, r in zip(inputs, shares)],
+                         fuel, memo)
+        if args is not None:
+            return args
+    return None
+
+
 def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
-            fuel: int, memo: Memo) -> Plan | None:
+            fuel: int, memo: Memo, required: frozenset[int] = frozenset()) -> Plan | None:
     if fuel == 0:
         return None
-    if goal in available:
-        return Given(goal)
+    positions = [k for k, t in enumerate(available) if t == goal]
+    for k in positions:
+        if required <= {k}:
+            return Given(goal) if k == positions[0] else Given(goal, k)
     element_goal = elem_type(goal)
     made = None if element_goal is None else index.seq_elements(available, limit)
     # Theorem 12.20: an element outside the source oracle has no derivable sequence.
@@ -141,14 +195,14 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
             if not (total or index.needs[position] <= reach):
                 continue
         if contract.free:
-            found = _apply_free(index, limit, available, module, binding, fuel, memo)
+            found = _apply_free(index, limit, available, module, binding, fuel, memo, required)
             if found is not None:
                 return found
             continue
-        args = _plan_all(index, limit, [(available, t) for t in contract.inputs], fuel, memo)
+        args = _plan_args(index, limit, available, contract.inputs, required, fuel, memo)
         if args is None:
             continue
-        slots = _plan_all(index, limit, list(contract.slots), fuel, memo)
+        slots = _plan_all(index, limit, slot_goals(contract), fuel, memo)
         if slots is not None:
             return Apply(module, args, slots, binding)
     if element_goal is None:
@@ -164,7 +218,7 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
         if not index.may_derive((element,), parse_type(element_goal), limit):
             return None
         body = _plan(index, limit, (element,), element_goal, fuel - 1, memo)
-        source = _plan(index, limit, available, seq_type(element), fuel - 1, memo)
+        source = _plan(index, limit, available, seq_type(element), fuel - 1, memo, required)
         return None if body is None or source is None else Map(element, body, source)
 
     for element in candidates:
@@ -307,7 +361,7 @@ def _close(index: ProducerIndex, limit: int, node: _Partial, binding: dict[str, 
         return None
     applied = tuple(sorted((v, format_type(t)) for v, t in values.items()))
     contract = node.module.manifest.contract.instance(applied)
-    slots = _plan_all(index, limit, list(contract.slots), node.fuel, memo)
+    slots = _plan_all(index, limit, slot_goals(contract), node.fuel, memo)
     if slots is None:
         return None
     return Apply(node.module, tuple(a for a in args if a is not None), slots, applied)
@@ -331,12 +385,23 @@ def _free_instances(index: ProducerIndex, limit: int, available: Sequence[TypeId
 
 
 def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], module: Module,
-                binding: Binding, fuel: int, memo: Memo) -> Apply | None:
+                binding: Binding, fuel: int, memo: Memo,
+                required: frozenset[int] = frozenset()) -> Apply | None:
     """``module`` applied for a ground goal that matched it with ``binding``,
-    its free variables determined by pattern search over its inputs."""
+    its free variables determined by pattern search over its inputs. Under a
+    requirement, each instance found is applied like a ground contract."""
+    tried = set()
     for args, full in _free_instances(index, limit, available, module, binding, fuel, memo):
+        if full in tried:
+            continue
+        tried.add(full)
         contract = module.manifest.contract.instance(full)
-        slots = _plan_all(index, limit, list(contract.slots), fuel, memo)
+        if required:
+            found = _plan_args(index, limit, available, contract.inputs, required, fuel, memo)
+            if found is None:
+                continue
+            args = found
+        slots = _plan_all(index, limit, slot_goals(contract), fuel, memo)
         if slots is not None:
             return Apply(module, args, slots, full)
     return None
@@ -369,14 +434,16 @@ def plan(
     available: Sequence[TypeId],
     goal: TypeId,
     fuel: int = 8,
+    required: frozenset[int] = frozenset(),
 ) -> Plan | None:
-    """Backward-chain from ``goal`` to ``available`` types within ``fuel`` depth.
+    """Backward-chain from ``goal`` to ``available`` types within ``fuel`` depth,
+    using every available input whose position is in ``required``.
 
     Modules are tried in installation order; the first that yields a complete
     plan wins. A sequence goal with no producing module is planned by mapping
     an elementwise plan over a source sequence.
     """
-    return _plan(ProducerIndex(modules), len(modules), available, goal, fuel)
+    return _plan(ProducerIndex(modules), len(modules), available, goal, fuel, None, required)
 
 
 def plan_stable(

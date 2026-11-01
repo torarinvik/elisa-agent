@@ -42,7 +42,8 @@ from itertools import product
 
 from nca.abi import Binding, Manifest, Module, TypeId, elem_type, seq_type
 from nca.index import ProducerIndex
-from nca.planner import Apply, Given, Map, Plan, free_bindings, map_candidates
+from nca.planner import (Apply, Given, Map, Plan, assignments, free_bindings, map_candidates,
+                         slot_goals)
 
 
 def slot_calls(manifest: Manifest, length: int, expected: bool = False) -> list[float]:
@@ -69,38 +70,54 @@ def _instances(index: ProducerIndex, available: Sequence[TypeId], goal: TypeId,
             yield module, binding
 
 
-def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
-             length: int, fuel: int = 8, expected: bool = False) -> tuple[Plan, float] | None:
-    """The cheapest plan for ``goal`` and its cost (the first among equal costs)."""
-    index = ProducerIndex(modules)
-    memo: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[Plan, float] | None] = {}
+def _given(available: Sequence[TypeId], goal: TypeId, required: frozenset[int]) -> Given | None:
+    """The available input of type ``goal`` meeting ``required``, if any."""
+    positions = [k for k, t in enumerate(available) if t == goal]
+    return next((Given(goal) if k == positions[0] else Given(goal, k)
+                 for k in positions if required <= {k}), None)
 
-    def search(avail: tuple[TypeId, ...], t: TypeId, n: int) -> tuple[Plan, float] | None:
-        key = (avail, t, n)
+
+def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
+             length: int, fuel: int = 8, expected: bool = False,
+             required: frozenset[int] = frozenset()) -> tuple[Plan, float] | None:
+    """The cheapest plan for ``goal`` and its cost (the first among equal costs)
+    that uses every available input whose position is in ``required``."""
+    index = ProducerIndex(modules)
+    memo: dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]],
+               tuple[Plan, float] | None] = {}
+
+    def search(avail: tuple[TypeId, ...], t: TypeId, n: int,
+               required: frozenset[int] = frozenset()) -> tuple[Plan, float] | None:
+        key = (avail, t, n, required)
         if key in memo:
             return memo[key]
         memo[key] = None
         result: tuple[Plan, float] | None = None
-        if n > 0 and t in avail:
-            result = (Given(t), 0.0)
+        given = _given(avail, t, required) if n > 0 else None
+        if given is not None:
+            result = (given, 0.0)
         elif n > 0:
             candidates: list[tuple[Plan, float]] = []
             for module, binding in _instances(index, avail, t, n):
                 contract = module.manifest.contract.instance(binding)
-                subs = [search(avail, i, n - 1) for i in contract.inputs]
-                fills = [search(inputs, out, n - 1) for inputs, out in contract.slots]
-                if all(s is not None for s in subs) and all(f is not None for f in fills):
-                    calls = slot_calls(module.manifest, length, expected)
-                    candidates.append((
-                        Apply(module, tuple(s[0] for s in subs), tuple(f[0] for f in fills),
-                              binding),
-                        module.manifest.cost + sum(c * f[1] for c, f in zip(calls, fills))
-                        + sum(s[1] for s in subs)))
+                fills = [search(inputs, out, n - 1, r) for inputs, out, r in slot_goals(contract)]
+                if any(f is None for f in fills):
+                    continue
+                calls = slot_calls(module.manifest, length, expected)
+                slot_cost = sum(c * f[1] for c, f in zip(calls, fills) if f is not None)
+                for shares in assignments(required, len(contract.inputs)):
+                    subs = [search(avail, i, n - 1, r) for i, r in zip(contract.inputs, shares)]
+                    if all(s is not None for s in subs):
+                        candidates.append((
+                            Apply(module, tuple(s[0] for s in subs if s is not None),
+                                  tuple(f[0] for f in fills if f is not None), binding),
+                            module.manifest.cost + slot_cost
+                            + sum(s[1] for s in subs if s is not None)))
             element_goal = elem_type(t)
             if element_goal is not None:
                 for a in map_candidates(index, avail, n):
                     body = search((a,), element_goal, n - 1)
-                    source = search(avail, seq_type(a), n - 1)
+                    source = search(avail, seq_type(a), n - 1, required)
                     if body is not None and source is not None:
                         candidates.append((Map(a, body[0], source[0]),
                                            length * body[1] + source[1]))
@@ -108,7 +125,7 @@ def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeI
         memo[key] = result
         return result
 
-    return search(tuple(available), goal, fuel)
+    return search(tuple(available), goal, fuel, required)
 
 
 @dataclass(frozen=True)
@@ -129,58 +146,62 @@ def _frontier(options: list[Option]) -> list[Option]:
 
 def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
                 length: int, errors: Mapping[str, float], fuel: int = 8,
-                expected: bool = False) -> list[Option]:
+                expected: bool = False, required: frozenset[int] = frozenset()) -> list[Option]:
     """All non-dominated (cost, error bound) plans for ``goal``.
 
     ``errors`` maps a module's manifest ref to its per-invocation failure rate
     (absent means 0). Both objectives are additive over invocations, with map
     bodies counted ``length`` times, so combining the frontiers of sub-goals
-    and discarding dominated results yields the exact frontier.
+    and discarding dominated results yields the exact frontier. Every plan
+    uses the available inputs whose positions are in ``required``.
     """
     index = ProducerIndex(modules)
-    memo: dict[tuple[tuple[TypeId, ...], TypeId, int], list[Option]] = {}
+    memo: dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]], list[Option]] = {}
 
-    def search(avail: tuple[TypeId, ...], t: TypeId, n: int) -> list[Option]:
-        key = (avail, t, n)
+    def search(avail: tuple[TypeId, ...], t: TypeId, n: int,
+               required: frozenset[int] = frozenset()) -> list[Option]:
+        key = (avail, t, n, required)
         if key in memo:
             return memo[key]
         memo[key] = []
         if n == 0:
             return []
-        if t in avail:
-            memo[key] = [Option(Given(t), 0.0, 0.0)]
+        given = _given(avail, t, required)
+        if given is not None:
+            memo[key] = [Option(given, 0.0, 0.0)]
             return memo[key]
         options: list[Option] = []
         for module, binding in _instances(index, avail, t, n):
             manifest = module.manifest
             contract = manifest.contract.instance(binding)
-            fronts = [search(avail, i, n - 1) for i in contract.inputs]
-            fills = [search(inputs, out, n - 1) for inputs, out in contract.slots]
+            fills = [search(inputs, out, n - 1, r) for inputs, out, r in slot_goals(contract)]
             calls = slot_calls(manifest, length, expected)
             assess = getattr(module, "assess", None)
-            for filled in product(*fills):
-                slot_cost, slot_error = (assess(filled) if assess is not None else (
-                    sum(c * f.cost for c, f in zip(calls, filled)),
-                    sum(c * f.error for c, f in zip(calls, filled))))
-                for combo in product(*fronts):
-                    options.append(Option(
-                        Apply(module, tuple(o.plan for o in combo), tuple(f.plan for f in filled),
-                              binding),
-                        manifest.cost + slot_cost + sum(o.cost for o in combo),
-                        errors.get(manifest.ref, 0.0) + slot_error
-                        + sum(o.error for o in combo)))
+            for shares in assignments(required, len(contract.inputs)):
+                fronts = [search(avail, i, n - 1, r) for i, r in zip(contract.inputs, shares)]
+                for filled in product(*fills):
+                    slot_cost, slot_error = (assess(filled) if assess is not None else (
+                        sum(c * f.cost for c, f in zip(calls, filled)),
+                        sum(c * f.error for c, f in zip(calls, filled))))
+                    for combo in product(*fronts):
+                        options.append(Option(
+                            Apply(module, tuple(o.plan for o in combo),
+                                  tuple(f.plan for f in filled), binding),
+                            manifest.cost + slot_cost + sum(o.cost for o in combo),
+                            errors.get(manifest.ref, 0.0) + slot_error
+                            + sum(o.error for o in combo)))
         element_goal = elem_type(t)
         if element_goal is not None:
             for a in map_candidates(index, avail, n):
                 for body, source in product(search((a,), element_goal, n - 1),
-                                            search(avail, seq_type(a), n - 1)):
+                                            search(avail, seq_type(a), n - 1, required)):
                     options.append(Option(Map(a, body.plan, source.plan),
                                           length * body.cost + source.cost,
                                           length * body.error + source.error))
         memo[key] = _frontier(options)
         return memo[key]
 
-    return search(tuple(available), goal, fuel)
+    return search(tuple(available), goal, fuel, required)
 
 
 def cheapest_within(frontier: Sequence[Option], max_error: float) -> Option | None:

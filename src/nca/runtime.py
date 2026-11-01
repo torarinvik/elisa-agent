@@ -31,7 +31,8 @@ the program's question depth).
 
 A higher-order expert (§20) receives its slot fillings first, before its
 inputs, each as a ``Filling``: calling it runs the slot's plan through the
-kernel on the given values, under the same budget, recorded in the
+kernel on the given values, bound by position, so inputs of equal type stay
+apart, under the same budget, recorded in the
 workspace. A call may pass the demand on its result; with empty demand the
 plan is not run. ``Filling.outer`` is the demand on the expert's own output,
 so an expert that knows how its output relates to its calls (``map``) can
@@ -48,7 +49,7 @@ refusal for lack of budget as no answer instead of an exception
 
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
@@ -121,19 +122,22 @@ def execute(
         def call(values: tuple[Any, ...], demand: Demand) -> Any:
             if demand == NOTHING:
                 return unread(node).payload
-            env = {}
-            for type_id, value in zip(inputs, values, strict=True):
-                env[type_id] = Message(type_id, value, ref)
-                workspace.post(env[type_id])
+            env = [Message(type_id, value, ref) for type_id, value in zip(inputs, values,
+                                                                          strict=True)]
+            for message in env:
+                workspace.post(message)
             return force(run(node, env, chain, demand)).payload
 
         return Filling(call, outer)
 
-    def run(node: Plan, env: Mapping[TypeId, Message], chain: tuple[str, ...],
+    def run(node: Plan, env: Sequence[Message], chain: tuple[str, ...],
             demand: Demand = None) -> Message:
         nonlocal remaining, funds
         if isinstance(node, Given):
-            return env[node.type_id]
+            if (node.position is not None and node.position < len(env)
+                    and env[node.position].type_id == node.type_id):
+                return env[node.position]
+            return next(m for m in env if m.type_id == node.type_id)
         if isinstance(node, Map):
             source = run(node.source, env, chain)
             results = []
@@ -146,8 +150,7 @@ def execute(
                 if element_demand == NOTHING:
                     results.append(unread(node.body))
                 else:
-                    results.append(force(run(node.body, {node.element: element}, chain,
-                                             element_demand)))
+                    results.append(force(run(node.body, (element,), chain, element_demand)))
             result = Message(
                 type_id=output_type(node),
                 payload=[r.payload for r in results],
@@ -233,10 +236,10 @@ def execute(
             raise UnresolvedRequest(f"no route for {request.type_id} requested by {ref}")
         record = Message("kernel.request", request, ref, parents)
         workspace.post(record)
-        env = {}
-        for type_id, value in request.inputs.items():
-            env[type_id] = Message(type_id, value, ref, (record.message_id,))
-            workspace.post(env[type_id])
+        env = [Message(type_id, value, ref, (record.message_id,))
+               for type_id, value in request.inputs.items()]
+        for message in env:
+            workspace.post(message)
         answer = force(run(sub_plan, env, chain))
         result = Message(output, answer.payload, f"{ref}+kernel", (answer.message_id,))
         workspace.post(result)
@@ -246,7 +249,7 @@ def execute(
         for message in inputs.values():
             if message.message_id not in workspace:
                 workspace.post(message)
-        return force(run(plan, inputs, ()))
+        return force(run(plan, tuple(inputs.values()), ()))
     except Exception:
         workspace.rollback(snapshot)
         raise

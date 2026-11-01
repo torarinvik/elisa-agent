@@ -187,6 +187,10 @@ class Contract:
     output: TypeId
     slots: tuple[Slot, ...] = ()
     """Sub-goals the module calls as functions (higher-order experts, ``NCA.HContract``)."""
+    relevant: tuple[tuple[int, ...], ...] = ()
+    """For each slot, the positions of its inputs that every filling must use
+    (THEORY §20.8); slots beyond the tuple have none. Types alone admit
+    fillings that ignore an input, such as returning a fold's state unchanged."""
 
     def __post_init__(self) -> None:
         for type_id in (*self.inputs, self.output,
@@ -194,6 +198,10 @@ class Contract:
             if canonical_type(type_id) != type_id:
                 raise ValueError(f"type {type_id!r} is not in canonical form "
                                  f"{canonical_type(type_id)!r}")
+        if len(self.relevant) > len(self.slots) or any(
+                not 0 <= k < len(inputs)
+                for positions, (inputs, _) in zip(self.relevant, self.slots) for k in positions):
+            raise ValueError(f"relevant inputs {self.relevant!r} do not match the slots")
 
     @functools.cached_property
     def variables(self) -> frozenset[str]:
@@ -224,7 +232,7 @@ class Contract:
 
         return Contract(tuple(bind(t) for t in self.inputs), bind(self.output),
                         tuple((tuple(bind(t) for t in inputs), bind(output))
-                              for inputs, output in self.slots))
+                              for inputs, output in self.slots), self.relevant)
 
     def producing(self, goal: TypeId) -> Binding | None:
         """The binding of the unique instance whose output is the ground type

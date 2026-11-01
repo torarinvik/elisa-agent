@@ -28,6 +28,7 @@ import NCA.Detection
 import NCA.Decoding
 import NCA.Slots
 import NCA.Eliminators
+import NCA.Relevance
 import NCA.Banding
 import NCA.Misspecification
 import NCA.Stopping

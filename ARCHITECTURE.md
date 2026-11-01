@@ -31,7 +31,7 @@ run the Python tests with `uv run pytest`.
 | [§17 Calibration under shift](theory/17-calibration-under-distribution-shift.md) | `Calibration` | `certify` |
 | [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `logic`, `formulas`, `modules.words` |
 | [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `logic`, `formulas` |
-| [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation` | `modules.combinators`, `optimize`, `kernel` |
+| [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation`, `Relevance` | `modules.combinators`, `optimize`, `kernel`, `runtime` |
 | [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `native.decoding` |
 | [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `ladder` |
 | [§23 Efficient decoding](theory/23-efficient-decoding.md) | `Banding` | `decoding.decode_banded`, `decoding.Split` (references), `native.decoding` (exact passes) |
@@ -176,6 +176,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [20.6](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_spent` | `Continuation` |
 | [20.7](theory/20-higher-order-experts-and-budgeted-requests.md) | `Prog.runB_le` | `Continuation` |
 | [20.8](theory/20-higher-order-experts-and-budgeted-requests.md) | `choice_cost_le` | `Slots` |
+| [20.9](theory/20-higher-order-experts-and-budgeted-requests.md) | `PTyped.erase`, `WellTyped.positional` | `Relevance` |
+| [20.10](theory/20-higher-order-experts-and-budgeted-requests.md) | `PPlan.uses_apply`, `PPlan.given_not_relevant`, `PTyped.uses_lt` | `Relevance` |
 | [21.1](theory/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
@@ -354,6 +356,20 @@ a sequence, `pair[a,b]` a pair, `unit` is `()`, and `either[l,r]` is an
 `abi.Choice` carrying the alternative's index and value.
 `modules.combinators.Case` and `Fold` are the polymorphic eliminators of
 choices and sequences.
+
+Available inputs are addressed by position where types do not tell them
+apart (THEORY §20.8): `planner.Given` carries an optional `position`, the
+runtime binds slot and request inputs as an ordered list, and
+`router.infer` checks that a position holds the named type. `NCA.PPlan`
+(`lean/NCA/Relevance.lean`) models positional plans. `abi.Contract.relevant`
+lists, per slot, the inputs every filling must use; `Fold` declares both
+inputs of its step. `planner.uses` computes the positions a plan reads, and
+`router.infer` rejects a filling that misses a relevant one. The planner and
+the cost planners carry a set of required positions with every sub-goal:
+an input meets it only if it is the one required, an application divides it
+among its arguments (`planner.assignments`, spread-out divisions first), and
+a `map` passes it to its source. `plan`, `plan_min` and `plan_pareto` accept
+a requirement on the task's own inputs.
 
 ## 5. Reliability under distribution shift
 

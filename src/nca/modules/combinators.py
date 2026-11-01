@@ -65,7 +65,7 @@ class Case:
 
 class Fold:
     manifest = Manifest("nca.fold", "1.0.0",
-                        Contract(("seq[?a]", "?s"), "?s", ((("?s", "?a"), "?s"),)),
+                        Contract(("seq[?a]", "?s"), "?s", ((("?s", "?a"), "?s"),), ((0, 1),)),
                         cost=0.0, calls=(Calls(per_element=1.0),))
 
     def invoke(self, step: Callable[..., Any], items: Sequence[Any], state: Any) -> Any:
