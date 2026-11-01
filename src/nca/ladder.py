@@ -292,10 +292,22 @@ class Rung:
                 raise ValueError("ranked risk requires a positive finite temperature")
         union = (list(range(len(log))) if classes is None else
                  _layout(decision_key(classes))[0])
+        probabilities = (self.reading(log) if reading is None else reading) if ranked is None else None
+        native_reading = getattr(_NATIVE, "calibrated_risk_for_reading", None)
+        if (native_reading is not None and log.device.type == "cpu" and not log.requires_grad
+                and (ranked is not None or (probabilities.device.type == "cpu"
+                                            and not probabilities.requires_grad))):
+            key = decision_key(classes) if classes is not None else tuple(range(len(log)))
+            _, positions = _layout(key)
+            groups = _group_ids(key)
+            if groups is not None:
+                ordering = (np.asarray(ranked.weights, dtype=np.float64) if ranked is not None else
+                            probabilities.double().numpy())
+                return float(native_reading(log.double().numpy()[union], ordering[union], groups,
+                                            len(positions), self.temperature(classes)))
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
-            probabilities = self.reading(log) if reading is None else reading
             selected = int(probabilities[union].argmax())
         native = getattr(_NATIVE, "calibrated_risk_at", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:

@@ -818,8 +818,8 @@ temperatures and observation values remain current. The revision-cache
 invariant (23.12) applies to this deterministic metadata. Gradient-bearing
 observations continue through PyTorch and retain differentiability.
 
-`Rung.risk` also dispatches to native `calibrated_risk_at` for supported CPU
-observations and partitioned groups. It chooses the group containing the
+`Rung.risk` dispatches to native `calibrated_risk_for_reading` for supported
+CPU observations and partitioned groups, selecting and charging in one call. It chooses the group containing the
 class selected from the ranked weights or numerical reading, rather than
 choosing the group with greatest total mass. Full-class risk uses singleton groups.
 It sums the other groups' weights directly instead of subtracting the chosen

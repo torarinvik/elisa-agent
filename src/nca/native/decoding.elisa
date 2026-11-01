@@ -796,6 +796,17 @@ def calibrated_risk_at(logits: view[f64], groups: view[i64], entries: i64, tempe
             largest <- logits[k] if logits[k] > largest else largest
     return risk_at_anchor(logits, groups, groups[top], temperature, largest)
 
+# Choose from the caller's actual reading and charge its selected group.
+def calibrated_risk_for_reading(logits: view[f64], reading: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    return log(-1.0) if logits.len.i64() == 0 or reading.len.i64() != logits.len.i64() or groups.len.i64() != logits.len.i64()
+    top: i64 =
+        for k in 1..<reading.len.i64() |top: i64 = 0| -> top:
+            top <- k if reading[k] > reading[top] else top
+    largest: f64 =
+        for k in 0..<logits.len.i64() |largest: f64 = log(0.0)| -> largest:
+            largest <- logits[k] if logits[k] > largest else largest
+    return risk_at_anchor(logits, groups, groups[top], temperature, largest)
+
 # The legacy path selects the first largest individual logit.
 def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
     return log(-1.0) if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64()
@@ -836,3 +847,4 @@ export pymodule decoding:
     fn calibrated_groups
     fn calibrated_risk
     fn calibrated_risk_at
+    fn calibrated_risk_for_reading

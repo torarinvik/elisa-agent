@@ -1402,3 +1402,29 @@ def test_legacy_consumer_does_not_understate_risk_after_reading_tie() -> None:
     assert answer.value == 0
     assert answer.bound == pytest.approx(0.75)
     assert answer.abstained
+
+
+def test_native_risk_from_reading_matches_fallback_for_restricted_ties(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
+        pytest.skip("native reading-risk kernel is not built")
+    rng = np.random.default_rng(481)
+    cases = [(tuple(rng.uniform(0.01, 1.0, size=5)), temperature)
+             for temperature in (0.01, 1.0, 1e308) for _ in range(12)]
+    decisions = (None, ((4, 2), (0,), (3, 1)), ((0,), (1, 2, 3, 4)))
+
+    def calculate():
+        results = []
+        for weights, temperature in cases:
+            rung = Rung(constant("reading-risk", weights, 1.0))
+            rung.temperatures[None] = temperature
+            ordinary = rung.observe(None)
+            ranked = rung.observe_ranked(None)
+            for decision in decisions:
+                results.append((rung.risk(ordinary, decision), rung.risk(ranked, decision)))
+        return np.asarray(results)
+
+    native = calculate()
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    assert np.allclose(native, calculate(), rtol=1e-13, atol=1e-15)
