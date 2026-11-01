@@ -246,6 +246,7 @@ class CorrectionState:
     answer_cursor: Split | None = None
     answer_readings: np.ndarray | None = None
     cursor: Split | None = None
+    normalizer_valid: bool = False
     risk_band: CertifiedSplit | None = None
     prior_log_probs: np.ndarray | None = None
     priorities: list[float] | None = None
@@ -267,6 +268,7 @@ class CorrectionState:
             self.answer_cursor = None
             self.answer_readings = None
             self.cursor = None
+            self.normalizer_valid = False
             self.risk_band = None
             self.prior_log_probs = None
             self.priorities = None
@@ -611,13 +613,17 @@ class FormulaEvaluator:
                 sequence_risk = state.risk_band.sequence_risk(arities)
             else:
                 scored = None
+                if state.changed:
+                    state.normalizer_valid = False
                 for k in state.changed:
                     scored = state.cursor.climb(k, log_probs[k])
-                anchor = state.changed[-1] if state.changed else 0
-                log_z, _ = (scored if scored is not None else
-                            state.cursor.scores(anchor, log_probs[anchor]))
-                if not math.isfinite(log_z):
-                    return None
+                if not state.normalizer_valid:
+                    anchor = state.changed[-1] if state.changed else 0
+                    log_z, _ = (scored if scored is not None else
+                                state.cursor.scores(anchor, log_probs[anchor]))
+                    if not math.isfinite(log_z):
+                        return None
+                    state.normalizer_valid = True
                 sequence_risk = state.cached_risk(
                     None, arities, lambda: state.partition_risk(format_prior(n), log_probs, arities))
                 if sequence_risk is None:

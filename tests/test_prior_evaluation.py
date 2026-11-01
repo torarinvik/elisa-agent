@@ -151,6 +151,41 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
     assert calls == before + 2
 
 
+def test_format_session_reuses_unchanged_normalizer_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    original = decoding.Split.scores
+    state = CorrectionState()
+    calls = 0
+
+    def scores(split: decoding.Split, k: int, row: np.ndarray) -> tuple[float, float]:
+        nonlocal calls
+        if split is state.cursor:
+            calls += 1
+        return original(split, k, row)
+
+    monkeypatch.setattr(decoding.Split, "scores", scores)
+    readings = one_hot(["and", "true", "true"])
+    masses = np.array([[.1, .3, .6], [.5, .4, .1], [.8, .1, .1]])
+    versions = [0, 0, 0]
+    distribution = Distribution(lambda k, d: torch.tensor(masses[k]), versions.__getitem__)
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False)
+    risk = lambda k, d: 0.0
+    first = evaluator.certificate(readings, risk, distribution, state)
+    assert first is not None
+    before = calls
+    assert evaluator.certificate(readings, risk, distribution, state) == first
+    assert calls == before
+    masses[1] = [.4, .5, .1]
+    versions[1] += 1
+    updated = evaluator.certificate(readings, risk, distribution, state)
+    assert updated is not None and calls > before
+    fresh = evaluator.certificate(readings, risk, distribution)
+    assert fresh is not None
+    assert sum(updated.values()) == pytest.approx(sum(fresh.values()))
+
+
 @pytest.mark.parametrize("use_prior", [False, True])
 def test_correction_session_invalidates_when_distribution_source_changes(use_prior: bool) -> None:
     from nca.ladder import Distribution
