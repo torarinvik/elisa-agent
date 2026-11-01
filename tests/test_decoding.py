@@ -583,6 +583,30 @@ def test_banded_cursor_recovers_if_block_update_fails() -> None:
     assert upper >= exact.log_z - 1e-12
 
 
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_certified_cursor_validates_before_committing_row(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.tile([0.1, 0.8, 0.1], (5, 1)))
+    cursor = decoding.CertifiedSplit(rows)
+    original = cursor.normalizer()
+    assert original is not None
+    for row in (np.array([np.nan, -np.inf, -np.inf]),
+                np.array([np.inf, -np.inf, -np.inf]),
+                np.array([0.0, 0.0, -np.inf]), np.array([0.0])):
+        with pytest.raises(ValueError):
+            cursor.climb_normalizer(2, row)
+        np.testing.assert_array_equal(cursor.log_probs, rows)
+        np.testing.assert_array_equal(cursor.split.log_probs, rows)
+        assert cursor.log_upper == original
+    for index in (-1, len(rows), 1.5):
+        with pytest.raises(IndexError):
+            cursor.climb_normalizer(index, rows[0])
+        np.testing.assert_array_equal(cursor.log_probs, rows)
+        assert cursor.log_upper == original
+
+
 def test_banded_cursor_releases_blocks_after_widening_to_full_band() -> None:
     if getattr(decoding._NATIVE, "tail_block_summary", None) is None:
         pytest.skip("native tail block kernel is not built")

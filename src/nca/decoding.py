@@ -502,6 +502,10 @@ class Split:
         if (row.shape != (len(self.alphabet),) or np.any(np.isnan(row))
                 or np.any(np.isposinf(row))):
             raise ValueError("row must contain one finite or negative-infinite weight per arity")
+        return self._scores_validated(k, row)
+
+    def _scores_validated(self, k: int, row: np.ndarray) -> tuple[float, float]:
+        """Score a row whose shape, values, and index were already validated."""
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
@@ -583,10 +587,13 @@ class Split:
         ``log Z`` and best log weight. Vectors that depend on word ``k`` (forward
         after it, backward before it) stop being current."""
         result = self.scores(k, row)
+        self._commit_climb(k, row)
+        return result
+
+    def _commit_climb(self, k: int, row: np.ndarray) -> None:
         self.log_probs[k] = row
         self.ahead = min(self.ahead, k)
         self.behind = max(self.behind, k + 1)
-        return result
 
 class CertifiedSplit:
     """Fixed-reference banded cursor with relative-tail and maximum certificates.
@@ -731,7 +738,10 @@ class CertifiedSplit:
         if row.shape != (len(self.alphabet),):
             raise ValueError("row width must match the alphabet")
         self._validate(row)
-        scores = self.split.climb(k, row)
+        if not isinstance(k, (int, np.integer)) or not 0 <= k < len(self.log_probs):
+            raise IndexError("word index is out of range")
+        scores = self.split._scores_validated(k, row)
+        self.split._commit_climb(k, row)
         self.log_probs[k] = row
         self._tail_summary = None
         self.log_upper = None
