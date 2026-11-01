@@ -556,3 +556,23 @@ def test_native_parser_matches_reference() -> None:
     result = parse([1] * 2000 + [0])
     assert result is not None and len(result) == 2001
     assert result[0] == [1] and result[-1] == []
+
+
+def test_fused_native_certificate() -> None:
+    native = getattr(formulas._NATIVE, "certificate_words", None)
+    if native is None:
+        pytest.skip("fused certificate kernel is not built")
+    rng = np.random.default_rng(28)
+    for depth in range(1, 7):
+        words = formula(depth, rng, xor=0.3)
+        ops = np.array([VOCABULARY.index(w) for w in words], dtype=np.int64)
+        children = formulas.parse_reference([ARITY[c] for c in ops])
+        assert children is not None
+        for full, shape in ((rng.random(len(words)), rng.random(len(words))),
+                            (np.zeros(len(words)), np.zeros(len(words)))):
+            flags = native(ops, full, shape)
+            assert {k for k, flag in enumerate(flags) if flag} == (
+                FormulaEvaluator.evaluated_reference(words, children, full, shape))
+    for ops in ([], [3, 0], [0, 0]):
+        assert native(np.array(ops, dtype=np.int64), np.zeros(len(ops)),
+                      np.zeros(len(ops))) == []

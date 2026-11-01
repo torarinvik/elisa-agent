@@ -260,6 +260,15 @@ def parse_tree(arities: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Pan
                 depth += 1
     return result if remaining == 0 else []
 
+# Keep child slots native between parsing and certificate selection.
+def certificate_words(ops: view[i64], full: view[f64], shape: view[f64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    arities: darray[i64] = [0 if ops[k] < 2 else 1 if ops[k] == 2 else 2 for k in 0..<ops.len.i64()]
+    children: darray[i64] = parse_tree(arities[0:arities.count])
+    return [] if children.count == 0
+    left: darray[i64] = [children[2 * k] for k in 0..<ops.len.i64()]
+    right: darray[i64] = [children[2 * k + 1] for k in 0..<ops.len.i64()]
+    return certificate(ops, left[0:left.count], right[0:right.count], full, shape)
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -268,3 +277,4 @@ export pymodule decoding:
     fn trace
     fn certificate
     fn parse_tree
+    fn certificate_words

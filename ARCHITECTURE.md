@@ -450,3 +450,10 @@ The Elisa parser maintains an explicit parent stack, avoiding recursion depth
 limits. Other arities and installations without the export use the reference.
 The native result has two child slots per node; Python currently rebuilds
 lists before certificate selection marshals them back into native arrays.
+
+For the correction account, `certificate_words` combines parsing and
+certificate selection inside Elisa. Invalid prefix words return an empty
+result, which the account rejects. Child arrays remain native and are passed
+as borrowed slices. The Python child-list route remains the fallback when
+this export is absent. Existing format and certificate theorems cover the
+composition; neither decoding weights nor certificate tie rules change.

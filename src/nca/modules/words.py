@@ -314,7 +314,7 @@ class FormulaEvaluator:
             stack += kids if choice[k] == "both" else [kids[choice[k] == "right"]]
         return found
 
-    def corrected(self, words: Sequence[str], children: Sequence[Sequence[int]],
+    def corrected(self, words: Sequence[str], children: Sequence[Sequence[int]] | None,
                   risk: Callable[[int, Decision], float],
                   distribution: Callable[[int, Decision], torch.Tensor],
                   state: CorrectionState | None = None,
@@ -377,8 +377,18 @@ class FormulaEvaluator:
                 if (k, a) not in state.within:
                     state.within[k, a] = risk(k, ARITY_DECISION[a])
             within = [state.within[k, a] for k, a in enumerate(arities)]
-        kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
-                else set(range(n)))
+        if children is None:
+            native = getattr(_NATIVE, "certificate_words")
+            found = native(np.array([VOCABULARY.index(w) for w in words], dtype=np.int64),
+                           np.asarray(within, dtype=np.float64), np.zeros(n))
+            if not found:
+                return None
+            kept = {k for k, chosen in enumerate(found) if chosen}
+            if not self.short_circuit:
+                kept = set(range(n))
+        else:
+            kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
+                    else set(range(n)))
         return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
 
     def certificate_session(self) -> Callable[..., dict[int, float] | None]:
@@ -399,12 +409,14 @@ class FormulaEvaluator:
                     state: CorrectionState | None = None,
                     ) -> dict[int, float] | None:
         words = self.words(readings, state)
-        children = parse([ARITY[VOCABULARY.index(w)] for w in words])
-        if children is None:
+        fused = self.decode and getattr(_NATIVE, "certificate_words", None) is not None
+        children = None if fused else parse([ARITY[VOCABULARY.index(w)] for w in words])
+        if children is None and not fused:
             return None
         n = len(words)
         if self.decode:
             return self.corrected(words, children, risk, distribution, state)
+        assert children is not None
         arity = [risk(k, ARITY_DECISION) for k in range(n)]
         if self.detection == "none":
             full = [risk(k, None) for k in range(n)]

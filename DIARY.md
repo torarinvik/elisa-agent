@@ -1151,6 +1151,20 @@ in Python. Passing native child arrays directly to certificate selection is
 the next experiment, to avoid the round trip. The kernel rebuilt without a
 stale override using the matched provenance environment recorded above.
 
+**Fused parsing and certificate selection.** The correction path now calls
+one Elisa export for both stages. Twelve random/tied-weight checks over
+formulas at depths 1–6 match the reference, and empty, incomplete and
+trailing-word cases are rejected. All 110 native-enabled tests pass.
+The same three-formula depth-8 profile takes 1.106 s, down from 1.315 s;
+605 certificate calls still produce two answers. Python recursive parsing
+no longer appears among the leading costs. These single profiled runs do not
+establish a general speedup or coverage equivalence.
+
+During compilation, passing owned arrays implicitly to view parameters
+produced invalid LLVM; `.view()` calls were also declined. Explicit borrowed
+slices compile and pass the comparisons. The compiler conversion failure
+remains a separate repair target; this port uses the supported slice form.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
