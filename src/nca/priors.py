@@ -15,6 +15,15 @@ from nca.native import load
 _NATIVE = load("decoding")
 
 
+def _integer_symbols(symbols: Sequence[int]) -> bool:
+    values = np.asarray(symbols)
+    if values.ndim != 1:
+        return False
+    if values.size == 0 or values.dtype.kind in "iu":
+        return True
+    return all(isinstance(a, (int, np.integer)) for a in symbols)
+
+
 @lru_cache(maxsize=32)
 def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
     """Immutable native buffer shared by priors with the same alphabet."""
@@ -51,6 +60,8 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
     """Log product of a selected sequence's position-wise weights (§21.5)."""
     if log_probs.shape != (len(selected), len(alphabet)):
         raise ValueError("weights must have one row per selected symbol and one column per class")
+    if not _integer_symbols(alphabet) or not _integer_symbols(selected):
+        raise ValueError("alphabet and selected symbols must be integers")
     native_weight = getattr(_NATIVE, "sequence_log_weight", None)
     if native_weight is not None:
         return float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
@@ -83,7 +94,7 @@ class ArityPrior:
         weights = np.array(self.log_weights, dtype=np.float64, copy=True)
         final = np.array(self.log_final, dtype=np.float64, copy=True)
         if (not alphabet or len(set(alphabet)) != len(alphabet)
-                or any(a not in (0, 1, 2) for a in alphabet)
+                or any(not isinstance(a, (int, np.integer)) or a < 0 for a in alphabet)
                 or final.ndim != 1 or not len(final)
                 or transitions.shape != (len(final), len(alphabet))
                 or not np.issubdtype(transitions.dtype, np.integer)
@@ -109,6 +120,8 @@ class ArityPrior:
 
     def log_weight(self, arities: Sequence[int]) -> float:
         """Log prior weight, or -inf for a forbidden sequence."""
+        if not _integer_symbols(arities):
+            raise ValueError("selected symbols must be integers")
         native = getattr(_NATIVE, "prior_log_weight", None)
         if native is not None:
             return float(native(_native_alphabet(self.alphabet),
@@ -190,6 +203,8 @@ class ArityPrior:
         selected = tuple(selected)
         if len(selected) != len(rows):
             raise ValueError("selected sequence must match the number of rows")
+        if not _integer_symbols(selected):
+            raise ValueError("selected symbols must be integers")
         if any(symbol not in self.alphabet for symbol in selected):
             return -math.inf, self.log_normalizer(rows)
         native = getattr(_NATIVE, "prior_partition", None)
@@ -452,6 +467,8 @@ def format_sequence_risk(log_probs: np.ndarray, alphabet: Sequence[int],
     if (rows.ndim != 2 or rows.shape[1] != len(alphabet) or not len(rows)
             or len(selected) != len(rows) or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
         raise ValueError("format risk requires nonempty rows over the alphabet")
+    if not _integer_symbols(selected):
+        raise ValueError("selected symbols must be integers")
     if any(a > 2 for a in alphabet):
         return _generic_format_sequence_risk(rows, alphabet, selected)
     if alphabet != (0, 1, 2):

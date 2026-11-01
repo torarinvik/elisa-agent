@@ -622,7 +622,7 @@ class CertifiedSplit:
         and relative slack apply independently of which accepted answer is scored
         (THEORY §23.3). This is a model bound, not a floating-point enclosure.
         """
-        if len(arities) != len(self.log_probs):
+        if len(arities) != len(self.log_probs) or not _valid_arities(arities):
             raise ValueError("sequence must be a complete prefix formula of matching length")
         native = getattr(_NATIVE, "accepted_log_weight", None)
         if native is not None:

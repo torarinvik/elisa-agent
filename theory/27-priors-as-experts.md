@@ -16,6 +16,9 @@ A **prior automaton** has states `τ`, a start state, transitions `ε`, a
 weight `v(t, a) ≥ 0` for reading arity `a` in state `t`, and a final weight
 `f(t) ≥ 0`. A sequence's prior weight is the product of the weights along
 its run, times the final weight (`prior`).
+The automaton recurrence is independent of the arity values: its alphabet may
+contain any distinct nonnegative integer arities. A prefix-format restriction,
+when needed, remains a separate property of the automaton's support.
 **Theorem 27.15 (empty sequence).** For the empty sequence there are no
 transition weights, so its weight is the start state's final weight. It is
 accepted exactly when that weight is positive. For an accepted empty

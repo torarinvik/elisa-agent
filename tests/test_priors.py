@@ -12,6 +12,78 @@ from nca.formulas import (decode,
                           parse)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_supports_general_integer_arities(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = (0, 1, 3)
+    prior = priors.ArityPrior(alphabet, np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    probabilities = np.array([[0.2, 0.3, 0.5], [0.4, 0.1, 0.5]])
+    rows = np.log(probabilities)
+    selected = (3, 0)
+    assert prior.log_weight(selected) == 0.0
+    assert prior.log_normalizer(rows) == pytest.approx(0.0, abs=1e-12)
+    assert prior.sequence_risk(rows, selected) == pytest.approx(1 - 0.5 * 0.4)
+    decoded = prior.decode(rows)
+    assert decoded is not None
+    assert decoded.arities == (3, 3)
+    np.testing.assert_allclose(decoded.marginals, probabilities, atol=1e-12)
+    assert decoded.risk(rows, alphabet, selected) == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_general_arity_prefix_prior_matches_format_decoder(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = (0, 1, 3)
+    m = 7
+    transitions = np.full((m + 2, len(alphabet)), -1, dtype=np.int64)
+    for state in range(1, m + 2):
+        for column, arity in enumerate(alphabet):
+            target = state - 1 + arity
+            if target < m + 2:
+                transitions[state, column] = target
+    final = np.full(m + 2, -np.inf)
+    final[0] = 0.0
+    prior = priors.ArityPrior(alphabet, transitions, np.zeros_like(transitions), final, 1)
+    rows = np.log(np.random.default_rng(259).dirichlet(np.ones(3), size=m))
+    actual, expected = prior.decode(rows), decoding.decode_reference(rows, alphabet)
+    assert actual is not None and expected is not None
+    assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
+    np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+    assert actual.log_weight(rows, alphabet, actual.arities) == pytest.approx(
+        expected.log_weight(rows, alphabet, expected.arities), abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("selected", [(1.5, 0), (1.0, 0)])
+def test_prior_and_format_risks_reject_noninteger_selection(
+        reference: bool, selected, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.full((2, 3), 1 / 3))
+    prior = priors.ArityPrior((0, 1, 3), np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    for call in (lambda: priors.sequence_log_weight(rows, (0, 1, 3), selected),
+                 lambda: priors.format_sequence_risk(rows, (0, 1, 3), selected),
+                 lambda: prior.log_weight(selected), lambda: prior.partition(rows, selected)):
+        with pytest.raises(ValueError, match="must be integers"):
+            call()
+    cursor = decoding.CertifiedSplit(rows, (0, 1, 3))
+    assert cursor.result() is not None
+    with pytest.raises(ValueError, match="complete prefix"):
+        cursor.sequence_risk(selected)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1.0), (-1, 0)])
+def test_prior_rejects_invalid_arity_alphabet(alphabet) -> None:
+    with pytest.raises(ValueError, match="invalid weighted"):
+        priors.ArityPrior(alphabet, np.zeros((1, 2), dtype=np.int64), np.zeros((1, 2)), np.zeros(1))
+
+
 def test_prior_arrays_cannot_be_made_writeable() -> None:
     transitions = np.array([[0, 0]])
     weights = np.array([[0.0, -1.0]])
