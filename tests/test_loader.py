@@ -281,3 +281,17 @@ def test_evicts_oldest_unpinned_experts_until_enough_space() -> None:
     larger.invoke()
     assert list(store.resident) == ["pinned@1", "larger@1"]
     assert store.resident_bytes == 5 and store.stats.evictions == 3
+
+
+def test_failed_acquire_preserves_evictable_residents() -> None:
+    store = ExpertStore(3)
+    def expert(name: str, size: int) -> LazyExpert:
+        manifest = Manifest(name, "1", Contract((), name))
+        return LazyExpert(manifest, lambda: Fn(manifest, lambda: name), size, store)
+    pinned, spare, incoming = expert("pinned", 2), expert("spare", 1), expert("incoming", 2)
+    store.prepare(Apply(pinned, ()))
+    spare.invoke()
+    before = (list(store.resident), store.resident_bytes, store.stats.evictions)
+    with pytest.raises(MemoryError, match="pinned experts"):
+        incoming.invoke()
+    assert (list(store.resident), store.resident_bytes, store.stats.evictions) == before

@@ -116,13 +116,13 @@ class ExpertStore:
                 released += resident_size
                 if released >= needed:
                     break
+        if released < needed:
+            raise MemoryError(f"pinned experts leave no room for {size} B")
         for victim in victims:
             self._resident_bytes -= self._resident[victim][1]
             del self._resident[victim]
             del self._owners[victim]
             self.stats.evictions += 1
-        if released < needed:
-            raise MemoryError(f"pinned experts leave no room for {size} B")
 
     def acquire(self, expert: LazyExpert) -> Any:
         key = expert.manifest.ref
