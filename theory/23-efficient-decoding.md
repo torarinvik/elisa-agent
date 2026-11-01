@@ -331,5 +331,10 @@ directly, without changing the real-arithmetic recurrence.
 The cursor also intersects each row's band with the format decoder's
 arity-dependent prefix reachability bound from §21.4. Later row updates
 cannot make a state beyond that bound reachable.
+The nonincremental band pass can also use unchecked additions when each
+finite input is bounded by `MAX / (4(m+1))`, where `MAX` is the largest
+binary64 value. An `m`-word path then stays within `MAX/4` in magnitude;
+the log of the finite number of representable input paths is negligible
+relative to the remaining range. Larger inputs use checked additions.
 
 [Theory index](../THEORY.md)

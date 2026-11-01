@@ -47,6 +47,18 @@ theorem counter_growth_bound (state k arity growth : ℕ) (positive : 1 ≤ stat
   simp only [Nat.add_mul, Nat.one_mul]
   omega
 
+/-- A path's total log weight is bounded by the sum of per-step budgets. -/
+theorem log_weight_sum_bound (budget : ℝ) : ∀ weights : List ℝ,
+    (∀ x ∈ weights, |x| ≤ budget) → |weights.sum| ≤ weights.length * budget
+  | [], _ => by simp
+  | x :: xs, h => by
+    have hx := h x List.mem_cons_self
+    have ih := log_weight_sum_bound budget xs (fun y hy => h y (List.mem_cons_of_mem _ hy))
+    simp only [List.sum_cons, List.length_cons, Nat.cast_succ]
+    calc |x + xs.sum| ≤ |x| + |xs.sum| := abs_add_le _ _
+      _ ≤ budget + xs.length * budget := add_le_add hx ih
+      _ = (xs.length + 1) * budget := by ring
+
 section Automaton
 
 variable {σ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)

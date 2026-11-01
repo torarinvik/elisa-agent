@@ -289,6 +289,8 @@ Both paths reject non-finite results of finite log-weight additions during
 sweeps and split scoring; a rejected climb does not replace its row.
 Cursor bands also exclude states beyond the configured alphabet's prefix
 reachability bound (`counter_growth_bound` in `NCA.Decoding`).
+The nonincremental band pass bounds path sums before using its unchecked
+finite-range fast path (`log_weight_sum_bound` in `NCA.Decoding`).
 `Split` validates row dimensions, word indices and band bounds before native
 calls; an absent positive-weight path yields an empty trace.
 

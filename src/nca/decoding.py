@@ -158,7 +158,12 @@ def _off_reference_log_mass(log_probs: np.ndarray, reference: Sequence[int]) -> 
 
 
 def _band_log_tail(log_off: float, changes: int) -> float:
-    return changes * log_off - math.lgamma(changes + 1) if log_off != -math.inf else -math.inf
+    if log_off == -math.inf:
+        return -math.inf
+    tail = changes * log_off - math.lgamma(changes + 1)
+    if not math.isfinite(tail):
+        raise ValueError("band tail arithmetic is not finite")
+    return tail
 
 
 def _initial_band_changes(log_off: float, slack: float) -> int:
@@ -234,29 +239,34 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Seque
     weight of the band, the log weight of its best sequence, and that sequence."""
     m = len(log_probs)
     width = m + 2
-    states = np.arange(width)
-    inside = [(states >= max(0, centre[k] - half)) & (states <= min(m - k, centre[k] + half))
-              if centre[k] - half <= m - k and centre[k] + half >= 0
-              else np.zeros(width, dtype=bool) for k in range(m + 1)]
+    # Bound every m-step path well inside the finite range, leaving room for
+    # the logarithm of the finite number of paths accumulated by logaddexp.
+    finite = np.abs(log_probs[np.isfinite(log_probs)])
+    safe = not len(finite) or float(finite.max()) <= np.finfo(np.float64).max / (4 * (m + 1))
     forward = np.full((m + 1, width), -np.inf)
     best = np.full((m + 1, width), -np.inf)
     choice = np.zeros((m + 1, width), dtype=np.int64)
-    if inside[0][1]:
+    if max(0, centre[0] - half) <= 1 <= min(m, centre[0] + half):
         forward[0, 1] = best[0, 1] = 0.0
     for k in range(m):
         for j, a in enumerate(alphabet):
             a = int(a)
-            span = min(a + width - 1, width) - a
+            low = max(a, 0, centre[k + 1] - half)
+            high = min(a + width - 1, width, m - k, centre[k + 1] + half + 1)
+            span = high - low
             if span <= 0:
                 continue
             step = log_probs[k, j]
-            forward[k + 1, a:a + span] = np.logaddexp(forward[k + 1, a:a + span],
-                                                      forward[k, 1:1 + span] + step)
-            candidate = best[k, 1:1 + span] + step
-            better = candidate > best[k + 1, a:a + span]
-            best[k + 1, a:a + span][better] = candidate[better]
-            choice[k + 1, a:a + span][better] = j
-        forward[k + 1, ~inside[k + 1]] = best[k + 1, ~inside[k + 1]] = -np.inf
+            source = 1 + low - a
+            incoming = forward[k, source:source + span]
+            incoming = incoming + step if safe else _checked_log_sum(incoming, step)
+            forward[k + 1, low:high] = np.logaddexp(
+                forward[k + 1, low:high], incoming)
+            previous_best = best[k, source:source + span]
+            candidate = previous_best + step if safe else _checked_log_sum(previous_best, step)
+            better = candidate > best[k + 1, low:high]
+            best[k + 1, low:high][better] = candidate[better]
+            choice[k + 1, low:high][better] = j
     if forward[m, 0] == -np.inf:
         return None
     arities = []

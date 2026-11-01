@@ -273,6 +273,67 @@ def test_format_decoder_handles_large_positive_log_weights() -> None:
     np.testing.assert_allclose(actual.marginals, expected.marginals)
 
 
+def test_banded_decoder_rejects_finite_log_weight_overflow() -> None:
+    rows = np.array([[-np.inf, -1e308, -np.inf], [-1e308, -np.inf, -np.inf]])
+    with pytest.raises(ValueError, match="format decoding arithmetic is not finite"):
+        decode_banded(rows)
+
+
+@pytest.mark.parametrize("value", [-1e307, -2e307])
+def test_banded_pass_retains_large_representable_log_sums(value: float) -> None:
+    rows = np.array([[-np.inf, value, -np.inf], [value, -np.inf, -np.inf]])
+    result = decoding._banded_passes(rows, (0, 1, 2), (1, 1, 0), 0)
+    assert result == (2 * value, 2 * value, (1, 0))
+
+
+def test_banded_pass_ignores_overflow_outside_its_band() -> None:
+    rows = np.array([[-np.inf, -1e308, -np.inf], [-1e308, 0.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    result = decoding._banded_passes(rows, (0, 1, 2), (1, 1, 1, 0), 0)
+    assert result == (-1e308, -1e308, (1, 1, 0))
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 3)])
+def test_banded_pass_matches_enumeration_with_arbitrary_bands(alphabet) -> None:
+    rng = np.random.default_rng(253)
+    for m in range(1, 6):
+        for _ in range(20):
+            rows = rng.choice([-np.inf, -3.0, -1.0, 0.0], size=(m, len(alphabet)))
+            centre = rng.integers(-2, m + 3, size=m + 1).tolist()
+            half = int(rng.integers(0, m + 2))
+            accepted = []
+            for path in itertools.product(alphabet, repeat=m):
+                pending = 1
+                states = [pending]
+                for a in path:
+                    if pending < 1:
+                        break
+                    pending += a - 1
+                    states.append(pending)
+                if (len(states) != m + 1 or pending != 0
+                        or any(abs(state - c) > half for state, c in zip(states, centre, strict=True))):
+                    continue
+                score = sum(rows[k, alphabet.index(a)] for k, a in enumerate(path))
+                if np.isfinite(score):
+                    accepted.append((path, score))
+            result = decoding._banded_passes(rows, alphabet, centre, half)
+            if not accepted:
+                assert result is None
+            else:
+                assert result is not None
+                log_z, log_x, path = result
+                scores = [score for _, score in accepted]
+                assert log_z == pytest.approx(np.logaddexp.reduce(scores), abs=1e-12)
+                assert log_x == pytest.approx(max(scores), abs=1e-12)
+                assert (path, log_x) in accepted
+
+
+def test_finite_band_tail_overflow_is_not_treated_as_absent_mass() -> None:
+    with pytest.raises(ValueError, match="band tail arithmetic is not finite"):
+        decoding._band_log_tail(-1e308, 2)
+    assert decoding._band_log_tail(-np.inf, 2) == -np.inf
+
+
 def test_native_log_decoder_signals_finite_log_weight_overflow() -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
     if native is None:
