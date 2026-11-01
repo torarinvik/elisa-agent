@@ -274,6 +274,8 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 or its Python fallback for excess p-values, under IEEE 754 assumptions.
 For low thresholds it tracks the tail directly; `bernoulli_tail_step_upper`
 states the corresponding monotonicity step.
+Exact zero- and one-probability events are removed before choosing a count
+range; `certain_success_threshold` states the threshold adjustment.
 `format_upper_bound` rounds displayed bounds upward in decimal as well.
 The pair-premise audit supplies `pair_risk_upper` as input to that excess-tail
 bound. Its Elisa kernel accumulates pair products with an upward-rounded

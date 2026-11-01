@@ -189,20 +189,31 @@ def _poisson_binomial_upper_reference(observed: int, probabilities: np.ndarray,
             return a
         return min(1.0, math.nextafter(a + b, 1.0))
 
-    width = len(probabilities) - observed
-    if observed < width:
-        pmf = [1.0] + [0.0] * (observed - 1)
+    certain = 0
+    events = []
+    for p, q in zip(probabilities, complements):
+        p, q = float(p), float(q)
+        if p == 1.0 and q == 0.0:
+            certain += 1
+        elif p != 0.0 or q != 1.0:
+            events.append((p, q))
+    threshold = observed - certain
+    if threshold <= 0:
+        return 1.0
+    if threshold > len(events):
+        return 0.0
+    width = len(events) - threshold
+    if threshold < width:
+        pmf = [1.0] + [0.0] * (threshold - 1)
         tail = 0.0
-        for i, (p, q) in enumerate(zip(probabilities, complements)):
-            p, q = float(p), float(q)
+        for i, (p, q) in enumerate(events):
             tail = add(tail, product(p, pmf[-1]))
-            for k in range(min(i + 1, observed - 1), 0, -1):
+            for k in range(min(i + 1, threshold - 1), 0, -1):
                 pmf[k] = add(product(q, pmf[k]), product(p, pmf[k - 1]))
             pmf[0] = product(q, pmf[0])
         return tail
     pmf = [1.0] + [0.0] * width
-    for i, (p, q) in enumerate(zip(probabilities, complements)):
-        p, q = float(p), float(q)
+    for i, (p, q) in enumerate(events):
         for k in range(min(i + 1, width), 0, -1):
             pmf[k] = add(product(p, pmf[k]), product(q, pmf[k - 1]))
         pmf[0] = product(p, pmf[0])

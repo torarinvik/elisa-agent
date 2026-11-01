@@ -177,6 +177,11 @@ theorem bernoulli_count_le_length (events : List Bool) :
     events.count true ≤ events.length := by
   exact List.count_le_length
 
+/-- A certain success shifts a positive count threshold down by one. -/
+theorem certain_success_threshold (count threshold : ℕ) (h : 0 < threshold) :
+    threshold ≤ count + 1 ↔ threshold - 1 ≤ count := by
+  omega
+
 theorem bernoulliStep_zero (mass : ℕ → ℝ) (p : ℝ) :
     bernoulliStep mass p 0 = (1 - p) * mass 0 := by
   simp [bernoulliStep]

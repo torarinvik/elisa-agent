@@ -29,14 +29,19 @@ def pair_risk_upper(risks: view[f64]) -> f64:
                 prefix <- nextafter(sum, -log(0.0))
     return total
 
+def fixed_event(p: f64, q: f64) -> bool:
+    return (p == 0.0 and q == 1.0) or (p == 1.0 and q == 0.0)
+
 # Track the tail directly while retaining only counts below the threshold.
 def upper_success_tail(probabilities: view[f64], complements: view[f64], threshold: i64) -> f64 can[Memory.Allocate, Abort.Panic]:
     result: f64 =
-        for i in 0..<probabilities.len.i64() |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<threshold], result: f64 = 0.0| -> result:
+        for i in 0..<probabilities.len.i64() |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<threshold], result: f64 = 0.0, active: i64 = 0| -> result:
             p: f64 = probabilities[i]
             q: f64 = complements[i]
+            continue if fixed_event(p, q)
+            active <- active + 1
             result <- upper_add(result, upper_product(p, pmf[threshold - 1]))
-            high: i64 = i + 1 if i + 1 < threshold else threshold - 1
+            high: i64 = active if active < threshold else threshold - 1
             for step in 0..<high:
                 k: i64 = high - step
                 pmf[k] <- upper_add(upper_product(q, pmf[k]), upper_product(p, pmf[k - 1]))
@@ -48,13 +53,24 @@ def poisson_binomial_upper(probabilities: view[f64], complements: view[f64], obs
     n: i64 = probabilities.len.i64()
     return 1.0 if complements.len.i64() != n or observed <= 0
     return 0.0 if observed > n
-    width: i64 = n - observed
-    return upper_success_tail(probabilities, complements, observed) if observed < width
-    pmf: darray[f64] =
-        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(width + 1)]| -> pmf:
+    certain, active =
+        for i in 0..<n |certain: i64 = 0, active: i64 = 0| -> (certain, active):
             p: f64 = probabilities[i]
             q: f64 = complements[i]
-            high: i64 = i + 1 if i + 1 < width else width
+            certain <- certain + 1 if p == 1.0 and q == 0.0 else certain
+            active <- active + 1 if not fixed_event(p, q) else active
+    threshold: i64 = observed - certain
+    return 1.0 if threshold <= 0
+    return 0.0 if threshold > active
+    width: i64 = active - threshold
+    return upper_success_tail(probabilities, complements, threshold) if threshold < width
+    pmf: darray[f64] =
+        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(width + 1)], active: i64 = 0| -> pmf:
+            p: f64 = probabilities[i]
+            q: f64 = complements[i]
+            continue if fixed_event(p, q)
+            active <- active + 1
+            high: i64 = active if active < width else width
             for step in 0..<high:
                 k: i64 = high - step
                 pmf[k] <- upper_add(upper_product(p, pmf[k]), upper_product(q, pmf[k - 1]))

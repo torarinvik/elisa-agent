@@ -201,6 +201,8 @@ nonzero product and sum upward. Monotonicity of the nonnegative recurrences
 preserves the bound. This implementation assumes
 IEEE 754 binary64 operations rounded to nearest, gradual underflow, and a
 correctly rounded `nextafter`; the Lean recurrence proof is over exact reals.
+Events whose success and failure bounds establish probability zero or one can
+be removed first; each certain success reduces the threshold by one.
 When displayed as a decimal inequality, the bound is rounded upward again at
 the requested number of significant digits.
 

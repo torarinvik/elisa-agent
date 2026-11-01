@@ -155,6 +155,20 @@ def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch) -> No
             assert stats.poisson_binomial_upper_bound(2, [1e-200, 1e-200]) > 0.0
 
 
+def test_upper_bound_with_many_deterministic_events(monkeypatch) -> None:
+    from fractions import Fraction
+    import nca.stats as stats
+
+    probabilities = [0.0] * 1000 + [1.0] * 3 + [0.25, 0.75]
+    native = stats._NATIVE
+    for implementation in (None, native):
+        monkeypatch.setattr(stats, "_NATIVE", implementation)
+        assert stats.poisson_binomial_upper_bound(3, probabilities) == 1.0
+        assert stats.poisson_binomial_upper_bound(6, probabilities) == 0.0
+        assert Fraction.from_float(stats.poisson_binomial_upper_bound(4, probabilities)) >= Fraction(13, 16)
+        assert Fraction.from_float(stats.poisson_binomial_upper_bound(5, probabilities)) >= Fraction(3, 16)
+
+
 def test_format_upper_bound_never_rounds_down() -> None:
     import math
     import random
