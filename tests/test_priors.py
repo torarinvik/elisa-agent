@@ -41,6 +41,18 @@ def test_native_alphabet_buffer_is_shared_without_becoming_writeable() -> None:
         first.setflags(write=True)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_decoded_risk_preserves_tiny_probabilities_and_rejects_nan(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    decoded = priors.Decoded((0,), 0.0, np.ones((1, 1)))
+    assert decoded.risk(np.array([[-1e-18]]), (0,)) == pytest.approx(1e-18, rel=1e-15)
+    assert decoded.risk(np.array([[-np.inf]]), (0,)) == 1.0
+    with pytest.raises(ValueError, match="sequence risk"):
+        decoded.risk(np.array([[np.nan]]), (0,))
+
+
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
                                       lambda value: pickle.loads(pickle.dumps(value))])
 def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:

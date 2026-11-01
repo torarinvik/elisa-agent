@@ -498,4 +498,7 @@ class Decoded:
         """Posterior probability that the true sequence differs from
         ``arities`` (default: the decoded one), ``1 − weight / Z``."""
         chosen = self.arities if arities is None else arities
-        return max(0.0, 1.0 - math.exp(self.log_weight(log_probs, alphabet, chosen) - self.log_z))
+        difference = self.log_weight(log_probs, alphabet, chosen) - self.log_z
+        if math.isnan(difference) or difference == math.inf:
+            raise ValueError("sequence risk requires finite or negative-infinite log probability")
+        return -math.expm1(min(0.0, difference))
