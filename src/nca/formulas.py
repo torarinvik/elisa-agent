@@ -12,10 +12,17 @@ Each word passes through a noisy typing channel (``corrupt``) at level
 ``train`` for learned readers, ``validation`` for calibration, ``test`` for
 evaluation; different seeds give independent samples of one split, such as
 an audit and an evaluation set.
+
+``decode`` corrects arities by the format (§21): the arity sequences of
+formulas are exactly the words of a counter automaton (``NCA.accepts_iff_codes``),
+so the most probable parseable sequence, the total weight ``Z`` of all of
+them and each word's posterior arity follow from dynamic programs over its
+states (``NCA.dpSum_eq``, ``NCA.dpMax_ge``, ``NCA.dpMax_attained``).
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -106,6 +113,83 @@ def evaluate(words: Sequence[str]) -> bool | None:
     for k in reversed(range(len(words))):
         values[k] = apply(words[k], [values[c] for c in children[k]])
     return values[0]
+
+
+@dataclass(frozen=True)
+class Decoded:
+    """The most probable parseable arity sequence under per-word arity
+    probabilities, with the log of the total weight of all parseable
+    sequences, and each word's posterior arity distribution (rows over the
+    arity alphabet)."""
+
+    arities: tuple[int, ...]
+    log_z: float
+    marginals: np.ndarray
+
+    def log_weight(self, log_probs: np.ndarray, alphabet: Sequence[int],
+                   arities: Sequence[int]) -> float:
+        """Log weight of a sequence under the per-word log-probabilities."""
+        return float(sum(log_probs[k, alphabet.index(a)] for k, a in enumerate(arities)))
+
+    def risk(self, log_probs: np.ndarray, alphabet: Sequence[int],
+             arities: Sequence[int] | None = None) -> float:
+        """Posterior probability that the true sequence differs from
+        ``arities`` (default: the decoded one), ``1 − weight / Z``."""
+        chosen = self.arities if arities is None else arities
+        return max(0.0, 1.0 - math.exp(self.log_weight(log_probs, alphabet, chosen) - self.log_z))
+
+
+def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
+    """Decode an arity sequence from per-word arity log-probabilities
+    (``log_probs[k, j]`` for arity ``alphabet[j]``) by the counter automaton:
+    the state is the number of subformulas still awaited, starting at 1; a
+    word of arity ``a`` read while ``n ≥ 1`` are awaited leaves ``n − 1 + a``;
+    the sequence is accepted when none remain at its end. At position ``k`` only
+    states ``n ≤ m − k`` can still be completed. ``None`` if no parseable
+    sequence has positive weight."""
+    m = len(log_probs)
+    if m == 0:
+        return None
+    width = m + 2
+    forward = np.full((m + 1, width), -np.inf)
+    best = np.full((m + 1, width), -np.inf)
+    choice = np.zeros((m + 1, width), dtype=np.int64)
+    forward[0, 1] = best[0, 1] = 0.0
+    for k in range(m):
+        live = m - k - 1
+        for j, a in enumerate(alphabet):
+            low, high = a, a + width - 1  # state n ≥ 1 moves to n − 1 + a
+            span = min(high, width) - low
+            if span <= 0:
+                continue
+            step = log_probs[k, j]
+            forward[k + 1, low:low + span] = np.logaddexp(forward[k + 1, low:low + span],
+                                                          forward[k, 1:1 + span] + step)
+            candidate = best[k, 1:1 + span] + step
+            better = candidate > best[k + 1, low:low + span]
+            best[k + 1, low:low + span][better] = candidate[better]
+            choice[k + 1, low:low + span][better] = j
+        forward[k + 1, live + 1:] = best[k + 1, live + 1:] = -np.inf
+    log_z = float(forward[m, 0])
+    if log_z == -np.inf:
+        return None
+    arities = []
+    state = 0
+    for k in range(m, 0, -1):
+        a = alphabet[int(choice[k, state])]
+        arities.append(a)
+        state = state + 1 - a
+    backward = np.full((m + 1, width), -np.inf)
+    backward[m, 0] = 0.0
+    marginals = np.zeros((m, len(alphabet)))
+    for k in range(m - 1, -1, -1):
+        for j, a in enumerate(alphabet):
+            span = min(a + width - 1, width) - a
+            through = log_probs[k, j] + backward[k + 1, a:a + span]
+            backward[k, 1:1 + span] = np.logaddexp(backward[k, 1:1 + span], through)
+            marginals[k, j] = np.exp(np.logaddexp.reduce(forward[k, 1:1 + span] + through)
+                                     - log_z)
+    return Decoded(tuple(reversed(arities)), log_z, marginals)
 
 
 @dataclass(frozen=True)
