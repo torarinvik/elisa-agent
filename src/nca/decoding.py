@@ -588,7 +588,10 @@ class CertifiedSplit:
         self.arity_bound = int(max(alphabet))
         self.cover_half = max(max(c, len(self.log_probs) - k - c)
                               for k, c in enumerate(self.centre))
-        self.changes = band_changes(self.log_probs, self.reference, slack)[0]
+        self._tail_summary: tuple[float, float] | None = _tail_mass_summary(
+            self.log_probs, self.reference)
+        log_off, log_factor = self._tail_summary
+        self.changes = _initial_band_changes(log_off, slack, len(self.log_probs), log_factor)
         self.rebuilds = 0
         self.log_upper: float | None = None
         self.split = self._build()
@@ -612,7 +615,9 @@ class CertifiedSplit:
         if half >= self.cover_half or self.changes > len(self.log_probs):
             log_off, log_factor = -math.inf, 0.0
         else:
-            log_off, log_factor = _tail_mass_summary(self.log_probs, self.reference)
+            if self._tail_summary is None:
+                self._tail_summary = _tail_mass_summary(self.log_probs, self.reference)
+            log_off, log_factor = self._tail_summary
         while True:
             half = self.arity_bound * (self.changes - 1)
             log_tail = (-math.inf if half >= self.cover_half or self.changes > len(self.log_probs)
@@ -687,6 +692,7 @@ class CertifiedSplit:
         self._validate(row)
         scores = self.split.climb(k, row)
         self.log_probs[k] = row
+        self._tail_summary = None
         self.log_upper = None
         return scores
 

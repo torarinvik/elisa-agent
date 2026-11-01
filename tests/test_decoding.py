@@ -450,6 +450,38 @@ def test_full_band_cursor_does_not_rescan_tail(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_cursor_reuses_tail_summary_until_row_update(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.tile([0.00001, 0.99998, 0.00001], (15, 1)))
+    rows[-1] = np.log([0.99998, 0.00001, 0.00001])
+    original = decoding._tail_mass_summary
+    calls = 0
+
+    def counted_summary(log_probs: np.ndarray, reference: Sequence[int]) -> tuple[float, float]:
+        nonlocal calls
+        calls += 1
+        return original(log_probs, reference)
+
+    monkeypatch.setattr(decoding, "_tail_mass_summary", counted_summary)
+    cursor = decoding.CertifiedSplit(rows)
+    assert cursor.arity_bound * (cursor.changes - 1) < cursor.cover_half
+    assert calls == 1
+    assert cursor.normalizer() is not None
+    assert cursor.normalizer() is not None
+    assert calls == 1
+    updated = np.log(np.array([0.00002, 0.99996, 0.00002]))
+    rows[2] = updated
+    upper = cursor.climb_normalizer(2, updated)
+    assert upper is not None and calls == 2
+    exact = decoding.decode_reference(rows)
+    assert exact is not None and upper >= exact.log_z - 1e-12
+    assert cursor.normalizer() == pytest.approx(upper)
+    assert calls == 2
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_band_tail_accounts_for_tolerated_row_excess(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
