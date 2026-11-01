@@ -80,6 +80,9 @@ For equal-scoring candidates entering the same state, choose the smaller
 alphabet index. This preserves the maximum and makes the selected predecessor
 independent of the order in which those tied candidates are visited. It does
 not remove differences caused by floating-point scores rounding differently.
+For a nonnegative arity `a`, a transition from state `n ≥ 1` reaches
+`n − 1 + a ≥ a`. Thus if `a` already exceeds the next row's largest viable
+state, the transition can be discarded before calculating the sum.
 
 **Marginals.** Forward sums `F_k(n)` and backward sums `B_k(n)` over the
 same states give each word's posterior arity distribution:

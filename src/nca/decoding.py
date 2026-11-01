@@ -48,10 +48,13 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
     the state is the number of subformulas still awaited, starting at 1; a
     word of arity ``a`` read while ``n ≥ 1`` are awaited leaves ``n − 1 + a``;
     the sequence is accepted when none remain at its end. ``None`` if no
-    parseable sequence has positive weight.
+    parseable sequence has positive weight. The alphabet must be nonempty and
+    contain nonnegative arities.
 
     Uses the native kernel ``nca.native.decoding`` when it is built, and
     ``decode_reference`` otherwise; the two agree to rounding."""
+    if not len(alphabet) or any(a < 0 for a in alphabet):
+        raise ValueError("alphabet must contain nonnegative arities")
     if _NATIVE is None or len(log_probs) == 0:
         return decode_reference(log_probs, alphabet)
     m = len(log_probs)
@@ -71,6 +74,8 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
 def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
     """``decode`` in NumPy: the dynamic programs in log space, with all states
     ``n ≤ m − k`` that can still be completed at position ``k``."""
+    if not len(alphabet) or any(a < 0 for a in alphabet):
+        raise ValueError("alphabet must contain nonnegative arities")
     m = len(log_probs)
     if m == 0:
         return None
@@ -82,6 +87,7 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
     for k in range(m):
         live = m - k - 1
         for j, a in enumerate(alphabet):
+            a = int(a)
             low, high = a, a + width - 1  # state n ≥ 1 moves to n − 1 + a
             span = min(high, width) - low
             if span <= 0:
@@ -108,6 +114,7 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
     marginals = np.zeros((m, len(alphabet)))
     for k in range(m - 1, -1, -1):
         for j, a in enumerate(alphabet):
+            a = int(a)
             span = min(a + width - 1, width) - a
             through = log_probs[k, j] + backward[k + 1, a:a + span]
             backward[k, 1:1 + span] = np.logaddexp(backward[k, 1:1 + span], through)

@@ -369,6 +369,24 @@ def test_native_decode_ties_match_log_space_order() -> None:
     assert result.arities == reference.arities == (2, 0, 0)
 
 
+@pytest.mark.parametrize("alphabet", [(0, 2**63 - 1), (0, 1, 2, 2**63 - 1),
+                                      np.array([0, 1, 2, 2**63 - 1], dtype=np.int64)])
+def test_decode_accepts_arities_larger_than_any_possible_state(alphabet) -> None:
+    rows = np.zeros((5, len(alphabet)))
+    actual, expected = decode(rows, alphabet), decode_reference(rows, alphabet)
+    assert (actual is None) == (expected is None)
+    if actual is not None and expected is not None:
+        assert actual.arities == expected.arities
+        np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+
+
+@pytest.mark.parametrize("alphabet", [(), (0, -1)])
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_rejects_empty_or_negative_arity_alphabet(decoder, alphabet) -> None:
+    with pytest.raises(ValueError, match="nonnegative arities"):
+        decoder(np.zeros((2, len(alphabet))), alphabet)
+
+
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0)])
 def test_native_decode_ties_match_reference_across_alphabet_orders(alphabet) -> None:
     rng = np.random.default_rng(920)

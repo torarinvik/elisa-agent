@@ -125,6 +125,9 @@ def live(k: i64, m: i64) -> i64:
 # no parseable sequence has positive weight.
 def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
+    return [FLOOR] if width == 0 or log_probs.len.i64() % width != 0
+    for j in 0..<width:
+        return [FLOOR] if alphabet[j] < 0
     m: i64 = log_probs.len.i64() / width
     return [FLOOR] if m == 0
     offsets: darray[i64] =
@@ -145,6 +148,7 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                     continue if here_best <= FLOOR
                     here: f64 = forward[offsets[k] + n] / totals[k]
                     for j in 0..<width |forward, best, choice|:
+                        continue if alphabet[j] > next_top
                         cell: i64 =
                             target: i64 = n - 1 + alphabet[j]
                             continue if target > next_top
@@ -173,6 +177,7 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
             next_row: i64 = offsets[k + 1]
             next_top: i64 = live(k + 1, m)
             for j in 0..<width |result, backward|:
+                continue if alphabet[j] > next_top
                 through_total: f64 = |backward|
                     weight: f64 = weights[k * width + j] / totals[k + 1]
                     return [FLOOR] if weight == -log(0.0)

@@ -35,6 +35,11 @@ theorem tiedChoice_eq_min (current candidate : ℕ) :
 theorem tiedChoice_comm (a b : ℕ) : tiedChoice a b = tiedChoice b a := by
   simp [tiedChoice_eq_min, min_comm]
 
+/-- A transition with arity beyond the next row cannot enter that row. -/
+theorem arity_exceeds_state_bound (state arity bound : ℕ) (h : bound < arity) :
+    bound < state - 1 + arity := by
+  omega
+
 section Automaton
 
 variable {σ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)
