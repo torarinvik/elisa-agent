@@ -819,7 +819,10 @@ immutable decision key and marked read-only. Each metadata cache retains at most
 metadata is recomputed; group IDs are expanded by Elisa when available. The
 metadata contains only decision structure; calibration
 temperatures and observation values remain current. The revision-cache
-invariants (23.12, 23.15) apply to this deterministic metadata. Gradient-bearing
+invariants (23.12, 23.15) apply to this deterministic metadata. Within a
+refinement run, risk and distribution caches retain only each item’s current
+rung; climbing discards that item’s obsolete entries. Experts and calibration
+parameters must remain fixed for the run. Gradient-bearing
 observations continue through PyTorch and retain differentiability.
 
 `Rung.risk` dispatches to native `calibrated_risk_for_reading` for supported

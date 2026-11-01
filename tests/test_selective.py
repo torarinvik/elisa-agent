@@ -1543,3 +1543,33 @@ def test_native_partition_group_ids_match_reference(monkeypatch) -> None:
     expected = ladder_module._group_ids.__wrapped__(key)
     assert np.array_equal(actual, expected)
     assert not actual.flags.writeable
+
+
+def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> None:
+    class CountingRung(Rung):
+        risk_calls = 0
+        distribution_calls = 0
+
+        def risk(self, log, classes=None, *, reading=None):
+            self.risk_calls += 1
+            return super().risk(log, classes, reading=reading)
+
+        def distribution(self, log, classes=None):
+            self.distribution_calls += 1
+            return super().distribution(log, classes)
+
+    low = CountingRung(constant("cache-low", (0.5, 0.5), 1.0))
+    high = CountingRung(constant("cache-high", (0.99, 0.01), 2.0))
+    seen = []
+
+    def certificate(readings, risk, distribution):
+        first = risk(0, None)
+        assert risk(0, None) == first
+        assert distribution(0, None) is distribution(0, None)
+        seen.append(first)
+        return {0: first}
+
+    result = refine([0], [[low, high]], 0.1, certificate=certificate)
+    assert seen == pytest.approx([0.5, 0.01])
+    assert not result.abstained and result.cost == 3.0
+    assert [(r.risk_calls, r.distribution_calls) for r in (low, high)] == [(1, 1), (1, 1)]

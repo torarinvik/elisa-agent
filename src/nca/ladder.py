@@ -635,7 +635,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     instead ranks open items using their index, charge and next invocation
     cost; it must not mutate the refinement state. ``observe`` receives each
     state, including the initial and terminal states, with an independent
-    outer reading list. Observers must not mutate the reading tensors. When
+    outer reading list. Observers must not mutate the reading tensors. Experts,
+    ladders and calibration parameters must remain fixed during a run. When
     ``ranked`` is enabled, readings preserve the original weight ordering;
     the certificate and downstream consumer must use that ordering to choose.
     """
@@ -645,13 +646,15 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     levels = [0] * len(values)
     logs: list[torch.Tensor | RankedObservation] = [torch.empty(0)] * len(values)
     readings: list[Reading] = [torch.empty(0)] * len(values)
-    risks: dict[tuple[int, int, DecisionKey], float] = {}
-    distributions: dict[tuple[int, int, DecisionKey], torch.Tensor] = {}
+    risks: list[dict[DecisionKey, float] | None] = [None] * len(values)
+    distributions: list[dict[DecisionKey, torch.Tensor] | None] = [None] * len(values)
     cost = 0.0
 
     def climb(i: int) -> None:
         nonlocal cost
         rung = ladders[i][levels[i]]
+        risks[i] = None
+        distributions[i] = None
         observation = rung.observe_ranked(values[i]) if ranked else rung.observe(values[i])
         logs[i] = observation
         numeric = rung.reading(observation)
@@ -660,17 +663,23 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         cost += rung.cost
 
     def item_risk(i: int, decision: Decision) -> float:
-        key = (i, levels[i], decision_key(decision))
-        if key not in risks:
-            risks[key] = ladders[i][levels[i]].risk(
+        key = decision_key(decision)
+        cache = risks[i]
+        if cache is None:
+            cache = risks[i] = {}
+        if key not in cache:
+            cache[key] = ladders[i][levels[i]].risk(
                 logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
-        return risks[key]
+        return cache[key]
 
     def item_distribution(i: int, decision: Decision) -> torch.Tensor:
-        key = (i, levels[i], decision_key(decision))
-        if key not in distributions:
-            distributions[key] = ladders[i][levels[i]].distribution(logs[i], decision)
-        return distributions[key]
+        key = decision_key(decision)
+        cache = distributions[i]
+        if cache is None:
+            cache = distributions[i] = {}
+        if key not in cache:
+            cache[key] = ladders[i][levels[i]].distribution(logs[i], decision)
+        return cache[key]
 
     current_distribution = Distribution(item_distribution, levels.__getitem__)
 
