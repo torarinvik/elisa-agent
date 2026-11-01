@@ -364,3 +364,34 @@ def test_element_floor_maps_current_readings_and_fixed_items() -> None:
     floor(readings, lambda i, d: 0.1, frozenset({1}))
     assert observed[-1][0][3] == pytest.approx((0.2, 0.8))
     assert observed[0][0][3] == pytest.approx((0.7, 0.3))
+
+
+def test_certification_budget_obstruction() -> None:
+    from nca.ladder import certification_possible, certify
+
+    assert not certification_possible(44, 0.05, 0.1)
+    assert certification_possible(45, 0.05, 0.1)
+    assert not certification_possible(229, 0.01, 0.1)
+    assert certification_possible(230, 0.01, 0.1)
+    assert not certification_possible(0, 0.05, 0.1)
+    for answered in range(21):
+        for wrong in range(answered + 1):
+            assert certify([(answered, wrong)], 0.05, 0.1) == []
+
+
+def test_impossible_audit_skips_candidate_evaluations(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+
+    calls: list[int] = []
+
+    def outcomes(route: Any, ladders: Any, samples: Any, delta: float) -> tuple[int, int]:
+        calls.append(len(samples))
+        assert len(samples) == 3  # Only the unchanged uncontrolled evaluation remains.
+        return 3, 0
+
+    monkeypatch.setattr(logic, "outcomes", outcomes)
+    args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
+                           draws=1, audit=20, targets=[0.05, 0.01], alpha=0.1)
+    logic.shifted(None, {}, args)
+    assert calls == [3, 3]

@@ -126,6 +126,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 17.2 | `shift_ratio_le` | `Calibration` |
 | 17.3 | `horvitz_thompson` | `Calibration` |
 | 17.4 | `inflated_answered_mono` | `Calibration` |
+| 17.6 | `audit_budget_obstruction` | `Calibration` |
 | 17.5 | `fixed_sequence_le` | `Calibration` |
 | 18.1 | `grouped_risk_le` | `Certificate` |
 | 18.2 | `certificate_error_le` | `Certificate` |
@@ -535,3 +536,11 @@ included in a new audit rather than inheriting certification from a different
 backend solely because sampled outputs agree. The existing `logic --shift`
 runner can audit the current correction path without a pointwise roundoff
 allowance, subject to the sampling assumptions of §17.
+
+`ladder.certification_possible` tests the zero-error upper bound for the
+entire checking budget. `logic.shifted` skips candidate fit/check evaluations
+when even that bound exceeds the target. The uncontrolled evaluation remains
+unchanged, and feasible audit budgets use the existing fixed-sequence test.
+The Lean obstruction theorem covers the zero-error power inequality; the
+binomial bound's monotonicity in errors is used as its standard statistical
+property, not newly formalized here.

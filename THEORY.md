@@ -748,6 +748,16 @@ declared safe exactly when `(1 − δ)^n ≤ α`, that is when
 | 0.05 | 45 | 59 |
 | 0.01 | 230 | 299 |
 
+**Theorem 17.6 (audit budget obstruction).** Let `0 ≤ 1 − δ ≤ 1`
+and let at most `N` checking examples be available. If
+`α < (1 − δ)^N`, then no number `n ≤ N` of zero-error answers can meet
+`(1 − δ)^n ≤ α`: powers of a number in `[0,1]` decrease with the exponent.
+Errors only increase the binomial upper bound. Thus an audit whose best
+possible zero-error result fails the target cannot certify any candidate,
+regardless of its predictions. This precheck uses only the declared sample
+budget and target, not checking labels, so it introduces no data-dependent
+policy selection.
+
 These are *answered* audit expressions with no errors. With errors the
 requirement grows, since `U(k, n; α) ≈ k/n + O(√(k log(1/α))/n)`. Two
 consequences follow. Strict targets need audits in the hundreds. And because

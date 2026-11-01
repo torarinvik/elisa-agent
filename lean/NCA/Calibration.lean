@@ -132,4 +132,14 @@ theorem fixed_sequence_le (safe : ℕ → Set Ω) (violates : ℕ → Prop) [Dec
 
 end FixedSequence
 
+/-- Too few checking examples cannot meet even the zero-error acceptance condition. -/
+theorem audit_budget_obstruction {base α : ℝ} {n N : ℕ}
+    (hbase : 0 ≤ base) (hunit : base ≤ 1) (hcount : n ≤ N)
+    (hbudget : α < base ^ N) : ¬ base ^ n ≤ α := by
+  have hpower : base ^ N ≤ base ^ n := by
+    obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hcount
+    rw [pow_add]
+    exact mul_le_of_le_one_right (pow_nonneg hbase _) (pow_le_one₀ hbase hunit)
+  linarith
+
 end NCA

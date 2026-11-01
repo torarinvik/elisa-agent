@@ -48,7 +48,8 @@ from nca.abi import TypeId
 from nca.certify import INFLATIONS
 from nca.formulas import (ARITY, VOCABULARY, FormulaDataset, FormulaSample, decode,
                           labeled_words, parse)
-from nca.ladder import Rung, State, Stop, certification_order, certify, stopping_rule
+from nca.ladder import (Rung, State, Stop, certification_order, certification_possible, certify,
+                        stopping_rule)
 from nca.modules.symbols import BOOLEAN
 from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer)
@@ -183,11 +184,13 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
             fit = [audit.sample(i) for i in range(args.audit)]
             check = [audit.sample(i) for i in range(args.audit, 2 * args.audit)]
             for delta in args.targets:
-                order = certification_order(
-                    [outcomes(route, ladders, fit, delta / lam) for lam in INFLATIONS], args.alpha)
-                stats = [outcomes(route, ladders, check, delta / lam) for lam in INFLATIONS]
-                accepted = certify(stats, delta, args.alpha, order)
-                chosen = max(accepted, key=lambda i: stats[i][0], default=None)
+                chosen = None
+                if certification_possible(args.audit, delta, args.alpha):
+                    order = certification_order(
+                        [outcomes(route, ladders, fit, delta / lam) for lam in INFLATIONS], args.alpha)
+                    stats = [outcomes(route, ladders, check, delta / lam) for lam in INFLATIONS]
+                    accepted = certify(stats, delta, args.alpha, order)
+                    chosen = max(accepted, key=lambda i: stats[i][0], default=None)
                 for control, lam in (("none", 1.0),
                                      ("risk", None if chosen is None else INFLATIONS[chosen])):
                     answered, wrong = ((0, 0) if lam is None

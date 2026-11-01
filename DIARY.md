@@ -1455,6 +1455,23 @@ one draw and one evaluation sample do not demonstrate repeated-audit validity
 or transfer to other depths/noise levels. This uses existing risk-control
 code and proofs rather than adding an unproved numerical epsilon.
 
+**Skip impossible audits (theory to implementation).** Theorem 17.6 and
+its Lean proof establish that too few checking examples cannot satisfy even
+the zero-error acceptance condition. The runner now checks the best possible
+zero-error binomial bound before running candidate fitting/checking policies.
+Tests verify the 44/45 and 229/230 label boundaries at alpha 0.1, exhaust all
+error/answer counts through 20 examples for the 5% target, and verify that
+impossible audits call only the uncontrolled evaluation.
+
+On depth 4, target 1%, noise 0.2, 60 examples per audit half and 100
+evaluation formulas (test seed 6), unpruned execution took 1.79756 s and
+prechecked execution 0.19757 s. Readers shared calibration on 100 depth-4
+validation formulas at noise 0.1, seed 0. Both reported uncontrolled coverage
+0.80 with zero errors and no certified policy. Candidate fit/check inference
+was skipped exactly; the single timing pair includes warm-up effects and
+is not a general speedup estimate. No neural hot loop was added in Python:
+the saving comes from avoiding executions proved unable to certify.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
