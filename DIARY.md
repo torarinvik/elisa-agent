@@ -1874,6 +1874,27 @@ under the known synthetic generator, not evidence of repeated-audit validity
 or transfer to other formula families. Reader calibration stayed on seed-6
 validation throughout; neither new split was used to recalibrate it.
 
+**Pruning zero prefix support.** Theorem 27.6 identifies zero-prefix states
+as irrelevant to split sums; `prior_support_sum` formalizes this identity.
+Elisa now skips negative-infinity forward states in its forward, backward
+and marginal passes. Backward values are used only on forward support; the
+implementation does not claim arbitrary-state continuation values after this
+restriction. Dense arrays and scanning of state indices remain.
+
+A saved pre-change complete-prior case of length 150 (192 states, Dirichlet
+readings, seed 73) retained exactly the same sequence, log normalizer and
+all marginals after the change. Over 100 decodes, time per decode changed
+from 0.00054568 s to 0.00046825 s (about 14% on this fixture). A regression
+adds unreachable states with log weights 1e6 and checks they cannot alter
+posteriors, including a forbidden reading. Native suite: 155 passes;
+fallback: 141 passes, 14 skips. Lean and Ruff pass.
+
+The earlier 100-input depth-6 noise-0.2 seed-6 complete-prior run at target
+1% still answers 77 with one error and mean expert cost 4,352,874.06. It
+took 5.58659 s versus the previously recorded 6.31743 s. This historical
+comparison is not a controlled timing estimate. Model assumptions and
+policy thresholds are unchanged; no finite-probability state is truncated.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

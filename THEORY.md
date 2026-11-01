@@ -2322,6 +2322,15 @@ then a function of the prior state. The product then has no more live
 states than the prior automaton alone, and the format component can be
 dropped.
 
+**Theorem 27.6 (prefix support pruning).** At a split position, let `F(s)`
+be a state's prefix weight and `B(s)` its continuation weight. Then
+`Σ_s F(s) B(s) = Σ_{s : F(s) ≠ 0} F(s) B(s)`: removed terms are zero.
+The same restriction applies to a marginal's split sum. With nonnegative
+transition weights, a zero-weight prefix contributes nothing to any later
+state, so its forward transitions may also be omitted. Backward values need
+only be computed on the forward support when used for these split sums;
+values outside that support are not unrestricted continuation probabilities.
+
 ### 27.3 The contract
 
 A prior expert has the contract

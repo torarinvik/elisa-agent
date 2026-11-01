@@ -94,6 +94,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
     forward, best, choice =
         for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
             for state in 0..<states |forward, best, choice|:
+                continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |forward, best, choice|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
@@ -122,6 +123,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
         for step in 0..<m |backward: darray[f64] = [final[i - m * states] if i >= m * states else log(0.0) for i in 0..<((m + 1) * states)]| -> backward:
             k: i64 = m - 1 - step
             for state in 0..<states |backward|:
+                continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |backward|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
@@ -133,6 +135,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             for j in 0..<width |result|:
                 marginal: f64 =
                     for state in 0..<states |total: f64 = 0.0| -> total:
+                        continue if forward[k * states + state] == log(0.0)
                         edge: i64 = state * width + j
                         target: i64 = transitions[edge]
                         continue if target < 0

@@ -125,4 +125,14 @@ theorem pdpMax_attained : ∀ (ws : List (α → ℝ)) (s : σ) (t : τ),
 
 end Product
 
+/-- A state with zero prefix weight contributes nothing to a split sum. -/
+theorem prior_support_sum {S : Type} [Fintype S] (forward backward : S → ℝ) :
+    ∑ s, forward s * backward s =
+      ∑ s ∈ Finset.univ.filter (fun s => forward s ≠ 0), forward s * backward s := by
+  classical
+  rw [Finset.sum_filter]
+  apply Finset.sum_congr rfl
+  intro s _
+  by_cases h : forward s = 0 <;> simp [h]
+
 end NCA

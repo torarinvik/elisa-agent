@@ -979,3 +979,24 @@ def test_prior_evaluator_selection_and_account_use_same_structural_prior(
         FormulaEvaluator(prior=formulas.complete_prior)
     with pytest.raises(ValueError):
         FormulaEvaluator(decode=True, band_slack=1e-4, prior=formulas.complete_prior)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_unreachable_prior_states_do_not_change_posteriors(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    transitions = np.array([[0, 1, -1], [1, -1, 0]])
+    base = formulas.ArityPrior((0, 1, 2), transitions, np.zeros((2, 3)),
+                              np.array([0.0, -np.inf]))
+    enlarged = formulas.ArityPrior((0, 1, 2),
+        np.vstack([transitions, [[2, 3, 4], [3, 4, 2], [4, 2, 3]]]),
+        np.vstack([np.zeros((2, 3)), np.full((3, 3), 1e6)]),
+        np.array([0.0, -np.inf, 1e6, 1e6, 1e6]))
+    rows = np.log(np.random.default_rng(79).dirichlet(np.ones(3), size=7))
+    rows[3, 0] = -np.inf
+    expected, actual = base.decode(rows), enlarged.decode(rows)
+    assert expected is not None and actual is not None
+    assert actual.arities == expected.arities
+    assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
+    np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
