@@ -167,6 +167,29 @@ def test_correction_session_invalidates_when_distribution_source_changes(use_pri
     assert sum(old_account.values()) != pytest.approx(sum(fresh.values()))
     assert switched == pytest.approx(fresh)
 
+
+@pytest.mark.parametrize("mode", ["format", "prior", "banded"])
+def test_correction_state_resets_when_formula_length_changes(mode: str) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False,
+                                 prior=formulas.format_prior if mode == "prior" else None,
+                                 band_slack=0.01 if mode == "banded" else None)
+    masses = np.tile([0.6, 0.25, 0.15], (5, 1))
+    distribution = Distribution(lambda k, d: torch.tensor(masses[k]), lambda k: 0)
+    def risk(k: int, d: Decision) -> float:
+        return 0.0
+    state = CorrectionState()
+    for words in (["and", "true", "false"], ["and", "not", "true", "not", "false"],
+                  ["true"], ["and", "true", "false"]):
+        readings = one_hot(words)
+        actual = evaluator.certificate(readings, risk, distribution, state)
+        expected = evaluator.certificate(readings, risk, distribution, CorrectionState())
+        assert actual is not None and expected is not None
+        assert actual == pytest.approx(expected)
+        assert state.length == len(words)
+
 def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
     from nca.abi import Message
     from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior
