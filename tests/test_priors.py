@@ -177,6 +177,27 @@ def test_partition_cursor_tracks_independent_reading_and_selection_changes() -> 
     assert cursor.last_start == 3
 
 
+def test_partition_first_change_matches_row_comparison() -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    rng = np.random.default_rng(192)
+    for length in (0, 1, 37):
+        old_rows = rng.normal(size=(length, 3))
+        old_selected = rng.integers(0, 3, size=length, dtype=np.int64)
+        for position in range(length + 1):
+            rows, selected = old_rows.copy(), old_selected.copy()
+            if position < length:
+                if position % 2:
+                    selected[position] = (selected[position] + 1) % 3
+                else:
+                    rows[position, position % 3] = -np.inf
+            actual = incremental._NATIVE.first_change(rows.reshape(-1), old_rows.reshape(-1),
+                                                      selected, old_selected, 3)
+            assert actual == position
+
+
 def test_partition_cursor_recovers_after_overflow() -> None:
     import nca.partition as incremental
 

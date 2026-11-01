@@ -9,6 +9,14 @@ def add_logs(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))
 
+# Find the earliest changed input row without allocating a comparison array.
+def first_change(rows: view[f64], old_rows: view[f64], selected: view[i64], old_selected: view[i64], width: i64) -> i64:
+    for k in 0..<selected.len.i64():
+        return k if selected[k] != old_selected[k]
+        for j in 0..<width:
+            return k if rows[k * width + j] != old_rows[k * width + j]
+    return selected.len.i64()
+
 # Mutates rows after `start`; the caller must supply a valid prefix at `start`.
 # Empty output signals overflow; otherwise returns selected and other log mass.
 def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], selected: view[i64], alternatives: mutable view[f64], bounds: mutable view[i64], matched_states: mutable view[i64], matched_weights: mutable view[f64], start: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -92,3 +100,4 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
 
 export pymodule partition:
     fn update
+    fn first_change

@@ -72,8 +72,14 @@ class PartitionCursor:
         first = 0
         if self._valid:
             assert self._rows is not None and self._selected is not None
-            changed = np.flatnonzero(np.any(rows != self._rows, axis=1) | (chosen != self._selected))
-            first = int(changed[0]) if len(changed) else m
+            find_change = getattr(_NATIVE, "first_change", None)
+            if find_change is None:
+                changed = np.flatnonzero(np.any(rows != self._rows, axis=1)
+                                         | (chosen != self._selected))
+                first = int(changed[0]) if len(changed) else m
+            else:
+                first = int(find_change(rows.reshape(-1), self._rows.reshape(-1),
+                                        chosen, self._selected, rows.shape[1]))
             if first == m:
                 assert self._result is not None
                 self.last_start = m
