@@ -304,22 +304,22 @@ class Rung:
         same choice: the numerical reading can contain ties. The optional
         ``reading`` reuses the numerical reading of this observation.
         """
+        key = decision_key(classes)
+        temperature = self.temperature(key)
         ranked = log if isinstance(log, RankedObservation) else None
         if ranked is not None:
             log = ranked.logits
-            temperature = self.temperature(classes)
             if not math.isfinite(temperature) or temperature <= 0:
                 raise ValueError("ranked risk requires a positive finite temperature")
-        union = (list(range(len(log))) if classes is None else
-                 _layout(decision_key(classes))[0])
+        union = list(range(len(log))) if key is None else _layout(key)[0]
         probabilities = (self.reading(log) if reading is None else reading) if ranked is None else None
         native_reading = getattr(_NATIVE, "calibrated_risk_for_reading", None)
         if (native_reading is not None and log.device.type == "cpu" and not log.requires_grad
                 and (ranked is not None or (probabilities.device.type == "cpu"
                                             and not probabilities.requires_grad))):
-            key = decision_key(classes) if classes is not None else tuple(range(len(log)))
-            _, positions = _layout(key)
-            groups = _group_ids(key)
+            native_key = key if key is not None else tuple(range(len(log)))
+            _, positions = _layout(native_key)
+            groups = _group_ids(native_key)
             ordering = (np.asarray(ranked.weights, dtype=np.float64) if ranked is not None else
                         probabilities.double().numpy())
             logits = log.double().numpy()
@@ -329,25 +329,23 @@ class Rung:
             else:
                 logits, ordering = logits[union], ordering[union]
             return float(native_reading(logits, ordering, groups, len(positions),
-                                        self.temperature(classes)))
+                                        temperature))
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
             selected = int(probabilities[union].argmax())
         native = getattr(_NATIVE, "calibrated_risk_at", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
-            key = decision_key(classes) if classes is not None else tuple(range(len(log)))
-            union, positions = _layout(key)
-            groups = _group_ids(key)
+            native_key = key if key is not None else tuple(range(len(log)))
+            union, positions = _layout(native_key)
+            groups = _group_ids(native_key)
             return float(native(log[union].double().numpy(), groups, len(positions),
-                                self.temperature(classes), selected))
+                                temperature, selected))
         if classes is None:
             values, positions = log, None
         else:
-            key = decision_key(classes)
             union, positions = _layout(key)
             values = log[union]
-        temperature = self.temperature(classes)
         result = risk(torch.softmax(_temperature_scores(values, temperature), dim=-1),
                       positions, _top=selected)
         if result != 0.0:
