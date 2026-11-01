@@ -85,6 +85,29 @@ def test_banded_decoder_is_certified(slack: float) -> None:
             if banded.exact:
                 assert banded.arities == exact.arities
 
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 3), (0, 3), (0, 1, 3, 2**63 - 1)])
+def test_banded_decoder_supports_general_arities(alphabet) -> None:
+    rng = np.random.default_rng(238)
+    for m in range(1, 9):
+        for _ in range(10):
+            rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+            exact, banded = decode_reference(rows, alphabet), decode_banded(rows, alphabet)
+            assert (exact is None) == (banded is None)
+            if exact is not None and banded is not None:
+                exact_risk = exact.risk(rows, alphabet, banded.arities)
+                assert exact_risk <= banded.risk + 1e-12
+                assert banded.risk <= exact_risk + 1e-4 + 1e-12
+                if banded.exact:
+                    assert banded.arities == exact.arities
+
+
+@pytest.mark.parametrize("alphabet, slack", [((), 1e-4), ((0, -1), 1e-4),
+                                              ((0, 1), 0.0), ((0, 1), 1.0)])
+def test_banded_decoder_rejects_invalid_parameters(alphabet, slack) -> None:
+    with pytest.raises(ValueError):
+        decode_banded(np.zeros((1, len(alphabet))), alphabet, slack)
+
 def test_split_matches_full_decoding() -> None:
     """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one
     word's weights, the cached vectors give the full programs' results."""

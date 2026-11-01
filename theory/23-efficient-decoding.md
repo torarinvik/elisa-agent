@@ -37,6 +37,11 @@ restricted to the **band** of counter values `|n − n_r(k)| ≤ 2(j − 1)`
 therefore sees every such sequence. The band has `W = 4(j − 1) + 1` states
 per position, against up to `min(k + 1, m − k)` live states unbanded.
 
+More generally, if all nonnegative arities in the alphabet are at most `A`,
+the same argument gives a half-width of `A(j − 1)`. This permits other finite
+arity alphabets without assuming that two is a system-wide limit. The bound
+is based on the configured alphabet, not on a fixed set of task experts.
+
 ## 23.3 A certified banded risk
 
 The banded passes compute:
@@ -96,6 +101,9 @@ lowers `Z_band`, and once `2(j − 1) > m` the band covers every live state (the
 counter at position `k` lies in `[1 − k, 1 + k]`, live states in `[0, m − k]`).
 Then no sequence lies outside it, the tail term can be taken as 0, and the
 banded result is exact. Each widening costs one more banded pass.
+For a general alphabet, check coverage against every row's actual reference
+counter and the live range `0 .. m − k`; the binary-specific width test does
+not apply when the reference contains larger arities.
 The starting `j` for `η = 10⁻⁴`:
 
 | `S` | `j` | band width `W` |

@@ -226,6 +226,32 @@ theorem sum_sub_le_diff : ∀ (l r : List ℕ), l.length = r.length → (∀ a �
             linarith
         _ = 2 * (1 + diff l r) := by ring
 
+/-- The same band bound applies for any nonnegative upper bound on arities. -/
+theorem sum_sub_le_diff_bounded (bound : ℕ) : ∀ (l r : List ℕ),
+    l.length = r.length → (∀ a ∈ l, a ≤ bound) → (∀ a ∈ r, a ≤ bound) →
+    |(l.sum : ℤ) - r.sum| ≤ (bound : ℤ) * diff l r
+  | [], [], _, _, _ => by simp [diff]
+  | [], _ :: _, h, _, _ | _ :: _, [], h, _, _ => by simp at h
+  | a :: l, b :: r, h, hl, hr => by
+    have ih := sum_sub_le_diff_bounded bound l r (by simpa using h)
+      (fun x hx => hl x (List.mem_cons_of_mem _ hx))
+      (fun x hx => hr x (List.mem_cons_of_mem _ hx))
+    have ha := hl a List.mem_cons_self
+    have hb := hr b List.mem_cons_self
+    simp only [List.sum_cons, diff, Nat.cast_add]
+    by_cases hab : a = b
+    · subst hab; simp only [if_true, Nat.cast_zero, zero_add]
+      calc |((a : ℤ) + l.sum) - (a + r.sum)| = |(l.sum : ℤ) - r.sum| := by ring_nf
+        _ ≤ _ := ih
+    · simp only [hab, if_false, Nat.cast_one]
+      calc |((a : ℤ) + l.sum) - (b + r.sum)| ≤ |(a : ℤ) - b| + |(l.sum : ℤ) - r.sum| := by
+            rw [show ((a : ℤ) + l.sum) - (b + r.sum) = ((a : ℤ) - b) + ((l.sum : ℤ) - r.sum) by ring]
+            exact abs_add_le _ _
+        _ ≤ bound + bound * diff l r := by
+            have : |(a : ℤ) - b| ≤ bound := abs_le.mpr ⟨by omega, by omega⟩
+            linarith
+        _ = bound * (1 + diff l r) := by ring
+
 variable {σ : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F]
 
 /-- Accepted sequences outside the band weigh at most the tail: the

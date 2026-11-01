@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import accumulate
 
 import numpy as np
 
@@ -150,10 +151,15 @@ def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) 
 def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
                   slack: float = 1e-4) -> Banded | None:
     """``decode`` with the dynamic programs restricted to counter values within
-    ``2(j − 1)`` of each word's most probable arity sequence. ``j`` starts at
+    ``max(alphabet) * (j − 1)`` of each word's most
+    probable arity sequence. ``j`` starts at
     ``band_changes`` and widens until the tail bound is at most ``slack``
     times the band's weight, so the risk is within ``slack`` of the exact one
     (THEORY §23.3). ``None`` if no parseable sequence has positive weight."""
+    if not len(alphabet) or any(a < 0 for a in alphabet):
+        raise ValueError("alphabet must contain nonnegative arities")
+    if not 0 < slack < 1:
+        raise ValueError("slack must be strictly between zero and one")
     m = len(log_probs)
     if m == 0:
         return None
@@ -161,10 +167,11 @@ def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
     changes, tail = band_changes(log_probs, reference, slack)
     probs = np.exp(log_probs)
     off = float(np.sum(probs.sum(axis=1) - probs[np.arange(m), reference]))
-    centre = 1 + np.concatenate(([0], np.cumsum(np.asarray(alphabet)[reference] - 1)))
+    centre = list(accumulate((int(alphabet[j]) - 1 for j in reference), initial=1))
+    arity_bound = int(max(alphabet))
     while True:
-        half = 2 * (changes - 1)
-        if half > m:  # the band holds every state 0 ..= m − k at every k
+        half = arity_bound * (changes - 1)
+        if all(c - half <= 0 and c + half >= m - k for k, c in enumerate(centre)):
             tail = 0.0
         passes = _banded_passes(log_probs, alphabet, centre, half)
         log_tail = math.log(tail) if tail > 0 else -math.inf
@@ -178,14 +185,16 @@ def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
     risk = max(0.0, 1.0 - math.exp(log_x - float(np.logaddexp(log_z, log_tail))))
     return Banded(arities, risk, log_x >= log_tail, changes, 2 * half + 1)
 
-def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: np.ndarray,
+def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Sequence[int],
                    half: int) -> tuple[float, float, tuple[int, ...]] | None:
     """Sum and max passes over states within ``half`` of ``centre``: the log
     weight of the band, the log weight of its best sequence, and that sequence."""
     m = len(log_probs)
     width = m + 2
     states = np.arange(width)
-    inside = [(np.abs(states - centre[k]) <= half) & (states <= m - k) for k in range(m + 1)]
+    inside = [(states >= max(0, centre[k] - half)) & (states <= min(m - k, centre[k] + half))
+              if centre[k] - half <= m - k and centre[k] + half >= 0
+              else np.zeros(width, dtype=bool) for k in range(m + 1)]
     forward = np.full((m + 1, width), -np.inf)
     best = np.full((m + 1, width), -np.inf)
     choice = np.zeros((m + 1, width), dtype=np.int64)
@@ -193,7 +202,10 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: np.nd
         forward[0, 1] = best[0, 1] = 0.0
     for k in range(m):
         for j, a in enumerate(alphabet):
+            a = int(a)
             span = min(a + width - 1, width) - a
+            if span <= 0:
+                continue
             step = log_probs[k, j]
             forward[k + 1, a:a + span] = np.logaddexp(forward[k + 1, a:a + span],
                                                       forward[k, 1:1 + span] + step)
