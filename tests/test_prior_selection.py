@@ -329,3 +329,19 @@ def test_bounded_selection_scores_unavailable_lengths_without_losing_the_batch(
                                 np.zeros((1, 3)), np.array([-np.inf]))
     with pytest.raises(ValueError, match="zero mass"):
         formulas.select_prior([lambda length: empty], rows, base, score_clip=4, alpha=0.1)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_provider_mutation_cannot_bypass_row_validation(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.log(np.full((3, 3), 1 / 3))
+    base = np.log(np.full(3, 1 / 3))
+
+    def provider(length: int) -> priors.ArityPrior:
+        rows[0, 0] = np.nan
+        return priors.height_prior(2)
+
+    with pytest.raises(ValueError, match="finite or -inf log weights"):
+        priors.select_prior([provider], [rows], base)
