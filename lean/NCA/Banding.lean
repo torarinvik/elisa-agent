@@ -142,6 +142,28 @@ theorem sum_split (p : α → Prop) [DecidablePred p] (f : α → ℝ) : ∀ l :
   | a :: l => by
     by_cases h : p a <;> simp [h, sum_split p f l] <;> ring
 
+/-- The smallest factor at least one that makes a row a subprobability. -/
+def rowFactor (w : α → ℝ) : ℝ := max 1 (as.map w).sum
+
+/-- Dividing nonnegative weights by their row factor gives a subprobability. -/
+theorem rowFactor_normalizes (w : α → ℝ) (r : α) (hw : ∀ a, 0 ≤ w a) :
+    1 ≤ rowFactor as w ∧
+    (∀ a, 0 ≤ w a / rowFactor as w) ∧
+    onMass as (fun a => w a / rowFactor as w) r +
+      offMass as (fun a => w a / rowFactor as w) r ≤ 1 := by
+  have hc : 1 ≤ rowFactor as w := le_max_left _ _
+  have hcpos : 0 < rowFactor as w := by linarith
+  have hsum : onMass as w r + offMass as w r = (as.map w).sum := by
+    simpa [onMass, offMass] using (sum_split (· = r) w as).symm
+  refine ⟨hc, fun a => div_nonneg (hw a) (le_of_lt hcpos), ?_⟩
+  have hm : (as.map w).sum ≤ rowFactor as w := le_max_right _ _
+  have he : onMass as (fun a => w a / rowFactor as w) r +
+      offMass as (fun a => w a / rowFactor as w) r =
+      (onMass as w r + offMass as w r) / rowFactor as w := by
+    simp [onMass, offMass, div_eq_mul_inv, List.sum_map_mul_right, add_mul]
+  rw [he, hsum]
+  exact (div_le_one hcpos).2 hm
+
 theorem tail_cons (w : α → ℝ) (r : α) (ps : List ((α → ℝ) × α)) (j : ℕ) :
     tail as ((w, r) :: ps) j =
       (as.map fun a => w a * tail as ps (if a = r then j else j - 1)).sum := by
@@ -313,6 +335,45 @@ theorem scaled_rows_tail_le_original (rows : List (ℝ × ((α → ℝ) × α)))
         scaled_rows_tail_le as rows j hfactor hrows
     _ ≤ _ := by
       gcongr
+
+/-- The row factors chosen from arbitrary nonnegative weights bound their tail. -/
+theorem tail_le_row_factors (ps : List ((α → ℝ) × α)) (j : ℕ)
+    (hw : ∀ p ∈ ps, ∀ a, 0 ≤ p.1 a) :
+    tail as ps j ≤ (ps.map fun p => rowFactor as p.1).prod *
+      ((ps.map fun p => offMass as p.1 p.2).sum ^ j / j.factorial) := by
+  let rows := ps.map fun p => (rowFactor as p.1, ((fun a => p.1 a / rowFactor as p.1), p.2))
+  have hf : ∀ p ∈ rows, 1 ≤ p.1 := by
+    intro p hp
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
+    exact (rowFactor_normalizes as q.1 q.2 (hw q hq)).1
+  have hr : ∀ p ∈ rows, (∀ a, 0 ≤ p.2.1 a) ∧
+      onMass as p.2.1 p.2.2 + offMass as p.2.1 p.2.2 ≤ 1 := by
+    intro p hp
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
+    exact (rowFactor_normalizes as q.1 q.2 (hw q hq)).2
+  have hfactor : ∀ p ∈ ps, rowFactor as p.1 ≠ 0 := by
+    intro p hp
+    have := (rowFactor_normalizes as p.1 p.2 (hw p hp)).1
+    linarith
+  have hs := scaled_rows_tail_le_original as rows j hf hr
+  have he : ∀ p ∈ ps, (fun a => rowFactor as p.1 * (p.1 a / rowFactor as p.1)) = p.1 := by
+    intro p hp
+    funext a
+    field_simp [hfactor p hp]
+  have hlist : ps.map (fun p => ((fun a => rowFactor as p.1 *
+      (p.1 a / rowFactor as p.1)), p.2)) = ps := by
+    conv_rhs => rw [← List.map_id ps]
+    apply List.map_congr_left
+    intro p hp
+    simp [he p hp]
+  have hoff : ps.map (fun p => offMass as (fun a => rowFactor as p.1 *
+      (p.1 a / rowFactor as p.1)) p.2) = ps.map (fun p => offMass as p.1 p.2) := by
+    apply List.map_congr_left
+    intro p hp
+    rw [he p hp]
+  simp only [rows, List.map_map, Function.comp_def] at hs
+  rw [hlist, hoff] at hs
+  exact hs
 
 /-- **The band.** Sequences of equal length with symbols at most 2 that differ
 in `d` positions have sums at most `2 d` apart: a sequence within `d`
