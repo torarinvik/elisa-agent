@@ -29,6 +29,9 @@ def prior : τ → List α → ℝ
   | t, [] => f t
   | t, a :: l => v t a * prior (ε t a) l
 
+/-- The empty sequence has exactly its start state's final weight. -/
+theorem prior_empty (t : τ) : prior ε v f t [] = f t := rfl
+
 /-- Sum-product dynamic program on the product automaton. -/
 def pdpSum : List (α → ℝ) → σ → τ → ℝ
   | [], s, t => if F s then f t else 0

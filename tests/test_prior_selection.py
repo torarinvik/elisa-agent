@@ -50,6 +50,23 @@ def test_prior_evidence_support_and_probability_validation() -> None:
         with pytest.raises(ValueError):
             prior.log_evidence(bad, base)
 
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_evidence_and_selection_accept_empty_sequence(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.array([-2.0]))
+    rows = np.empty((0, 2))
+    assert prior.log_evidence(rows, rows) == 0.0
+    seen: list[int] = []
+    def provider(length: int) -> priors.ArityPrior:
+        seen.append(length)
+        return prior
+    selection = priors.select_prior([provider], [rows, rows], np.log([0.5, 0.5]), alphabet=(0, 1))
+    assert selection.index == 0 and selection.scores == (0.0,) and selection.samples == 2
+    assert seen == [0]
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_normalized_evidence_distinguishes_complete_and_unary_shapes(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:

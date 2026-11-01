@@ -16,6 +16,11 @@ A **prior automaton** has states `τ`, a start state, transitions `ε`, a
 weight `v(t, a) ≥ 0` for reading arity `a` in state `t`, and a final weight
 `f(t) ≥ 0`. A sequence's prior weight is the product of the weights along
 its run, times the final weight (`prior`).
+**Theorem 27.15 (empty sequence).** For the empty sequence there are no
+transition weights, so its weight is the start state's final weight. It is
+accepted exactly when that weight is positive. For an accepted empty
+observation, the posterior and base normalizers coincide, so its relative
+log evidence is zero.
 
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format

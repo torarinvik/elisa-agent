@@ -111,8 +111,8 @@ class ArityPrior:
         posterior = np.asarray(log_posteriors, dtype=np.float64)
         base = np.asarray(log_base, dtype=np.float64)
         if (posterior.ndim != 2 or posterior.shape != base.shape
-                or posterior.shape[1] != len(self.alphabet) or not len(posterior)):
-            raise ValueError("requires matching nonempty posterior and base rows")
+                or posterior.shape[1] != len(self.alphabet)):
+            raise ValueError("requires matching posterior and base rows")
         for rows in (posterior, base):
             if (np.any(np.isnan(rows)) or np.any(rows > 0)
                     or not np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)):
@@ -146,7 +146,7 @@ class ArityPrior:
         """Total accepted log weight, using two native state rows when available."""
         rows = self._rows(log_probs)
         if not len(rows):
-            return -math.inf
+            return float(self.log_final[self.start])
         native = getattr(_NATIVE, "prior_normalizer", None)
         if native is not None:
             result = float(native(np.ascontiguousarray(rows).reshape(-1),
@@ -163,7 +163,7 @@ class ArityPrior:
         """Maximum-weight sequence without computing sums or marginals (§27.2–3)."""
         rows = self._rows(log_probs)
         if not len(rows):
-            return None
+            return () if self.log_final[self.start] != -math.inf else None
         native = getattr(_NATIVE, "prior_best", None)
         if native is not None:
             selected = native(np.ascontiguousarray(rows).reshape(-1),
@@ -184,7 +184,8 @@ class ArityPrior:
         rows = self._rows(log_probs)
         m, width = rows.shape
         if not m:
-            return None
+            log_z = float(self.log_final[self.start])
+            return None if log_z == -math.inf else Decoded((), log_z, np.empty((0, width)), self)
         native = getattr(_NATIVE, "decode_prior", None)
         if native is not None:
             out = native(np.ascontiguousarray(rows).reshape(-1),
@@ -352,8 +353,8 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     for observation in readings:
         # Freeze each reading before invoking providers, which may mutate caller storage.
         rows = np.array(observation, dtype=np.float64, copy=True)
-        if rows.ndim != 2 or not len(rows) or rows.shape[1] != len(alphabet):
-            raise ValueError("readings must be nonempty matrices over the shared alphabet")
+        if rows.ndim != 2 or rows.shape[1] != len(alphabet):
+            raise ValueError("readings must be matrices over the shared alphabet")
         # Validate every observation even after some candidates become unavailable.
         fast_validate = getattr(_NATIVE, "normalized_rows_fast", None)
         fast_valid = (fast_validate is not None

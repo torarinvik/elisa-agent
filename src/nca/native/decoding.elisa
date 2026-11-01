@@ -132,7 +132,7 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
     unreachable: f64 = log(0.0)
-    return unreachable if m == 0
+    return final[start] if m == 0
     rows, bounds =
         for k in 0..<m |rows: darray[f64] = [0.0 if i == start else unreachable for i in 0..<(2 * states)], bounds: darray[i64] = [start, start, 0, -1]| -> (rows, bounds):
             here: i64 = (k % 2) * states
@@ -233,7 +233,9 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
     states: i64 = final.len.i64()
     m: i64 = log_probs.len.i64() / width
     unreachable: f64 = log(0.0)
-    return null if m == 0
+    if m == 0:
+        return null if final[start] == unreachable
+        return PriorDecoded{log_z: final[start], arities: [], marginals: []}
     forward, best, choice =
         for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
             for state in 0..<states |forward, best, choice|:

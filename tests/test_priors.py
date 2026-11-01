@@ -137,6 +137,35 @@ def test_weighted_prior_empty_support_and_validation(
         with pytest.raises(ValueError):
             formulas.ArityPrior((0,), np.array(transitions), np.array(weights), np.array(final))
 
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("final", [-np.inf, -2.0, 0.0, 1.5])
+def test_weighted_prior_empty_sequence(
+        reference: bool, final: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.array([final]))
+    rows = np.empty((0, 2))
+    assert prior.log_weight(()) == final
+    assert prior.log_normalizer(rows) == final
+    decoded = prior.decode(rows)
+    if final == -np.inf:
+        assert decoded is None and prior.best(rows) is None
+    else:
+        assert decoded is not None and decoded.arities == prior.best(rows) == ()
+        assert decoded.log_z == final and decoded.marginals.shape == (0, 2)
+
+
+def test_native_empty_sequence_uses_start_final_weight() -> None:
+    native = priors._NATIVE
+    if native is None:
+        pytest.skip("native prior decoder is not built")
+    args = (np.empty(0, dtype=np.float64), np.array([0], dtype=np.int64),
+            np.array([0], dtype=np.int64), np.array([0.0]), np.array([-2.0]), 0)
+    assert native.prior_normalizer(*args) == -2.0
+    decoded = native.decode_prior(*args)
+    assert decoded == {"log_z": -2.0, "arities": [], "marginals": []}
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_counter_prior_matches_format_decoder(reference: bool,
                                               monkeypatch: pytest.MonkeyPatch) -> None:
@@ -315,7 +344,7 @@ def test_prior_best_matches_full_decoder_ties_and_zero_support(
         posterior = prior.decode(rows)
         assert posterior is not None
         assert prior.best(rows) == posterior.arities
-    assert prior.best(np.empty((0, 3))) is None
+    assert prior.best(np.empty((0, 3))) == ()
     assert prior.best(np.full((3, 3), -np.inf)) is None
     with pytest.raises(ValueError):
         prior.best(np.ones((3, 2)))

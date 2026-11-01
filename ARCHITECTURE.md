@@ -214,6 +214,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds` (range only; concentration not formalized) | `Product` |
 | [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
 | [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
+| [27.15](theory/27-priors-as-experts.md) | `prior_empty` (empty weight) | `Product` |
 
 ## Native kernels
 
@@ -846,6 +847,8 @@ order for the batch. A local cache retains each immutable prior model and
 base normalizer by candidate index and length; observation normalizers are
 still computed for every formula. The cache is discarded when selection
 returns, so no cached denominator crosses calibration or selection runs.
+Empty readings are supported when a provider supplies a prior whose start
+state has nonzero final weight; its relative log evidence is zero.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.
