@@ -28,6 +28,18 @@ def upper_sum(values: view[f64]) -> f64 can[Abort.Panic]:
         for i in 0..<values.len.i64() |total: f64 = 0.0| -> total:
             total <- upper_add(total, values[i])
 
+# Sum finite nonnegative binary64 values with downward rounding.
+def lower_add(total: f64, x: f64) -> f64:
+    rounded: f64 = total + x
+    part: f64 = rounded - total
+    residual: f64 = (total - (rounded - part)) + (x - part)
+    return nextafter(rounded, 0.0) if residual < 0.0 or rounded == -log(0.0) else rounded
+
+def lower_sum(values: view[f64]) -> f64 can[Abort.Panic]:
+    return
+        for i in 0..<values.len.i64() |total: f64 = 0.0| -> total:
+            total <- lower_add(total, values[i])
+
 # Log weights may contain negative infinity but not NaN or positive infinity.
 def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
     for i in 0..<rows.len.i64():
@@ -703,6 +715,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
 
 export pymodule decoding:
     fn upper_sum
+    fn lower_sum
     fn prior_partition
     fn valid_log_weights
     fn normalized_rows_fast

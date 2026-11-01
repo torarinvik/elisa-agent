@@ -75,6 +75,19 @@ theorem upper_fold_ge (add : ℝ → ℝ → ℝ) (xs : List ℝ) (initial : ℝ
         _ ≤ add initial x + rest.sum := by linarith [upper initial x]
         _ ≤ rest.foldl add (add initial x) := ih _
 
+/-- Composing lower-bounding additions bounds the exact real sum from below. -/
+theorem lower_fold_le (add : ℝ → ℝ → ℝ) (xs : List ℝ) (initial : ℝ)
+    (lower : ∀ a x, add a x ≤ a + x) :
+    xs.foldl add initial ≤ initial + xs.sum := by
+  induction xs generalizing initial with
+  | nil => simp
+  | cons x rest ih =>
+      simp only [List.foldl_cons, List.sum_cons]
+      calc
+        rest.foldl add (add initial x) ≤ add initial x + rest.sum := ih _
+        _ ≤ (initial + x) + rest.sum := by linarith [lower initial x]
+        _ = initial + (x + rest.sum) := by rw [add_assoc]
+
 variable {I : Type} [DecidableEq I]
 
 /-- Bound plus priced compute after refining the symbols in `T`. -/

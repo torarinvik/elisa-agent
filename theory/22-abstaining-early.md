@@ -21,6 +21,13 @@ A **floor** is a lower bound on every bound refinement can still reach. If
 the floor exceeds `δ`, refinement would end in abstention anyway, so
 abstaining at once changes no answer and saves the remaining climbs.
 
+In exact arithmetic, a sum of fixed nonnegative charges is such a lower
+bound for an additive account. In floating-point arithmetic, each accumulated
+partial sum must be bounded from below to preserve that ordering. The
+real-number induction holds for any sequence of lower-bounding additions;
+it does not prove a particular floating-point implementation or an arbitrary
+user-supplied floor.
+
 Readings at the top rung never change. Call those words *fixed*.
 
 - **Detection accounts.** `min(S / 2, e₂)` is monotone in the arity risks

@@ -228,6 +228,23 @@ def _upper_sum(values: Sequence[float]) -> float:
     return total
 
 
+def _lower_sum(values: Sequence[float]) -> float:
+    """Bound the exact sum of nonnegative binary64 inputs from below."""
+    native = getattr(_NATIVE, "lower_sum", None)
+    if native is not None:
+        return float(native(np.asarray(values, dtype=np.float64)))
+    total = 0.0
+    for x in values:
+        rounded = total + float(x)
+        if math.isinf(rounded):
+            total = math.nextafter(rounded, 0.0)
+            continue
+        part = rounded - total
+        residual = (total - (rounded - part)) + (float(x) - part)
+        total = math.nextafter(rounded, 0.0) if residual < 0.0 else rounded
+    return total
+
+
 def risk(reading: torch.Tensor, classes: Decision = None) -> float:
     """Error probability of the decision over ``classes`` (all if ``None``):
     one minus the share of the chosen entry, the one holding the most
@@ -389,9 +406,13 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))
         if floor is not None and floor(readings, item_risk, fixed) > delta:
             break
-        if (floor is None and certificate is None and additive_floor
-                and sum(charges[i] for i in fixed) > delta):
-            break
+        if floor is None and certificate is None and additive_floor:
+            fixed_charges = []
+            for i in fixed:
+                value = float(charges[i])
+                fixed_charges.append(math.nextafter(value, 0.0) if value > charges[i] else value)
+            if _lower_sum(fixed_charges) > delta:
+                break
         open_ = [i for i in charges if levels[i] + 1 < len(ladders[i])]
         if not open_:
             break

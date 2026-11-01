@@ -237,7 +237,9 @@ def test_refinement_rounds_non_binary64_charge_up(charge: Any, exact: Fraction) 
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_upper_sum_bounds_exact_binary64_sum(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("direction", ["upper", "lower"])
+def test_directed_sum_bounds_exact_binary64_sum(reference: bool, direction: str,
+                                               monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.ladder as ladder_module
 
     if reference:
@@ -247,9 +249,18 @@ def test_upper_sum_bounds_exact_binary64_sum(reference: bool, monkeypatch: pytes
     samples.extend([[math.ldexp(rng.random(), rng.randint(-1070, 200))
                      for _ in range(rng.randrange(30))] for _ in range(300)])
     for values in samples:
-        actual = ladder_module._upper_sum(values)
+        actual = getattr(ladder_module, f"_{direction}_sum")(values)
         exact = sum(map(Fraction.from_float, values), Fraction())
-        assert math.isfinite(actual) and Fraction.from_float(actual) >= exact
+        assert math.isfinite(actual)
+        assert (Fraction.from_float(actual) >= exact if direction == "upper"
+                else Fraction.from_float(actual) <= exact)
+
+
+def test_lower_sum_handles_overflow_conservatively() -> None:
+    import nca.ladder as ladder_module
+
+    largest = float.fromhex("0x1.fffffffffffffp+1023")
+    assert ladder_module._lower_sum([largest, largest]) == largest
 
 
 @pytest.mark.parametrize("target", [float("nan"), -1.0])

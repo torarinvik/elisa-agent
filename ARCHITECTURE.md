@@ -170,6 +170,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [21.7](theory/21-decoding-by-the-format.md) | `exact_risk_le_union` | `Decoding` |
 | [21.7](theory/21-decoding-by-the-format.md) | `one_sub_prod_le_sum` | `Decoding` |
 | [22.1](theory/22-abstaining-early.md) | `detection_account_mono` | `Detection` |
+| [22.3](theory/22-abstaining-early.md) | `lower_fold_le` | `Selective` |
 | [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
 | [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `outside_le_tail` | `Banding` |
@@ -486,6 +487,8 @@ values with upward-rounded additions, assuming IEEE 754
 binary64 round-to-nearest arithmetic and gradual underflow. Lean proves the
 real-number accumulator principle, not the floating-point implementation or
 the conservativeness of the charges themselves.
+The built-in additive floor converts and sums fixed charges downward under
+the same arithmetic assumptions; custom floors retain their own obligations.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs
