@@ -1764,3 +1764,20 @@ def test_accelerator_expert_can_fit_restricted_temperature(device) -> None:
     assert observed.top() == 0
     assert rung.temperature((0, 1)) > 0
     assert rung.risk(observed, (0, 1)) == pytest.approx(0.5, abs=0.03)
+
+
+@pytest.mark.parametrize("output", [
+    (1 + 2j, 1 + 0j),
+    [np.complex128(1 + 2j), 1.0],
+    np.array([1 + 2j, 1 + 0j]),
+    np.array([np.complex128(1 + 2j), 1.0], dtype=object),
+    np.array([torch.tensor(1 + 2j), 1.0], dtype=object),
+    [torch.tensor(1 + 2j), torch.tensor(1 + 0j)],
+    torch.tensor([1 + 2j, 1 + 0j]),
+])
+def test_observation_rejects_complex_weights(output) -> None:
+    rung = Rung(constant("complex-weights", output, 1.0))
+    with pytest.raises(ValueError, match="real-valued"):
+        rung.observe(None)
+    with pytest.raises(ValueError, match="real-valued"):
+        rung.observe_ranked(None)

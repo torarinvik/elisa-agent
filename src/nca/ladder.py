@@ -257,13 +257,25 @@ class Rung:
 
     def _observe(self, value: Any, *, ranked: bool) -> torch.Tensor | RankedObservation:
         output = self.module.invoke(value)
+        if isinstance(output, torch.Tensor) and output.is_complex():
+            raise ValueError("expert output must contain real-valued weights")
         native = getattr(_NATIVE, "observation_logs", None)
         array = None
         if isinstance(output, (tuple, list, np.ndarray)):
             try:
-                array = np.asarray(output, dtype=np.float64)
+                raw = np.asarray(output)
             except (TypeError, ValueError, RuntimeError):
-                pass  # Some valid tensor-containing sequences require PyTorch conversion.
+                raw = None
+            if raw is not None:
+                if (raw.dtype.kind == "c" or
+                        (raw.dtype.kind == "O" and any(
+                            isinstance(x, (complex, np.complexfloating)) or
+                            (isinstance(x, torch.Tensor) and x.is_complex()) for x in raw.flat))):
+                    raise ValueError("expert output must contain real-valued weights")
+                try:
+                    array = np.asarray(raw, dtype=np.float64)
+                except (TypeError, ValueError, RuntimeError):
+                    pass  # Some valid tensor-containing sequences require PyTorch conversion.
         probabilities = None
         if array is None:
             if isinstance(output, torch.Tensor) and output.device.type == "mps":
