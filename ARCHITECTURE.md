@@ -487,8 +487,9 @@ values with upward-rounded additions, assuming IEEE 754
 binary64 round-to-nearest arithmetic and gradual underflow. Lean proves the
 real-number accumulator principle, not the floating-point implementation or
 the conservativeness of the charges themselves.
-The built-in additive floor converts and sums fixed charges downward under
-the same arithmetic assumptions; custom floors retain their own obligations.
+The built-in additive floor and the formula evaluator's non-detection floors
+convert and sum fixed charges downward under the same arithmetic assumptions.
+Detection-based and other custom floors retain their own obligations.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs

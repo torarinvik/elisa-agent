@@ -1,5 +1,6 @@
 import itertools
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any
 
 import numpy as np
@@ -223,6 +224,18 @@ def test_floors_bound_every_account() -> None:
             account = evaluator.certificate(one_hot(words), risk, no_distribution)
             assert account is not None
             assert evaluator.floor(one_hot(words), risk, fixed) <= sum(account.values()) + 1e-12
+
+
+@pytest.mark.parametrize("short_circuit", [False, True])
+def test_unconstrained_formula_floor_rounds_down(short_circuit: bool) -> None:
+    arity = [Fraction(1, 3), Fraction(1, 10 ** 400), Fraction(2, 7)]
+    full = [Fraction(2, 3), Fraction(2, 10 ** 400), Fraction(3, 7)]
+    def risk(k: int, decision: Decision) -> Fraction:
+        return arity[k] if decision == ARITY_DECISION else full[k]
+    evaluator = FormulaEvaluator(short_circuit=short_circuit)
+    result = evaluator.floor(one_hot(["and", "true", "true"]), risk, frozenset(range(3)))
+    exact = sum(arity if short_circuit else full, Fraction())
+    assert Fraction.from_float(result) <= exact
 
 
 def test_decoding_agrees_with_parseable_readings() -> None:

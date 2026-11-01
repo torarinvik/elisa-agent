@@ -229,18 +229,22 @@ def _upper_sum(values: Sequence[float]) -> float:
 
 
 def _lower_sum(values: Sequence[float]) -> float:
-    """Bound the exact sum of nonnegative binary64 inputs from below."""
+    """Bound the exact sum of nonnegative inputs from below."""
+    rounded_values = []
+    for value in values:
+        rounded = float(value)
+        rounded_values.append(math.nextafter(rounded, 0.0) if rounded > value else rounded)
     native = getattr(_NATIVE, "lower_sum", None)
     if native is not None:
-        return float(native(np.asarray(values, dtype=np.float64)))
+        return float(native(np.asarray(rounded_values, dtype=np.float64)))
     total = 0.0
-    for x in values:
-        rounded = total + float(x)
+    for x in rounded_values:
+        rounded = total + x
         if math.isinf(rounded):
             total = math.nextafter(rounded, 0.0)
             continue
         part = rounded - total
-        residual = (total - (rounded - part)) + (float(x) - part)
+        residual = (total - (rounded - part)) + (x - part)
         total = math.nextafter(rounded, 0.0) if residual < 0.0 else rounded
     return total
 
@@ -407,11 +411,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         if floor is not None and floor(readings, item_risk, fixed) > delta:
             break
         if floor is None and certificate is None and additive_floor:
-            fixed_charges = []
-            for i in fixed:
-                value = float(charges[i])
-                fixed_charges.append(math.nextafter(value, 0.0) if value > charges[i] else value)
-            if _lower_sum(fixed_charges) > delta:
+            if _lower_sum([charges[i] for i in fixed]) > delta:
                 break
         open_ = [i for i in charges if levels[i] + 1 < len(ladders[i])]
         if not open_:

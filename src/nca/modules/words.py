@@ -38,7 +38,7 @@ from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
 from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
 from nca.priors import ArityPrior, complete_prior, format_prior, height_prior, risk_from_partition
 from nca.partition import PartitionCursor
-from nca.ladder import Decision, allocate_risk
+from nca.ladder import Decision, _lower_sum, allocate_risk
 from nca.native import load
 
 _NATIVE = load("decoding")
@@ -739,10 +739,10 @@ class FormulaEvaluator:
             return 0.0
         if self.detection == "none":
             if not self.short_circuit:
-                return sum(risk(k, None) for k in fixed)
+                return _lower_sum([risk(k, None) for k in fixed])
             # A word is charged its full or its arity risk; under separately
             # fitted temperatures either may be the smaller (§18.3).
-            return sum(min(risk(k, None), risk(k, ARITY_DECISION)) for k in fixed)
+            return _lower_sum([min(risk(k, None), risk(k, ARITY_DECISION)) for k in fixed])
         arity = [risk(k, ARITY_DECISION) for k in fixed]
         total = sum(arity)
         markov = total / 2
