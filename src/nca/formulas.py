@@ -322,18 +322,25 @@ class PriorSelection:
     index: int
     scores: tuple[float, ...]
     samples: int
+    score_error: float = 0.0
 
 
 def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                  readings: Iterable[np.ndarray], log_base: np.ndarray,
-                 alphabet: Sequence[int] = (0, 1, 2)) -> PriorSelection:
+                 alphabet: Sequence[int] = (0, 1, 2), *,
+                 score_error: float = 0.0) -> PriorSelection:
     """Empirical summed-evidence selection on unlabeled held-out readings.
 
-    Candidate order breaks exact ties and must be fixed before selection.
-    A provider returning None is unavailable at that length and is excluded.
-    A zero base normalizer is invalid, not zero evidence. This performs no
-    uncertainty test, risk certification, or automatic expert installation.
+    With a supplied uniform error bound on summed scores, choose the first
+    candidate within twice that bound of the empirical best (§27.9). Order
+    must be declared in advance, broadest support first if that is the policy.
+    The default is empirical maximization with exact ties. This API does not
+    estimate or certify score_error; it also performs no risk certification
+    or automatic installation. None providers are excluded; zero base mass
+    is invalid rather than zero evidence.
     """
+    if not math.isfinite(score_error) or score_error < 0:
+        raise ValueError("score_error must be finite and nonnegative")
     base = np.asarray(log_base, dtype=np.float64)
     if (not candidates or base.shape != (len(alphabet),)
             or np.any(np.isnan(base)) or np.any(base > 0)
@@ -369,7 +376,11 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
         count += 1
     if not count or not any(math.isfinite(score) for score in scores):
         raise ValueError("requires observations and at least one finite-evidence candidate")
-    return PriorSelection(max(range(len(scores)), key=scores.__getitem__), tuple(scores), count)
+    best = max(range(len(scores)), key=scores.__getitem__)
+    chosen = (best if score_error == 0 else next(
+        i for i, score in enumerate(scores) if math.isfinite(score)
+        and scores[best] / 2 - score / 2 <= score_error))
+    return PriorSelection(chosen, tuple(scores), count, score_error)
 
 
 @lru_cache(maxsize=32)

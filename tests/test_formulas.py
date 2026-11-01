@@ -1291,3 +1291,27 @@ def test_prior_selection_rejects_missing_or_incompatible_evidence() -> None:
                                 np.zeros((1, 3)), np.zeros(1))
     with pytest.raises(ValueError, match="alphabet"):
         formulas.select_prior([lambda length: wrong], [rows], base)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_selection_prefers_declared_priority_within_supplied_error(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rows = np.full((3, 3), -np.inf)
+    rows[0, 2] = rows[1, 0] = rows[2, 0] = 0.0
+    candidates = [lambda length: None, formulas.format_prior, formulas.complete_prior]
+    base = np.log(np.full(3, 1 / 3))
+    empirical = formulas.select_prior(candidates, [rows, rows], base)
+    assert empirical.index == 2 and empirical.score_error == 0.0
+    boundary = empirical.scores[2] / 2 - empirical.scores[1] / 2
+    narrow = formulas.select_prior(candidates, [rows, rows], base,
+                                  score_error=float(np.nextafter(boundary, 0)))
+    broad = formulas.select_prior(candidates, [rows, rows], base, score_error=boundary)
+    assert narrow.index == 2 and broad.index == 1
+    assert broad.scores == empirical.scores and broad.score_error == boundary
+    assert empirical.scores[2] <= broad.scores[1] + 2 * boundary + 1e-12
+    assert formulas.select_prior(candidates, [rows], base, score_error=1e300).index == 1
+    for invalid in (-1, np.nan, np.inf):
+        with pytest.raises(ValueError, match="score_error"):
+            formulas.select_prior(candidates, [rows], base, score_error=invalid)

@@ -2476,6 +2476,23 @@ prior that excludes some true sequences, when the readings rarely make the
 exclusion visible. For formulas whose truth lies outside the prior's
 support, §24.4 applies with the roles reversed: `R* = 1` whatever `R` says.
 
+**Theorem 27.9 (priority selection under uniform score error).** Suppose
+each candidate's reported total log score differs from its target score by
+at most `ε`. Let `M` be the largest reported score. Choose the first
+candidate in a declared priority order whose reported score is at least
+`M − 2ε`. Its target score is within `4ε` of the largest target score.
+For any competitor, its target score is at most its report plus `ε`, at
+most `M + ε`, at most the chosen report plus `3ε`, and hence at most
+the chosen target score plus `4ε`.
+
+The bound must hold simultaneously over the candidate set and be expressed
+in total-score units for the selection batch. This is a conditional
+deterministic guarantee, not an estimator of sampling uncertainty or a
+proof that finite scores obey the common-likelihood assumptions. Declaring
+broader supports first implements the support preference below when such
+an error bound is available. A zero supplied bound gives empirical
+maximization, without a population guarantee unless its premise holds.
+
 Two safeguards:
 
 1. Prefer the largest support among priors whose evidence is statistically

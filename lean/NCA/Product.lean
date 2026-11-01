@@ -148,4 +148,13 @@ theorem prior_evidence_identity {S : Type} [Fintype S]
   intro a _
   field_simp
 
+/-- Prior selection within twice a uniform score error loses at most four errors. -/
+theorem prior_selection_regret {best chosen reportedBest reportedChosen ε : ℝ}
+    (hbest : |best - reportedBest| ≤ ε)
+    (hchosen : |chosen - reportedChosen| ≤ ε)
+    (hnear : reportedBest ≤ reportedChosen + 2 * ε) : best ≤ chosen + 4 * ε := by
+  have hb := (abs_le.mp hbest).2
+  have hc := (abs_le.mp hchosen).1
+  linarith
+
 end NCA

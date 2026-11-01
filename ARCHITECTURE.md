@@ -733,7 +733,11 @@ empty inputs, score overflow and no finite-evidence candidate are errors.
 `format_prior(length)` exposes the syntax-only counter through the same
 automaton interface for comparison.
 
-This is empirical maximization of §27.5, not a proof of reader likelihood
-assumptions or a confidence-aware tie test. It does not install the selected
+By default this is empirical maximization of §27.5. An optional finite,
+nonnegative `score_error` admits candidates within twice that supplied
+total-score error of the best, choosing the first declared candidate.
+`PriorSelection` retains the bound. Theorem 27.9 and `prior_selection_regret`
+in `NCA/Product.lean` prove a conditional four-error regret bound. The API
+does not estimate sampling uncertainty or prove reader likelihood assumptions. It does not install the selected
 provider or certify an answering policy. Candidate order and calibration
 must be fixed before selection; deployment checking remains separate.
