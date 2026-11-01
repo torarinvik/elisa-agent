@@ -740,20 +740,21 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
                                not available or bound > delta, available))
         if available and bound <= delta:
             break
-        fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))
-        if floor is not None and floor(readings, item_risk, fixed) > delta:
-            break
-        if floor is None and certificate is None and additive_floor:
-            if _lower_sum([charges[i] for i in fixed]) > delta:
+        if floor is not None or (certificate is None and additive_floor):
+            fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))
+            if floor is not None and floor(readings, item_risk, fixed) > delta:
+                break
+            if floor is None and _lower_sum([charges[i] for i in fixed]) > delta:
                 break
         open_ = [i for i in charges if levels[i] + 1 < len(ladders[i])]
         if not open_:
             break
-        state = State(bound, sum(charges[i] for i in open_), cost)
-        if trace is not None:
-            trace.append(state)
-        if stop is not None and stop(state):
-            break
+        if trace is not None or stop is not None:
+            state = State(bound, sum(charges[i] for i in open_), cost)
+            if trace is not None:
+                trace.append(state)
+            if stop is not None and stop(state):
+                break
         if priority is None:
             i = max(open_, key=charges.__getitem__)
         elif priority is charge_per_cost:
