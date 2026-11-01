@@ -1,3 +1,4 @@
+import itertools
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -5,7 +6,7 @@ import numpy as np
 import pytest
 
 from nca.abi import (App, Contract, Manifest, Term, Var, canonical_type, elem_type, format_type,
-                     parse_type, seq_type, substitute)
+                     parse_type, resolve, seq_type, substitute, unify)
 from nca.planner import Apply, Given, Map
 from nca.router import Router, infer, sign_test
 
@@ -100,3 +101,39 @@ def test_malformed_and_noncanonical_types_are_rejected() -> None:
     with pytest.raises(ValueError, match="canonical"):
         Contract(("pair[a.v1, b.v1]",), C)
     assert Contract(("seq[?a]",), "length.v1").free == {"a"}
+
+
+def test_unify_returns_most_general_unifiers() -> None:
+    """Whenever a substitution unifies two terms, ``unify`` succeeds and returns
+    a unifier ``σ`` with ``τ = τ ∘ σ`` for every unifier ``τ`` (Theorem 2.7).
+    Unifiers ``τ`` are enumerated over ground terms of depth at most 1."""
+    rng = np.random.default_rng(5)
+    names = ["a", "b", "c"]
+    constants = [App("k0"), App("k1")]
+    ground = [*constants, *(App("box", (t,)) for t in constants),
+              *(App("pair", (s, t)) for s in constants for t in constants)]
+
+    def small(depth: int) -> Term:
+        if depth == 0 or rng.random() < 0.35:
+            return Var(str(rng.choice(names))) if rng.random() < 0.5 else constants[int(rng.integers(2))]
+        if rng.random() < 0.5:
+            return App("box", (small(depth - 1),))
+        return App("pair", (small(depth - 1), small(depth - 1)))
+
+    unified = factored = 0
+    for _ in range(300):
+        left, right = small(3), small(3)
+        binding: dict[str, Term] = {}
+        found = unify(left, right, binding)
+        unifiers = [dict(zip(names, values)) for values in itertools.product(ground, repeat=3)
+                    if substitute(left, dict(zip(names, values)))
+                    == substitute(right, dict(zip(names, values)))]
+        if not found:
+            assert not unifiers
+            continue
+        unified += 1
+        assert resolve(left, binding) == resolve(right, binding)
+        factored += bool(unifiers)
+        for tau in unifiers:
+            assert all(substitute(resolve(Var(v), binding), tau) == tau[v] for v in names)
+    assert unified > 50 and factored > 30

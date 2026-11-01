@@ -13,7 +13,7 @@ run the Python tests with `uv run pytest`.
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
 |---|---|---|
 | [§1 Types and contracts](theory/01-types-and-contracts.md) | `Contract`, `Terms` | `abi`, `registry` |
-| [§2 Planning](theory/02-planning.md) | `Planner`, `Check` | `planner.plan`, `router.infer` |
+| [§2 Planning](theory/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification` | `planner.plan`, `router.infer` |
 | [§3 Routing stability](theory/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
 | [§4 Compositional reliability](theory/04-compositional-reliability.md) | `Reliability` | |
 | [§5 Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md) | `Shift` | `pipeline` |
@@ -60,6 +60,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |
 | [2.5](theory/02-planning.md) | `InstanceOf.subst`, `answer_sound` | `Terms` |
 | [2.6](theory/02-planning.md) | `Term.subst_app_ne` | `Terms` |
+| [2.7](theory/02-planning.md) | `mgu_exists` | `Unification` |
 | [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
@@ -266,8 +267,9 @@ order; its forward closure counts every type a polymorphic producer has an
 instance for as reachable, so pruning stays sound.
 
 A contract with free variables is applied by pattern search (`planner._solutions`):
-its inputs are solved as pattern goals with `abi.unify` (most general unifiers
-with an occurs check), renaming each candidate contract's variables apart and
+its inputs are solved as pattern goals with `abi.unify`, which follows the
+steps of the proof of Theorem 2.7 (decomposition, the occurs check, variable
+elimination) and returns a most general unifier as a triangular binding, renaming each candidate contract's variables apart and
 backtracking over earlier inputs' alternatives. Applications are kept open
 (`_Open`) until the answer substitution is known, then closed with their
 bindings and slots; a candidate that leaves a variable undetermined is skipped

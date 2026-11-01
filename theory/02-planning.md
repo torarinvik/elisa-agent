@@ -114,4 +114,29 @@ Its completeness, that a pattern goal with an instance plannable within
 depth `n` is solved within depth `n`, rests on unification returning *most
 general* unifiers, through which every other solution factors.
 
+A substitution `σ` is a **most general unifier** of a finite list of
+equations `E` if it unifies every equation, and every unifier `τ` of `E`
+satisfies `τ = τ ∘ σ`: applying `σ` first loses nothing that `τ` needs.
+
+**Theorem 2.7 (most general unifiers).** If a finite list of equations has a
+unifier, it has a most general one.
+
+The proof follows the unification algorithm, by induction on the number of
+distinct variables in `E` and then on the total size of its terms:
+
+- `x = x` is dropped, which reduces the size.
+- `C(s₁, …, sₙ) = C(t₁, …, tₙ)` is replaced by the equations `sᵢ = tᵢ`, which
+  reduces the size and keeps the variables. Different roots have no unifier
+  (Theorem 2.6).
+- `x = t` with `x` occurring in `t ≠ x` has no unifier: any instance of `t`
+  is strictly larger than the same instance of `x`. This is the occurs check.
+- Otherwise `x = t`, or `t = x`, eliminates `x`: substitute `ρ = [x ↦ t]` into
+  the other equations. Their unifiers are exactly the unifiers of the original
+  list, restricted through `ρ`, and `x` no longer occurs, so the number of
+  variables drops. If `σ'` is most general for the rest, `σ' ∘ ρ` is most
+  general for the whole.
+
+The unification procedure follows these steps one by one, so it returns a
+most general unifier whenever any unifier exists.
+
 [Theory index](../THEORY.md)
