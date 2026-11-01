@@ -103,6 +103,22 @@ theorem restricted_risk_le {m s : ℝ} (hm : 0 ≤ m) (hs : 0 < s) (hs1 : s ≤ 
     nlinarith
   linarith
 
+/-- Grouping a finite class distribution preserves its total mass. -/
+theorem grouped_mass_sum {C G : Type} [Fintype C] [Fintype G] [DecidableEq G]
+    (p : C → ℝ) (group : C → G) :
+    ∑ g, ∑ c ∈ Finset.univ.filter (fun c => group c = g), p c = ∑ c, p c := by
+  classical
+  simp_rw [Finset.sum_filter]
+  rw [Finset.sum_comm]
+  simp
+
+/-- Each grouped mass of a nonnegative class distribution is nonnegative. -/
+theorem grouped_mass_nonneg {C G : Type} [Fintype C] [DecidableEq G]
+    (p : C → ℝ) (group : C → G) (hp : ∀ c, 0 ≤ p c) (g : G) :
+    0 ≤ ∑ c ∈ Finset.univ.filter (fun c => group c = g), p c := by
+  classical
+  exact Finset.sum_nonneg fun c _ => hp c
+
 /-- Priorities may be stale: normalizing them allocates the current risk exactly. -/
 theorem priority_allocation_sum (h : X → ℝ) (R : ℝ)
     (hH : (∑ x, h x) ≠ 0) :

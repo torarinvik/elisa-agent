@@ -99,6 +99,18 @@ ARITY_DECISION: tuple[tuple[int, ...], ...] = tuple(
 ARITY_ORDER: tuple[int, ...] = tuple(sorted(set(ARITY)))
 """The arity of each entry of ``ARITY_DECISION``."""
 
+def _arity_masses(readings: Sequence[Sequence[float]]) -> np.ndarray:
+    """Group raw readings without applying a calibration or normalization."""
+    native = getattr(_NATIVE, "grouped_masses", None)
+    if native is not None:
+        scores = np.asarray(readings, dtype=np.float64)
+        if scores.shape == (len(readings), len(VOCABULARY)):
+            return np.asarray(native(scores.reshape(-1), np.asarray(ARITY, dtype=np.int64),
+                                     len(ARITY_ORDER))).reshape(len(readings), len(ARITY_ORDER))
+    return np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
+                     for r in readings])
+
+
 DETECTION = ("none", "markov", "pairs")
 
 MAX_LENGTH = 10
@@ -288,8 +300,7 @@ class FormulaEvaluator:
         if not self.decode:
             return [VOCABULARY[int(np.argmax(r))] for r in readings]
         if state is None or self.prior is not None:
-            masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
-                               for r in readings])
+            masses = _arity_masses(readings)
             with np.errstate(divide="ignore"):
                 prior = None if self.prior is None else self._arity_prior(len(readings))
                 if self.prior is None:
@@ -311,15 +322,14 @@ class FormulaEvaluator:
             changed = (() if state.answer_readings is None else
                        np.flatnonzero(np.any(current != state.answer_readings, axis=1)))
             if state.answer_cursor is None:
-                masses = np.array([[sum(r[c] for c in group) for group in ARITY_DECISION]
-                                   for r in readings])
+                masses = _arity_masses(readings)
                 with np.errstate(divide="ignore"):
                     state.answer_cursor = Split(np.log(masses), ARITY_ORDER)
             anchor = 0
             scored = None
             for k in changed:
                 anchor = int(k)
-                row = np.array([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+                row = _arity_masses([readings[k]])[0]
                 with np.errstate(divide="ignore"):
                     scored = state.answer_cursor.climb(anchor, np.log(row))
             state.answer_readings = current.copy()
@@ -345,8 +355,7 @@ class FormulaEvaluator:
         changed = (() if state.answer_readings is None else
                    np.flatnonzero(np.any(current != state.answer_readings, axis=1)))
         if state.answer_band is None:
-            masses = np.array([[sum(r[c] for c in g) for g in ARITY_DECISION]
-                               for r in readings])
+            masses = _arity_masses(readings)
             totals = masses.sum(axis=1, keepdims=True)
             if np.any(totals <= 0):
                 return None
@@ -357,7 +366,7 @@ class FormulaEvaluator:
             state.answer_band_result = state.answer_band.result()
         else:
             for k in changed:
-                row = np.array([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+                row = _arity_masses([readings[k]])[0]
                 total = row.sum()
                 if total <= 0:
                     state.answer_band = None

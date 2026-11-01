@@ -509,3 +509,42 @@ def test_zero_early_leaf_preserves_existing_generator_stream() -> None:
     default = FormulaDataset("test", 10, 3, 0.1, 809)
     explicit = FormulaDataset("test", 10, 3, 0.1, 809, early_leaf=0.0)
     assert [default.sample(i) for i in range(10)] == [explicit.sample(i) for i in range(10)]
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_raw_arity_grouping_preserves_sums_and_inputs(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    rng = np.random.default_rng(1702)
+    source = rng.dirichlet(np.ones(len(VOCABULARY)), size=34)
+    source[0] = 0
+    source[2] = [1e-300, 1e-200, 0, 1e200, 1e-300, 1e199]
+    source.setflags(write=False)
+    # Strided views exercise the CPython boundary's contiguous flattened snapshot.
+    rows = source[::2]
+    expected = np.array([[sum(r[c] for c in g) for g in ARITY_DECISION] for r in rows])
+    before = source.copy()
+    for readings in (rows, rows.tolist(), tuple(map(tuple, rows))):
+        np.testing.assert_allclose(word_module._arity_masses(readings), expected, rtol=3e-16, atol=0)
+        if not reference and isinstance(readings, list):
+            precise = [[sum(r[c] for c in g) for g in ARITY_DECISION] for r in readings]
+            np.testing.assert_array_equal(word_module._arity_masses(readings), precise)
+    np.testing.assert_array_equal(source, before)
+
+
+def test_native_grouped_masses_handles_empty_and_reordered_groups() -> None:
+    from nca.modules import words as word_module
+
+    native = getattr(word_module._NATIVE, "grouped_masses", None)
+    if native is None:
+        pytest.skip("requires the native grouping kernel")
+    groups = np.array([2, 0, 2, 3, 0, 2], dtype=np.int64)
+    scores = np.arange(18, dtype=np.float64).reshape(3, 6)
+    expected = [[sum(row[c] for c in range(6) if groups[c] == g) for g in range(5)]
+                for row in scores]
+    np.testing.assert_array_equal(np.array(native(scores.reshape(-1), groups, 5)).reshape(3, 5),
+                                  expected)
+    assert native(np.empty(0), groups, 5) == []

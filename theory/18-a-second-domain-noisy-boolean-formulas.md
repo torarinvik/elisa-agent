@@ -77,6 +77,14 @@ outside the chosen group. With singleton groups this is the restricted risk
 `1 − max_C p / p(C)` of §16. With `C` all classes and singleton groups, it is
 the class risk `1 − max p`.
 
+For a total group map `g : C → G`, define `q(a) = Σ_{c : g(c)=a} p(c)`.
+Every class contributes to exactly one group, so `Σ_a q(a) = Σ_c p(c)`;
+nonnegative class masses give nonnegative group masses. Thus grouping a
+normalized class distribution produces a normalized group distribution,
+including zero mass for empty groups. Raw answer decoding and calibrated
+risk estimation can use this same grouping operation on their respective
+readings without identifying those readings with each other.
+
 **Theorem 18.1.** If the chosen
 group contains the most probable class `a`, then `p(a) ≤ p(g*)`, so the group
 risk is at most the class risk `1 − p(a) / p(C)`. Coarser decisions never

@@ -478,6 +478,17 @@ as borrowed slices. The Python child-list route remains the fallback when
 this export is absent. Existing format and certificate theorems cover the
 composition; neither decoding weights nor certificate tie rules change.
 
+`native.decoding.grouped_masses` sums finite nonnegative row entries into
+caller-declared class groups. `FormulaEvaluator.words` uses it to prepare raw
+arity masses for stateless, prior, exact-cursor and banded decoding; the
+Python grouped sums remain the fallback. No calibration or normalization is
+applied by grouping. `grouped_mass_sum` and `grouped_mass_nonneg` in
+`NCA/Selective.lean` prove preservation of total mass and nonnegativity over
+real numbers (§18.3). The native loop uses compensated additions in class
+order, matching the runtime's Python float tuples in tested comparisons;
+NumPy scalar sums may round differently. This is not a formal floating-point
+error bound.
+
 `native.decoding.grouped_argmax` performs row-wise selection within supplied
 class groups. `FormulaEvaluator.words` uses it after arity decoding; group ids
 and scores are arguments, so the kernel is independent of the vocabulary.
