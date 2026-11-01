@@ -40,6 +40,14 @@ This composition is associative, with identity `(1, 0)`. Automaton segments
 must also retain their boundary states; the scalar identity alone does not
 prove a stateful incremental implementation or a floating-point error bound.
 
+**Theorem 27.18 (matching boundary states).** For a left segment ending at
+state `j` and a right segment starting at `j`, compose their selected/other
+mass pairs by Theorem 27.17 and sum over `j`. The two resulting components
+sum to the usual boundary-state product of total segment masses, and remain
+nonnegative when the input masses are nonnegative. This avoids counting pairs
+of segments whose boundary states do not match. It does not yet establish the
+associativity or numerical accuracy of a particular cached implementation.
+
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format
 state `s` with a prior state `t`. Reading `a` moves to `(δ s a, ε t a)` with

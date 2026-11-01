@@ -275,6 +275,37 @@ theorem partitionCompose_nonneg (a b : ℝ × ℝ)
   exact ⟨mul_nonneg ha.1 hb.1,
     add_nonneg (mul_nonneg ha.2 (add_nonneg hb.1 hb.2)) (mul_nonneg ha.1 hb.2)⟩
 
+/-- Compose segment partitions while summing only matching boundary states. -/
+def partitionBoundaryCompose {S : Type} [Fintype S]
+    (left right : S → S → ℝ × ℝ) (start finish : S) : ℝ × ℝ :=
+  (∑ middle, (partitionCompose (left start middle) (right middle finish)).1,
+   ∑ middle, (partitionCompose (left start middle) (right middle finish)).2)
+
+/-- The two partition components sum to the ordinary boundary-state product. -/
+theorem partitionBoundary_total {S : Type} [Fintype S]
+    (left right : S → S → ℝ × ℝ) (start finish : S) :
+    (partitionBoundaryCompose left right start finish).1 +
+      (partitionBoundaryCompose left right start finish).2 =
+    ∑ middle, ((left start middle).1 + (left start middle).2) *
+      ((right middle finish).1 + (right middle finish).2) := by
+  simp only [partitionBoundaryCompose, ← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro middle _
+  dsimp [partitionCompose]
+  ring
+
+/-- Boundary composition preserves nonnegative selected and alternative mass. -/
+theorem partitionBoundary_nonneg {S : Type} [Fintype S]
+    (left right : S → S → ℝ × ℝ)
+    (hl : ∀ i j, 0 ≤ (left i j).1 ∧ 0 ≤ (left i j).2)
+    (hr : ∀ i j, 0 ≤ (right i j).1 ∧ 0 ≤ (right i j).2)
+    (start finish : S) :
+    0 ≤ (partitionBoundaryCompose left right start finish).1 ∧
+      0 ≤ (partitionBoundaryCompose left right start finish).2 := by
+  constructor <;> apply Finset.sum_nonneg <;> intro middle _
+  · exact (partitionCompose_nonneg _ _ (hl start middle) (hr middle finish)).1
+  · exact (partitionCompose_nonneg _ _ (hl start middle) (hr middle finish)).2
+
 /-- A one-symbol factor product is the factor raised to its occurrence count. -/
 theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
     (symbols.map (fun a => if a = key then factor else 1)).prod =
