@@ -528,3 +528,10 @@ future certified roundoff envelope would enter selective answering. They do
 not supply such an envelope for the kernels and do not change `refine`'s
 threshold. Model validity, numerical error certification and empirical
 cross-backend agreement remain separate obligations.
+
+Risk-control audits certify the complete executed policy, including its
+numerical backend and fixed calibration. Native-kernel changes should be
+included in a new audit rather than inheriting certification from a different
+backend solely because sampled outputs agree. The existing `logic --shift`
+runner can audit the current correction path without a pointwise roundoff
+allowance, subject to the sampling assumptions of §17.

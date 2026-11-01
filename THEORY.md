@@ -1749,6 +1749,13 @@ arbitrarily small numerical changes can change a threshold decision.
 This concerns numerical evaluation of a valid bound, separately from
 whether its statistical modeling assumptions hold.
 
+Without a certified pointwise numerical allowance, the distribution-level
+audit of §17 can instead certify the entire answering policy. Candidate
+policies must be fixed independently of the checking sample and must use
+the same numerical decision rule during checking and deployment. A change
+to that rule produces a new policy; observed agreement on a finite sample
+does not itself transfer the earlier policy's guarantee.
+
 The decoded sequence must still be recovered after each step, to evaluate
 the formula and find `E`. It too is read from the split, without a sweep.
 

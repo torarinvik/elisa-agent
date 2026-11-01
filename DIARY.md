@@ -1433,6 +1433,28 @@ shows why tiny empirical differences cannot prove decision invariance.
 No runtime guard or arbitrary epsilon was added: observed maxima are not
 certified error bounds, and a derived numerical envelope remains future work.
 
+**Audit the compiled answering policy.** The native correction policy was
+checked at depth 4 under noise 0.2, using the existing reader calibrated on
+100 validation formulas at noise 0.1, seed 6. One audit draw used independent
+fit/check halves; evaluation used 100 formulas. With 60 formulas per half,
+neither the 5% nor 1% target certified a policy. With 240 per half, the 5%
+target certified inflation 1, answering 91/100 evaluation formulas with one
+error (Wilson 95% interval 0.0019–0.0596). Its checking sample had seven
+errors among 234 answers, with Clopper–Pearson upper bound 0.049790 at
+alpha 0.1. The fixed-sequence testing order was chosen on the fit half.
+
+At 1%, none certified. The zero-error candidate answered 110 checking
+formulas, giving upper bound 0.020715; other candidates had errors. The
+uncontrolled evaluation policy answered 88/100 with no errors, which does
+not establish certification. The two audit sizes use different checking
+subsets, so the size comparison is not a controlled causal estimate.
+
+The policy's current numerical backend is now part of this audit's scope.
+The §17 guarantee is conditional on the audit/deployment sampling assumptions;
+one draw and one evaluation sample do not demonstrate repeated-audit validity
+or transfer to other depths/noise levels. This uses existing risk-control
+code and proofs rather than adding an unproved numerical epsilon.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
