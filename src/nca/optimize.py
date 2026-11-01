@@ -59,10 +59,7 @@ def _instances(index: ProducerIndex, available: Sequence[TypeId], goal: TypeId,
     """Each module producing ``goal`` with each binding it may be applied at:
     the one the goal selects (THEORY §2.1), extended, for a contract with
     free variables, by every instance pattern search determines (§2.2)."""
-    for module in index.modules:
-        binding = module.manifest.contract.producing(goal)
-        if binding is None:
-            continue
+    for _, module, binding in index.candidates(goal, index.size):
         if module.manifest.contract.free:
             for full in free_bindings(index, available, module, binding, fuel):
                 yield module, full

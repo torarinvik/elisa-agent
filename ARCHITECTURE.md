@@ -280,6 +280,8 @@ the runtime uses for message types. `index.ProducerIndex` keeps polymorphic prod
 apart from those indexed by exact output type and merges both in installation
 order; its forward closure counts every type a polymorphic producer has an
 instance for as reachable, so pruning stays sound.
+Both cost planners use the same ordered producer index when enumerating
+candidate instances; free-variable instances are expanded after lookup.
 
 A contract with free variables is applied by pattern search (`planner._solutions`):
 its inputs are solved as pattern goals with `abi.unify`, which follows the

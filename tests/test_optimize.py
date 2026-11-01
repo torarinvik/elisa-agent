@@ -72,6 +72,18 @@ def random_library(rng: random.Random) -> list[Stub]:
     return modules
 
 
+def test_cost_planners_preserve_order_between_exact_and_generic_producers() -> None:
+    exact = Stub(Manifest("exact", "1.0.0", Contract(("a",), "box[a]")))
+    generic = Stub(Manifest("generic", "1.0.0", Contract(("?x",), "box[?x]")))
+    for modules in ([exact, generic], [generic, exact]):
+        result = plan_min(modules, ("a",), "box[a]", length=1, fuel=2)
+        assert result is not None and isinstance(result[0], Apply)
+        assert result[0].module is modules[0]
+        frontier = plan_pareto(modules, ("a",), "box[a]", length=1, errors={}, fuel=2)
+        assert frontier and isinstance(frontier[0].plan, Apply)
+        assert frontier[0].plan.module is modules[0]
+
+
 def test_plan_min_is_sound_and_optimal_against_exhaustive_search() -> None:
     rng = random.Random(0)
     for _ in range(400):
