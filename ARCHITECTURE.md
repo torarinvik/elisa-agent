@@ -581,3 +581,12 @@ deterministic consumers. Audit fitting uses this API to share thresholds for eac
 candidate order as independent solves. Checking retains lazy candidate
 evaluation and irreversible-rejection stopping; its labels do not influence
 the fit trajectory or ordering.
+
+`formulas.CertifiedSplit` manages a fixed-reference `Split` band and widens
+it until the relative tail and exact-maximum conditions of §23.3 hold.
+Single-row updates reuse native cursor sweeps; rebuilds preserve the reference.
+Its `Banded` result bounds model risk with the requested slack. It validates
+probability row mass and arities 0–2; zero accepted mass returns `None`.
+The evaluator has not yet adopted this wrapper. Storage remains full-sized
+arrays with restricted active bands, and floating-point enclosure is not
+certified by this wrapper.

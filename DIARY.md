@@ -1553,6 +1553,22 @@ reported uncontrolled coverage 0.85 with one error and no certified policy.
 The timing comparison followed count verification, so both paths had warm
 calibration; it remains one ordered pair, not a broad performance guarantee.
 
+**Certified banded cursor wrapper.** `CertifiedSplit` combines fixed-reference
+cursor updates with widening until relative tail slack and the maximum
+certificate hold (existing Theorems 23.1–23.10). Tests compare 20 evolving
+states against full decoding on native and NumPy paths, checking best weight
+and risk enclosure to numerical tolerance. They also cover invalid row mass,
+zero accepted mass and invalid slack. The evaluator still uses exact cursors.
+
+A synthetic depth-8 formula (572 words, seed 33) assigned probability 0.998
+to each true arity, then changed 100 random rows to probability 0.98. Including
+initialization and tracing, the exact cursor took 0.05365 s; the certified
+banded wrapper took 0.01362 s with seven widenings and final width 57. Final
+risk slack was 1.36e-5 against the requested 1e-4. This is a concentrated-weight
+cursor benchmark, not a real-reader or full-refinement speedup. Full-sized
+backing arrays remain, and rigorous floating-point certification remains
+separate from the model's tail certificate.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

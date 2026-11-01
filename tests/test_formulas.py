@@ -608,3 +608,38 @@ def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -
     assert formulas.sequence_log_weight(rows, alphabet, selected) == -np.inf
     with pytest.raises(ValueError):
         formulas.sequence_log_weight(rows, alphabet, selected[:-1])
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_certified_cursor_preserves_risk_bounds(reference: bool,
+                                                monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(32)
+    weights = np.log(rng.dirichlet(np.full(3, 0.3), size=35))
+    cursor = formulas.CertifiedSplit(weights, slack=1e-4)
+    for step in range(20):
+        if step:
+            k = int(rng.integers(len(weights)))
+            weights[k] = np.log(rng.dirichlet(np.full(3, 0.3)))
+            banded = cursor.climb(k, weights[k])
+        else:
+            banded = cursor.result()
+        exact = decode(weights)
+        assert banded is not None and exact is not None and banded.exact
+        risk = exact.risk(weights, (0, 1, 2), banded.arities)
+        assert risk - 1e-12 <= banded.risk <= risk + 1e-4 + 1e-12
+        selected = formulas.sequence_log_weight(weights, (0, 1, 2), banded.arities)
+        best = formulas.sequence_log_weight(weights, (0, 1, 2), exact.arities)
+        assert selected == pytest.approx(best, abs=1e-12)
+
+
+def test_certified_cursor_rejects_invalid_weights_and_handles_zero_mass() -> None:
+    with pytest.raises(ValueError):
+        formulas.CertifiedSplit(np.zeros((2, 3)))  # Row mass is three, not at most one.
+    with pytest.raises(ValueError):
+        formulas.CertifiedSplit(np.log(np.full((2, 3), 1 / 3)), slack=0.0)
+    with pytest.raises(ValueError):
+        formulas.CertifiedSplit(np.empty((0, 3)))
+    cursor = formulas.CertifiedSplit(np.full((3, 3), -np.inf))
+    assert cursor.result() is None

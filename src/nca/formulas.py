@@ -498,6 +498,79 @@ class Split:
         return result
 
 
+class CertifiedSplit:
+    """Fixed-reference banded cursor with relative-tail and maximum certificates.
+
+    Uses the native Split sweeps when built. Weights must be probabilities
+    over arities 0–2; bounds refer to this decoding model (THEORY §23.3–23.4).
+    """
+
+    def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
+                 slack: float = 1e-4) -> None:
+        if not 0 < slack < 1:
+            raise ValueError("slack must be strictly between zero and one")
+        self.log_probs = np.array(log_probs, dtype=np.float64)
+        self.alphabet = tuple(alphabet)
+        if (self.log_probs.ndim != 2 or not len(self.log_probs)
+                or self.log_probs.shape[1] != len(alphabet) or not self.alphabet
+                or len(set(self.alphabet)) != len(self.alphabet)
+                or any(a not in (0, 1, 2) for a in alphabet)):
+            raise ValueError("requires nonempty rows of arity 0–2 weights")
+        self._validate(self.log_probs)
+        self.slack = slack
+        self.reference = np.argmax(self.log_probs, axis=1)
+        self.centre = 1 + np.concatenate(([0], np.cumsum(
+            np.asarray(alphabet)[self.reference] - 1)))
+        self.changes = band_changes(self.log_probs, self.reference, slack)[0]
+        self.rebuilds = 0
+        self.split = self._build()
+
+    @staticmethod
+    def _validate(rows: np.ndarray) -> None:
+        if (np.any(np.isnan(rows)) or np.any(rows > 0)
+                or np.any(np.exp(rows).sum(axis=-1) > 1 + 1e-12)):
+            raise ValueError("rows must contain log probabilities with mass at most one")
+
+    def _build(self) -> Split:
+        return Split(self.log_probs, self.alphabet, self.centre, 2 * (self.changes - 1))
+
+    def result(self, k: int = 0,
+               scores: tuple[float, float] | None = None) -> Banded | None:
+        """Widen until both relative slack and exact-maximum certificates hold."""
+        m = len(self.log_probs)
+        probabilities = np.exp(self.log_probs)
+        off = float(np.sum(probabilities.sum(axis=1)
+                           - probabilities[np.arange(m), self.reference]))
+        while True:
+            half = 2 * (self.changes - 1)
+            log_tail = (-math.inf if half > m or off <= 0 else
+                        self.changes * math.log(off) - math.lgamma(self.changes + 1))
+            log_z, log_x = (scores if scores is not None else
+                            self.split.scores(k, self.log_probs[k]))
+            if (math.isfinite(log_z) and log_tail <= math.log(self.slack) + log_z
+                    and log_x >= log_tail):
+                _, arities = self.split.best(k)
+                upper = float(np.logaddexp(log_z, log_tail))
+                risk = max(0.0, float(-np.expm1(min(0.0, log_x - upper))))
+                return Banded(arities, risk, True, self.changes, 2 * half + 1)
+            if half > m:
+                return None
+            self.changes += 1
+            self.rebuilds += 1
+            self.split = self._build()
+            scores = None
+
+    def climb(self, k: int, row: np.ndarray) -> Banded | None:
+        """Replace one probability row while retaining the reference and band."""
+        row = np.asarray(row, dtype=np.float64)
+        if row.shape != (len(self.alphabet),):
+            raise ValueError("row width must match the alphabet")
+        self._validate(row)
+        scores = self.split.climb(k, row)
+        self.log_probs[k] = row
+        return self.result(k, scores)
+
+
 @dataclass(frozen=True)
 class FormulaSample:
     words: tuple[str, ...]
