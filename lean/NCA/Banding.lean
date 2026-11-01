@@ -160,6 +160,19 @@ theorem tail_cons (w : α → ℝ) (r : α) (ps : List ((α → ℝ) × α)) (j 
     · rw [if_pos hj, if_pos (by omega)]
     · rw [if_neg hj, if_neg (by omega), mul_zero]
 
+/-- Scaling each row scales every tail by the product of its row factors. -/
+theorem tail_row_scale : ∀ (rows : List (ℝ × ((α → ℝ) × α))) (j : ℕ),
+    tail as (rows.map fun p => ((fun a => p.1 * p.2.1 a), p.2.2)) j =
+      (rows.map Prod.fst).prod * tail as (rows.map Prod.snd) j
+  | [], j => by simp
+  | (c, (w, r)) :: rows, j => by
+    simp only [List.map_cons, List.prod_cons]
+    rw [tail_cons, tail_cons, ← List.sum_map_mul_left]
+    congr 1
+    refine List.map_congr_left fun a _ => ?_
+    simp only [tail_row_scale rows]
+    ring
+
 omit [DecidableEq α] in
 theorem weightOf_nonneg : ∀ (ws : List (α → ℝ)), (∀ w ∈ ws, ∀ a, 0 ≤ w a) →
     ∀ l : List α, 0 ≤ weightOf ws l
@@ -225,6 +238,41 @@ theorem tail_le_esym : ∀ (ps : List ((α → ℝ) × α)),
       calc onMass as w r * tail as ps (j + 1) + offMass as w r * tail as ps j
           ≤ onMass as w r * esym _ (j + 1) + offMass as w r * esym _ j := by gcongr
         _ ≤ esym _ (j + 1) + offMass as w r * esym _ j := by nlinarith
+
+/-- A row-scaled subprobability tail obeys the scaled polynomial bound. -/
+theorem scaled_rows_tail_le (rows : List (ℝ × ((α → ℝ) × α))) (j : ℕ)
+    (hf : ∀ p ∈ rows, 0 ≤ p.1)
+    (hrows : ∀ p ∈ rows, (∀ a, 0 ≤ p.2.1 a) ∧
+      onMass as p.2.1 p.2.2 + offMass as p.2.1 p.2.2 ≤ 1) :
+    tail as (rows.map fun p => ((fun a => p.1 * p.2.1 a), p.2.2)) j ≤
+      (rows.map Prod.fst).prod *
+        ((rows.map fun p => offMass as p.2.1 p.2.2).sum ^ j / j.factorial) := by
+  have hp : 0 ≤ (rows.map Prod.fst).prod := List.prod_nonneg fun x hx => by
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
+    exact hf p hp
+  have hr : ∀ p ∈ rows.map Prod.snd, (∀ a, 0 ≤ p.1 a) ∧
+      onMass as p.1 p.2 + offMass as p.1 p.2 ≤ 1 := by
+    intro p hp
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
+    exact hrows q hq
+  have ho : ∀ x ∈ rows.map (fun p => offMass as p.2.1 p.2.2), 0 ≤ x := by
+    intro x hx
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
+    exact List.sum_nonneg fun y hy => by
+      obtain ⟨a, _, rfl⟩ := List.mem_map.mp hy
+      exact (hrows p hp).1 a
+  have he := factorial_mul_esym_le _ ho j
+  have hj : (0 : ℝ) < j.factorial := by exact_mod_cast Nat.factorial_pos j
+  have hb : esym (rows.map fun p => offMass as p.2.1 p.2.2) j ≤
+      (rows.map fun p => offMass as p.2.1 p.2.2).sum ^ j / j.factorial := by
+    apply (le_div_iff₀ hj).2
+    nlinarith
+  rw [tail_row_scale]
+  apply mul_le_mul_of_nonneg_left _ hp
+  calc tail as (rows.map Prod.snd) j
+      ≤ esym ((rows.map Prod.snd).map fun p => offMass as p.1 p.2) j :=
+        tail_le_esym as _ hr j
+    _ ≤ _ := by simpa [List.map_map, Function.comp_def] using hb
 
 /-- **The band.** Sequences of equal length with symbols at most 2 that differ
 in `d` positions have sums at most `2 d` apart: a sequence within `d`

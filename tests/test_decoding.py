@@ -442,6 +442,30 @@ def test_band_tail_accounts_for_tolerated_row_excess(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+def test_scaled_tail_bound_against_enumerated_sequences(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.array([[0.7, 0.2, 0.1000000000004],
+                            [0.3, 0.6000000000004, 0.1],
+                            [0.2000000000004, 0.3, 0.5],
+                            [0.4, 0.4, 0.2000000000004]]))
+    reference = [0, 1, 2, 0]
+    log_off, log_factor = decoding._tail_mass_summary(rows, reference)
+    assert log_factor > 0
+    with localcontext() as context:
+        context.prec = 80
+        weights = [[Decimal.from_float(float(x)).exp() for x in row] for row in rows]
+        for changes in range(1, len(reference) + 1):
+            tail = sum((math.prod(weights[k][a] for k, a in enumerate(sequence))
+                        for sequence in itertools.product(range(3), repeat=len(reference))
+                        if sum(a != r for a, r in zip(sequence, reference)) >= changes),
+                       Decimal(0))
+            bound = math.exp(decoding._band_log_tail(log_off, changes, log_factor))
+            assert Decimal.from_float(bound) >= tail * Decimal("0.99999999999999")
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_band_tail_accounts_for_excess_after_cursor_update(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
