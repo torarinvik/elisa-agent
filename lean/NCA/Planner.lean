@@ -85,6 +85,14 @@ theorem zero_fuel_nonempty_inputs (lib : List (Contract Ty)) (avail : List Ty)
     traverse (plan lib avail 0) (input :: rest) = none := by
   simp [traverse, plan]
 
+/-- Neither child of a map can be planned with zero fuel. -/
+theorem zero_fuel_map_children (lib : List (Contract Ty)) (avail : List Ty)
+    (a e : Ty) :
+    (match plan lib [a] 0 e, plan lib avail 0 (seq a) with
+     | some body, some src => some (Plan.map a body src)
+     | _, _ => none) = none := by
+  simp [plan]
+
 /-- **Soundness.** Any plan returned by the planner is well-typed. -/
 theorem plan_sound (lib : List (Contract Ty)) :
     ∀ (n : Nat) (avail : List Ty) (t : Ty) (p : Plan Ty), plan lib avail n t = some p →

@@ -307,7 +307,8 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
         for args, solved in _solve_inputs(index, limit, available, inputs, extended,
                                           fuel, memo):
             yield _Open(module, args, names, fuel), solved
-    if isinstance(goal, App) and goal.name == "seq" and len(goal.args) == 1:
+    # A map requires a source and body at a strictly smaller positive depth.
+    if fuel > 1 and isinstance(goal, App) and goal.name == "seq" and len(goal.args) == 1:
         found, order = index.element_candidates(available, limit)
         candidates: Iterable[TypeId] = found
         body_goal = resolve(goal.args[0], binding)

@@ -504,6 +504,24 @@ def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     assert any(partial == Given(TEXT) for partial, _ in available)
 
 
+def test_pattern_sequence_at_one_depth_needs_no_map_candidates(monkeypatch) -> None:
+    from nca import planner
+
+    seed = fn("seed-sequence", [], f"seq[{INT}]", lambda: [])
+    index = ProducerIndex([seed])
+    memo = index.memo(index.size)
+
+    def unexpected(*args):
+        raise AssertionError("a map cannot be planned at depth one")
+
+    monkeypatch.setattr(index, "element_candidates", unexpected)
+    results = list(planner._solutions(index, index.size, (f"seq[{TEXT}]",),
+                                      App("seq", (Var("element"),)), {}, 1, memo))
+    closed = [planner._close(index, index.size, partial, binding, memo)
+              for partial, binding in results]
+    assert closed == [Given(f"seq[{TEXT}]"), Apply(seed, ())]
+
+
 def test_pattern_helpers_stop_at_nonpositive_depth() -> None:
     from nca import planner
 

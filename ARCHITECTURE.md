@@ -57,6 +57,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.1](theory/02-planning.md) | `plan_sound` | `Planner` |
 | [2.1](theory/02-planning.md) | `planShallow_sound` | `Routing` |
 | [2.2](theory/02-planning.md) | `zero_fuel_nonempty_inputs` | `Planner` |
+| [2.2](theory/02-planning.md) | `zero_fuel_map_children` | `Planner` |
 | [2.2](theory/02-planning.md) | `renVar_ne_external`, `renVar_injective` | `PatternSearch` |
 | [2.2](theory/02-planning.md) | `subst_ground` | `PatternSearch` |
 | [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |

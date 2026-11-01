@@ -92,6 +92,8 @@ fixes `α`.
 At depth one, an application with any inputs cannot succeed: its input search
 has depth zero. Such candidates can be skipped before renaming their variables;
 zero-input candidates and available inputs must still be considered.
+Likewise, a map cannot succeed at depth one because both its source and body
+would need plans at depth zero. Its candidates need not be enumerated.
 For a partially instantiated contract, a ground input is unchanged by every
 later substitution. If that input has no plan at the required depth, the
 contract cannot apply, regardless of solutions to earlier pattern inputs.
