@@ -523,6 +523,7 @@ class CertifiedSplit:
             np.asarray(alphabet)[self.reference] - 1)))
         self.changes = band_changes(self.log_probs, self.reference, slack)[0]
         self.rebuilds = 0
+        self.log_upper: float | None = None
         self.split = self._build()
 
     @staticmethod
@@ -537,6 +538,7 @@ class CertifiedSplit:
     def result(self, k: int = 0,
                scores: tuple[float, float] | None = None) -> Banded | None:
         """Widen until both relative slack and exact-maximum certificates hold."""
+        self.log_upper = None
         m = len(self.log_probs)
         probabilities = np.exp(self.log_probs)
         off = float(np.sum(probabilities.sum(axis=1)
@@ -551,6 +553,7 @@ class CertifiedSplit:
                     and log_x >= log_tail):
                 _, arities = self.split.best(k)
                 upper = float(np.logaddexp(log_z, log_tail))
+                self.log_upper = upper
                 risk = max(0.0, float(-np.expm1(min(0.0, log_x - upper))))
                 return Banded(arities, risk, True, self.changes, 2 * half + 1)
             if half > m:
@@ -559,6 +562,22 @@ class CertifiedSplit:
             self.rebuilds += 1
             self.split = self._build()
             scores = None
+
+    def sequence_risk(self, arities: Sequence[int]) -> float:
+        """Upper-bound any accepted sequence's risk, including outside the band.
+
+        Requires a successful result for the current rows. The normalizer bound
+        and relative slack apply independently of which accepted answer is scored
+        (THEORY §23.3). This is a model bound, not a floating-point enclosure.
+        """
+        if len(arities) != len(self.log_probs) or parse(arities) is None:
+            raise ValueError("sequence must be a complete prefix formula of matching length")
+        if any(a not in self.alphabet for a in arities):
+            raise ValueError("sequence contains an arity outside the alphabet")
+        if self.log_upper is None:
+            raise ValueError("requires a successful result for the current rows")
+        weight = sequence_log_weight(self.log_probs, self.alphabet, arities)
+        return max(0.0, float(-np.expm1(min(0.0, weight - self.log_upper))))
 
     def climb(self, k: int, row: np.ndarray) -> Banded | None:
         """Replace one probability row while retaining the reference and band."""

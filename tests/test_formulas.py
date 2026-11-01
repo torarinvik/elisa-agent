@@ -632,6 +632,12 @@ def test_certified_cursor_preserves_risk_bounds(reference: bool,
         selected = formulas.sequence_log_weight(weights, (0, 1, 2), banded.arities)
         best = formulas.sequence_log_weight(weights, (0, 1, 2), exact.arities)
         assert selected == pytest.approx(best, abs=1e-12)
+        # A valid answer may differ from the maximum and lie outside its band.
+        alternate = (1,) * (len(weights) - 1) + (0,)
+        alternate_risk = exact.risk(weights, (0, 1, 2), alternate)
+        assert alternate_risk - 1e-12 <= cursor.sequence_risk(alternate)
+        assert cursor.sequence_risk(alternate) <= alternate_risk + 1e-4 + 1e-12
+        assert cursor.sequence_risk(banded.arities) == pytest.approx(banded.risk, abs=1e-12)
 
 
 def test_certified_cursor_rejects_invalid_weights_and_handles_zero_mass() -> None:
@@ -663,3 +669,31 @@ def test_banded_answer_session_matches_exact_words(reference: bool,
     assert state.answer_band is not None
     assert state.answer_band_result is not None and state.answer_band_result.exact
     assert evaluator.words(np.zeros_like(readings), state) == [VOCABULARY[0]] * len(readings)
+
+
+def test_certified_sequence_risk_requires_current_normalizer_and_valid_answer() -> None:
+    cursor = formulas.CertifiedSplit(np.log(np.full((3, 3), 1 / 3)))
+    with pytest.raises(ValueError, match="successful result"):
+        cursor.sequence_risk((2, 0, 0))
+    assert cursor.result() is not None
+    for invalid in ((0,), (0, 0, 0), (2, 0, 9)):
+        with pytest.raises(ValueError):
+            cursor.sequence_risk(invalid)
+    assert cursor.climb(0, np.full(3, -np.inf)) is None
+    with pytest.raises(ValueError, match="successful result"):
+        cursor.sequence_risk((2, 0, 0))
+
+
+def test_certified_sequence_risk_scores_answer_outside_band() -> None:
+    weights = np.full((9, 3), 1e-9)
+    weights[:8, 1] = 1 - 2e-9
+    weights[8, 0] = 1 - 2e-9
+    cursor = formulas.CertifiedSplit(np.log(weights))
+    result = cursor.result()
+    assert result is not None and result.width == 1
+    alternate = (2, 2, 2, 2, 0, 0, 0, 0, 0)
+    assert 1 + alternate[0] - 1 > cursor.split.high[1]
+    exact = decode(np.log(weights))
+    assert exact is not None
+    risk = exact.risk(np.log(weights), (0, 1, 2), alternate)
+    assert risk - 1e-12 <= cursor.sequence_risk(alternate) <= risk + 1e-4 + 1e-12

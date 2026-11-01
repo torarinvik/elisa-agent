@@ -1681,6 +1681,12 @@ fraction of the band's own weight.
 *Proof.* The difference is `x (Z_band + U − Z) / (Z (Z_band + U))`. The
 numerator's second factor is at most `U`, and `x / Z ≤ 1`.
 
+These two risk bounds apply to any accepted sequence of weight `x`, not just
+the maximizing sequence or one inside the band: acceptance gives `0 ≤ x ≤ Z`.
+Only the exactness certificate requires the selected sequence to maximize the
+banded weight. This distinction permits one distribution to select an answer
+and another to bound that same answer’s posterior risk.
+
 So a slack target must be relative: `U_j ≤ η · Z_band` gives a charged risk
 within `η` of the exact risk. An absolute target `U_j ≤ η` is not enough, since
 `Z`, the weight of all parseable sequences, can be far below 1 when many
