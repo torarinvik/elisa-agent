@@ -881,7 +881,8 @@ The leaf/binary count identity in Theorem 27.14 maps to
 `bounded_shape_leaf_binary_count` in `Decoding` for bounded shapes.
 `bounded_leaf_binary_prior` in `Product` connects the count identity to the
 tilted automaton weights. `normalized_common_factor` proves finite-weight
-cancellation; assembling the posterior result remains separate.
+cancellation, and `bounded_leaf_binary_posterior` combines these results for
+finite sets of bounded shapes.
 A caller can predeclare tilted providers in `select_prior`; no catalog or
 CLI default changes automatically. Constant feature counts cancel after
 conditioning, as tested for unary tilts of complete-skeleton priors.

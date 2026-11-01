@@ -266,4 +266,25 @@ theorem bounded_leaf_binary_prior {τ : Type} (ε : τ → ℕ → τ)
   rw [prior_tilt, prior_tilt, bounded_leaf_binary_factors shape factor]
   ring
 
+/-- Leaf and binary tilts give the same normalized weights on bounded trees. -/
+theorem bounded_leaf_binary_posterior {τ : Type} (ε : τ → ℕ → τ)
+    (v : τ → ℕ → ℝ) (f : τ → ℝ) (state : τ) (items : Finset (List ℕ))
+    (likelihood : List ℕ → ℝ) (factor : ℝ) (hf : factor ≠ 0)
+    (shapes : ∀ symbols ∈ items, ∃ d, BoundedShape d symbols)
+    (symbols : List ℕ) (hm : symbols ∈ items) :
+    let leaf := fun l => likelihood l * prior ε (fun t a => v t a * (if a = 0 then factor else 1)) f state l
+    let binary := fun l => likelihood l * prior ε (fun t a => v t a * (if a = 2 then factor else 1)) f state l
+    leaf symbols / (∑ l ∈ items, leaf l) = binary symbols / (∑ l ∈ items, binary l) := by
+  dsimp only
+  have h : ∀ l ∈ items, likelihood l * prior ε (fun t a => v t a * (if a = 0 then factor else 1)) f state l =
+      factor * (likelihood l * prior ε (fun t a => v t a * (if a = 2 then factor else 1)) f state l) := by
+    intro l hl
+    obtain ⟨d, shape⟩ := shapes l hl
+    rw [bounded_leaf_binary_prior ε v f state shape factor]
+    ring
+  rw [h symbols hm, Finset.sum_congr rfl h]
+  exact normalized_common_factor items
+    (fun l => likelihood l * prior ε (fun t a => v t a * (if a = 2 then factor else 1)) f state l)
+    factor hf symbols
+
 end NCA
