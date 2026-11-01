@@ -1883,3 +1883,24 @@ def test_unavailable_floor_does_not_stop_usable_account() -> None:
     result = refine([0], [[low, high]], 0.02, floor=floor)
     assert not result.abstained and result.cost == 3.0
     assert result.bound == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize("ranked", [False, True])
+def test_unavailable_fixed_item_can_become_irrelevant_after_another_climb(ranked) -> None:
+    unavailable = Rung(constant("fixed-unavailable", (0.8, 0.15, 0.05), 1.0))
+    unavailable.calibrate([0, 1], torch.tensor([0, 0]))
+    low = Rung(constant("switch-low", (0.5, 0.5), 1.0))
+    high = Rung(constant("switch-high", (0.99, 0.01), 2.0))
+
+    def certificate(readings, risk, distribution):
+        if readings[1][0] < 0.9:
+            return {0: risk(0, (1, 2)), 1: risk(1, None)}
+        return {1: risk(1, None)}
+
+    snapshots = []
+    result = refine([0, 0], [[unavailable], [low, high]], 0.05,
+                    certificate=certificate, observe=snapshots.append, ranked=ranked)
+    assert [state.available for state in snapshots] == [False, True]
+    assert snapshots[0].abstained and math.isinf(snapshots[0].bound)
+    assert not result.abstained and result.bound == pytest.approx(0.01)
+    assert result.cost == 4.0

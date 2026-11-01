@@ -97,7 +97,10 @@ fits a separate temperature per restricted decision, on the held-out inputs
 whose label is among its classes. If a calibrated rung has no matching labels,
 a decision with multiple entries has no fitted restricted temperature. Direct
 queries report the missing calibration; refinement treats the account as
-unavailable, can try higher rungs, and abstains if no usable account is found. A decision with only one entry has zero conditional decision risk
+unavailable, can try higher rungs, and abstains if no usable account is found.
+A later observation can also change a dynamic certificate so that the
+unsupported decision is no longer needed, even if its own rung is fixed.
+A decision with only one entry has zero conditional decision risk
 regardless of temperature. An entirely uncalibrated rung's default temperature
 is a numerical convention, not evidence of calibration. Calibration requires
 one in-range integer label per held-out value. Labels and the sequence of
