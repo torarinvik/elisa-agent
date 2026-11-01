@@ -215,6 +215,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
 | [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
 | [27.15](theory/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |
+| [27.16](theory/27-priors-as-experts.md) | `risk_from_other_mass` | `Product` |
 
 ## Native kernels
 
@@ -853,7 +854,10 @@ Decoded sequence risk uses `expm1` to retain small positive risks when the
 selected sequence's log probability is near zero; the stateful evaluator uses
 the same calculation. Elisa's prior log-sum uses `log1p` to retain small
 alternative weights. These improvements do not by themselves supply a
-certified floating-point error bound.
+certified floating-point error bound. If the rounded normalizer equals a
+dominant sequence's log weight, a positive risk can still round to zero;
+Theorem 27.16 describes a separate-alternative-mass calculation, which is not
+yet implemented.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.

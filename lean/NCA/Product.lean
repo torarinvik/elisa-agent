@@ -248,6 +248,12 @@ theorem normalized_common_factor {S : Type} (items : Finset S)
   rw [← Finset.mul_sum]
   exact mul_div_mul_left (weight item) (∑ x ∈ items, weight x) hf
 
+/-- Computing other mass directly gives the same risk as the complement. -/
+theorem risk_from_other_mass (chosen other : ℝ) (h : chosen + other ≠ 0) :
+    1 - chosen / (chosen + other) = other / (chosen + other) := by
+  field_simp
+  ring
+
 /-- A one-symbol factor product is the factor raised to its occurrence count. -/
 theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
     (symbols.map (fun a => if a = key then factor else 1)).prod =

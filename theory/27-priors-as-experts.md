@@ -22,6 +22,13 @@ accepted exactly when that weight is positive. For an accepted empty
 observation, the posterior and base normalizers coincide, so its relative
 log evidence is zero.
 
+**Theorem 27.16 (risk from alternative mass).** Let `w` be the selected
+sequence's weight and `a` the sum of all other sequence weights. When
+`w + a > 0`, the selected sequence's posterior risk is
+`1 − w / (w + a) = a / (w + a)`. Computing `a` separately can avoid losing a
+small risk when the rounded total is indistinguishable from `w`. This is a
+real-number identity; it does not itself bound floating-point error.
+
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format
 state `s` with a prior state `t`. Reading `a` moves to `(δ s a, ε t a)` with
