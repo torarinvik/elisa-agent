@@ -79,8 +79,9 @@ class PartitionCursor:
         assert self._alternatives is not None and self._bounds is not None
         assert self._matched_states is not None and self._matched_weights is not None
         if not self._valid:
-            self._alternatives[0].fill(-np.inf)
-            self._bounds[0] = (states, -1)
+            self._alternatives.fill(-np.inf)
+            self._bounds[:, 0] = states
+            self._bounds[:, 1] = -1
             self._matched_states[0] = self.prior.start
             self._matched_weights[0] = 0.0
         # The native update mutates suffix rows; any exception leaves them untrusted.

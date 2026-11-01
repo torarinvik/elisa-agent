@@ -19,7 +19,8 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
     for k in start..<m:
         here: i64 = k * states
         next: i64 = (k + 1) * states
-        for state in 0..<states:
+        # Cells outside the previous destination envelope are already unreachable.
+        for state in bounds[(k + 1) * 2]..<(bounds[(k + 1) * 2 + 1] + 1):
             alternatives[next + state] <- unreachable
         match_state: i64 = matched_states[k]
         match_weight: f64 = matched_weights[k]

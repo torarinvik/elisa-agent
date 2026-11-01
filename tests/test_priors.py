@@ -182,6 +182,7 @@ def test_partition_cursor_discards_mutated_cache_after_native_exception(
     changed[2] = np.log([0.5, 0.3, 0.2])
     def fail(*args: Any) -> None:
         args[6][:] = np.nan
+        args[7][:] = 0
         raise RuntimeError("native failure")
     monkeypatch.setattr(incremental, "_NATIVE", SimpleNamespace(update=fail))
     with pytest.raises(RuntimeError, match="native failure"):
@@ -214,6 +215,25 @@ def test_partition_cursor_matches_full_sparse_automata() -> None:
                 selected[k] = int(rng.integers(3))
             np.testing.assert_allclose(cursor.partition(rows, tuple(selected)),
                                        prior.partition(rows, selected), atol=1e-12)
+
+
+def test_partition_cursor_clears_old_gapped_envelopes() -> None:
+    from nca.partition import PartitionCursor
+
+    transitions = np.full((64, 3), -1, dtype=np.int64)
+    transitions[0] = [1, 60, -1]
+    transitions[1] = transitions[60] = [30, 30, -1]
+    transitions[30] = [2, 61, -1]
+    transitions[2] = transitions[61] = [0, 0, -1]
+    prior = priors.ArityPrior((0, 1, 2), transitions, np.zeros((64, 3)), np.zeros(64))
+    rows = np.zeros((12, 3))
+    selected = (0,) * len(rows)
+    cursor = PartitionCursor(prior)
+    for position, symbol, value in ((0, 1, -np.inf), (4, 1, -np.inf), (0, 1, 0.0),
+                                    (8, 0, -np.inf), (4, 1, 0.0), (8, 0, 0.0)):
+        rows[position, symbol] = value
+        np.testing.assert_allclose(cursor.partition(rows, selected),
+                                   prior.partition(rows, selected), atol=1e-12)
 
 
 def test_partition_cursor_bounds_cache_and_falls_back() -> None:
