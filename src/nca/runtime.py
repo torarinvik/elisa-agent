@@ -28,13 +28,29 @@ before continuing, until it returns its output. Each such request is resolved
 at once, with the requester in the chain (``lean/NCA/Continuation.lean``:
 correct answers give correct results, and the number of requests is bounded by
 the program's question depth).
+
+A higher-order expert (§20) receives its slot fillings first, before its
+inputs, each as a ``Filling``: calling it runs the slot's plan through the
+kernel on the given values, under the same budget, recorded in the
+workspace. A call may pass the demand on its result; with empty demand the
+plan is not run. ``Filling.outer`` is the demand on the expert's own output,
+so an expert that knows how its output relates to its calls (``map``) can
+pass demand through.
+
+With ``cost_budget`` every invocation is also paid its declared cost before
+it runs, and requests are served from what remains (``NCA.serve``): every
+answer is fully paid for (``NCA.serve_spent``), and with a kernel that lets
+an expert ask its own question again (``Kernel(recursive=True)``),
+recursion terminates because the budget decreases. ``attempt`` reports a
+refusal for lack of budget as no answer instead of an exception
+(``NCA.serve_sound``: a refusal is never a wrong answer).
 """
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
-from typing import Mapping, Protocol
+from typing import Any, Mapping, Protocol
 
 from nca.abi import NOTHING, Demand, Message, Request, SequenceDemand, TypeId
 from nca.planner import Given, Map, Plan, output_type
@@ -65,29 +81,57 @@ class Pending:
     chain: tuple[str, ...]
 
 
+class Filling:
+    """A slot's plan as a function of the slot's inputs, run by the kernel."""
+
+    def __init__(self, call: Callable[[tuple[Any, ...], Demand], Any], outer: Demand) -> None:
+        self._call = call
+        self.outer = outer
+        """The demand on the output of the expert receiving this filling."""
+
+    def __call__(self, *values: Any, demand: Demand = None) -> Any:
+        return self._call(values, demand)
+
+
 def execute(
     plan: Plan,
     inputs: Mapping[TypeId, Message],
     workspace: Workspace,
     budget: int,
     resolver: Resolver | None = None,
+    cost_budget: float | None = None,
 ) -> Message:
     """Run ``plan``; each module invocation, including each element of a
-    ``Map``, costs one budget unit.
+    ``Map``, costs one budget unit, and with ``cost_budget`` also its
+    declared cost.
 
     On failure the workspace is rolled back to its state before execution.
     """
     snapshot = workspace.snapshot()
     remaining = budget
+    funds = cost_budget
 
     def unread(node: Plan) -> Message:
         message = Message(output_type(node), None, "kernel.unread")
         workspace.post(message)
         return message
 
+    def filling(node: Plan, inputs: tuple[TypeId, ...], ref: str, chain: tuple[str, ...],
+                outer: Demand) -> Filling:
+        def call(values: tuple[Any, ...], demand: Demand) -> Any:
+            if demand == NOTHING:
+                return unread(node).payload
+            env = {}
+            for type_id, value in zip(inputs, values, strict=True):
+                env[type_id] = Message(type_id, value, ref)
+                workspace.post(env[type_id])
+            return force(run(node, env, chain, demand)).payload
+
+        return Filling(call, outer)
+
     def run(node: Plan, env: Mapping[TypeId, Message], chain: tuple[str, ...],
             demand: Demand = None) -> Message:
-        nonlocal remaining
+        nonlocal remaining, funds
         if isinstance(node, Given):
             return env[node.type_id]
         if isinstance(node, Map):
@@ -130,10 +174,16 @@ def execute(
                 args[index] = force(arg)
         if remaining == 0:
             raise BudgetExceeded(f"budget of {budget} invocations exhausted")
-        remaining -= 1
         manifest = node.module.manifest
+        if funds is not None:
+            if manifest.cost > funds:
+                raise BudgetExceeded(f"cost budget of {cost_budget} exhausted")
+            funds -= manifest.cost
+        remaining -= 1
         workspace.spent += manifest.cost
-        payload = node.module.invoke(*(a.payload for a in args))
+        fillings = [filling(sub, inputs, manifest.ref, chain, demand)
+                    for sub, (inputs, _) in zip(node.slots, manifest.contract.slots, strict=True)]
+        payload = node.module.invoke(*fillings, *(a.payload for a in args))
         parents = tuple(a.message_id for a in args)
         if isinstance(payload, Generator):
             payload = resume(payload, manifest.module_id, manifest.ref, parents, chain)
@@ -199,3 +249,18 @@ def execute(
     except Exception:
         workspace.rollback(snapshot)
         raise
+
+
+def attempt(
+    plan: Plan,
+    inputs: Mapping[TypeId, Message],
+    workspace: Workspace,
+    budget: int,
+    resolver: Resolver | None = None,
+    cost_budget: float | None = None,
+) -> Message | None:
+    """``execute``, with a refusal for lack of budget reported as no answer."""
+    try:
+        return execute(plan, inputs, workspace, budget, resolver, cost_budget)
+    except BudgetExceeded:
+        return None

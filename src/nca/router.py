@@ -1,7 +1,8 @@
 """Plan type checking, pinned routes, and evidence-based upgrades.
 
 ``infer`` mirrors ``NCA.infer`` (``lean/NCA/Check.lean``), proved to accept
-exactly the well-typed plans. ``Router`` mirrors ``NCA.route`` and
+exactly the well-typed plans; slot fillings are checked against the slots'
+inputs alone, as in ``NCA.HTyped``. ``Router`` mirrors ``NCA.route`` and
 ``NCA.upgrade`` (``lean/NCA/Upgrade.lean``): pins override stable planning,
 an upgrade pins a checked plan for one goal, and upgrades are proved local,
 reversible, and stable under module installation.
@@ -28,6 +29,10 @@ def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) ->
         if not any(m is node.module for m in modules):
             return None
         arg_types = [infer(modules, available, arg) for arg in node.args]
+        if len(node.slots) != len(contract.slots) or any(
+                infer(modules, inputs, filling) != output
+                for filling, (inputs, output) in zip(node.slots, contract.slots)):
+            return None
         return contract.output if tuple(arg_types) == contract.inputs else None
     body = infer(modules, (node.element,), node.body)
     source = infer(modules, available, node.source)
