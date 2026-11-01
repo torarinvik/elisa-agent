@@ -44,6 +44,20 @@ Induction gives `I_d=L_d−1`. With independent leaf-negation probability η,
 expected word count is `(2+η)L_d−1`. These are expectations of the generator,
 not posterior risk claims for a decoder.
 
+**Symbolic reader recurrence.** For code-point strings x and y, let D(i,j)
+be the optimal-string-alignment distance between their prefixes of lengths
+i and j. Set D(0,j)=j and D(i,0)=i. For positive i and j, take the minimum
+of D(i−1,j)+1, D(i,j−1)+1 and D(i−1,j−1)+1[xᵢ≠yⱼ]. If i,j≥2 and
+xᵢ=yⱼ₋₁, xᵢ₋₁=yⱼ, also admit D(i−2,j−2)+1. Indices here start at one.
+This is the existing reader's restricted alignment recurrence, not an
+unrestricted edit metric permitting arbitrary overlapping transpositions.
+Only the current left cell and the two preceding rows are needed, so three
+cyclic rows use O(|y|) memory and O(|x|·|y|) time. Empty-prefix distances
+are their lengths, identical prefixes have distance zero, and
+D(i,j)≤max(i,j), since substitutions plus insertions/deletions suffice.
+The reader uses p(w) proportional to exp(−D(|x|,|w|)); this symbolic score
+is not itself a calibrated channel likelihood.
+
 ## 18.2 What carries over, and what must not be added
 
 The kernel, the planner, ladders, calibration, refinement and certification

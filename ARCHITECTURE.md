@@ -390,6 +390,18 @@ the controller computes the restricted risk from them.
 | character reader | noisy word → word distribution | a small network on one-hot characters, trained on the noisy words of training formulas at the calibration noise level, with a quarter of the connectives `xor` so that it knows every word |
 | formula evaluator | sequence of word distributions → truth value | parses the most probable words; declares the certificate of §18.5 |
 
+The edit reader's integer recurrence is specified by `osaTable` in
+`NCA/Edit.lean` (§18.1). Lean proves empty-prefix values, zero self-distance,
+the max-length upper bound, and distinctness of three cyclic row slots.
+Elisa `native/edit.elisa` uses those three rows and batches one input against
+borrowed slices of the encoded vocabulary. The Python boundary supplies
+Unicode code points rather than UTF-8 bytes; it performs no normalization.
+The integer distances feed the existing Torch tensor and softmax operations,
+so the learned/calibrated reader interface and declared costs are unchanged.
+`_edit_distance_reference` retains the full-table reference; missing native
+exports fall back to Python. The compiled loop's agreement with the model is
+tested, not a theorem about the generated binary.
+
 The two readers share a contract, so they form one ladder, cheapest first,
 exactly as the digit readers do. The map body applies a reader directly to
 each word. In arithmetic a fuser combines two readings per glyph. The

@@ -40,6 +40,7 @@ from nca.ladder import Decision, allocate_risk
 from nca.native import load
 
 _NATIVE = load("decoding")
+_EDIT_NATIVE = load("edit")
 from nca.modules.symbols import BOOLEAN
 
 FORMULA_TEXT = "text.formula.prefix.v1"
@@ -127,6 +128,15 @@ class Tokenizer:
 
 
 def edit_distance(a: str, b: str) -> int:
+    """Optimal-string-alignment distance on Unicode code points (§18.1)."""
+    native = getattr(_EDIT_NATIVE, "edit_distance", None)
+    if native is not None:
+        return int(native(np.fromiter(map(ord, a), dtype=np.int64),
+                          np.fromiter(map(ord, b), dtype=np.int64)))
+    return _edit_distance_reference(a, b)
+
+
+def _edit_distance_reference(a: str, b: str) -> int:
     """Edits (substitution, deletion, insertion, adjacent transposition)
     turning ``a`` into ``b``, each substring edited at most once."""
     d = [[i + j if i * j == 0 else 0 for j in range(len(b) + 1)] for i in range(len(a) + 1)]
@@ -139,6 +149,12 @@ def edit_distance(a: str, b: str) -> int:
     return d[len(a)][len(b)]
 
 
+_VOCABULARY_CODES = np.array([ord(c) for word in VOCABULARY for c in word], dtype=np.int64)
+_VOCABULARY_OFFSETS = np.array([0, *np.cumsum([len(w) for w in VOCABULARY])], dtype=np.int64)
+_VOCABULARY_CODES.setflags(write=False)
+_VOCABULARY_OFFSETS.setflags(write=False)
+
+
 class EditReader:
     """``p(w) ∝ exp(-d(x, w))``. Its cost counts the dynamic program's cells
     for a word of typical length."""
@@ -148,7 +164,13 @@ class EditReader:
         cost=EDIT_OPERATIONS_PER_CELL * (TYPICAL_LENGTH + 1) * sum(len(w) + 1 for w in VOCABULARY))
 
     def invoke(self, word: str) -> tuple[float, ...]:
-        distances = torch.tensor([float(edit_distance(word, w)) for w in VOCABULARY])
+        native = getattr(_EDIT_NATIVE, "edit_distances", None)
+        if native is not None:
+            values = native(np.fromiter(map(ord, word), dtype=np.int64),
+                            _VOCABULARY_CODES, _VOCABULARY_OFFSETS)
+            distances = torch.tensor([float(d) for d in values])
+        else:
+            distances = torch.tensor([float(edit_distance(word, w)) for w in VOCABULARY])
         return tuple(torch.softmax(-distances, dim=0).tolist())
 
 
