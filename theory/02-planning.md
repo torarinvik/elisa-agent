@@ -80,6 +80,14 @@ would not say which type to produce. For example, `nothing: → seq(α)` cannot
 be planned on its own, but it can be planned under a consumer whose goal
 fixes `α`.
 
+**Map sources.** With polymorphic contracts, the candidate element types of
+step 3 include the elements of the sequence types that instances produce, of
+which there may be infinitely many. Every non-sequence element whose
+sequence is derivable lies in the closure of Theorem 12.20, so the search
+tries the elements of that closure after the enumerated candidates. When the
+closure admits every type, it solves the pattern goal `seq(α)` instead and
+tries the ground elements of its solutions.
+
 Most contracts cannot be candidates for a given pattern goal, for two
 reasons:
 

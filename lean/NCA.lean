@@ -26,6 +26,7 @@ import NCA.Certificate
 import NCA.Detection
 import NCA.Decoding
 import NCA.Slots
+import NCA.Eliminators
 import NCA.Banding
 import NCA.Misspecification
 import NCA.Stopping

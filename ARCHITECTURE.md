@@ -23,7 +23,7 @@ run the Python tests with `uv run pytest`.
 | [§9 Module substitution](theory/09-module-substitution.md) | `Substitution` | `substitution` |
 | [§10 Complementarity](theory/10-complementarity.md) | | `complementarity` |
 | [§11 Evaluation methodology](theory/11-evaluation-methodology.md) | | `expressions`, `stats` |
-| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `scaling` |
+| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `scaling` |
 | [§13 Efficiency](theory/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `efficiency`, `workspace` |
 | [§14 Kernel-mediated requests](theory/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `cascade` |
 | [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `modules.normalizer`, `baseline` |
@@ -100,6 +100,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [12.16](theory/12-lazy-loading-and-scalable-discovery.md) | `pinned_next_fits` | `Eviction` |
 | [12.17](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_seq_source` | `Pruning` |
 | [12.18](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_append` | `Loading` |
+| [12.19](theory/12-lazy-loading-and-scalable-discovery.md) | `HTyped.eclosure`, `ECl.trans` | `Eliminators` |
+| [12.20](theory/12-lazy-loading-and-scalable-discovery.md) | `HTyped.seq_source` | `Eliminators` |
 | [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
 | [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
 | [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |
@@ -286,8 +288,13 @@ those elements by searching backward from the body goal through producers'
 inputs, so a sequence goal visits only candidates that can lead to its element
 type instead of every element type in the library. Candidate lists are cached
 per available types and library prefix. `ProducerIndex.seq_elements` is the
-source oracle of Theorem 12.17: the closure of the elements of the sequence
-types in the closure of the available types.
+source oracle of Theorems 12.17 and 12.20: the closure of the elements of the
+sequence types in the closure of the available types. A sequence goal whose
+element is neither a sequence type nor in it is rejected before any
+candidate is tried. When a polymorphic producer may output a sequence
+(`ProducerIndex.polymorphic_sequences`), the elements the oracle admits are
+also `map` candidates, after the enumerated ones; when it admits every type,
+the planner solves the pattern goal `seq[?a]` for them instead (THEORY §2.2).
 
 Contracts whose output is a bare variable, such as the eliminators `Case` and
 `Fold`, enter the closure through their contributions (Theorem 12.19):
@@ -298,8 +305,15 @@ adds nothing, so only bindings that reach new types cost a nested closure.
 `ProducerIndex.total` reports when a contribution is unconstrained and the
 closure prunes nothing. The planner tries such a contract for a ground goal
 only if `ProducerIndex.may_produce` accepts it: a sequence type, a type in the
-closure, or one a polymorphic producer covers. Theorem 12.19 is argued in the
-theory; the Lean model has neither polymorphism nor slots.
+closure, or one a polymorphic producer covers.
+
+`NCA.ECl` (`lean/NCA/Eliminators.lean`) models this closure over plans of
+`HPlan`s whose experts are instances of installed slot contracts or of the
+`map` family, which stands for the planner's built-in `map`. Its rules are
+the cases of `ProducerIndex._open_contributions`; the index computes a
+superset of it, since it ignores slots of contracts with constructor outputs
+and counts every type a polymorphic producer covers, and it reports the
+closure total where the model would still bound it.
 
 Pattern goals take their candidates from `ProducerIndex.pattern_candidates`:
 modules indexed by the root constructor and arity of their output

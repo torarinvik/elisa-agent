@@ -212,8 +212,8 @@ class ProducerIndex:
 
     def seq_elements(self, available: Sequence[TypeId], limit: int) -> frozenset[TypeId] | None:
         """A superset of the non-sequence elements ``a`` for which ``seq a`` may be
-        derivable from ``available`` (THEORY §12, Theorems 12.17 and 12.19): the
-        closure of the elements of the sequence types in the closure of
+        derivable from ``available`` (THEORY §12, Theorems 12.17 and 12.20,
+        ``NCA.HTyped.seq_source``): the closure of the elements of the sequence types in the closure of
         ``available``. ``None`` when a polymorphic producer may produce any
         sequence type."""
         key = (tuple(available), limit)
@@ -226,6 +226,11 @@ class ProducerIndex:
                 seeds = {e for t in reach if (e := elem_type(t)) is not None}
                 self._seq_cache[key] = self.reachable(tuple(sorted(seeds)), limit)
         return self._seq_cache[key]
+
+    def polymorphic_sequences(self, limit: int) -> bool:
+        """Whether a polymorphic producer among the first ``limit`` modules may
+        output a sequence type: its output is a sequence or a bare variable."""
+        return any(self.head_of[p] in (None, ("seq", 1)) for p in self.polymorphic if p < limit)
 
     def may_derive(self, available: Sequence[TypeId], goal: Term, limit: int) -> bool:
         """The closure oracle (``NCA.SoundOracle``): ``False`` only if no
@@ -251,8 +256,9 @@ class ProducerIndex:
         modules elsewhere in the library cost nothing. Types that a polymorphic
         producer has an instance for count as reachable too, and contracts whose
         output is a bare variable contribute the types of Theorem 12.19, to a
-        fixed point. The closure stays an over-approximation of the derivable
-        types; ``total`` reports when it is everything.
+        fixed point, as in ``NCA.ECl``. The closure stays an over-approximation
+        of the derivable types (``NCA.HTyped.eclosure``); ``total`` reports
+        when it is everything.
         """
         key = (tuple(available), limit)
         if key in self._reach_cache:
@@ -309,10 +315,10 @@ class ProducerIndex:
                             ) -> tuple[set[TypeId], bool]:
         """The types contracts whose output is a bare variable may produce from
         ``reach``, the closure ``current`` computed so far (Theorem 12.19), and
-        whether one of them may produce any type. A slot whose inputs are all
-        in ``reach`` contributes nothing new, as the closure being computed is
-        closed and contains them; one whose closure is still being computed
-        further out makes the result total."""
+        whether one of them may produce any type. The cases are the rules of
+        ``NCA.ECl``. A slot whose inputs are all in ``reach`` contributes
+        nothing new (``NCA.ECl.trans``); one whose closure is still being
+        computed further out makes the result total."""
         limit = current[1]
         produced: set[TypeId] = set()
         for position in self.open_outputs:
@@ -326,7 +332,7 @@ class ProducerIndex:
                 continue
             bindings: list[dict[str, Term]] = [{}]
             for pattern in inputs:
-                if isinstance(pattern, Var) or pattern.name == "seq":
+                if isinstance(pattern, Var) or elem_type(format_type(pattern)) is not None:
                     continue
                 if not type_variables(pattern):
                     type_id = format_type(pattern)
@@ -357,7 +363,7 @@ class ProducerIndex:
                     if any(type_variables(t) for t in ground):
                         return produced, True
                     key = (tuple(format_type(t) for t in ground), limit)
-                    if all(t in reach or elem_type(t) is not None for t in key[0]):
+                    if all(t in reach for t in key[0]):
                         continue
                     if key in self._in_progress:
                         return produced, True

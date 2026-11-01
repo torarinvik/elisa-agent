@@ -95,10 +95,26 @@ type or in this closure. The argument combines Theorem 12.8 with the matching
 of §2.1; the closure is computed as a fixed point, since contributed types can
 make more contracts fire. A slot whose inputs already lie in the set being
 closed contributes nothing beyond it, because the least closed set containing
-those inputs is contained in every closed set that contains them. Theorem
-12.17 carries over with `E` taken as the elements of the sequence types in
-this closure, since a slot filling that makes a sequence has its own `E`
-inside it.
+those inputs is contained in every closed set that contains them.
+
+Theorem 12.17 carries over. Let `E` now be the elements of the sequence types
+in the closure of Theorem 12.19, where a contract whose output is a
+constructor application contributes its output even when it is a sequence
+type, and the other rules contribute as stated.
+
+| Theorem | Statement |
+|---|---|
+| 12.20 | if `seq e` is derivable from `avail`, then `e` is a sequence type or in the closure of `E` |
+
+The cases of a derivation of `seq e` are as before, with three more. An
+eliminator whose output is one of its inputs passes on an input that is
+itself derivable, so induction applies to it. One whose output variable is
+bound contributes `seq e` to the closure, so `e ∈ E`. One whose output is a
+slot's makes `seq e` in a slot filling, whose own `E` lies inside this one,
+since the closure of the slot's inputs is part of this closure. So a sequence
+goal `seq e`, with `e` neither a sequence type nor in the closure of `E`, has
+no plan and can be rejected before any candidate is tried, which removes
+eliminators, candidates for every sequence goal, from such searches.
 
 `Closure lib avail` is the least set containing `avail` and closed under
 contracts whose non-sequence inputs it contains. It is computed by Horn-clause

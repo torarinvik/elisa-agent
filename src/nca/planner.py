@@ -16,12 +16,14 @@ inputs are the slot's inputs, like a ``map`` body.
 A polymorphic contract is applied at the one instance whose output is the goal
 (THEORY §2.1, ``NCA.Contract.subst_determined``), found by matching. Variables
 the goal leaves free are determined by solving the inputs as pattern goals
-with unification (THEORY §2.2, ``NCA.answer_sound``).
+with unification (THEORY §2.2, ``NCA.answer_sound``). Elements of the
+sequences that polymorphic producers make are ``map`` candidates too.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import itertools
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Sequence, Union
 
@@ -117,6 +119,12 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
         return None
     if goal in available:
         return Given(goal)
+    element_goal = elem_type(goal)
+    made = None if element_goal is None else index.seq_elements(available, limit)
+    # Theorem 12.20: an element outside the source oracle has no derivable sequence.
+    if (element_goal is not None and made is not None and element_goal not in made
+            and elem_type(element_goal) is None and not index.covered(element_goal, limit)):
+        return None
     reach = index.reachable(available, limit)
     total = index.total(available, limit)
     for position, module, binding in index.candidates(goal, limit):
@@ -143,24 +151,54 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
         slots = _plan_all(index, limit, list(contract.slots), fuel, memo)
         if slots is not None:
             return Apply(module, args, slots, binding)
-    element_goal = elem_type(goal)
     if element_goal is None:
         return None
     candidates, order = index.element_candidates(available, limit)
     sources = index.sources(element_goal, limit)
     if sources is not None:
         candidates = sorted((a for a in sources if a in order), key=order.__getitem__)
-    made = index.seq_elements(available, limit)
-    for element in candidates:
+
+    def map_over(element: TypeId) -> Map | None:
         if made is not None and element not in made and elem_type(element) is None:
-            continue
+            return None
         if not index.may_derive((element,), parse_type(element_goal), limit):
-            continue
+            return None
         body = _plan(index, limit, (element,), element_goal, fuel - 1, memo)
         source = _plan(index, limit, available, seq_type(element), fuel - 1, memo)
-        if body is not None and source is not None:
-            return Map(element, body, source)
+        return None if body is None or source is None else Map(element, body, source)
+
+    for element in candidates:
+        if (found := map_over(element)) is not None:
+            return found
+    if index.polymorphic_sequences(limit):
+        for element in _polymorphic_sources(index, limit, available, order, fuel - 1, memo):
+            if (found := map_over(element)) is not None:
+                return found
     return None
+
+
+def _polymorphic_sources(index: ProducerIndex, limit: int, available: Sequence[TypeId],
+                         known: dict[TypeId, int], fuel: int, memo: Memo) -> Iterator[TypeId]:
+    """Further ``map`` candidate elements, beyond ``known``, for sequences that
+    polymorphic producers make: the elements the source oracle admits
+    (Theorem 12.20), in sorted order, or, when it admits every type, the
+    ground elements of the solutions of the pattern goal ``seq[?a]``, in
+    search order (THEORY §2.2)."""
+    made = index.seq_elements(available, limit)
+    if made is not None:
+        yield from sorted(made.difference(known))
+        return
+    seen = set(known)
+    for _, solved in _solutions(index, limit, available, _SOURCE, {}, fuel, memo):
+        element = resolve(_SOURCE.args[0], solved)
+        if not type_variables(element) and (type_id := format_type(element)) not in seen:
+            seen.add(type_id)
+            yield type_id
+
+
+_SOURCE = App("seq", (Var("element"),))
+"""The pattern of ``map`` sources. Elements of sequences that only
+polymorphic producers make are found by solving it (THEORY §2.2)."""
 
 
 
@@ -212,13 +250,17 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
                                           fuel, memo):
             yield _Open(module, args, names, fuel), solved
     if isinstance(goal, App) and goal.name == "seq" and len(goal.args) == 1:
-        candidates, order = index.element_candidates(available, limit)
+        found, order = index.element_candidates(available, limit)
+        candidates: Iterable[TypeId] = found
         body_goal = resolve(goal.args[0], binding)
         if not type_variables(body_goal):
             sources = index.sources(format_type(body_goal), limit)
             if sources is not None:
                 candidates = sorted((a for a in sources if a in order), key=order.__getitem__)
         made = index.seq_elements(available, limit)
+        if index.polymorphic_sequences(limit):
+            candidates = itertools.chain(
+                candidates, _polymorphic_sources(index, limit, available, order, fuel - 1, memo))
         for element in candidates:
             if made is not None and element not in made and elem_type(element) is None:
                 continue
