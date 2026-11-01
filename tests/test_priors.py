@@ -415,3 +415,27 @@ def test_native_prior_decode_returns_owned_typed_record() -> None:
     np.testing.assert_array_equal(decoded.marginals, result["marginals"])
     assert native(np.empty(0), *args) is None
     assert native(np.full(9, -np.inf), *args) is None
+
+
+def test_native_prior_passes_accept_unaligned_readonly_weights() -> None:
+    if getattr(priors._NATIVE, "decode_prior", None) is None:
+        pytest.skip("requires native prior decoding")
+    storage = bytearray(1 + 9 * np.dtype(np.float64).itemsize)
+    rows = np.ndarray((3, 3), dtype=np.float64, buffer=storage, offset=1)
+    rows[:] = np.log([[.1, .2, .7], [.8, .1, .1], [.6, .2, .2]])
+    rows.setflags(write=False)
+    assert rows.flags.c_contiguous and not rows.flags.aligned
+    # Contiguity conversion alone does not align the data; the FFI must handle it.
+    assert np.ascontiguousarray(rows) is rows
+    model = priors.complete_prior(3)
+    assert model is not None
+    aligned = rows.copy()
+    expected = model.decode(aligned)
+    actual = model.decode(rows)
+    assert expected is not None and actual is not None
+    assert actual.arities == expected.arities
+    assert actual.log_z == expected.log_z
+    np.testing.assert_array_equal(actual.marginals, expected.marginals)
+    assert model.best(rows) == expected.arities
+    assert model.log_normalizer(rows) == expected.log_z
+    np.testing.assert_array_equal(rows, aligned)

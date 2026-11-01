@@ -40,9 +40,7 @@ def load(name: str) -> ModuleType | None:
 def build(compiler: Path, sources: list[Path]) -> None:
     """Build each Elisa source into an extension module beside it."""
     suffix = sysconfig.get_config_var("EXT_SUFFIX")
-    version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    config = Path(sys.base_prefix) / "bin" / f"python{version}-config"
-    environment = dict(os.environ, PYTHON_BIN=sys.executable, PYTHON_CONFIG=str(config))
+    environment = dict(os.environ, PYTHON_BIN=sys.executable)
     for source in sources:
         out = source.with_suffix(suffix)
         subprocess.run([str(compiler), "-emit", "pymodule-so", "-o", str(out), str(source)],

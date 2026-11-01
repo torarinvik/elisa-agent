@@ -889,3 +889,18 @@ fields; no float-encoded symbols, packed offsets or empty-array absence
 sentinel are used for this result. Generated stubs describe the nullable
 record directly. Native extensions must be rebuilt after this interface
 change. The dynamic-programming recurrences and Python fallback are unchanged.
+
+Numeric Python buffers are borrowed only when the compiler-generated shim
+verifies the element format, one-dimensional C-contiguous layout, and C ABI
+alignment. Incompatible read-only buffers are copied by the FFI converter;
+mutable views require a directly writable aligned buffer and are rejected
+otherwise. NumPy contiguity conversion alone does not ensure alignment.
+The prior-decoding regression exercises read-only unaligned weights through
+maximum, normalizer and full-posterior paths without an application-side copy.
+
+Native builds pass the running interpreter as `PYTHON_BIN` and let Elisa resolve
+matching headers/configuration rather than guessing a platform-specific
+`python-config` path. Installed compiler snapshots freeze and verify their
+recorded bootstrap inputs, so development compiler rebuilds cannot invalidate
+the consumer's installed toolchain. Source/product and frozen-input integrity
+checks remain enabled.
