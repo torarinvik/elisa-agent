@@ -709,3 +709,13 @@ height zero. The CLI requires a nonnegative height and rejects structural
 priors combined with the format-only banding option. Input lengths beyond
 the bound's support retain the same automaton, whose decoding returns no
 accepted sequence.
+
+`ArityPrior.log_evidence(log_posteriors, log_base)` computes the relative
+log evidence of §27.8, using native decoding for both normalizers.
+`prior_evidence_identity` in `NCA/Product.lean` proves the finite-sum Bayes
+identity under the supplied posterior relation and nonzero normalizers. The
+API checks normalized probability rows and posterior/base support, rejects
+zero base mass, and returns negative infinity for zero posterior mass. It
+does not establish that calibrated reader scores satisfy a shared likelihood
+model. No automatic prior selector is installed yet; this first implementation
+also computes unused maxima and marginals via the existing decoder.

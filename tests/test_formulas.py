@@ -1166,3 +1166,41 @@ def test_height_expert_fills_evaluator_slot_with_relaxed_support() -> None:
     for invalid in (0, -1, 1.5):
         with pytest.raises(ValueError):
             expert.invoke(invalid)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_evidence_matches_enumerated_observation_likelihood(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    base = np.array([[0.8, 0.2], [0.6, 0.4], [0.3, 0.7]])
+    likelihood = np.array([[0.1, 0.9], [0.8, 0.2], [0.2, 0.8]])
+    marginals = (base * likelihood).sum(axis=1)
+    posterior = base * likelihood / marginals[:, None]
+    for transitions, weights in (([[0, 0]], [[0.5, 1.7]]), ([[0, -1]], [[1.0, 1.0]])):
+        prior = formulas.ArityPrior((0, 1), np.array(transitions), np.log(weights), np.zeros(1))
+        numerator = denominator = 0.0
+        for selected in itertools.product(range(2), repeat=3):
+            weight = np.exp(prior.log_weight(selected))
+            mass = weight * np.prod([base[k, a] for k, a in enumerate(selected)])
+            denominator += mass
+            numerator += mass * np.prod([likelihood[k, a] for k, a in enumerate(selected)])
+        expected = np.log(numerator / denominator) - np.log(marginals).sum()
+        actual = prior.log_evidence(np.log(posterior), np.log(base))
+        assert actual == pytest.approx(expected, abs=1e-12)
+        scaled = formulas.ArityPrior(prior.alphabet, prior.transitions,
+                                     prior.log_weights + 2, prior.log_final + 3)
+        assert scaled.log_evidence(np.log(posterior), np.log(base)) == pytest.approx(actual)
+
+
+def test_prior_evidence_support_and_probability_validation() -> None:
+    prior = formulas.ArityPrior((0, 1), np.array([[0, -1]]), np.zeros((1, 2)), np.zeros(1))
+    base = np.log(np.array([[0.5, 0.5]]))
+    assert prior.log_evidence(np.array([[-np.inf, 0.0]]), base) == -np.inf
+    with pytest.raises(ValueError, match="zero mass"):
+        prior.log_evidence(np.array([[-np.inf, 0.0]]), np.array([[-np.inf, 0.0]]))
+    with pytest.raises(ValueError, match="support"):
+        prior.log_evidence(base, np.array([[0.0, -np.inf]]))
+    for bad in (np.zeros((1, 2)), np.array([[np.nan, 0.0]]), np.empty((0, 2))):
+        with pytest.raises(ValueError):
+            prior.log_evidence(bad, base)

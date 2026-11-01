@@ -135,4 +135,17 @@ theorem prior_support_sum {S : Type} [Fintype S] (forward backward : S → ℝ) 
   intro s _
   by_cases h : forward s = 0 <;> simp [h]
 
+/-- Normalized tilted-prior evidence from a shared base posterior. -/
+theorem prior_evidence_identity {S : Type} [Fintype S]
+    (v base likelihood posterior : S → ℝ) (Z c : ℝ)
+    (hZ : Z ≠ 0) (hc : c ≠ 0)
+    (hq : ∀ a, posterior a = base a * likelihood a / c) :
+    ∑ a, (v a * base a / Z) * likelihood a =
+      c / Z * ∑ a, v a * posterior a := by
+  simp_rw [hq]
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro a _
+  field_simp
+
 end NCA

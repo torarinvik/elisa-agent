@@ -204,6 +204,30 @@ class ArityPrior:
             state = target
         return total + float(self.log_final[state])
 
+    def log_evidence(self, log_posteriors: np.ndarray, log_base: np.ndarray) -> float:
+        """Relative log evidence Z(q)/Z(base) for a base-prior tilt (§27.5).
+
+        Rows must be normalized probabilities from the same observation model.
+        Candidate priors must share the same base and posterior rows. This is
+        evidence relative to the common observation marginal, not a risk bound.
+        """
+        posterior = np.asarray(log_posteriors, dtype=np.float64)
+        base = np.asarray(log_base, dtype=np.float64)
+        if (posterior.ndim != 2 or posterior.shape != base.shape
+                or posterior.shape[1] != len(self.alphabet) or not len(posterior)):
+            raise ValueError("requires matching nonempty posterior and base rows")
+        for rows in (posterior, base):
+            if (np.any(np.isnan(rows)) or np.any(rows > 0)
+                    or not np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)):
+                raise ValueError("evidence rows must be normalized log probabilities")
+        if np.any(np.isneginf(base) & np.isfinite(posterior)):
+            raise ValueError("posterior support must lie within base support")
+        denominator = self.decode(base)
+        if denominator is None:
+            raise ValueError("candidate prior has zero mass under the base")
+        numerator = self.decode(posterior)
+        return -math.inf if numerator is None else numerator.log_z - denominator.log_z
+
     def decode(self, log_probs: np.ndarray) -> Decoded | None:
         """Sum, maximize and marginalize reading weight times prior weight."""
         rows = np.asarray(log_probs, dtype=np.float64)

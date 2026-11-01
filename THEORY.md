@@ -2433,18 +2433,27 @@ product unchanged.
 ### 27.5 Choosing a prior without labels
 
 Which prior expert to use is a choice the kernel can make from **unlabeled**
-readings. For readings `x` of a formula, the evidence under prior expert
-`e`, with support weights `π_e`, is
+readings. Let every candidate use the same independent base prior `πₖ` and
+observation likelihoods `Lₖ(aₖ) = p(xₖ | aₖ)`. Write
+`qₖ(aₖ) = πₖ(aₖ) Lₖ(aₖ) / cₖ`, with `cₖ = p(xₖ) > 0`.
+An expert supplies nonnegative tilt weights `v_e(a)`, inducing the normalized
+sequence prior `P_e(a) = v_e(a) Πₖ πₖ(aₖ) / Z_e(π)`, where `Z_e(π) > 0`.
 
-> `p_e(x) = Σ_a π_e(a) Πₖ p(xₖ | aₖ) ∝ Z_e(q) / Z_e(π)`,
+**Theorem 27.8 (normalized prior evidence).** Its observation evidence is
 
-where:
+> `p_e(x) = Σ_a P_e(a) Πₖ Lₖ(aₖ) = (Πₖ cₖ) Z_e(q) / Z_e(π)`.
 
-- `Z_e(q)` is the product program with the calibrated arity
-  distributions as weights (the decoder's normalizer);
-- `Z_e(π)` is the same program with the readers' per-word priors `πₖ` as
-  weights (the prior's own normalizer);
-- the constant `Πₖ p(xₖ) / Πₖ πₖ(·)` is shared by all priors, so it cancels.
+Here `Z_e(q) = Σ_a v_e(a) Πₖ qₖ(aₖ)` is the calibrated-reading normalizer,
+and `Z_e(π)` is the same program evaluated at the shared base probabilities.
+Substitute Bayes' rule into the sum: `Πₖ πₖ(aₖ) Lₖ(aₖ) = (Πₖ cₖ) Πₖ qₖ(aₖ)`.
+Thus the shared observation-marginal factor cancels when comparing experts.
+There is no extra sequence-dependent divisor outside this sum.
+
+The evidence interpretation requires a common observation model, normalized
+rows and posterior support contained in base support. Normalized calibrated
+scores alone do not establish the shared likelihood assumptions. A candidate
+with zero base normalizer is undefined; zero posterior normalizer gives
+zero evidence. Neither case justifies substituting a finite epsilon.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
