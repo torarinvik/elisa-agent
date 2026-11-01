@@ -240,4 +240,30 @@ theorem normalized_common_factor {S : Type} (items : Finset S)
   rw [← Finset.mul_sum]
   exact mul_div_mul_left (weight item) (∑ x ∈ items, weight x) hf
 
+/-- A one-symbol factor product is the factor raised to its occurrence count. -/
+theorem symbol_factor_product (symbols : List ℕ) (key : ℕ) (factor : ℝ) :
+    (symbols.map (fun a => if a = key then factor else 1)).prod =
+      factor ^ symbols.count key := by
+  induction symbols with
+  | nil => simp
+  | cons a rest ih =>
+      by_cases h : a = key <;> simp [h, ih, pow_succ, mul_comm]
+
+/-- On bounded trees, leaf and binary symbol factors differ by one common factor. -/
+theorem bounded_leaf_binary_factors {d : ℕ} {symbols : List ℕ}
+    (shape : BoundedShape d symbols) (factor : ℝ) :
+    (symbols.map (fun a => if a = 0 then factor else 1)).prod =
+      factor * (symbols.map (fun a => if a = 2 then factor else 1)).prod := by
+  rw [symbol_factor_product, symbol_factor_product, bounded_shape_leaf_binary_count shape]
+  simp [pow_succ, mul_comm]
+
+/-- The two tilted automata assign weights differing by a common factor. -/
+theorem bounded_leaf_binary_prior {τ : Type} (ε : τ → ℕ → τ)
+    (v : τ → ℕ → ℝ) (f : τ → ℝ) (state : τ) {d : ℕ} {symbols : List ℕ}
+    (shape : BoundedShape d symbols) (factor : ℝ) :
+    prior ε (fun t a => v t a * (if a = 0 then factor else 1)) f state symbols =
+      factor * prior ε (fun t a => v t a * (if a = 2 then factor else 1)) f state symbols := by
+  rw [prior_tilt, prior_tilt, bounded_leaf_binary_factors shape factor]
+  ring
+
 end NCA

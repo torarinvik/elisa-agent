@@ -879,8 +879,9 @@ existing Elisa weighted kernels evaluate it without a new numerical path.
 Theorem 27.13 maps to `prior_tilt` and `prior_tilt_ne_zero` in `Product`.
 The leaf/binary count identity in Theorem 27.14 maps to
 `bounded_shape_leaf_binary_count` in `Decoding` for bounded shapes.
-`normalized_common_factor` in `Product` proves cancellation for finite weights;
-the derivation connecting both results to tilted priors remains separate.
+`bounded_leaf_binary_prior` in `Product` connects the count identity to the
+tilted automaton weights. `normalized_common_factor` proves finite-weight
+cancellation; assembling the posterior result remains separate.
 A caller can predeclare tilted providers in `select_prior`; no catalog or
 CLI default changes automatically. Constant feature counts cancel after
 conditioning, as tested for unary tilts of complete-skeleton priors.
