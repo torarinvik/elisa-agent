@@ -605,8 +605,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
 
 # The banded cursor of THEORY §23.4, rescaled as in §23.7. The caller owns the tables, `width`
 # states per row, and keeps rows current around a cursor; these functions recompute rows in
-# place. Row `k` holds states `low[k] ..= high[k]`. The sum tables hold linear rows of total 1
-# (or all zero) with each row's log scale beside them; the max tables hold log weights.
+# place. Row `k` holds states `low[k] ..= high[k]`. Both sum and max tables hold log weights.
 
 # For arity `a` at position `i`: the first in-band state `s ≥ 1` whose successor `s − 1 + a` is
 # in band at `i + 1`, and how many consecutive such states there are.
@@ -617,68 +616,58 @@ def moves(i: i64, a: i64, low: view[i64], high: view[i64]) -> (first: i64, count
     last: i64 = high[i] if high[i] < high[i + 1] + 1 - a else high[i + 1] + 1 - a
     return first, (last - first + 1 if last >= first else 0)
 
-# Divide row `row` (states `low ..= high`) by its total and return the total's log, or −∞ for a
-# zero row.
-def normalize(table: mutable view[f64], row: i64, width: i64, low: i64, high: i64) -> f64 can[Abort.Panic]:
-    total: f64 =
-        for n in low..<(high + 1) |total: f64 = 0.0| -> total:
-            total += table[row * width + n]
-    return log(0.0) if total <= 0.0
-    for n in low..<(high + 1):
-        table[row * width + n] <- table[row * width + n] / total
-    return log(total)
-
-# Recompute forward rows `start + 1 ..= stop` from row `start`.
-def advance(forward: mutable view[f64], scale: mutable view[f64], forward_max: mutable view[f64], weights: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
+# Recompute forward and backward rows in log space.
+def advance_log(forward: mutable view[f64], forward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     for i in start..<stop:
         target: i64 = (i + 1) * width
         for n in low[i + 1]..<(high[i + 1] + 1):
-            forward[target + n] <- 0.0
+            forward[target + n] <- log(0.0)
             forward_max[target + n] <- log(0.0)
         for j in 0..<arities:
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
             for t in 0..<run.count:
                 source: i64 = i * width + run.first + t
                 cell: i64 = target + run.first - 1 + alphabet[j] + t
-                forward[cell] <- forward[cell] + forward[source] * weights[i * arities + j]
-                candidate: f64 = forward_max[source] + log_probs[i * arities + j]
+                step: f64 = log_probs[i * arities + j]
+                if forward[source] != log(0.0) and step != log(0.0):
+                    forward[cell] <- log_add(forward[cell], forward[source] + step)
+                candidate: f64 = forward_max[source] + step
                 forward_max[cell] <- candidate if candidate > forward_max[cell] else forward_max[cell]
-        scale[i + 1] <- scale[i] + normalize(forward, i + 1, width, low[i + 1], high[i + 1])
     return stop - start
 
-# Recompute backward rows `stop ..= start − 1` from row `start`.
-def retreat(backward: mutable view[f64], scale: mutable view[f64], backward_max: mutable view[f64], weights: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
+def retreat_log(backward: mutable view[f64], backward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, start: i64, stop: i64) -> i64 can[Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     for back in 0..<(start - stop):
         i: i64 = start - 1 - back
         for n in low[i]..<(high[i] + 1):
-            backward[i * width + n] <- 0.0
+            backward[i * width + n] <- log(0.0)
             backward_max[i * width + n] <- log(0.0)
         for j in 0..<arities:
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
             for t in 0..<run.count:
                 cell: i64 = i * width + run.first + t
                 source: i64 = (i + 1) * width + run.first - 1 + alphabet[j] + t
-                backward[cell] <- backward[cell] + backward[source] * weights[i * arities + j]
-                candidate: f64 = backward_max[source] + log_probs[i * arities + j]
+                step: f64 = log_probs[i * arities + j]
+                if backward[source] != log(0.0) and step != log(0.0):
+                    backward[cell] <- log_add(backward[cell], backward[source] + step)
+                candidate: f64 = backward_max[source] + step
                 backward_max[cell] <- candidate if candidate > backward_max[cell] else backward_max[cell]
-        scale[i] <- scale[i + 1] + normalize(backward, i, width, low[i], high[i])
     return start - stop
 
-# [log Z, best log weight] with word `k`'s weights replaced by `row` (linear) and `log_row`,
-# from forward row `k` and backward row `k + 1`.
-def scores(forward: view[f64], forward_scale: view[f64], forward_max: view[f64], backward: view[f64], backward_scale: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64, row: view[f64], log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+# [log Z, best log weight] with word k replaced by log_row.
+def scores_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], width: i64, k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     total, log_x =
-        for j in 0..<alphabet.len.i64() |total: f64 = 0.0, log_x: f64 = log(0.0)| -> (total, log_x):
+        for j in 0..<alphabet.len.i64() |total: f64 = log(0.0), log_x: f64 = log(0.0)| -> (total, log_x):
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
             for t in 0..<run.count |total, log_x|:
                 here: i64 = k * width + run.first + t
                 next: i64 = (k + 1) * width + run.first - 1 + alphabet[j] + t
-                total += forward[here] * row[j] * backward[next]
+                if forward[here] != log(0.0) and log_row[j] != log(0.0) and backward[next] != log(0.0):
+                    total <- log_add(total, forward[here] + log_row[j] + backward[next])
                 candidate: f64 = forward_max[here] + backward_max[next] + log_row[j]
                 log_x <- candidate if candidate > log_x else log_x
-    return [log(0.0) if total <= 0.0 else forward_scale[k] + backward_scale[k + 1] + log(total), log_x]
+    return [total, log_x]
 
 # [best log weight, its arities (m)], with forward max row `k` and backward max row `k + 1`
 # current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
@@ -1007,9 +996,9 @@ export pymodule decoding:
     fn prior_log_weight
     fn prior_normalizer
     fn prior_best
-    fn advance
-    fn retreat
-    fn scores
+    fn advance_log
+    fn retreat_log
+    fn scores_log
     fn trace
     fn certificate
     fn parse_tree

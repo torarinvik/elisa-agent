@@ -230,6 +230,40 @@ def test_split_matches_full_decoding() -> None:
             assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER,
                                                           full.arities))
 
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_split_retains_underflowed_paths_through_climbs(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, 0.0, -1000.0], [0.0, -np.inf, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    split = Split(rows)
+    for k, replacement in ((1, rows[1]), (0, np.array([-np.inf, -2.0, -900.0])),
+                           (2, np.array([-1.0, -np.inf, -np.inf]))):
+        rows[k] = replacement
+        expected = decode_reference(rows)
+        assert expected is not None
+        log_z, log_x = split.climb(k, replacement)
+        assert log_z == pytest.approx(expected.log_z, abs=1e-12)
+        assert log_x == pytest.approx(expected.log_z, abs=1e-12)
+    result = decoding.CertifiedSplit(rows).result()
+    assert result is not None and result.arities == (2, 0, 0)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_split_retains_underflowed_products(reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, 0.0, -400.0], [-400.0, -400.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    split = Split(rows)
+    expected = decode_reference(rows)
+    assert expected is not None
+    for k in range(len(rows)):
+        log_z, _ = split.scores(k, rows[k])
+        assert log_z == pytest.approx(expected.log_z, abs=1e-12)
+
 def test_split_cursor_follows_climbs() -> None:
     """A sequence of climbs at random words, each rescored after the vectors
     were moved to it, matches a full decode after every climb."""
