@@ -71,6 +71,9 @@ DecisionKey = tuple[int | tuple[int, ...], ...] | None
 def decision_key(decision: Decision) -> DecisionKey:
     if decision is None:
         return None
+    if (type(decision) is tuple and
+            all(type(entry) is int or type(entry) is tuple for entry in decision)):
+        return decision
     return tuple(e if isinstance(e, int) else tuple(e) for e in decision)
 
 

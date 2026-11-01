@@ -35,6 +35,19 @@ def constant(module_id: str, output: tuple[float, ...], cost: float,
     return Constant(Manifest(module_id, "1.0.0", contract, cost=cost), output)
 
 
+def test_decision_key_reuses_immutable_tuples_but_copies_mutable_groups() -> None:
+    from nca.ladder import decision_key
+
+    immutable = ((0, 1), 2, (3, 4))
+    assert decision_key(immutable) is immutable
+    group = [0, 1]
+    mutable = (group, 2)
+    before = decision_key(mutable)
+    group.append(3)
+    assert before == ((0, 1), 2)
+    assert decision_key(mutable) == ((0, 1, 3), 2)
+
+
 def test_ladder_orders_experts_by_cost_and_refines_until_target() -> None:
     sure = constant("sure", (0.001, 0.999), 10.0)
     unsure = constant("unsure", (0.4, 0.6), 1.0)
