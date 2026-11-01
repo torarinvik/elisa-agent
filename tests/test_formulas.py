@@ -1098,3 +1098,47 @@ def test_native_prior_log_weight_matches_reference_for_all_short_sequences(
             assert prior.log_weight(selected) == expected
     # Empty input retains the initial state's final weight; source arrays are read-only.
     assert prior.log_weight(()) == -0.2
+
+
+def bounded_shapes(height: int) -> set[tuple[int, ...]]:
+    if not height:
+        return {(0,)}
+    smaller = bounded_shapes(height - 1)
+    return {(0,)} | {(1, *child) for child in smaller} | {
+        (2, *left, *right) for left in smaller for right in smaller}
+
+
+def test_height_prior_accepts_exactly_bounded_shapes() -> None:
+    for height in range(3):
+        prior = formulas.height_prior(height)
+        expected = bounded_shapes(height)
+        for size in range(1, 8):
+            for selected in itertools.product(range(3), repeat=size):
+                assert (prior.log_weight(selected) == 0.0) == (selected in expected)
+    for depth in range(4):
+        prior = formulas.height_prior(depth + 1)
+        for selected in complete_shapes(depth):
+            assert prior.log_weight(selected) == 0.0
+    for invalid in (-1, 1.5):
+        with pytest.raises(ValueError):
+            formulas.height_prior(invalid)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_height_prior_posterior_matches_enumerated_shapes(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(89)
+    prior = formulas.height_prior(2)
+    shapes = bounded_shapes(2)
+    for size in range(1, 8):
+        rows = np.log(rng.dirichlet(np.ones(3), size=size))
+        candidates = sorted(shape for shape in shapes if len(shape) == size)
+        scores = np.array([sum(rows[k, a] for k, a in enumerate(shape)) for shape in candidates])
+        posterior = prior.decode(rows)
+        assert posterior is not None
+        assert posterior.arities == candidates[int(np.argmax(scores))]
+        assert posterior.log_z == pytest.approx(np.logaddexp.reduce(scores), abs=1e-12)
+        assert parse(posterior.arities) is not None
+    assert prior.decode(np.zeros((8, 3))) is None

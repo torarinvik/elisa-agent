@@ -1950,6 +1950,26 @@ validation calibration, produced identical Answers and complete refinement
 traces with native scoring enabled and disabled: 12 answered, no observed
 errors. This checks behavior preservation, not a new audit certification.
 
+**Height-bounded structural prior.** A cached constructor now accepts all
+unary/binary prefix trees of edge height at most D. Theorem 27.7 and its
+Lean proofs establish the grammar's maximum node count and inclusion of
+complete depth-d trees with optional negated leaves when D=d+1. Tests
+enumerate all sequences through length seven at heights zero through two,
+and all complete shapes through depth three for inclusion; native and
+reference posterior normalizers and maxima match enumerated bounded shapes.
+The transition constructor is tested rather than extracted from Lean.
+
+With the reader ladder and calibration unchanged from the preceding
+100-input depth-6 noise-0.2 seed-6 comparison, the height-7 prior (256
+states) at target 5% answered 94 inputs with three errors, at mean expert
+cost 1,002,970.70, taking 2.97025 s. Earlier format-only and complete-prior
+runs answered 76/6 errors and 97/3 errors, with mean costs 3,750,946.38 and
+556,179.02 respectively. The relaxed structural prior lies between these
+two on observed coverage and expert cost in this sample. This is not a
+universal ordering or deployment certification; historical timings are not
+a controlled speed comparison. A generic provider supplies this prior to
+the evaluator; dedicated typed expert and CLI installation remain pending.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most

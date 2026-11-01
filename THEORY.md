@@ -2381,6 +2381,14 @@ the current budget, there are at most `(D + 1) · 2^D` states. The language
 is regular, and the stack's size plus one is the format's awaited count, so
 the format component is redundant (§27.2).
 
+**Theorem 27.7 (height-bounded support).** A unary/binary tree of height
+at most `D` has `m + 1 ≤ 2^{D+1}`. Constants satisfy the bound; a unary
+node adds one word, and a binary node joins two smaller-budget trees and
+adds one word. Induction gives the bound. Every complete depth-`d` binary
+skeleton with optional negated leaves has height at most `d + 1`, so the
+height-`d + 1` prior contains the complete prior's support. The inclusion
+does not require internal nodes to alternate connective identity.
+
 **Complete alternating trees of depth `d`.** This is the generator's own
 support `S_m`. The same stack automaton applies, with two restrictions:
 nodes at budget `h ≥ 1` must be connectives (arity 2), and at budget 0 a

@@ -293,6 +293,37 @@ def complete_prior(length: int) -> ArityPrior | None:
                       np.zeros((len(pending), 3)), final)
 
 
+@lru_cache(maxsize=16)
+def height_prior(height: int) -> ArityPrior:
+    """Unit-weight prefix trees of height at most ``height`` (§27.4).
+
+    Height counts edges; a constant has height zero. Unlike the complete-tree
+    prior, branches may end early and unary nodes may occur at any level.
+    """
+    if not isinstance(height, int) or height < 0:
+        raise ValueError("height must be a nonnegative integer")
+    pending = [(height,)]
+    indices = {pending[0]: 0}
+    transitions: list[list[int]] = []
+    for stack in pending:
+        row = [-1, -1, -1]
+        if stack:
+            head, rest = stack[0], stack[1:]
+            successors = {0: rest}
+            if head:
+                successors |= {1: (head - 1, *rest), 2: (head - 1, head - 1, *rest)}
+            for arity, target in successors.items():
+                if target not in indices:
+                    indices[target] = len(pending)
+                    pending.append(target)
+                row[arity] = indices[target]
+        transitions.append(row)
+    final = np.full(len(pending), -np.inf)
+    final[indices[()]] = 0.0
+    return ArityPrior((0, 1, 2), np.array(transitions, dtype=np.int64),
+                      np.zeros((len(pending), 3)), final)
+
+
 @dataclass(frozen=True)
 class Decoded:
     """Maximum-weight accepted arity sequence, log normalizer and marginals.

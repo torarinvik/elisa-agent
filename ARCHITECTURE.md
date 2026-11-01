@@ -692,3 +692,14 @@ transitions yield negative infinity; an empty sequence retains the start
 state's final weight. The Python traversal remains the reference fallback.
 `Decoded.log_weight` also uses the native selected-reading reduction, keeping
 both position-wise scoring loops out of Python during posterior risk checks.
+
+`formulas.height_prior(height)` constructs the unit-weight automaton of all
+unary/binary prefix trees within an edge-height budget (§27.7). It allows
+early leaves and unary nodes at any level; pending subtree budgets enforce
+termination. `BoundedShape`, `bounded_shape_length` and
+`complete_shape_bounded` in `NCA/Decoding.lean` establish the grammar's node
+bound and complete-shape inclusion. Exhaustive tests check the Python
+transition constructor against an independent grammar; the constructor is
+not extracted from Lean. Numerical decoding uses the existing Elisa kernel.
+It can be supplied through a generic evaluator prior provider; a dedicated
+height-prior expert and CLI choice are not yet installed.

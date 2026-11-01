@@ -280,4 +280,32 @@ theorem complete_shape_length {d : ℕ} {arities : List ℕ}
       simp only [pow_succ] at *
       constructor <;> omega
 
+/-- Prefix trees with unary and binary nodes, bounded by their height budget. -/
+inductive BoundedShape : ℕ → List ℕ → Prop
+  | leaf (d : ℕ) : BoundedShape d [0]
+  | unary {d : ℕ} {child : List ℕ} : BoundedShape d child →
+      BoundedShape (d + 1) (1 :: child)
+  | branch {d : ℕ} {left right : List ℕ} : BoundedShape d left →
+      BoundedShape d right → BoundedShape (d + 1) (2 :: (left ++ right))
+
+/-- Bounded binary trees have at most `2^(d+1)-1` nodes. -/
+theorem bounded_shape_length {d : ℕ} {arities : List ℕ}
+    (h : BoundedShape d arities) : arities.length + 1 ≤ 2 ^ (d + 1) := by
+  induction h with
+  | leaf d => simp; exact Nat.succ_le_of_lt (one_lt_pow₀ (by decide) (by omega))
+  | unary h ih =>
+      simp only [List.length_cons, pow_succ] at *
+      omega
+  | branch hl hr ihl ihr =>
+      simp only [List.length_cons, List.length_append, pow_succ] at *
+      omega
+
+/-- One extra level accommodates optional negations at complete-tree leaves. -/
+theorem complete_shape_bounded {d : ℕ} {arities : List ℕ}
+    (h : CompleteShape d arities) : BoundedShape (d + 1) arities := by
+  induction h with
+  | leaf => exact BoundedShape.leaf 1
+  | negated => exact BoundedShape.unary (BoundedShape.leaf 0)
+  | branch hl hr ihl ihr => exact BoundedShape.branch ihl ihr
+
 end NCA
