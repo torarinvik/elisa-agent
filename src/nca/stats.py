@@ -102,6 +102,10 @@ def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tup
     if observed > len(probabilities):
         return 0.0, 1.0
     clipped = np.clip(probabilities, 0.0, 1.0)
+    # Promote reduced-precision probabilities before computing their complements:
+    # rounding 1-p in float16/32 can make p + (1-p) differ substantially from 1.
+    if clipped.dtype.kind == "f" and clipped.dtype.itemsize < 8:
+        clipped = clipped.astype(np.float64)
     native = getattr(_NATIVE, "poisson_binomial_pmf", None)
     if (native is not None and clipped.ndim == 1 and clipped.dtype.kind in "biuf"
             and clipped.dtype.itemsize <= 8):
@@ -110,7 +114,13 @@ def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tup
         pmf = np.asarray(native(values, complements), dtype=float)
     else:
         pmf = _poisson_binomial_pmf_reference(clipped)
-    return float(pmf[observed:].sum()), float(pmf[:observed + 1].sum())
+    upper = float(pmf[observed:].sum())
+    lower = float(pmf[:observed + 1].sum())
+    if not math.isnan(upper):
+        upper = 1.0 if observed == 0 else min(upper, 1.0)
+    if not math.isnan(lower):
+        lower = 1.0 if observed == len(probabilities) else min(lower, 1.0)
+    return upper, lower
 
 
 def _poisson_binomial_pmf_reference(probabilities: Sequence[float]) -> np.ndarray:

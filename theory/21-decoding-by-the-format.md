@@ -187,6 +187,11 @@ not increase the maximum attainable count. An event with probability one
 shifts the distribution by one; several such shifts can be combined.
 The sum is always between zero and the number of events, so its lower tail
 below zero and upper tail above that number are zero.
+Before this recurrence, reduced-precision inputs are promoted so that forming
+`1-p` does not round the complement in their original precision. The recurrence
+still uses floating-point arithmetic and is not an outward-rounded certificate.
+Finite tails are bounded above by one, and the two certain boundary tails
+are returned as exactly one; undefined inputs continue to propagate NaNs.
 
 **The pairs premise of §19.** Let `O₂` be the number of formulas whose
 per-word reading has at least two arity failures. If failures are not

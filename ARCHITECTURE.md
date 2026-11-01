@@ -267,12 +267,13 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 
 `stats.elisa` computes the Poisson-binomial count recurrence (§21.8) in place;
 `bernoulliStep_zero` and `bernoulliStep_succ` in `NCA.Decoding` state its steps.
+`bernoulli_split_mass` states the exact-arithmetic normalization identity.
 `bernoulliStep_impossible` justifies skipping zero-probability events.
 `bernoulliStep_certain_zero` and `bernoulliStep_certain_succ` justify combining
 the shifts for events with probability one.
 `bernoulli_count_le_length` establishes the upper limit of the count's support.
-The caller computes complements in the input array's precision, preserving
-the NumPy reference's rounding for reduced-precision inputs.
+The caller promotes reduced-precision probabilities before computing their
+complements, avoiding loss of probability mass from independent rounding.
 
 ## 1. Types and contracts
 

@@ -34,7 +34,7 @@ def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch) -> None:
     cases += [rng.random(n).tolist() for n in range(1, 9)]
     native = stats._NATIVE
     for probabilities in cases:
-        clipped = np.clip(probabilities, 0.0, 1.0)
+        clipped = np.clip(probabilities, 0.0, 1.0).astype(np.float64)
         for observed in range(len(probabilities) + 1):
             outcomes = [(sum(bits), math.prod(p if bit else 1 - p
                          for p, bit in zip(clipped, bits)))
@@ -45,8 +45,7 @@ def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch) -> None:
             fallback = stats.poisson_binomial_tails(observed, probabilities)
             monkeypatch.setattr(stats, "_NATIVE", native)
             accelerated = stats.poisson_binomial_tails(observed, probabilities)
-            tolerance = 5e-4 if clipped.dtype == np.float16 else 1e-7 if clipped.dtype == np.float32 else 2e-15
-            assert fallback == pytest.approx(expected, abs=tolerance)
+            assert fallback == pytest.approx(expected, rel=0, abs=2e-15)
             assert accelerated == pytest.approx(fallback, rel=0, abs=2e-15)
 
 
@@ -80,6 +79,32 @@ def test_poisson_binomial_preserves_input_precision(monkeypatch) -> None:
             reference = stats.poisson_binomial_tails(n // 3, probabilities)
             monkeypatch.setattr(stats, "_NATIVE", native)
             assert stats.poisson_binomial_tails(n // 3, probabilities) == reference
+
+
+def test_poisson_binomial_promotes_reduced_precision_probabilities(monkeypatch) -> None:
+    import numpy as np
+    import nca.stats as stats
+
+    native = stats._NATIVE
+    for dtype in (np.float16, np.float32):
+        probabilities = np.full(1000, 0.1, dtype=dtype)
+        promoted = probabilities.astype(np.float64)
+        for implementation in (None, native):
+            monkeypatch.setattr(stats, "_NATIVE", implementation)
+            upper, lower = stats.poisson_binomial_tails(0, probabilities)
+            assert upper == 1.0
+            assert lower == pytest.approx((1.0 - promoted[0]) ** len(promoted), rel=1e-12)
+            assert stats.poisson_binomial_tails(100, probabilities) == \
+                stats.poisson_binomial_tails(100, promoted)
+        assert stats.poisson_binomial_tails(len(probabilities), probabilities)[1] == 1.0
+
+
+def test_poisson_binomial_nan_propagates_at_support_edges() -> None:
+    import math
+    from nca.stats import poisson_binomial_tails
+
+    for observed in (0, 1):
+        assert all(math.isnan(p) for p in poisson_binomial_tails(observed, [float("nan")]))
 
 
 def test_native_poisson_binomial_handles_sparse_and_nonfinite_inputs() -> None:

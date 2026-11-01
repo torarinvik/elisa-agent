@@ -150,6 +150,10 @@ end Automaton
 def bernoulliStep (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) : ℝ :=
   (1 - p) * mass k + if k = 0 then 0 else p * mass (k - 1)
 
+/-- Splitting a count's mass between failure and success preserves it. -/
+theorem bernoulli_split_mass (mass p : ℝ) : (1 - p) * mass + p * mass = mass := by
+  ring
+
 /-- The number of successes cannot exceed the number of Bernoulli events. -/
 theorem bernoulli_count_le_length (events : List Bool) :
     events.count true ≤ events.length := by
