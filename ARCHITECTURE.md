@@ -146,6 +146,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `selective_risk_le`, `selective_risk_le_available`, `upper_fold_ge` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_alternative_risk` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_observation_floor` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
@@ -820,8 +821,10 @@ grouped distribution. When finite alternative logits underflow, both paths
 recover their aggregate in log space and retain a positive binary64 sentinel
 if it remains unrepresentable. This is not an outward-rounding guarantee.
 `Rung.observe` converts probabilities to binary64 and floors zero at the
-smallest positive representable value before taking logs. This smoothing is
-not a calibration guarantee. Native double arithmetic can change rounding.
+smallest positive representable value before taking logs. It rejects malformed
+weight vectors using an Elisa scan when available and a PyTorch fallback.
+Positive unnormalized weights are accepted; neither validation nor smoothing
+is a calibration guarantee. Native double arithmetic can change rounding.
 
 The selective certificate adapter caches immutable reading tuples by the
 item's revision within one solve. Consumers still receive independent outer

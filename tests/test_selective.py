@@ -176,6 +176,35 @@ def test_observation_preserves_small_positive_probabilities() -> None:
     assert zero.risk(zero.observe(None)) == math.nextafter(0.0, 1.0)
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("weights", [(), (0.0, 0.0), (-0.1, 1.0),
+                                      (float("nan"), 1.0), (float("inf"), 1.0),
+                                      (float("-inf"), 1.0), ((0.1, 0.9),), 1.0])
+def test_observation_rejects_invalid_weights(weights, native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "valid_observation_weights", None) is None:
+        pytest.skip("native observation validation is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    with pytest.raises(ValueError, match="expert output"):
+        Rung(constant("invalid", weights, 1.0)).observe(None)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_observation_accepts_unnormalized_positive_weights(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "valid_observation_weights", None) is None:
+        pytest.skip("native observation validation is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("weights", (2.0, 1.0), 1.0))
+    assert rung.reading(rung.observe(None)).tolist() == pytest.approx([2 / 3, 1 / 3])
+    large = Rung(constant("large-weights", (1e308, 1e308), 1.0))
+    assert large.reading(large.observe(None)).tolist() == pytest.approx([0.5, 0.5])
+
+
 def test_segmenter_alternatives_merge_narrowest_gap_first() -> None:
     from nca.modules.segmenter import Segmenter
 

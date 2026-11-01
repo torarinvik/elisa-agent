@@ -44,7 +44,10 @@ binary64 value so temperature fitting has finite log inputs; positive inputs
 are not raised to an arbitrary larger floor, assuming gradual underflow. This
 is numerical smoothing, not evidence that a zero-probability prediction has a
 well-calibrated error rate. Negative outputs and all-zero vectors are invalid
-probability inputs but are not currently rejected by observation.
+probability inputs and are rejected, as are non-finite, empty, and non-vector
+outputs. An exact sum of one is not required: finite nonnegative weights with
+positive total mass are normalized by the subsequent softmax. This validation
+checks the representation, not whether the expert is statistically calibrated.
 
 For independent known reductions, the priced objective has a local threshold
 rule: refine when the reduction pays for its cost. Sweeping `λ` explores a

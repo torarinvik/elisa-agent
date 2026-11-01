@@ -108,6 +108,13 @@ theorem positive_alternative_risk {chosen outside : ℝ} (hc : 0 < chosen)
 theorem positive_observation_floor {p ε : ℝ} (hε : 0 < ε) : 0 < max p ε := by
   exact lt_of_lt_of_le hε (le_max_right p ε)
 
+omit [DecidableEq I] in
+/-- Nonnegative weights with a positive member have positive total mass. -/
+theorem observation_weight_sum_positive (s : Finset I) (w : I → ℝ)
+    (hn : ∀ i ∈ s, 0 ≤ w i) (i : I) (hi : i ∈ s) (hp : 0 < w i) :
+    0 < ∑ j ∈ s, w j := by
+  exact lt_of_lt_of_le hp (single_le_sum hn hi)
+
 /-- Bound plus priced compute after refining the symbols in `T`. -/
 def refinedObjective (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) : ℝ :=
   ∑ i ∈ S, r i - ∑ i ∈ T, β i + lam * ∑ i ∈ T, κ i
