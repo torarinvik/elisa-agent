@@ -956,7 +956,8 @@ It and `decode_banded` sum off-reference log masses using Elisa's
 `off_reference_log_mass`, with a NumPy fallback, and compare tails in log space.
 If a computed sequence risk rounds to zero, the generic Elisa
 `format_partition` separately accumulates selected and alternative paths;
-the fallback uses the same recurrence in NumPy.
+the fallback uses the same recurrence in NumPy. Both reject non-finite
+results of adding finite path weights instead of treating them as absent mass.
 Single-row updates reuse native cursor sweeps; rebuilds preserve the reference.
 Its `Banded` result bounds model risk with the requested slack. After a
 successful result, `sequence_risk` scores any accepted arity sequence with the

@@ -414,14 +414,28 @@ def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], sel
                 target = n - 1 + arity
                 if target > m - k - 1:
                     continue
-                following[target] = np.logaddexp(following[target], alternatives[n] + rows[k, j])
-                if n == state and arity != selected[k]:
-                    following[target] = np.logaddexp(following[target], matched + rows[k, j])
+                reading = float(rows[k, j])
+                if alternatives[n] != -math.inf and reading != -math.inf:
+                    through = float(alternatives[n]) + reading
+                    if not math.isfinite(through):
+                        raise ValueError("format partition arithmetic is not finite")
+                    following[target] = np.logaddexp(following[target], through)
+                if n == state and arity != selected[k] and matched != -math.inf and reading != -math.inf:
+                    through = matched + reading
+                    if not math.isfinite(through):
+                        raise ValueError("format partition arithmetic is not finite")
+                    following[target] = np.logaddexp(following[target], through)
         column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
         if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
             matched = -math.inf
         else:
-            matched += float(rows[k, column])
+            reading = float(rows[k, column])
+            if matched != -math.inf and reading != -math.inf:
+                matched += reading
+                if not math.isfinite(matched):
+                    raise ValueError("format partition arithmetic is not finite")
+            else:
+                matched = -math.inf
             state += int(selected[k]) - 1
         alternatives = following
     return risk_from_partition(matched if state == 0 else -math.inf, float(alternatives[0]))

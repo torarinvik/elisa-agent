@@ -264,9 +264,13 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                 reading: f64 = log_probs[k * count + j]
                 source: f64 = alternatives[here + n]
                 if source != missing and reading != missing:
-                    alternatives[next + target] <- log_add(alternatives[next + target], source + reading)
+                    through: f64 = source + reading
+                    return [] if through == missing or through == -missing or through != through
+                    alternatives[next + target] <- log_add(alternatives[next + target], through)
                 if n == state[0] and matched[0] != missing and arity != selected[k] and reading != missing:
-                    alternatives[next + target] <- log_add(alternatives[next + target], matched[0] + reading)
+                    through: f64 = matched[0] + reading
+                    return [] if through == missing or through == -missing or through != through
+                    alternatives[next + target] <- log_add(alternatives[next + target], through)
         chosen: i64 =
             for j in 0..<count |found: i64 = -1| -> found:
                 if alphabet[j] == selected[k]:
@@ -276,7 +280,13 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
             matched[0] <- missing
         else:
             state[0] <- state[0] - 1 + selected[k]
-            matched[0] <- missing if state[0] > m - k - 1 else matched[0] + log_probs[k * count + chosen]
+            reading: f64 = log_probs[k * count + chosen]
+            if state[0] > m - k - 1 or matched[0] == missing or reading == missing:
+                matched[0] <- missing
+            else:
+                value: f64 = matched[0] + reading
+                return [] if value == missing or value == -missing or value != value
+                matched[0] <- value
     return [matched[0] if state[0] == 0 else missing, alternatives[(m % 2) * width]]
 
 # Exact format decoding in log space, used when linear-space paths underflow.

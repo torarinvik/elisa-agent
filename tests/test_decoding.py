@@ -239,6 +239,22 @@ def test_generic_decoded_risk_is_stable_under_row_shifts(alphabet) -> None:
             assert selected.risk(shifted, alphabet) == pytest.approx(
                 selected.risk(rows, alphabet), rel=1e-12, abs=1e-14)
 
+
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("rows, alphabet, selected", [
+    (np.array([[-np.inf, 0.0, -1e308], [-1e308, 0.0, -np.inf],
+               [0.0, 0.0, -np.inf], [0.0, -np.inf, -np.inf]]),
+     (0, 1, 3), (1, 1, 1, 0)),
+    (np.array([[-np.inf, 1e308, -np.inf], [1e308, -np.inf, -np.inf]]),
+     (0, 1, 3), (1, 0)),
+])
+def test_generic_format_risk_rejects_log_arithmetic_overflow(
+        reference_only: bool, rows, alphabet, selected, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    with pytest.raises(ValueError, match="format partition arithmetic is not finite"):
+        priors.format_sequence_risk(rows, alphabet, selected)
+
 def test_split_matches_full_decoding() -> None:
     """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one
     word's weights, the cached vectors give the full programs' results."""

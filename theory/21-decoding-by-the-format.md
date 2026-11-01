@@ -154,6 +154,10 @@ finite nonnegative-arity alphabet. Multiplying every path weight by the same
 positive factor leaves their normalized ratio unchanged; carrying the two
 parts separately avoids losing a small alternative when a common log-weight
 shift makes the rounded total equal the selected weight.
+If adding two finite log weights overflows the representable log range, the
+general-arity partition reports the calculation as unavailable instead of
+interpreting the resulting infinity as a zero-weight path. This check does
+not bound ordinary finite rounding errors.
 
 ## 21.6 Charges for refinement
 
