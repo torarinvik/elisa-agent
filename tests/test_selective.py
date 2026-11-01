@@ -10,7 +10,7 @@ torch = pytest.importorskip("torch")
 from torch import nn
 
 from nca.abi import NOTHING, Contract, Demand, Manifest, SequenceDemand
-from nca.ladder import Rung, SecondLook, ladder, refine
+from nca.ladder import Rung, SecondLook, allocate_risk, ladder, refine
 from nca.planner import plan_stable
 from nca.selective import build_ladders, solve
 
@@ -212,3 +212,22 @@ def test_stopping_rule_only_abstains() -> None:
     assert not refine([0, 0], [rungs] * 2, 0.05, stop=lambda state: False).abstained
     stopped = refine([0, 0], [rungs] * 2, 0.05, stop=lambda state: True)
     assert stopped.abstained and stopped.cost == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("priorities", [[0.0, 0.0], [0.0, 3.0, 1.0],
+                                       [1e308, 1e308], [1e-320, 2e-320]])
+def test_risk_allocation_uses_current_bound(priorities: list[float]) -> None:
+    # Reuse the same priorities while the current posterior risk changes.
+    for bound in (0.0, 0.001, 0.4, 1.0):
+        charges = allocate_risk(bound, priorities)
+        assert all(c >= 0 for c in charges)
+        assert sum(charges) == pytest.approx(bound)
+        assert len(charges) == len(priorities)
+
+
+@pytest.mark.parametrize("bound, priorities", [(float("nan"), [1.0]),
+                                               (-0.1, [1.0]), (0.1, []),
+                                               (0.1, [-1.0]), (0.1, [float("inf")])])
+def test_risk_allocation_rejects_invalid_inputs(bound: float, priorities: list[float]) -> None:
+    with pytest.raises(ValueError):
+        allocate_risk(bound, priorities)

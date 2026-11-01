@@ -21,6 +21,8 @@ Train the character reader with::
 from __future__ import annotations
 
 import argparse
+import math
+from dataclasses import dataclass
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -30,9 +32,9 @@ from torch import nn
 
 from nca.abi import Contract, Manifest, seq_type
 from nca.efficiency import network_flops
-from nca.formulas import (ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, decode,
+from nca.formulas import (ALPHABET, ARITY, VOCABULARY, FormulaDataset, Split, apply, decode,
                           labeled_words, parse)
-from nca.ladder import Decision
+from nca.ladder import Decision, allocate_risk
 from nca.modules.symbols import BOOLEAN
 
 FORMULA_TEXT = "text.formula.prefix.v1"
@@ -155,6 +157,16 @@ def train(out: Path, noise: float, formulas: int, xor: float, epochs: int, hidde
     return accuracy
 
 
+@dataclass
+class CorrectionState:
+    """Per-solve cursor and priorities; never shared between formulas."""
+
+    cursor: Split | None = None
+    priorities: list[float] | None = None
+    steps: int = 0
+    changed: tuple[int, ...] = ()
+
+
 class FormulaEvaluator:
     """The value of the most probable words, read as a prefix formula; ``None``
     if their arities form no formula.
@@ -260,29 +272,65 @@ class FormulaEvaluator:
     def corrected(self, words: Sequence[str], children: Sequence[Sequence[int]],
                   risk: Callable[[int, Decision], float],
                   distribution: Callable[[int, Decision], torch.Tensor],
+                  state: CorrectionState | None = None,
                   ) -> dict[int, float] | None:
         """The correction account (§21.5–21.6) of the decoded ``words``."""
         n = len(words)
         calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
                                   for k in range(n)]).double()
         log_probs = calibrated.clamp_min(1e-300).log().numpy()
-        posterior = decode(log_probs, ARITY_ORDER)
-        if posterior is None:
-            return None
         arities = [ARITY[VOCABULARY.index(w)] for w in words]
-        sequence_risk = posterior.risk(log_probs, ARITY_ORDER, arities)
-        misread = [1.0 - posterior.marginals[k, ARITY_ORDER.index(a)]
-                   for k, a in enumerate(arities)]
-        total = sum(misread)
-        shares = [sequence_risk * r / total if total > 0 else sequence_risk / n for r in misread]
+        if state is None:
+            posterior = decode(log_probs, ARITY_ORDER)
+            if posterior is None:
+                return None
+            sequence_risk = posterior.risk(log_probs, ARITY_ORDER, arities)
+            priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
+                          for k, a in enumerate(arities)]
+        else:
+            if state.cursor is None:
+                state.cursor = Split(log_probs, ARITY_ORDER)
+            changed = np.flatnonzero(np.any(state.cursor.log_probs != log_probs, axis=1))
+            state.changed = tuple(int(k) for k in changed)
+            for k in state.changed:
+                state.cursor.climb(k, log_probs[k])
+            anchor = state.changed[-1] if state.changed else 0
+            log_z, _ = state.cursor.scores(anchor, log_probs[anchor])
+            if not math.isfinite(log_z):
+                return None
+            weight = sum(log_probs[k, ARITY_ORDER.index(a)] for k, a in enumerate(arities))
+            sequence_risk = float(-np.expm1(min(0.0, weight - log_z)))
+            if state.priorities is None or state.steps >= math.isqrt(n):
+                posterior = decode(log_probs, ARITY_ORDER)
+                if posterior is None:
+                    return None
+                state.priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
+                                    for k, a in enumerate(arities)]
+                state.steps = 0
+            priorities = state.priorities
+            state.steps += len(state.changed)
+        shares = allocate_risk(sequence_risk, priorities)
         within = [risk(k, ARITY_DECISION[a]) for k, a in enumerate(arities)]
         kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
                 else set(range(n)))
         return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
 
+    def certificate_session(self) -> Callable[..., dict[int, float] | None]:
+        """Create certificate state owned by one solve, including its cursor."""
+        state = CorrectionState()
+
+        def account(readings: Sequence[Sequence[float]],
+                    risk: Callable[[int, Decision], float],
+                    distribution: Callable[[int, Decision], torch.Tensor],
+                    ) -> dict[int, float] | None:
+            return self.certificate(readings, risk, distribution, state)
+
+        return account
+
     def certificate(self, readings: Sequence[Sequence[float]],
                     risk: Callable[[int, Decision], float],
                     distribution: Callable[[int, Decision], torch.Tensor],
+                    state: CorrectionState | None = None,
                     ) -> dict[int, float] | None:
         words = self.words(readings)
         children = parse([ARITY[VOCABULARY.index(w)] for w in words])
@@ -290,7 +338,7 @@ class FormulaEvaluator:
             return None
         n = len(words)
         if self.decode:
-            return self.corrected(words, children, risk, distribution)
+            return self.corrected(words, children, risk, distribution, state)
         arity = [risk(k, ARITY_DECISION) for k in range(n)]
         if self.detection == "none":
             full = [risk(k, None) for k in range(n)]

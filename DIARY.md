@@ -1019,6 +1019,35 @@ readings, so banding and splitting (§23.2–23.4) would still cut it 26-fold.
 The `S` values of THEORY §23.3 come from the measured top-rung value 0.71 at
 depth 8 (§19.9), scaled by word count to depths 6 and 4.
 
+**Risk allocation with stale priorities** (Theorem 23.11). A numerical
+check reused each of 1,000 lognormal priority vectors of length 575 at current
+risks 0.001, 0.05 and 0.2 (seed 23). Across 3,000 allocations the largest
+absolute difference between the total charge and current risk was
+2.78e-17. Tests also cover zero priorities, subnormal priorities and values
+whose unscaled sum would overflow. This checks allocation only; it does not
+measure refinement coverage or speed with cached priorities.
+
+**Per-solve correction state.** A deterministic synthetic depth-6 formula
+(seed 24, 143 words), initially assigning 0.9 extra probability to each true
+word, received 40 random Dirichlet reading replacements. Fresh and cached
+accounts differed in total bound by at most 8.89e-16. Elapsed times were
+0.0280 s fresh and 0.0273 s cached, one run each: no meaningful speedup is
+established. Cursor updates and periodic marginal refreshes now work, but
+full distribution preparation and raw answer decoding remain. A separate
+regression checks 30 changes and independent session initialization. It found
+marginals slightly above 1 from rounding; priorities now clamp their resulting
+negative risks to zero before normalization. These are synthetic account
+checks, not deployment coverage measurements.
+
+**Cache validity follow-up.** An experimental cache keyed by raw readings
+reduced distribution callbacks from 5,720 to 182 over the same 40 updates,
+but was removed before integration: unchanged raw scores can come from a new
+rung with different calibration. The current implementation checks calibrated
+weights and keeps current within-group risks. Skipping these checks requires
+explicit rung revisions in the generic session interface. Cursor scoring now
+stays at the changed position instead of returning to position zero, avoiding
+an unnecessary sweep. No end-to-end speedup is claimed for this change.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

@@ -103,4 +103,17 @@ theorem restricted_risk_le {m s : ℝ} (hm : 0 ≤ m) (hs : 0 < s) (hs1 : s ≤ 
     nlinarith
   linarith
 
+/-- Priorities may be stale: normalizing them allocates the current risk exactly. -/
+theorem priority_allocation_sum (h : X → ℝ) (R : ℝ)
+    (hH : (∑ x, h x) ≠ 0) :
+    ∑ x, R * h x / (∑ y, h y) = R := by
+  simp_rw [div_eq_mul_inv, mul_assoc]
+  rw [← mul_sum, ← sum_mul, mul_inv_cancel₀ hH, mul_one]
+
+/-- Nonnegative priorities allocate nonnegative charges. -/
+theorem priority_allocation_nonneg (h : X → ℝ) (R : ℝ)
+    (hh : ∀ x, 0 ≤ h x) (hR : 0 ≤ R) (x : X) :
+    0 ≤ R * h x / (∑ y, h y) :=
+  div_nonneg (mul_nonneg hR (hh x)) (sum_nonneg fun y _ => hh y)
+
 end NCA

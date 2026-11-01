@@ -221,6 +221,24 @@ Stop = Callable[[State], bool]
 """A stopping rule: abstain now, given the state of refinement."""
 
 
+def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
+    """Allocate a current bound using possibly stale, nonnegative priorities.
+
+    Priorities guide refinement only; their age does not affect the total
+    charge (THEORY 23.11). Zero priorities receive a uniform allocation.
+    """
+    if not math.isfinite(bound) or bound < 0:
+        raise ValueError("bound must be finite and nonnegative")
+    if not priorities:
+        raise ValueError("risk allocation requires at least one item")
+    if any(not math.isfinite(p) or p < 0 for p in priorities):
+        raise ValueError("priorities must be finite and nonnegative")
+    scale = max(priorities)
+    weights = [p / scale for p in priorities] if scale > 0 else [1.0] * len(priorities)
+    total = math.fsum(weights)
+    return [bound * (w / total) for w in weights]
+
+
 def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: float,
            start: int = 0, classes: Sequence[Decision] | None = None,
            certificate: Certificate | None = None, floor: Floor | None = None,

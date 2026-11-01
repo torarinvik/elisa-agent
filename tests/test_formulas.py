@@ -453,3 +453,29 @@ def test_correction_account() -> None:
     assert children is not None
     kept = FormulaEvaluator.evaluated(decoded, children, within, [0.0] * len(words))
     assert sum(account.values()) == pytest.approx(sequence_risk + sum(within[k] for k in kept))
+
+
+def test_correction_session_matches_fresh_bound() -> None:
+    rng = np.random.default_rng(23)
+    words = formula(3, rng)
+    readings = np.array(one_hot(words)) * 0.7 + rng.dirichlet(
+        np.ones(len(VOCABULARY)), size=len(words)) * 0.3
+    evaluator = FormulaEvaluator(decode=True)
+    session = evaluator.certificate_session()
+
+    def masses(k: int, decision: Decision) -> torch.Tensor:
+        return torch.tensor([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+
+    def risk(k: int, decision: Decision) -> float:
+        return 0.001
+
+    for _ in range(30):
+        k = int(rng.integers(len(words)))
+        readings[k] = rng.dirichlet(np.ones(len(VOCABULARY)))
+        fresh = evaluator.certificate(readings, risk, masses)
+        cached = session(readings, risk, masses)
+        assert fresh is not None and cached is not None
+        assert sum(cached.values()) == pytest.approx(sum(fresh.values()), abs=1e-12)
+    # A separate solve must start with a fresh cursor and fresh priorities.
+    other = evaluator.certificate_session()(readings, risk, masses)
+    assert other == pytest.approx(evaluator.certificate(readings, risk, masses))

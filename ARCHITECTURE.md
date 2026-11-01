@@ -168,6 +168,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.8 | `dpMax_append` | `Banding` |
 | 23.9 | `sum_pair_dist` | `Banding` |
 | 23.10 | `stitch_attains` | `Banding` |
+| 23.11 | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
 | 24.1 | `reweighted_odds` | `Misspecification` |
 | 24.2 | `reweighted_risk_le` | `Misspecification` |
 | 24.3 | `reweighted_risk_le_mul` | `Misspecification` |
@@ -402,3 +403,17 @@ inputs that reach it (§26.4).
 **Prior experts (planned).** The selective controller routes one sequence of
 readings into a single-input consumer. A prior expert is a second input, so
 the consumer's other arguments must be passed through `solve` (§27.3).
+
+## 23. Incremental risk allocation
+
+`ladder.allocate_risk` distributes a current sequence risk over nonnegative
+priorities (Theorem 23.11). It rescales priorities before summing to avoid
+overflow and uses uniform weights when all priorities are zero.
+`FormulaEvaluator.corrected` uses this allocation with its posterior marginal
+risks. `certificate_session` creates a cursor and priorities owned by one solve;
+`element_certificate` creates that session through an optional generic hook.
+The correction account updates changed cursor rows and refreshes marginal
+priorities every `isqrt(m)` changed rows. The current sequence risk and
+within-certificate risks are recomputed each call. The raw answer decode and
+per-word distribution preparation still run in full; making those incremental
+and moving their hot loops to Elisa remains necessary.

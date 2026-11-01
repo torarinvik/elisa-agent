@@ -1717,6 +1717,15 @@ only change which word climbs next, never the validity of the bound. A full
 refresh of the marginals costs one banded forward–backward pass and can be
 amortized, for instance once every `√m` climbs.
 
+**Theorem 23.11 (stale priority allocation).** Let nonnegative priorities
+`hₖ` have positive sum `H`, and let the current sequence risk be `R ≥ 0`.
+The charges `cₖ = R hₖ / H` are nonnegative and sum exactly to `R`,
+regardless of when the priorities were computed. Thus stale priorities may
+allocate the current risk without changing its total. This does not permit
+caching the risk itself: `R` and the within-certificate risk must still be
+current. If every priority is zero, a nonempty set of `m` items can instead
+receive uniform charges `R / m`.
+
 The decoded sequence must still be recovered after each step, to evaluate
 the formula and find `E`. It too is read from the split, without a sweep.
 

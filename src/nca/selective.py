@@ -153,6 +153,9 @@ def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],
     declared = getattr(consumer, "certificate", None)
     if declared is None:
         return None
+    session = getattr(consumer, "certificate_session", None)
+    if session is not None:
+        declared = session()
     position = {i: j for j, (i, _) in enumerate(items)}
 
     def certificate(readings: Sequence[torch.Tensor], risk: Callable[[int, Decision], float],
