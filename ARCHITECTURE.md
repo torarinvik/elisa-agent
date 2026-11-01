@@ -294,11 +294,15 @@ With `prepare(route, eager=False)`, the store pins the same route but loads its
 experts on invocation; the entire declared route must still fit its budget.
 Previously resident experts outside the route remain evictable. Additional
 dynamic requests can fail if pinned experts leave insufficient room.
+Pinned references reserve their expert definitions even before loading, and the
+budget cannot be reduced below the declared size of a pinned route.
 `prepare` rejects an oversized declared working set before changing pins or
 residency. The bound uses declared expert sizes, not measured process memory.
-Other loading failures can still leave partial store changes; surviving old pins
-are their intersection with the current resident set. `surviving_pins_maximal`
-in `Eviction` proves this is the largest resident subset of the old pins.
+Other loading failures can still leave partial store changes. Prior resident
+pins survive only while their original owners remain resident; prior deferred
+pins are restored if their references have not been claimed. For the resident
+case, `surviving_pins_maximal` in `Eviction` characterizes the largest resident
+subset of the old pins.
 
 ## 13. Efficiency
 

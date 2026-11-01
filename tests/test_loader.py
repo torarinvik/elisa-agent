@@ -434,6 +434,37 @@ def test_deferred_preparation_preserves_route_pins_and_checks_budget() -> None:
     assert (list(store.resident), store.pinned) == before
 
 
+def test_deferred_pins_reserve_expert_identity_and_budget() -> None:
+    store = ExpertStore(2)
+    manifest = Manifest("reserved", "1", Contract((), "output"))
+    reserved = LazyExpert(manifest, placeholder, 2, store)
+    conflicting = LazyExpert(manifest, placeholder, 1, store)
+    store.prepare(Apply(reserved, ()), eager=False)
+    with pytest.raises(ValueError, match="conflicting expert"):
+        conflicting.invoke()
+    with pytest.raises(ValueError, match="pinned route"):
+        store.budget = 1
+    assert not store.resident and store.budget == 2
+    reserved.invoke()
+    assert store.resident_bytes == 2
+
+
+def test_failed_eager_preparation_restores_pending_pins() -> None:
+    store = ExpertStore(2)
+    manifest = Manifest("pending", "1", Contract((), "output"))
+    pending = LazyExpert(manifest, placeholder, 1, store)
+    store.prepare(Apply(pending, ()), eager=False)
+    def fail() -> Any:
+        raise RuntimeError("failed")
+    broken = LazyExpert(Manifest("broken", "1", Contract((), "output")), fail, 1, store)
+    with pytest.raises(RuntimeError, match="failed"):
+        store.prepare(Apply(broken, ()))
+    assert store.pinned == frozenset({manifest.ref})
+    with pytest.raises(ValueError, match="conflicting expert"):
+        LazyExpert(manifest, placeholder, 1, store).invoke()
+    pending.invoke()
+
+
 def test_lazy_relevance_rule_skips_unneeded_request() -> None:
     store = ExpertStore(1)
     request_manifest = Manifest("request", "1", Contract((), "value"))

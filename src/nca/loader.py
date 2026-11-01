@@ -52,11 +52,12 @@ class StoreStats:
 class ExpertStore:
     def __init__(self, budget: int | None = None) -> None:
         self._loading = False
+        self._pin_owners: dict[str, LazyExpert] = {}
         self.budget = budget
         self._resident: OrderedDict[str, tuple[Any, int]] = OrderedDict()
         self._resident_bytes = 0
         self._owners: dict[str, LazyExpert] = {}
-        self.pinned: frozenset[str] = frozenset()
+        self._pinned: frozenset[str] = frozenset()
         self.stats = StoreStats()
 
     @property
@@ -70,6 +71,8 @@ class ExpertStore:
             raise ValueError("store budget must be a nonnegative integer or None")
         if value is not None and hasattr(self, "_resident") and self.resident_bytes > value:
             raise ValueError("store budget cannot be less than resident bytes")
+        if value is not None and sum(expert.size for expert in self._pin_owners.values()) > value:
+            raise ValueError("store budget cannot be less than the pinned route")
         self._budget = None if value is None else int(value)
 
     @property
@@ -81,6 +84,10 @@ class ExpertStore:
     def resident_bytes(self) -> int:
         return self._resident_bytes
 
+    @property
+    def pinned(self) -> frozenset[str]:
+        return self._pinned
+
     def prepare(self, route: Plan, *, eager: bool = True) -> None:
         """Pin ``route``'s experts, optionally loading them immediately.
 
@@ -88,8 +95,9 @@ class ExpertStore:
         the full route must still fit the budget. Existing non-route residents
         are evicted only when space is needed.
 
-        On load failure, keep only surviving old pins; evictions and successful
-        partial loads are not rolled back.
+        On load failure, restore old pending pins and surviving resident pins
+        where their references have not been claimed by another expert.
+        Evictions and successful partial loads are not rolled back.
         """
         self._check_not_loading()
         experts: dict[str, LazyExpert] = {}
@@ -105,7 +113,10 @@ class ExpertStore:
         if self.budget is not None and required > self.budget:
             raise MemoryError(f"route requires {required} B, exceeding the {self.budget} B store budget")
         previous_pins = self.pinned
-        self.pinned = frozenset(experts)
+        previous_owners = self._pin_owners
+        previously_pending = previous_pins.difference(self._resident)
+        self._pinned = frozenset(experts)
+        self._pin_owners = experts
         if not eager:
             return
         try:
@@ -115,8 +126,11 @@ class ExpertStore:
                 self.acquire(expert)
         except BaseException:
             # Evicted implementations cannot be restored without reloading them.
-            # Keep only prior pins that are still resident and release partial-route pins.
-            self.pinned = previous_pins.intersection(self._resident)
+            self._pinned = frozenset(
+                key for key in previous_pins
+                if (key in self._resident and self._owners[key] is previous_owners[key])
+                or (key in previously_pending and key not in self._resident))
+            self._pin_owners = {key: previous_owners[key] for key in self.pinned}
             raise
 
     def _make_room(self, size: int) -> None:
@@ -144,6 +158,8 @@ class ExpertStore:
         if expert.store is not self:
             raise ValueError("expert belongs to a different store")
         key = expert.manifest.ref
+        if key in self._pin_owners and self._pin_owners[key] is not expert:
+            raise ValueError(f"conflicting expert definitions for {key}")
         if key in self._resident:
             if self._owners[key] is not expert:
                 raise ValueError(f"conflicting expert definitions for {key}")
