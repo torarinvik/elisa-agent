@@ -439,3 +439,24 @@ def test_native_prior_passes_accept_unaligned_readonly_weights() -> None:
     assert model.best(rows) == expected.arities
     assert model.log_normalizer(rows) == expected.log_z
     np.testing.assert_array_equal(rows, aligned)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_leaf_and_binary_tilts_have_identical_bounded_posteriors(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(2714)
+    prior = priors.height_prior(4)
+    for size in range(1, 12):
+        rows = np.log(rng.dirichlet(np.ones(3), size=size))
+        base = np.log(np.full((size, 3), 1 / 3))
+        for log_factor in (-2.0, 0.0, 1.5):
+            leaf = priors.tilt_prior(prior, [log_factor, 0, 0])
+            binary = priors.tilt_prior(prior, [0, 0, log_factor])
+            left, right = leaf.decode(rows), binary.decode(rows)
+            assert left is not None and right is not None
+            assert left.arities == right.arities
+            assert left.log_z == pytest.approx(right.log_z + log_factor, abs=1e-11)
+            np.testing.assert_allclose(left.marginals, right.marginals, atol=1e-11)
+            assert leaf.log_evidence(rows, base) == pytest.approx(binary.log_evidence(rows, base), abs=1e-11)
