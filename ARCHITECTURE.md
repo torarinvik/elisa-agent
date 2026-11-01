@@ -423,3 +423,10 @@ and moving their hot loops to Elisa remains necessary.
 run. The run fixes observations and calibration, so the rung identifies both.
 The selective adapter preserves these revisions when mapping elements to
 refined items. Plain distribution callbacks remain supported without revisions.
+
+The correction session consumes distribution revisions to update calibrated
+rows and invalidate within-group risk entries only for revised items. Cached
+within-group risks are indexed by item and decoded arity, since a different
+word's refinement may change the item's decoded arity. Distribution callbacks
+without revision support recompute every row and invalidate every risk entry.
+The raw answer decode and conversion of readings remain full passes.

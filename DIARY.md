@@ -1055,6 +1055,18 @@ accessor and selective adapter now expose rung revisions within a solve.
 The correction cache does not yet consume these identities; this increment
 establishes the invalidation interface before bypassing calibration work.
 
+**Revision-keyed correction cache.** Repeating the synthetic seed-24,
+143-word, 40-update experiment with explicit revisions reduced distribution
+callbacks from 5,720 to 182 (143 initial rows plus 39 subsequent updates).
+Single-run elapsed time was 0.02830 s fresh and 0.01593 s cached; maximum
+total-bound difference was 8.89e-16. The regression changes calibration and
+within-group risks while holding raw scores identical; the revised row alone
+is recomputed and the total agrees with a fresh account. Plain callbacks
+without revisions retain the full-recomputation path. These synthetic timings
+do not establish deployment coverage or large-input speedups. Full raw
+answer decoding, reading conversion and certificate traversal remain costs to
+profile and move into the native execution path.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

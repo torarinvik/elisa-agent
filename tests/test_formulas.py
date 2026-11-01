@@ -479,3 +479,35 @@ def test_correction_session_matches_fresh_bound() -> None:
     # A separate solve must start with a fresh cursor and fresh priorities.
     other = evaluator.certificate_session()(readings, risk, masses)
     assert other == pytest.approx(evaluator.certificate(readings, risk, masses))
+
+
+def test_correction_revisions_invalidate_calibration_with_equal_scores() -> None:
+    from nca.ladder import Distribution
+
+    words = "and true false".split()
+    readings = np.array(one_hot(words)) * 0.9 + 0.1 / len(VOCABULARY)
+    versions = [0, 0, 0]
+    seen: list[int] = []
+
+    def masses(k: int, decision: Decision) -> torch.Tensor:
+        seen.append(k)
+        row = torch.tensor([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+        return row * 0.7 + 0.1 if versions[k] else row
+
+    def risk(k: int, decision: Decision) -> float:
+        return 0.01 if versions[k] else 0.001
+
+    distribution = Distribution(masses, versions.__getitem__)
+    evaluator = FormulaEvaluator(decode=True)
+    session = evaluator.certificate_session()
+    session(readings, risk, distribution)
+    assert seen == [0, 1, 2]
+    seen.clear()
+    session(readings, risk, distribution)
+    assert seen == []
+    versions[1] += 1
+    cached = session(readings, risk, distribution)
+    assert seen == [1]
+    fresh = evaluator.certificate(readings, risk, distribution)
+    assert cached is not None and fresh is not None
+    assert sum(cached.values()) == pytest.approx(sum(fresh.values()), abs=1e-12)

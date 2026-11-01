@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import argparse
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -165,6 +165,8 @@ class CorrectionState:
     priorities: list[float] | None = None
     steps: int = 0
     changed: tuple[int, ...] = ()
+    revisions: tuple[int, ...] | None = None
+    within: dict[tuple[int, int], float] = field(default_factory=dict)
 
 
 class FormulaEvaluator:
@@ -276,9 +278,24 @@ class FormulaEvaluator:
                   ) -> dict[int, float] | None:
         """The correction account (§21.5–21.6) of the decoded ``words``."""
         n = len(words)
-        calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
-                                  for k in range(n)]).double()
-        log_probs = calibrated.clamp_min(1e-300).log().numpy()
+        revision = getattr(distribution, "revision", None)
+        versions = tuple(revision(k) for k in range(n)) if revision is not None else None
+        invalidated = tuple(k for k in range(n) if state is None or versions is None
+                            or state.revisions is None or versions[k] != state.revisions[k])
+        if state is None or state.cursor is None:
+            calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
+                                      for k in range(n)]).double()
+            log_probs = calibrated.clamp_min(1e-300).log().numpy()
+        else:
+            log_probs = state.cursor.log_probs.copy()
+            for k in invalidated:
+                row = torch.as_tensor(distribution(k, ARITY_DECISION)).double()
+                log_probs[k] = row.clamp_min(1e-300).log().numpy()
+        if state is not None:
+            state.revisions = versions
+            for k in invalidated:
+                for a in ARITY_ORDER:
+                    state.within.pop((k, a), None)
         arities = [ARITY[VOCABULARY.index(w)] for w in words]
         if state is None:
             posterior = decode(log_probs, ARITY_ORDER)
@@ -310,7 +327,13 @@ class FormulaEvaluator:
             priorities = state.priorities
             state.steps += len(state.changed)
         shares = allocate_risk(sequence_risk, priorities)
-        within = [risk(k, ARITY_DECISION[a]) for k, a in enumerate(arities)]
+        if state is None:
+            within = [risk(k, ARITY_DECISION[a]) for k, a in enumerate(arities)]
+        else:
+            for k, a in enumerate(arities):
+                if (k, a) not in state.within:
+                    state.within[k, a] = risk(k, ARITY_DECISION[a])
+            within = [state.within[k, a] for k, a in enumerate(arities)]
         kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
                 else set(range(n)))
         return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
