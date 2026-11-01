@@ -32,7 +32,7 @@ from torch import nn
 
 from nca.abi import Contract, Manifest, seq_type
 from nca.efficiency import network_flops
-from nca.formulas import (ALPHABET, ARITY, VOCABULARY, FormulaDataset, Split, apply, decode,
+from nca.formulas import (ALPHABET, ARITY, VOCABULARY, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
                           labeled_words, parse, sequence_log_weight)
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
@@ -164,6 +164,8 @@ def train(out: Path, noise: float, formulas: int, xor: float, epochs: int, hidde
 class CorrectionState:
     """Per-solve cursor and priorities; never shared between formulas."""
 
+    answer_band: CertifiedSplit | None = None
+    answer_band_result: Banded | None = None
     answer_cursor: Split | None = None
     answer_readings: np.ndarray | None = None
     cursor: Split | None = None
@@ -210,7 +212,10 @@ class FormulaEvaluator:
     """
 
     def __init__(self, short_circuit: bool = True, detection: str = "none",
-                 decode: bool = False) -> None:
+                 decode: bool = False, band_slack: float | None = None) -> None:
+        if band_slack is not None and not 0 < band_slack < 1:
+            raise ValueError("band_slack must be strictly between zero and one")
+        self.band_slack = band_slack
         assert detection in DETECTION
         self.short_circuit = short_circuit
         self.detection = detection
@@ -232,6 +237,11 @@ class FormulaEvaluator:
             if decoded is None:
                 return [VOCABULARY[int(np.argmax(r))] for r in readings]
             arities = decoded.arities
+        elif self.band_slack is not None:
+            selected = self._banded_words(readings, state)
+            if selected is None:
+                return [VOCABULARY[int(np.argmax(r))] for r in readings]
+            arities = selected
         else:
             current = np.asarray(readings, dtype=np.float64)
             changed = (() if state.answer_readings is None else
@@ -264,6 +274,36 @@ class FormulaEvaluator:
             return [VOCABULARY[c] for c in chosen]
         return [VOCABULARY[max(ARITY_DECISION[a], key=r.__getitem__)]
                 for r, a in zip(readings, arities)]
+
+    def _banded_words(self, readings: Sequence[Sequence[float]],
+                      state: CorrectionState) -> tuple[int, ...] | None:
+        current = np.asarray(readings, dtype=np.float64)
+        changed = (() if state.answer_readings is None else
+                   np.flatnonzero(np.any(current != state.answer_readings, axis=1)))
+        if state.answer_band is None:
+            masses = np.array([[sum(r[c] for c in g) for g in ARITY_DECISION]
+                               for r in readings])
+            totals = masses.sum(axis=1, keepdims=True)
+            if np.any(totals <= 0):
+                return None
+            with np.errstate(divide="ignore"):
+                weights = np.log(masses / totals)
+            assert self.band_slack is not None
+            state.answer_band = CertifiedSplit(weights, ARITY_ORDER, self.band_slack)
+            state.answer_band_result = state.answer_band.result()
+        else:
+            for k in changed:
+                row = np.array([sum(readings[k][c] for c in g) for g in ARITY_DECISION])
+                total = row.sum()
+                if total <= 0:
+                    state.answer_band = None
+                    state.answer_band_result = None
+                    return None
+                with np.errstate(divide="ignore"):
+                    state.answer_band_result = state.answer_band.climb(int(k), np.log(row / total))
+        state.answer_readings = current.copy()
+        result = state.answer_band_result
+        return None if result is None else result.arities
 
     def invoke(self, readings: Sequence[Sequence[float]]) -> bool | None:
         words = self.words(readings)

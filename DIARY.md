@@ -1569,6 +1569,22 @@ cursor benchmark, not a real-reader or full-refinement speedup. Full-sized
 backing arrays remain, and rigorous floating-point certification remains
 separate from the model's tail certificate.
 
+**Banded answer cursor in the evaluator.** `--band-slack` now enables the
+certified wrapper for raw arity answer selection; calibrated risk remains
+exact. Theorem 23.14 and its Lean lemmas establish common log-shift ordering
+and row normalization. Native and NumPy tests compare 20 evolving readings
+against exact word selection, and cover zero-mass fallback. Native suite:
+135 passes; fallback: 122 passes, 13 skips. The full Lean build passes.
+
+After warming calibration, exact/banded/banded/exact runs on the familiar
+three depth-8 formulas took 0.49509/0.45439/0.46344/0.49571 s, with band
+slack 1e-4. All returned Answers were exactly equal, including bounds and
+per-input expert costs. Uniform six-class readings of lengths 3, 5, 7 and
+9 also selected the same words in a small tie check. These limited checks
+do not establish canonical tie equivalence generally or transfer deployment
+certification. Banding remains an explicit experiment option, and calibrated
+cursor banding remains a separate integration step.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

@@ -1828,6 +1828,14 @@ the band to the dead state. That is again a deterministic automaton, so the
 splits of Theorems 23.7 and 23.8 apply to the banded programs unchanged, and
 the cursor sweeps `W` states per position instead of up to `min(k + 1, m − k)`.
 
+**Theorem 23.14 (row normalization preserves ordering).** Multiplying all
+weights in position `k` by a positive constant changes every complete
+sequence's log score by the same sum of row log constants. Subtracting a
+common constant preserves score ordering. Therefore normalizing each
+positive-mass row leaves the set of maximizing sequences unchanged.
+Zero-mass rows admit no positive-weight complete sequence and must be
+handled separately.
+
 ### 23.5 Predicted operation counts
 
 Per refinement step, counting multiply-adds over the arity alternatives:

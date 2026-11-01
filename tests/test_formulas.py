@@ -643,3 +643,23 @@ def test_certified_cursor_rejects_invalid_weights_and_handles_zero_mass() -> Non
         formulas.CertifiedSplit(np.empty((0, 3)))
     cursor = formulas.CertifiedSplit(np.full((3, 3), -np.inf))
     assert cursor.result() is None
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_banded_answer_session_matches_exact_words(reference: bool,
+                                                   monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules.words import CorrectionState
+
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(34)
+    readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=35)
+    evaluator = FormulaEvaluator(decode=True, band_slack=1e-4)
+    state = CorrectionState()
+    for _ in range(20):
+        k = int(rng.integers(len(readings)))
+        readings[k] = rng.dirichlet(np.ones(len(VOCABULARY)))
+        assert evaluator.words(readings, state) == FormulaEvaluator(decode=True).words(readings)
+    assert state.answer_band is not None
+    assert state.answer_band_result is not None and state.answer_band_result.exact
+    assert evaluator.words(np.zeros_like(readings), state) == [VOCABULARY[0]] * len(readings)

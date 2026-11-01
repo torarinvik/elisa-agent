@@ -171,6 +171,7 @@ Each numbered theorem of THEORY.md and its formal statement in `lean/NCA/`.
 | 23.8 | `dpMax_append` | `Banding` |
 | 23.9 | `sum_pair_dist` | `Banding` |
 | 23.10 | `stitch_attains` | `Banding` |
+| 23.14 | `sum_row_shift`, `row_shift_order` | `Selective` |
 | 23.13 | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
 | 23.12 | `revision_cache_eq` | `Selective` |
 | 23.11 | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
@@ -587,6 +588,13 @@ it until the relative tail and exact-maximum conditions of §23.3 hold.
 Single-row updates reuse native cursor sweeps; rebuilds preserve the reference.
 Its `Banded` result bounds model risk with the requested slack. It validates
 probability row mass and arities 0–2; zero accepted mass returns `None`.
-The evaluator has not yet adopted this wrapper. Storage remains full-sized
+The evaluator can opt into this wrapper for raw answer selection. Storage remains full-sized
 arrays with restricted active bands, and floating-point enclosure is not
 certified by this wrapper.
+
+`logic --band-slack η` enables certified banding for the evaluator's raw
+answer cursor. Calibrated posterior risk still uses the exact cursor.
+Positive raw arity rows are normalized before tail accounting; Theorem 23.14
+explains the unchanged score ordering. Zero-mass rows fall back to the
+existing nondecoded reading behavior. The option defaults to disabled pending
+broader timing, tie-choice and deployment-audit comparisons.

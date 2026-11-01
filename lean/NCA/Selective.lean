@@ -141,4 +141,13 @@ theorem threshold_stable {reference reported allowance δ : ℝ}
   · constructor <;> intro hsel <;> linarith
   · constructor <;> intro hsel <;> linarith
 
+/-- Normalizing row log weights subtracts the same sum from every sequence. -/
+theorem sum_row_shift (scores shifts : X → ℝ) :
+    ∑ x, (scores x - shifts x) = (∑ x, scores x) - ∑ x, shifts x := by
+  rw [Finset.sum_sub_distrib]
+
+/-- A common log-score shift preserves the maximizing order. -/
+theorem row_shift_order (a b shift : ℝ) : a - shift ≤ b - shift ↔ a ≤ b := by
+  constructor <;> intro h <;> linarith
+
 end NCA

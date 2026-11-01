@@ -67,9 +67,9 @@ detection (§19), and decoding by the format (§21)."""
 
 
 def library(reader: Path, short_circuit: bool, detection: str = "none",
-            decoding: bool = False) -> list[Module]:
+            decoding: bool = False, band_slack: float | None = None) -> list[Module]:
     return [Tokenizer(), EditReader(), CharReader.load(reader),
-            FormulaEvaluator(short_circuit, detection, decoding)]
+            FormulaEvaluator(short_circuit, detection, decoding, band_slack)]
 
 
 def certificate_leaves(sample: FormulaSample) -> int:
@@ -298,6 +298,7 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reader", type=Path, default=Path("checkpoints/words.pt"))
+    parser.add_argument("--band-slack", type=float, help="certified band slack for answer selection")
     parser.add_argument("--noise", type=float, default=0.1)
     parser.add_argument("--xor", type=float, default=0.0)
     parser.add_argument("--calibration", type=int, default=100, help="validation formulas")
@@ -323,7 +324,7 @@ def main() -> None:
 
     routes = {}
     for name, (short_circuit, detection, decoding) in ACCOUNTS.items():
-        route = plan_stable(library(args.reader, short_circuit, detection, decoding),
+        route = plan_stable(library(args.reader, short_circuit, detection, decoding, args.band_slack),
                             (FORMULA_TEXT,), BOOLEAN)
         assert route is not None
         routes[name] = route
