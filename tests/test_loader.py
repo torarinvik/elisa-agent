@@ -246,3 +246,19 @@ def test_failed_route_preserves_only_surviving_old_pins() -> None:
     assert store.pinned == frozenset({"shared@1"})
     assert set(store.resident) == {"shared@1", "partial@1"}
     assert store.resident_bytes == 2
+
+
+def test_resident_accounting_tracks_eviction_and_cannot_be_mutated_externally() -> None:
+    store = ExpertStore(3)
+    def make(name: str, size: int) -> LazyExpert:
+        manifest = Manifest(name, "1", Contract((), name))
+        return LazyExpert(manifest, lambda: Fn(manifest, lambda: name), size, store)
+    first, second = make("first", 2), make("second", 2)
+    first.invoke()
+    assert store.resident_bytes == sum(size for _, size in store.resident.values()) == 2
+    view = store.resident
+    with pytest.raises(TypeError):
+        view["fake@1"] = (object(), 100)
+    second.invoke()
+    assert list(view) == ["second@1"]
+    assert store.resident_bytes == sum(size for _, size in view.values()) == 2

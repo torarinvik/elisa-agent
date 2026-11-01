@@ -28,7 +28,8 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from numbers import Integral
-from typing import Any, Callable
+from types import MappingProxyType
+from typing import Any, Callable, Mapping
 
 from nca.abi import Manifest
 from nca.planner import Apply, Map, Plan
@@ -47,7 +48,8 @@ class StoreStats:
 class ExpertStore:
     def __init__(self, budget: int | None = None) -> None:
         self.budget = budget
-        self.resident: OrderedDict[str, tuple[Any, int]] = OrderedDict()
+        self._resident: OrderedDict[str, tuple[Any, int]] = OrderedDict()
+        self._resident_bytes = 0
         self._owners: dict[str, LazyExpert] = {}
         self.pinned: frozenset[str] = frozenset()
         self.stats = StoreStats()
@@ -60,13 +62,18 @@ class ExpertStore:
     def budget(self, value: int | None) -> None:
         if value is not None and (isinstance(value, bool) or not isinstance(value, Integral) or value < 0):
             raise ValueError("store budget must be a nonnegative integer or None")
-        if value is not None and hasattr(self, "resident") and self.resident_bytes > value:
+        if value is not None and hasattr(self, "_resident") and self.resident_bytes > value:
             raise ValueError("store budget cannot be less than resident bytes")
         self._budget = None if value is None else int(value)
 
     @property
+    def resident(self) -> Mapping[str, tuple[Any, int]]:
+        """Read-only view of currently loaded implementations and declared sizes."""
+        return MappingProxyType(self._resident)
+
+    @property
     def resident_bytes(self) -> int:
-        return sum(size for _, size in self.resident.values())
+        return self._resident_bytes
 
     def prepare(self, route: Plan) -> None:
         """Make ``route``'s experts resident, evicting only experts outside it.
@@ -87,35 +94,36 @@ class ExpertStore:
         previous_pins = self.pinned
         self.pinned = frozenset(experts)
         try:
-            missing = [e for key, e in experts.items() if key not in self.resident]
+            missing = [e for key, e in experts.items() if key not in self._resident]
             self._make_room(sum(e.size for e in missing))
             for expert in missing:
                 self.acquire(expert)
         except BaseException:
             # Evicted implementations cannot be restored without reloading them.
             # Keep only prior pins that are still resident and release partial-route pins.
-            self.pinned = previous_pins.intersection(self.resident)
+            self.pinned = previous_pins.intersection(self._resident)
             raise
 
     def _make_room(self, size: int) -> None:
         if self.budget is None:
             return
-        victims = (key for key in list(self.resident) if key not in self.pinned)
+        victims = (key for key in list(self._resident) if key not in self.pinned)
         while self.resident_bytes + size > self.budget:
             victim = next(victims, None)
             if victim is None:
                 raise MemoryError(f"pinned experts leave no room for {size} B")
-            del self.resident[victim]
+            self._resident_bytes -= self._resident[victim][1]
+            del self._resident[victim]
             del self._owners[victim]
             self.stats.evictions += 1
 
     def acquire(self, expert: LazyExpert) -> Any:
         key = expert.manifest.ref
-        if key in self.resident:
+        if key in self._resident:
             if self._owners[key] is not expert:
                 raise ValueError(f"conflicting expert definitions for {key}")
-            self.resident.move_to_end(key)
-            return self.resident[key][0]
+            self._resident.move_to_end(key)
+            return self._resident[key][0]
         if self.budget is not None and expert.size > self.budget:
             raise MemoryError(f"{key} ({expert.size} B) exceeds the store budget")
         self._make_room(expert.size)
@@ -125,7 +133,8 @@ class ExpertStore:
         self.stats.loads += 1
         self.stats.loaded_bytes += expert.size
         self.stats.loaded_ids.add(expert.manifest.module_id)
-        self.resident[key] = (implementation, expert.size)
+        self._resident[key] = (implementation, expert.size)
+        self._resident_bytes += expert.size
         self._owners[key] = expert
         self.stats.peak_bytes = max(self.stats.peak_bytes, self.resident_bytes)
         return implementation
