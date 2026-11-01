@@ -450,6 +450,12 @@ theorem band_storage_covers (state row_upper max_upper width : ℤ)
     0 ≤ state ∧ state < width := by
   omega
 
+/-- An admitted state fits a row stored relative to its lower state bound. -/
+theorem packed_band_storage_covers (state low high width : ℤ)
+    (lower : low ≤ state) (upper : state ≤ high) (capacity : high - low < width) :
+    0 ≤ state - low ∧ state - low < width := by
+  omega
+
 variable {σ : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F]
 
 /-- Accepted sequences outside the band weigh at most the tail: the

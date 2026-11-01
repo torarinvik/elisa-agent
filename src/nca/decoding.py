@@ -396,20 +396,21 @@ class Split:
         self.high = np.minimum(self.high, reachable)
         self.low = np.ascontiguousarray(self.low, dtype=np.int64)
         self.high = np.ascontiguousarray(self.high, dtype=np.int64)
-        # State indices above every row's upper bound are never accessed.
-        width = max(2, int(self.high.max()) + 1)
+        # Columns index states relative to each row's lower bound.
+        width = max(1, int((self.high - self.low + 1).max()))
         self.width = width
         self._native = (_NATIVE if all(getattr(_NATIVE, name, None) is not None
-                                     for name in ("advance_log", "retreat_log", "scores_log"))
+                                     for name in ("advance_packed_log", "retreat_packed_log",
+                                                  "scores_packed_log", "trace_packed"))
                         else None)
         self.forward = np.full((m + 1, width), -np.inf)
         self.backward = np.full((m + 1, width), -np.inf)
         self.forward_max = np.full((m + 1, width), -np.inf)
         self.backward_max = np.full((m + 1, width), -np.inf)
         if self.low[0] <= 1 <= self.high[0]:
-            self.forward[0, 1], self.forward_max[0, 1] = 0.0, 0.0
+            self.forward[0, 1 - self.low[0]], self.forward_max[0, 1 - self.low[0]] = 0.0, 0.0
         if self.low[m] <= 0 <= self.high[m]:
-            self.backward[m, 0], self.backward_max[m, 0] = 0.0, 0.0
+            self.backward[m, -self.low[m]], self.backward_max[m, -self.low[m]] = 0.0, 0.0
         self.ahead, self.behind, self.swept = 0, m, 0
         self._advance(m)
         self._retreat(0)
@@ -431,7 +432,7 @@ class Split:
     def _advance(self, k: int) -> None:
         """Make forward vectors current through position ``k``."""
         if self._native is not None and self.ahead < k:
-            swept = self._native.advance_log(self.forward.reshape(-1),
+            swept = self._native.advance_packed_log(self.forward.reshape(-1),
                                               self.forward_max.reshape(-1),
                                               self.log_probs.reshape(-1), self.arities, self.low,
                                               self.high, self.width, self.ahead, k)
@@ -441,10 +442,12 @@ class Split:
             self.ahead = k
         while self.ahead < k:
             i = self.ahead
-            band = slice(int(self.low[i + 1]), int(self.high[i + 1]) + 1)
+            band = slice(0, max(0, int(self.high[i + 1] - self.low[i + 1] + 1)))
             self.forward[i + 1, band] = self.forward_max[i + 1, band] = -np.inf
             for j, s0, n, t0 in self._moves(i):
                 step = self.log_probs[i, j]
+                s0 -= int(self.low[i])
+                t0 -= int(self.low[i + 1])
                 self.forward[i + 1, t0:t0 + n] = np.logaddexp(
                     self.forward[i + 1, t0:t0 + n], _checked_log_sum(self.forward[i, s0:s0 + n], step))
                 self.forward_max[i + 1, t0:t0 + n] = np.maximum(
@@ -455,7 +458,7 @@ class Split:
     def _retreat(self, k: int) -> None:
         """Make backward vectors current from position ``k``."""
         if self._native is not None and self.behind > k:
-            swept = self._native.retreat_log(self.backward.reshape(-1),
+            swept = self._native.retreat_packed_log(self.backward.reshape(-1),
                                               self.backward_max.reshape(-1),
                                               self.log_probs.reshape(-1), self.arities, self.low,
                                               self.high, self.width, self.behind, k)
@@ -465,10 +468,12 @@ class Split:
             self.behind = k
         while self.behind > k:
             i = self.behind - 1
-            band = slice(int(self.low[i]), int(self.high[i]) + 1)
+            band = slice(0, max(0, int(self.high[i] - self.low[i] + 1)))
             self.backward[i, band] = self.backward_max[i, band] = -np.inf
             for j, s0, n, t0 in self._moves(i):
                 step = self.log_probs[i, j]
+                s0 -= int(self.low[i])
+                t0 -= int(self.low[i + 1])
                 self.backward[i, s0:s0 + n] = np.logaddexp(
                     self.backward[i, s0:s0 + n], _checked_log_sum(self.backward[i + 1, t0:t0 + n], step))
                 self.backward_max[i, s0:s0 + n] = np.maximum(
@@ -489,7 +494,7 @@ class Split:
         self._retreat(k + 1)
         if self._native is not None:
             log_row = np.ascontiguousarray(row, dtype=np.float64)
-            log_z, log_x = self._native.scores_log(self.forward.reshape(-1),
+            log_z, log_x = self._native.scores_packed_log(self.forward.reshape(-1),
                                                    self.forward_max.reshape(-1), self.backward.reshape(-1),
                                                    self.backward_max.reshape(-1), self.arities, self.low,
                                                    self.high, self.width, k, log_row)
@@ -500,6 +505,8 @@ class Split:
         for j, s0, n, t0 in self._moves(k):
             if row[j] == -np.inf:
                 continue
+            s0 -= int(self.low[k])
+            t0 -= int(self.low[k + 1])
             suffix = self.backward[k + 1, t0:t0 + n]
             prefix = np.where(np.isneginf(suffix), -np.inf, self.forward[k, s0:s0 + n])
             sums = _checked_log_sum(_checked_log_sum(prefix, row[j]), suffix)
@@ -519,7 +526,7 @@ class Split:
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
-            out = np.asarray(self._native.trace(self.forward_max.reshape(-1), self.backward_max.reshape(-1),
+            out = np.asarray(self._native.trace_packed(self.forward_max.reshape(-1), self.backward_max.reshape(-1),
                                            self.log_probs.reshape(-1), self.arities, self.low,
                                            self.high, self.width, k))
             if np.isnan(out[0]):
@@ -530,8 +537,9 @@ class Split:
         for j, s0, n, t0 in self._moves(k):
             if self.log_probs[k, j] == -np.inf:
                 continue
-            suffix = self.backward_max[k + 1, t0:t0 + n]
-            prefix = np.where(np.isneginf(suffix), -np.inf, self.forward_max[k, s0:s0 + n])
+            source, target = s0 - int(self.low[k]), t0 - int(self.low[k + 1])
+            suffix = self.backward_max[k + 1, target:target + n]
+            prefix = np.where(np.isneginf(suffix), -np.inf, self.forward_max[k, source:source + n])
             best = _checked_log_sum(_checked_log_sum(prefix, self.log_probs[k, j]), suffix)
             t = int(np.argmax(best))
             if best[t] > log_x:
@@ -542,13 +550,15 @@ class Split:
         arities[k] = alphabet[choice]
         before = state
         for i in reversed(range(k)):
-            options = [(float(_checked_log_sum(self.forward_max[i, n], self.log_probs[i, j])), n, a)
+            options = [(float(_checked_log_sum(self.forward_max[i, n - self.low[i]],
+                                               self.log_probs[i, j])), n, a)
                        for j, a in enumerate(alphabet)
                        for n in (before + 1 - a,) if max(1, self.low[i]) <= n <= self.high[i]]
             _, before, arities[i] = max(options)
         after = state - 1 + alphabet[choice]
         for i in range(k + 1, m):
-            options = [(float(_checked_log_sum(self.log_probs[i, j], self.backward_max[i + 1, n])), n, a)
+            options = [(float(_checked_log_sum(self.log_probs[i, j],
+                                               self.backward_max[i + 1, n - self.low[i + 1]])), n, a)
                        for j, a in enumerate(alphabet)
                        for n in (after - 1 + a,) if after >= 1 and self.low[i + 1] <= n <= self.high[i + 1]]
             _, after, arities[i] = max(options)

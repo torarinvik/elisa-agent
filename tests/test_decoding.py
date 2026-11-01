@@ -962,7 +962,7 @@ def test_split_handles_out_of_range_band_centres(
 
 
 def test_native_split_scores_sparse_extreme_rows(monkeypatch: pytest.MonkeyPatch) -> None:
-    if getattr(decoding._NATIVE, "advance_log", None) is None:
+    if getattr(decoding._NATIVE, "advance_packed_log", None) is None:
         pytest.skip("native log cursor is not built")
     rng = np.random.default_rng(245)
     for m in range(1, 9):
@@ -1041,7 +1041,7 @@ def test_banded_split_matches_banded_passes() -> None:
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
-def test_banded_split_limits_storage_to_largest_admitted_state(
+def test_banded_split_limits_storage_to_largest_row_interval(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
@@ -1049,7 +1049,7 @@ def test_banded_split_limits_storage_to_largest_admitted_state(
     rows = np.log(np.tile([0.1, 0.8, 0.1], (m, 1)))
     centre = [1] * m + [0]
     split = decoding.Split(rows, (0, 1, 2), centre, 2)
-    assert split.width == max(2, int(split.high.max()) + 1) == 4
+    assert split.width == max(1, int((split.high - split.low + 1).max())) == 4
     assert split.forward.shape == (m + 1, 4)
     expected = decoding._banded_passes(rows, (0, 1, 2), centre, 2)
     assert expected is not None
@@ -1060,6 +1060,42 @@ def test_banded_split_limits_storage_to_largest_admitted_state(
         weight, arities = split.best(k)
         assert weight == pytest.approx(expected[1])
         assert parse(arities) is not None
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_split_packs_rows_around_nonzero_states(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(273)
+    m = 21
+    rows = np.log(rng.dirichlet(np.ones(3), size=m))
+    path = [2] * 10 + [0] * 11
+    centre = [1]
+    for arity in path:
+        centre.append(centre[-1] - 1 + arity)
+    split = decoding.Split(rows, (0, 1, 2), centre, 1)
+    assert split.width == 2
+    assert int(split.high.max()) > split.width
+    for k in (0, 5, 10, 15, 20):
+        rows[k] = np.log(rng.dirichlet(np.ones(3)))
+        actual = split.climb(k, rows[k])
+        expected = decoding._banded_passes(rows, (0, 1, 2), centre, 1)
+        assert expected is not None
+        assert actual == pytest.approx(expected[:2])
+        weight, arities = split.best(k)
+        assert weight == pytest.approx(expected[1])
+        assert parse(arities) is not None
+
+
+def test_banded_split_falls_back_with_older_native_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = np.log(np.tile([0.1, 0.8, 0.1], (5, 1)))
+    expected = decoding._banded_passes(rows, (0, 1, 2), [1] * 5 + [0], 1)
+    monkeypatch.setattr(decoding, "_NATIVE", object())
+    split = decoding.Split(rows, (0, 1, 2), [1] * 5 + [0], 1)
+    assert split._native is None
+    assert expected is not None
+    assert split.scores(2, rows[2]) == pytest.approx(expected[:2])
 
 
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")
