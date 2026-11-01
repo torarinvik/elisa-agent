@@ -1180,6 +1180,21 @@ its fallback forwards the owned header unchanged. The repair target is now
 isolated, but compiler source changes and regression qualification remain
 pending. The NCA native port continues using explicit slices.
 
+**Additional full-refinement sample.** With the same reader checkpoint and
+100 depth-4 validation formulas, target 0.05, noise 0.1, test seed 1, six
+formulas at each depth were evaluated with fresh then cached accounts:
+
+| depth | fresh seconds | cached seconds | answered | wrong answered |
+|---|---:|---:|---:|---:|
+| 6 | 0.2069 | 0.0847 | 5/6 | 0 |
+| 8 | 7.2952 | 3.0727 | 2/6 | 0 |
+
+Answers and abstentions agreed on all 12 inputs. Total declared expert costs
+also agreed: 15,662,804 at depth 6 and 244,163,586 at depth 8. This extends
+the earlier three-input comparison and is consistent with about 2.4 times
+less runtime, but remains a small, fixed-order experiment without confidence
+intervals. It does not establish general coverage or reliability equivalence.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
