@@ -666,7 +666,9 @@ and, when a budget is set, allows repeats in the request chain; that is
 **Decoding interface.** The certificate needs the calibrated distribution of
 the arity decision, not only its risk. The controller passes the consumer a
 calibrated distribution for any grouped decision it names, alongside the risk
-(§21.6).
+(§21.6). If a rung lacks labels needed to fit a requested restricted decision,
+the account is unavailable rather than treated as a finite bound; refinement
+can try higher rungs and abstains if none supplies a usable account.
 
 ## 25. Which word to climb, and when to stop
 

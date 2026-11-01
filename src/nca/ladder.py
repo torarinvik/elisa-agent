@@ -60,6 +60,15 @@ from nca.native import load
 _NATIVE = load("decoding")
 
 
+class MissingCalibrationError(ValueError):
+    """A decision lacks the held-out labels needed to fit its temperature."""
+
+
+class _UnavailableCalibration(Exception):
+    def __init__(self, index: int) -> None:
+        self.index = index
+
+
 Decision = Sequence[int | Sequence[int]] | None
 """What a decision chooses among: ``None`` for all classes; otherwise entries,
 each a class or a group of classes. The decision picks the entry holding the
@@ -352,7 +361,7 @@ class Rung:
             if not bool(inside.any()):
                 if len(positions) == 1:
                     return 1.0  # A single entry has no decision ambiguity.
-                raise ValueError("cannot fit decision temperature without matching held-out labels")
+                raise MissingCalibrationError("cannot fit decision temperature without matching held-out labels")
             targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long,
                                    device=labels.device)
             self.temperatures[key] = self._fit(log[inside][:, union], targets, positions)
@@ -700,6 +709,8 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     ladders and calibration parameters must remain fixed during a run. When
     ``ranked`` is enabled, readings preserve the original weight ordering;
     the certificate and downstream consumer must use that ordering to choose.
+    Missing restricted calibration makes the account unavailable; refinement
+    may climb another rung and abstains if no usable account is found.
     """
     if math.isnan(delta) or delta < 0:
         raise ValueError("target must be nonnegative and not NaN")
@@ -734,8 +745,11 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             return cache[1]
         if isinstance(cache, dict) and key in cache:
             return cache[key]
-        result = ladders[i][levels[i]].risk(
-            logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
+        try:
+            result = ladders[i][levels[i]].risk(
+                logs[i], decision, reading=readings[i] if isinstance(readings[i], torch.Tensor) else None)
+        except MissingCalibrationError as exc:
+            raise _UnavailableCalibration(i) from exc
         if cache is None:
             risks[i] = (key, result)
         elif isinstance(cache, tuple):
@@ -751,7 +765,10 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             return cache[1]
         if isinstance(cache, dict) and key in cache:
             return cache[key]
-        result = ladders[i][levels[i]].distribution(logs[i], decision)
+        try:
+            result = ladders[i][levels[i]].distribution(logs[i], decision)
+        except MissingCalibrationError as exc:
+            raise _UnavailableCalibration(i) from exc
         if cache is None:
             distributions[i] = (key, result)
         elif isinstance(cache, tuple):
@@ -767,14 +784,32 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         while levels[i] < min(start, len(ladders[i]) - 1):
             levels[i] += 1
             climb(i)
-    default_account = ({i: item_risk(i, decision) for i, decision in enumerate(decisions)}
-                       if certificate is None and all(map(_fixed_decision, decisions)) else None)
+    fixed_account = certificate is None and all(map(_fixed_decision, decisions))
+    default_account: dict[int, float] | None = None
     while True:
-        account = (certificate(readings, item_risk, current_distribution) if certificate is not None
-                   else default_account if default_account is not None
-                   else {i: item_risk(i, d) for i, d in enumerate(decisions)})
+        unavailable: set[int] = set()
+        try:
+            if certificate is not None:
+                account = certificate(readings, item_risk, current_distribution)
+            elif default_account is not None:
+                account = default_account
+            else:
+                account = {i: item_risk(i, d) for i, d in enumerate(decisions)}
+                if fixed_account:
+                    default_account = account
+        except _UnavailableCalibration as exc:
+            unavailable.add(exc.index)
+            account = None
         if account is None:
-            charges = {i: item_risk(i, d) for i, d in enumerate(decisions)}
+            charges = {}
+            for i, decision in enumerate(decisions):
+                try:
+                    charges[i] = item_risk(i, decision)
+                except _UnavailableCalibration:
+                    unavailable.add(i)
+                    charges[i] = 1.0
+            for i in unavailable:
+                charges[i] = 1.0
         else:
             charges = account
         binary_charges = []
@@ -795,11 +830,15 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
                                not available or bound > delta, available))
         if available and bound <= delta:
             break
-        if floor is not None or (certificate is None and additive_floor):
+        if not unavailable and (floor is not None or (certificate is None and additive_floor)):
             fixed = frozenset(i for i in range(len(values)) if levels[i] + 1 >= len(ladders[i]))
-            if floor is not None and floor(readings, item_risk, fixed) > delta:
-                break
-            if floor is None and _lower_sum([charges[i] for i in fixed]) > delta:
+            if floor is not None:
+                try:
+                    if floor(readings, item_risk, fixed) > delta:
+                        break
+                except _UnavailableCalibration:
+                    pass  # An unavailable floor cannot justify early abstention.
+            elif _lower_sum([charges[i] for i in fixed]) > delta:
                 break
         open_ = [i for i in charges if levels[i] + 1 < len(ladders[i])]
         if not open_:
@@ -824,7 +863,10 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
         levels[i] += 1
         climb(i)
         if default_account is not None:
-            default_account[i] = item_risk(i, decisions[i])
+            try:
+                default_account[i] = item_risk(i, decisions[i])
+            except _UnavailableCalibration:
+                default_account = None
     return Refinement(readings, cost, bound, not available or bound > delta, available)
 
 

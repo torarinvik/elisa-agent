@@ -1816,3 +1816,70 @@ def test_observation_rejects_masked_weights(native, monkeypatch) -> None:
         rung.observe_ranked(None)
     unmasked = np.ma.array([0.99, 0.01], mask=[False, False])
     assert Rung(constant("unmasked-weights", unmasked, 1.0)).observe_ranked(None).top() == 0
+
+
+@pytest.mark.parametrize("mode", ["default", "risk-certificate", "distribution-certificate"])
+@pytest.mark.parametrize("ranked", [False, True])
+def test_refinement_climbs_past_missing_restricted_calibration(mode, ranked) -> None:
+    low = Rung(constant("missing-calibration", (0.8, 0.15, 0.05), 1.0))
+    high = Rung(constant("usable-calibration", (0.05, 0.9, 0.05), 2.0))
+    low.calibrate([0, 1], torch.tensor([0, 0]))
+    high.calibrate(list(range(10)), torch.tensor([1] * 9 + [2]))
+    decision = (1, 2)
+
+    def certificate(readings, risk, distribution):
+        if mode == "distribution-certificate":
+            distribution(0, decision)
+        return {0: risk(0, decision)}
+
+    callback = None if mode == "default" else certificate
+    snapshots = []
+    result = refine([0], [[low, high]], 0.2, classes=[decision],
+                    certificate=callback, observe=snapshots.append, ranked=ranked)
+    assert [s.available for s in snapshots] == [False, True]
+    assert snapshots[0].abstained and math.isinf(snapshots[0].bound)
+    assert not result.abstained and result.bound == pytest.approx(0.1, abs=0.02)
+    assert result.cost == 3.0
+
+    missing = refine([0], [[low]], float("inf"), classes=[decision], certificate=callback, ranked=ranked)
+    assert missing.abstained and not missing.available and math.isinf(missing.bound)
+
+
+def test_solve_many_preserves_unavailable_calibration_until_usable_rung() -> None:
+    from nca.selective import solve_many
+
+    class Consumer:
+        manifest = Manifest("calibration-consumer", "1", Contract(("seq[dist]",), "out"))
+
+        def certificate(self, readings, risk, distribution):
+            distribution(0, (1, 2))
+            return {0: risk(0, (1, 2))}
+
+        def invoke(self, readings):
+            return max((1, 2), key=readings[0].__getitem__)
+
+    low = constant("missing-rung", (0.8, 0.15, 0.05), 1.0, Contract(("ch",), "dist"))
+    high = constant("usable-rung", (0.05, 0.9, 0.05), 2.0, Contract(("ch",), "dist"))
+    a, b = Rung(low), Rung(high)
+    a.calibrate([0, 1], torch.tensor([0, 0]))
+    b.calibrate(list(range(10)), torch.tensor([1] * 9 + [2]))
+    route = plan_stable([Splitter(), low, high, Consumer()], ("text",), "out")
+    assert route is not None
+    answers = solve_many(route, {"dist": [a, b]}, "a", [float("inf"), 0.2])
+    assert all(not answer.abstained and answer.cost == 3.0 for answer in answers)
+    assert [answer.value for answer in answers] == [1, 1]
+
+
+def test_unavailable_floor_does_not_stop_usable_account() -> None:
+    low = Rung(constant("floor-missing", (0.8, 0.15, 0.05), 1.0))
+    high = Rung(constant("floor-usable", (0.99, 0.009, 0.001), 2.0))
+    low.calibrate([0, 1], torch.tensor([0, 0]))
+    low.temperatures[None] = 1.0
+    high.temperatures[None] = 1.0
+
+    def floor(readings, risk, fixed):
+        return risk(0, (1, 2))
+
+    result = refine([0], [[low, high]], 0.02, floor=floor)
+    assert not result.abstained and result.cost == 3.0
+    assert result.bound == pytest.approx(0.01)
