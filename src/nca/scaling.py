@@ -13,7 +13,7 @@ route's working set for every ``n``; ``NCA.planIdx_eq`` and
 
 Part 2, memory budget. Arithmetic and comparison tasks alternate under
 budgets that fit both routes, only the larger one, and less, with
-least-recently-used eviction, with route-aware eviction (the kernel
+least-recently-used eviction, with route-aware eviction (the runner
 prepares the store for each route before executing it), and with route-aware
 eviction over the same tasks grouped by route. The runner reports
 loads, evictions, bytes loaded, and time spent loading. Route-aware
@@ -63,7 +63,9 @@ def checkpoint_expert(manifest: Manifest, load: Callable[[], Module], path: Path
 
 
 def algorithm_expert(module: Module, store: ExpertStore) -> LazyExpert:
-    return LazyExpert(module.manifest, lambda: module, ALGORITHM_BYTES, store)
+    return LazyExpert(module.manifest, lambda: module, ALGORITHM_BYTES, store,
+                      demand=getattr(module, "demand", None),
+                      relevant=getattr(module, "relevant", None))
 
 
 def real_experts(args: argparse.Namespace, store: ExpertStore) -> dict[str, list[LazyExpert]]:

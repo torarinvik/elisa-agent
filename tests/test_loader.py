@@ -407,3 +407,28 @@ def test_lazy_relevance_rule_skips_unneeded_request() -> None:
                           1, store, relevant=lambda _index, _values: False)
     result = execute(Apply(consumer, (Apply(requester, ()),)), {}, Workspace(), 2)
     assert result.payload == 5 and store.stats.loads == 1
+
+
+def test_scaling_wrapper_preserves_runtime_rules() -> None:
+    pytest.importorskip("torch")
+    from nca.scaling import ALGORITHM_BYTES, algorithm_expert
+
+    class Consumer:
+        manifest = Manifest("consumer", "1", Contract(("unused",), "output"))
+
+        def demand(self, index: int, demand: Any) -> Any:
+            return NOTHING
+
+        def relevant(self, index: int, provisional: list[Any]) -> bool:
+            return False
+
+        def invoke(self, value: Any) -> str:
+            return "ok"
+
+    store = ExpertStore(ALGORITHM_BYTES)
+    wrapped = algorithm_expert(Consumer(), store)
+    assert wrapped.demand(0, None) == NOTHING
+    assert wrapped.relevant(0, []) is False
+    source = Fn(Manifest("source", "1", Contract((), "unused")),
+                lambda: pytest.fail("unused input was evaluated"))
+    assert execute(Apply(wrapped, (Apply(source, ()),)), {}, Workspace(), 2).payload == "ok"
