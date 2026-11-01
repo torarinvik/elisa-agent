@@ -189,6 +189,12 @@ number of states at `k`. What must be maintained are the vectors themselves:
 - `F_i` depends only on words before `i`;
 - `B_i` depends only on words from `i` on.
 
+If `H` is the largest upper state bound across the rows, the cursor can store
+each vector in `max(2, H + 1)` columns: every state it reads or writes is at
+most `H`, and the initial state requires column 1. The four tables therefore
+use `O(m(H + 1))` space. This layout still reserves the same width for every
+row; it does not pack each individual band interval.
+
 After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
 stays valid. The next climb at `k` needs `F_k`, which costs recomputing the
 forward vectors from `p` to `k` (or the backward ones, if `k < p`). The

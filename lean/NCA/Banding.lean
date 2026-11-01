@@ -443,6 +443,13 @@ theorem band_covers_interval (centre last half state : ℤ)
   apply abs_le.mpr
   constructor <;> omega
 
+/-- A state admitted by a row fits storage sized above every row's upper bound. -/
+theorem band_storage_covers (state row_upper max_upper width : ℤ)
+    (nonneg : 0 ≤ state) (admitted : state ≤ row_upper)
+    (row_bound : row_upper ≤ max_upper) (capacity : max_upper < width) :
+    0 ≤ state ∧ state < width := by
+  omega
+
 variable {σ : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F]
 
 /-- Accepted sequences outside the band weigh at most the tail: the

@@ -1039,6 +1039,29 @@ def test_banded_split_matches_banded_passes() -> None:
             assert log_z == pytest.approx(full[0])
             assert log_x == pytest.approx(full[1])
 
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_split_limits_storage_to_largest_admitted_state(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    m = 50
+    rows = np.log(np.tile([0.1, 0.8, 0.1], (m, 1)))
+    centre = [1] * m + [0]
+    split = decoding.Split(rows, (0, 1, 2), centre, 2)
+    assert split.width == max(2, int(split.high.max()) + 1) == 4
+    assert split.forward.shape == (m + 1, 4)
+    expected = decoding._banded_passes(rows, (0, 1, 2), centre, 2)
+    assert expected is not None
+    for k in (0, m // 2, m - 1):
+        log_z, log_x = split.scores(k, rows[k])
+        assert log_z == pytest.approx(expected[0])
+        assert log_x == pytest.approx(expected[1])
+        weight, arities = split.best(k)
+        assert weight == pytest.approx(expected[1])
+        assert parse(arities) is not None
+
+
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")
 def test_native_decoder_matches_reference() -> None:
     """The native kernel against NumPy at formula sizes up to depth 9, with

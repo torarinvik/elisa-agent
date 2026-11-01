@@ -377,8 +377,6 @@ class Split:
             raise ValueError("requires rows of finite or negative-infinite weights over nonnegative arities")
         m = len(self.log_probs)
         self.arities = _native_format_symbols(alphabet, m)
-        width = m + 2
-        self.width = width
         position = np.arange(m + 1)
         if centre is None and half is None:
             self.low, self.high = np.zeros(m + 1, dtype=np.int64), m - position
@@ -398,6 +396,9 @@ class Split:
         self.high = np.minimum(self.high, reachable)
         self.low = np.ascontiguousarray(self.low, dtype=np.int64)
         self.high = np.ascontiguousarray(self.high, dtype=np.int64)
+        # State indices above every row's upper bound are never accessed.
+        width = max(2, int(self.high.max()) + 1)
+        self.width = width
         self._native = (_NATIVE if all(getattr(_NATIVE, name, None) is not None
                                      for name in ("advance_log", "retreat_log", "scores_log"))
                         else None)
