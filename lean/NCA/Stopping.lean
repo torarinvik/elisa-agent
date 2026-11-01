@@ -29,6 +29,11 @@ namespace NCA
 
 open Finset
 
+/-- A positive target preserves strict order between bounds when rescaling. -/
+theorem positive_target_preserves_order {a b δ : ℝ} (hδ : 0 < δ) :
+    a / δ < b / δ ↔ a < b := by
+  exact div_lt_div_iff_of_pos_right hδ
+
 /-- First state accepted by a stopping policy on a finite trace. -/
 def firstStoppingState {α : Type*} (p : α → Bool) : List α → Option α
   | [] => none

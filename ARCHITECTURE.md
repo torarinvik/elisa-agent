@@ -204,6 +204,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [22.3](theory/22-abstaining-early.md) | `lower_fold_le` | `Selective` |
 | [22.4](theory/22-abstaining-early.md) | `committed_continuation_preferred` | `Stopping` |
 | [22.4](theory/22-abstaining-early.md) | `firstStoppingState_append` | `Stopping` |
+| [22.4](theory/22-abstaining-early.md) | `positive_target_preserves_order` | `Stopping` |
 | [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
 | [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `outside_le_tail` | `Banding` |

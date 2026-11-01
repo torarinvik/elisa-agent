@@ -72,6 +72,13 @@ estimation errors cost only coverage or compute, never validity. Varying `λ`
 traces the coverage–compute frontier. The sound floors of §22.3 are its
 zero-loss end.
 
+For a positive finite target, dividing by that target preserves the ordering of
+positive bounds. The logarithmic bins therefore use the actual positive
+value, however small, rather than replacing small values with a fixed floor;
+zero receives a separate limiting bin. Floating-point logarithms and bin
+rounding remain approximations. With a zero target, unfinished states use an
+unbounded bound bin instead of attempting division by zero.
+
 For deterministic refinement, multiple pure stopping policies can share one
 trace: each selects its first stopping state, or the terminal state if it
 never stops. Appending later states cannot change an earlier policy's chosen

@@ -41,6 +41,7 @@ compute and never affects the answers given.
 from __future__ import annotations
 
 import math
+import sys
 from numbers import Integral
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
@@ -464,10 +465,12 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
             return math.inf
         if delta == 0:
             return math.inf
-        ratio = max(value, 1e-12) / delta
-        if ratio == 0 or math.isinf(ratio):
-            # Avoid overflow or underflow before taking the logarithm.
-            scaled = (math.log10(max(value, 1e-12)) - math.log10(delta)) / width
+        if value <= 0:
+            return -math.inf
+        ratio = value / delta
+        if ratio < sys.float_info.min or math.isinf(ratio):
+            # Avoid overflow and loss of subnormal precision in the quotient.
+            scaled = (math.log10(value) - math.log10(delta)) / width
         else:
             scaled = math.log10(ratio) / width
         return round(scaled) if math.isfinite(scaled) else scaled

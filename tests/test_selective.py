@@ -397,6 +397,10 @@ def test_predictive_stopping_handles_zero_and_extreme_targets() -> None:
     far = State(1e308, 0.1, 1.0)
     stop = stopping_rule([([far], False, 2.0)], 5e-324, 0.1)
     assert stop(far) and not stop(near)
+    tiny = State(1e-200, 1e-200, 1.0)
+    small = State(1e-100, 1e-100, 1.0)
+    stop = stopping_rule([([small], False, 2.0)], 5e-324, 0.1)
+    assert stop(small) and not stop(tiny)
     # A tie with stopping now continues; positive net reward does too.
     assert not stopping_rule([([state], True, 2.0)], 0.1, 1.0)(state)
     assert not stopping_rule([([state], True, 2.0)], 0.1, 0.5)(state)
@@ -420,6 +424,17 @@ def test_predictive_stopping_can_split_by_open_charge() -> None:
     high = State(float("inf"), 10.0, 1.0)
     split = stopping_rule([([low], False, 2.0), ([high], True, 2.0)],
                          0.1, 0.4, open_charge=True)
+    assert split(low) and not split(high)
+    zero = State(float("inf"), 0.0, 1.0)
+    tiny = State(float("inf"), 1e-200, 1.0)
+    split = stopping_rule([([zero], False, 2.0)], 0.1, 0.4, open_charge=True)
+    assert split(zero) and not split(tiny)
+    # Distinct subnormal priorities can round to the same quotient.
+    subnormal = 1e-320
+    adjacent = math.nextafter(subnormal, math.inf)
+    low = State(float("inf"), subnormal, 1.0)
+    high = State(float("inf"), adjacent, 1.0)
+    split = stopping_rule([([low], False, 2.0)], 3.0, 0.4, 1e-5, open_charge=True)
     assert split(low) and not split(high)
 
 
