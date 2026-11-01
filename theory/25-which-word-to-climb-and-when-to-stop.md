@@ -104,7 +104,7 @@ binning calibration states.
 
 ## 25.4 Why the frontier is coarse
 
-The rule bins states by one feature, `log₁₀(bound / δ)`. That mixes states
+The default rule bins states by one feature, `log₁₀(bound / δ)`. That mixes states
 that will answer with states that will not.
 
 - **A state can be far from `δ` for two different reasons.** Many open
@@ -112,15 +112,24 @@ that will answer with states that will not.
   large risks cannot. The bound alone does not separate them, so most bins
   contain no state that later answers. In those bins any `λ > 0` stops,
   and the frontier jumps.
-- **Better features follow from §25.2–25.3.**
+- **Candidate features follow from §25.2–25.3.**
   - The *floor ratio* `floor / δ`: states with floor ratio above 1 never
     answer, and the ratio rises monotonically.
-  - The *open charge mass* `bound − floor`: the most that remaining climbs
-    can remove.
+  - The *open charge mass*, the sum of the current charges on items that
+    can still climb. For a general account it need not equal `bound − floor`:
+    changing open readings can change the charges of fixed items too.
   - The number of open items whose charge exceeds the gap `bound − δ`.
 
-  The estimate becomes finer when `P(A | s)` is estimated over the pair
-  (floor ratio, open mass / δ). States with floor ratio near 1 are then
-  separated from states that have room to fall.
+  The implementation can optionally split each bound bin by the fraction
+  of current charge on open items. For two groups of trace states, with
+  sizes `n₁, n₂` and empirical answer rates `p₁, p₂`, their split reduces
+  the in-sample sum of squared prediction errors by
+
+  `n₁ n₂ (p₁ − p₂)² / (n₁ + n₂)`.
+
+  This is nonnegative, but it does not guarantee improvement on new inputs:
+  smaller bins can have noisier estimates, and unseen bins continue by
+  default. A valid floor is a separate feature, not inferred from the open
+  charge mass.
 
 [Theory index](../THEORY.md)

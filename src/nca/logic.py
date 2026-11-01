@@ -226,7 +226,8 @@ def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Name
                                trace=trace)
                 runs.append((trace, not answer.abstained, answer.cost))
             for lam in (0.0, *args.lambdas):
-                stop = stopping_rule(runs, delta, lam) if lam > 0 else None
+                stop = (stopping_rule(runs, delta, lam, open_charge=args.stop_open_charge)
+                        if lam > 0 else None)
                 answers = run(route, ladders, samples, delta, floors=True, stop=stop)
                 print(f"{depth:5d} {delta:5g} {lam:8.1e} " + summary(answers, samples),
                       flush=True)
@@ -383,6 +384,8 @@ def main() -> None:
     parser.add_argument("--floors", action="store_true", help="compare early abstention")
     parser.add_argument("--frontier", action="store_true",
                         help="trace the predictive stopping rule for --account")
+    parser.add_argument("--stop-open-charge", action="store_true",
+                        help="also bin predictive stopping states by their open-charge fraction")
     parser.add_argument("--fit", type=int, default=200, help="formulas to fit the rule")
     parser.add_argument("--lambdas", type=float, nargs="+",
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])

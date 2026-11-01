@@ -402,6 +402,22 @@ def test_predictive_stopping_handles_zero_and_extreme_targets() -> None:
     assert not stopping_rule([([state], True, 2.0)], 0.1, 0.5)(state)
 
 
+def test_predictive_stopping_can_split_by_open_charge() -> None:
+    from nca.ladder import State, stopping_rule
+
+    fixed = State(1.0, 0.0, 1.0)
+    open_ = State(1.0, 1.0, 1.0)
+    unseen = State(1.0, 0.5, 1.0)
+    runs = [([fixed], False, 2.0), ([open_], True, 2.0)]
+    pooled = stopping_rule(runs, 0.1, 0.4)
+    split = stopping_rule(runs, 0.1, 0.4, open_charge=True)
+    assert not pooled(fixed) and not pooled(open_)
+    assert split(fixed) and not split(open_) and not split(unseen)
+    unbounded = State(float("inf"), 1.0, 1.0)
+    assert stopping_rule([([unbounded], False, 2.0)], 0.0, 0.4,
+                         open_charge=True)(unbounded)
+
+
 @pytest.mark.parametrize("target, weight, width", [(-1, 0.1, 0.25),
                                                     (float("nan"), 0.1, 0.25),
                                                     (0.1, -1, 0.25),

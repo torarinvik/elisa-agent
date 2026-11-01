@@ -3,6 +3,7 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
 
 /-!
 # Which item to climb, and when to stop
@@ -27,6 +28,16 @@ Three facts about refinement's control decisions.
 namespace NCA
 
 open Finset
+
+/-- The gain in empirical squared error from splitting a bin is nonnegative
+after multiplication by its total count. Generalization is a separate issue. -/
+theorem split_bin_gain_nonneg {n₁ n₂ p₁ p₂ : ℝ} (h₁ : 0 ≤ n₁) (h₂ : 0 ≤ n₂) :
+    0 ≤ (n₁ * p₁ ^ 2 + n₂ * p₂ ^ 2) * (n₁ + n₂) -
+      (n₁ * p₁ + n₂ * p₂) ^ 2 := by
+  have h : (n₁ * p₁ ^ 2 + n₂ * p₂ ^ 2) * (n₁ + n₂) -
+      (n₁ * p₁ + n₂ * p₂) ^ 2 = n₁ * n₂ * (p₁ - p₂) ^ 2 := by ring
+  rw [h]
+  exact mul_nonneg (mul_nonneg h₁ h₂) (sq_nonneg _)
 
 /-- Continuing to completion has positive expected net reward exactly when
 its answer probability exceeds the weighted expected remaining cost. This

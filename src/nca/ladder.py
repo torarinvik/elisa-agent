@@ -438,7 +438,7 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
 
 
 def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: float,
-                  lam: float, width: float = 0.25) -> Stop:
+                  lam: float, width: float = 0.25, *, open_charge: bool = False) -> Stop:
     """A predictive stopping rule (§22.4), fitted on refinement runs of held-out
     inputs, each its trace, whether it answered, and its final cost.
 
@@ -446,7 +446,10 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
     bin). The rule abstains in a bin where the fraction of states that went on
     to answer is below ``lam`` times their mean remaining cost: refinement
     there buys less than ``lam`` coverage per unit of compute. Unseen bins
-    continue. At a zero target, all unfinished states share the unbounded bin.
+    continue. At a zero target, all unfinished states share the unbounded
+    bound bin.
+    When ``open_charge`` is set, split each bin by the fraction of the bound
+    currently charged to open items. Undefined fractions share a separate bin.
     """
     if math.isnan(delta) or delta < 0:
         raise ValueError("target must be nonnegative and not NaN")
@@ -455,7 +458,7 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
     if not math.isfinite(lam) or lam < 0:
         raise ValueError("cost weight must be nonnegative and finite")
 
-    def key(state: State) -> float:
+    def bound_bin(state: State) -> float:
         if not math.isfinite(state.bound):
             return math.inf
         if delta == 0:
@@ -468,7 +471,17 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
             scaled = math.log10(ratio) / width
         return round(scaled) if math.isfinite(scaled) else scaled
 
-    stats: dict[float, list[float]] = {}
+    def key(state: State) -> tuple[float, ...]:
+        bound = bound_bin(state)
+        if not open_charge:
+            return (bound,)
+        if not math.isfinite(state.bound) or state.bound <= 0:
+            return (bound, -math.inf)
+        share = min(1.0, max(0.0, state.open_charge / state.bound))
+        scaled = share / width
+        return (bound, round(scaled) if math.isfinite(scaled) else scaled)
+
+    stats: dict[tuple[float, ...], list[float]] = {}
     for trace, answered, cost in runs:
         for state in trace:
             entry = stats.setdefault(key(state), [0.0, 0.0, 0.0])

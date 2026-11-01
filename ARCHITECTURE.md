@@ -226,6 +226,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [25.2](theory/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
 | [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
 | [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
+| [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `split_bin_gain_nonneg` | `Stopping` |
 | [26.1](theory/26-composing-cascades.md) | `fallback_cost_eq` | `Composition` |
 | [26.2](theory/26-composing-cascades.md) | `fallback_cost_conditional` | `Composition` |
 | [26.3](theory/26-composing-cascades.md) | `fallback_cost_sub_independent` | `Composition` |
@@ -650,7 +651,8 @@ calibrated distribution for any grouped decision it names, alongside the risk
 ## 25. Which word to climb, and when to stop
 
 `nca.ladder.stopping_rule` estimates `P(A | s)` by binning calibration states
-(§25.3).
+(§25.3). Its optional open-charge feature also bins by the fraction of the
+current bound assigned to items that can still climb (§25.4).
 
 ## 26. Composing cascades
 
