@@ -423,6 +423,25 @@ def test_band_tail_for_empty_input_is_zero() -> None:
     assert decoding.band_changes(np.empty((0, 3)), [], 1e-4) == (1, 0.0)
 
 
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("reference", [[0.5, 1], [0.0, 1.0], [-1, 1], [0, 2],
+                                        [0, 10**100], np.array([[0], [1]])])
+def test_band_changes_rejects_invalid_reference_indices(
+        reference_only: bool, reference, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.array([[0.8, 0.2], [0.6, 0.4]]))
+    with pytest.raises(ValueError, match="reference must index"):
+        decoding.band_changes(rows, reference, 0.1)
+
+
+@pytest.mark.parametrize("dtype", [np.int32, np.int64, np.uint64])
+def test_band_changes_accepts_integer_reference_arrays(dtype) -> None:
+    rows = np.log(np.array([[0.8, 0.2], [0.6, 0.4]]))
+    assert decoding.band_changes(rows, np.array([0, 1], dtype=dtype), 0.1) == \
+        decoding.band_changes(rows, [0, 1], 0.1)
+
+
 def test_native_tail_search_matches_reference_at_rounding_boundaries(
         monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(decoding._NATIVE, "initial_band_changes", None) is None:

@@ -215,6 +215,19 @@ def _initial_band_changes(log_off: float, slack: float, length: int) -> int:
     return j
 
 
+def _valid_reference(reference: Sequence[int], width: int) -> bool:
+    values = np.asarray(reference)
+    if values.ndim != 1:
+        return False
+    if not values.size:
+        return True
+    if values.dtype.kind == "i":
+        return not (np.any(values < 0) or np.any(values >= width))
+    if values.dtype.kind == "u":
+        return not np.any(values >= width)
+    return _valid_arities(reference) and all(j < width for j in reference)
+
+
 
 def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) -> tuple[int, float]:
     """The least ``j`` with ``S^j / j! ≤ slack``, capped at one more than
@@ -229,7 +242,7 @@ def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) 
             or log_probs.shape[1] == 0 or np.any(np.isnan(log_probs))
             or np.any(log_probs > 0)
             or np.any(np.exp(log_probs).sum(axis=1) > 1 + 1e-12)
-            or any(j < 0 or j >= log_probs.shape[1] for j in reference)):
+            or not _valid_reference(reference, log_probs.shape[1])):
         raise ValueError("reference must index each valid log-probability row")
     log_off = _off_reference_log_mass(log_probs, reference)
     j = _initial_band_changes(log_off, slack, len(reference))

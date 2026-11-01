@@ -968,6 +968,8 @@ It and `decode_banded` sum off-reference log masses using Elisa's
 The initial tail search uses Elisa's `initial_band_changes` when available,
 stops at one more than the word count, and reconciles the crossing with the
 Python calculation to handle `lgamma` rounding differences.
+`band_changes` requires one in-range integer reference-column index per row;
+integer array checks run vectorized before native conversion.
 If a computed sequence risk rounds to zero, the generic Elisa
 `format_partition` separately accumulates selected and alternative paths;
 the fallback uses the same recurrence in NumPy. Both reject non-finite
