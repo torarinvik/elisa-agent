@@ -336,6 +336,44 @@ def test_split_retains_underflowed_products(reference_only: bool, monkeypatch: p
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("value", [-1e308, 1e308])
+def test_split_rejects_finite_log_overflow_during_construction(
+        reference_only: bool, value: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, value, -np.inf], [value, -np.inf, -np.inf]])
+    with pytest.raises(ValueError, match="format decoding arithmetic is not finite"):
+        Split(rows)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("value", [-1e308, 1e308])
+def test_split_rejects_overflowing_climb_without_mutation(
+        reference_only: bool, value: float, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, value, -np.inf], [0.0, -np.inf, -np.inf]])
+    cursor = Split(rows)
+    with pytest.raises(ValueError, match="format decoding arithmetic is not finite"):
+        cursor.climb(1, np.array([value, -np.inf, -np.inf]))
+    np.testing.assert_array_equal(cursor.log_probs, rows)
+    assert cursor.best(1) == (value, (1, 0))
+    assert cursor.climb(1, rows[1])[0] == value
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_split_ignores_overflow_on_path_without_a_suffix(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, -1e308, -np.inf], [0.0, 0.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    cursor = Split(rows)
+    replacement = np.array([-1e308, 0.0, -np.inf])
+    assert cursor.scores(1, replacement) == (-1e308, -1e308)
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_split_best_reports_absent_path_and_recovers_after_climb(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:

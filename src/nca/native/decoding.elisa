@@ -653,8 +653,10 @@ def advance_log(forward: mutable view[f64], forward_max: mutable view[f64], log_
                 cell: i64 = target + run.first - 1 + alphabet[j] + t
                 if forward[source] != log(0.0):
                     incoming: f64 = forward[source] + step
+                    return -1 if incoming == log(0.0) or incoming == -log(0.0) or incoming != incoming
                     forward[cell] <- incoming if forward[cell] == log(0.0) else log_add_present(forward[cell], incoming)
                 candidate: f64 = forward_max[source] + step
+                return -1 if forward_max[source] != log(0.0) and (candidate == log(0.0) or candidate == -log(0.0) or candidate != candidate)
                 forward_max[cell] <- candidate if candidate > forward_max[cell] else forward_max[cell]
     return stop - start
 
@@ -674,8 +676,10 @@ def retreat_log(backward: mutable view[f64], backward_max: mutable view[f64], lo
                 source: i64 = (i + 1) * width + run.first - 1 + alphabet[j] + t
                 if backward[source] != log(0.0):
                     incoming: f64 = backward[source] + step
+                    return -1 if incoming == log(0.0) or incoming == -log(0.0) or incoming != incoming
                     backward[cell] <- incoming if backward[cell] == log(0.0) else log_add_present(backward[cell], incoming)
                 candidate: f64 = backward_max[source] + step
+                return -1 if backward_max[source] != log(0.0) and (candidate == log(0.0) or candidate == -log(0.0) or candidate != candidate)
                 backward_max[cell] <- candidate if candidate > backward_max[cell] else backward_max[cell]
     return start - stop
 
@@ -689,10 +693,17 @@ def scores_log(forward: view[f64], forward_max: view[f64], backward: view[f64], 
                 here: i64 = k * width + run.first + t
                 next: i64 = (k + 1) * width + run.first - 1 + alphabet[j] + t
                 if forward[here] != log(0.0) and backward[next] != log(0.0):
-                    incoming: f64 = forward[here] + log_row[j] + backward[next]
+                    partial: f64 = forward[here] + log_row[j]
+                    return [log(-1.0), log(-1.0)] if partial == log(0.0) or partial == -log(0.0) or partial != partial
+                    incoming: f64 = partial + backward[next]
+                    return [log(-1.0), log(-1.0)] if incoming == log(0.0) or incoming == -log(0.0) or incoming != incoming
                     total <- incoming if total == log(0.0) else log_add_present(total, incoming)
-                candidate: f64 = forward_max[here] + backward_max[next] + log_row[j]
-                log_x <- candidate if candidate > log_x else log_x
+                if forward_max[here] != log(0.0) and backward_max[next] != log(0.0):
+                    partial: f64 = forward_max[here] + log_row[j]
+                    return [log(-1.0), log(-1.0)] if partial == log(0.0) or partial == -log(0.0) or partial != partial
+                    candidate: f64 = partial + backward_max[next]
+                    return [log(-1.0), log(-1.0)] if candidate == log(0.0) or candidate == -log(0.0) or candidate != candidate
+                    log_x <- candidate if candidate > log_x else log_x
     return [total, log_x]
 
 # [best log weight, its arities (m)], with forward max row `k` and backward max row `k + 1`
@@ -707,7 +718,14 @@ def trace(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64],
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
             for t in 0..<run.count |log_x, state, choice|:
                 n: i64 = run.first + t
-                candidate: f64 = forward_max[k * width + n] + backward_max[(k + 1) * width + n - 1 + alphabet[j]] + log_probs[k * arities + j]
+                prefix: f64 = forward_max[k * width + n]
+                suffix: f64 = backward_max[(k + 1) * width + n - 1 + alphabet[j]]
+                reading: f64 = log_probs[k * arities + j]
+                continue if prefix == log(0.0) or suffix == log(0.0) or reading == log(0.0)
+                partial: f64 = prefix + reading
+                return [log(-1.0)] if partial == log(0.0) or partial == -log(0.0) or partial != partial
+                candidate: f64 = partial + suffix
+                return [log(-1.0)] if candidate == log(0.0) or candidate == -log(0.0) or candidate != candidate
                 if candidate > log_x:
                     log_x <- candidate
                     state <- n

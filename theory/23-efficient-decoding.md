@@ -321,6 +321,9 @@ arithmetic. In floating point, a nonzero path can still underflow within a
 scaled row. The incremental cursor therefore stores its sum tables in log
 space; this preserves finite log weights across that failure mode, at the
 cost of more expensive transitions. Other floating-point errors remain.
+If a finite log-weight addition overflows, cursor sweeps and split scoring
+report an arithmetic error instead of treating the path as unreachable. A
+failed row update leaves the previous row unchanged.
 In the log semiring, an unreachable state or zero-weight transition has
 weight `−∞` and contributes nothing to a sum or maximum. The cursor may
 skip those contributions, and may insert the first finite contribution

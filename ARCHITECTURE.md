@@ -285,6 +285,8 @@ kernel recomputes rows in place through `mutable view[f64]` parameters, which
 borrow the arrays' writable buffers. Sum and max tables use log weights in
 both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.
+Both paths reject non-finite results of finite log-weight additions during
+sweeps and split scoring; a rejected climb does not replace its row.
 `Split` validates row dimensions, word indices and band bounds before native
 calls; an absent positive-weight path yields an empty trace.
 
