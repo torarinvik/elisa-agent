@@ -328,6 +328,28 @@ def test_partition_cursor_bounds_cache_and_falls_back() -> None:
             assert cursor._alternatives is None
 
 
+def test_partition_cursor_fallback_does_not_copy_input_before_partition(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import nca.partition as incremental
+
+    prior = priors.height_prior(2)
+    rows = np.zeros((12, 6))[:, ::2]
+    selected = (0,) * len(rows)
+    original = priors.ArityPrior.partition
+    seen = []
+
+    def recording_partition(self: priors.ArityPrior, weights: np.ndarray,
+                            sequence: tuple[int, ...]) -> tuple[float, float]:
+        seen.append(weights)
+        return original(self, weights, sequence)
+
+    monkeypatch.setattr(priors.ArityPrior, "partition", recording_partition)
+    cursor = incremental.PartitionCursor(prior, max_cache_bytes=0)
+    actual = cursor.partition(rows, selected)
+    assert len(seen) == 1 and seen[0] is rows
+    np.testing.assert_allclose(actual, original(prior, rows, selected))
+
+
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
                                       lambda value: pickle.loads(pickle.dumps(value))])
 def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:

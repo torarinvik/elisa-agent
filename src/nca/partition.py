@@ -45,14 +45,13 @@ class PartitionCursor:
         return self._max_cache_bytes
 
     def partition(self, log_probs: np.ndarray, selected: tuple[int, ...]) -> tuple[float, float]:
-        rows = np.array(self.prior._rows(log_probs), dtype=np.float64, order="C", copy=True)
+        rows = self.prior._rows(log_probs)
         selected = tuple(selected)
         if len(selected) != len(rows):
             raise ValueError("selected sequence must match the number of rows")
         if _NATIVE is None or any(symbol not in self.prior.alphabet for symbol in selected):
             self._valid = False
             return self.prior.partition(rows, selected)
-        chosen = np.asarray(selected, dtype=np.int64)
         m, states = len(rows), len(self.prior.log_final)
         cache_bytes = (m + 1) * (states * 8 + 32) + m * (rows.shape[1] + 1) * 8
         if self.max_cache_bytes is not None and cache_bytes > self.max_cache_bytes:
@@ -60,6 +59,8 @@ class PartitionCursor:
             self._alternatives = self._bounds = self._matched_states = self._matched_weights = None
             self._valid = False
             return self.prior.partition(rows, selected)
+        rows = np.array(rows, dtype=np.float64, order="C", copy=True)
+        chosen = np.asarray(selected, dtype=np.int64)
         if self._rows is None or self._rows.shape != rows.shape:
             self._valid = False
             alternatives = np.full((m + 1, states), -np.inf)
