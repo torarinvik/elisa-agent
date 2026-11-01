@@ -337,6 +337,9 @@ contract only if it fires in the closure of the available types.
 each instance `planner.free_bindings` returns, the instances pattern search
 determines, and take `map` elements from `planner.map_candidates`, which adds
 the sources of sequences that polymorphic producers make (THEORY §13).
+After a binding has one valid closed argument plan, duplicate solutions for
+that binding need not be closed again; failed closures do not suppress later
+solutions for the same binding.
 
 The index persists. `ProducerIndex.append` indexes a newly installed module
 after the others, and every cached result (closures, candidate sets, plans in

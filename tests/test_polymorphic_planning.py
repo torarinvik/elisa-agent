@@ -403,3 +403,48 @@ def test_cost_planners_price_every_instance_of_free_variables() -> None:
                 assert [(o.cost, o.error) for o in frontier] == [
                     (o.cost, o.error) for o in reference]
     assert compared > 45
+
+
+def test_free_bindings_skip_duplicate_plan_closures(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import planner
+    from nca.index import ProducerIndex
+
+    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
+    zero = fn("zero", [TEXT], INT, lambda _: 0)
+    fold = Fold()
+    modules, available = [add, zero, fold], (f"seq[{INT}]", TEXT)
+    binding = fold.manifest.contract.producing(INT)
+    assert binding is not None
+    original = planner._close
+    calls = 0
+    def close(*args: Any, **kwargs: Any) -> Plan | None:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+    monkeypatch.setattr(planner, "_close", close)
+    index = ProducerIndex(modules)
+    expected = list(dict.fromkeys(full for _, full in planner._free_instances(
+        index, index.size, available, fold, binding, 5, index.memo(index.size))))
+    before = calls
+    calls = 0
+    actual = planner.free_bindings(ProducerIndex(modules), available, fold, binding, 5)
+    assert actual == expected
+    assert calls < before
+
+
+def test_free_bindings_retry_after_failed_closure(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import planner
+    from nca.index import ProducerIndex
+
+    expert = fn("forget", ["box[?a]"], INT, lambda value: value)
+    index = ProducerIndex([expert])
+    monkeypatch.setattr(planner, "rename_apart",
+                        lambda contract, binding: ({"a": "fresh"}, contract))
+    def solutions(*args: Any) -> Any:
+        solved = {"fresh": parse_type(TEXT)}
+        yield (Given("bad"),), solved
+        yield (Given("good"),), solved
+    monkeypatch.setattr(planner, "_solve_inputs", solutions)
+    monkeypatch.setattr(planner, "_close",
+                        lambda index, limit, node, binding, memo: None if node.type_id == "bad" else node)
+    assert planner.free_bindings(index, (), expert, (), 3) == [(("a", TEXT),)]

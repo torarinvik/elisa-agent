@@ -369,19 +369,26 @@ def _close(index: ProducerIndex, limit: int, node: _Partial, binding: dict[str, 
 
 def _free_instances(index: ProducerIndex, limit: int, available: Sequence[TypeId],
                     module: Module, binding: Binding, fuel: int, memo: Memo,
+                    distinct: bool = False,
                     ) -> Iterator[tuple[tuple[Plan, ...], Binding]]:
     """Argument plans and full bindings of ``module``, in search order, for a
     ground goal that matched it with ``binding``: its free variables
-    determined by pattern search over its inputs at depth ``fuel - 1``."""
+    determined by pattern search over its inputs at depth ``fuel - 1``.
+    With ``distinct``, close only until each binding has one valid plan."""
     renaming, contract = rename_apart(module.manifest.contract, binding)
+    found: set[Binding] = set()
     for args, solved in _solve_inputs(index, limit, available, contract.inputs, {}, fuel, memo):
         free = {v: resolve(Var(r), solved) for v, r in renaming.items()}
         if any(type_variables(t) for t in free.values()):
             continue
+        full = tuple(sorted((*binding, *((v, format_type(t)) for v, t in free.items()))))
+        if distinct and full in found:
+            continue
         closed = [_close(index, limit, a, solved, memo) for a in args]
         if all(a is not None for a in closed):
-            yield (tuple(a for a in closed if a is not None),
-                   tuple(sorted((*binding, *((v, format_type(t)) for v, t in free.items())))))
+            if distinct:
+                found.add(full)
+            yield tuple(a for a in closed if a is not None), full
 
 
 def _apply_free(index: ProducerIndex, limit: int, available: Sequence[TypeId], module: Module,
@@ -413,9 +420,8 @@ def free_bindings(index: ProducerIndex, available: Sequence[TypeId], module: Mod
     ``module`` producing a ground goal it matched with ``binding`` whose
     inputs pattern search plans from ``available`` at depth ``fuel - 1``
     (THEORY §2.2). These are the instances the planner can apply."""
-    found = dict.fromkeys(full for _, full in _free_instances(
-        index, index.size, available, module, binding, fuel, index.memo(index.size)))
-    return list(found)
+    return [full for _, full in _free_instances(
+        index, index.size, available, module, binding, fuel, index.memo(index.size), distinct=True)]
 
 
 def map_candidates(index: ProducerIndex, available: Sequence[TypeId], fuel: int) -> list[TypeId]:
