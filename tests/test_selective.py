@@ -755,9 +755,11 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
         calls.append((len(samples), delta))
         if len(calls) == 1:  # First checking candidate.
             assert len(samples) == 60
+            assert kwargs["shared"] is None  # The fit coverage cannot certify.
             return 60, 0
         if len(calls) == 2:
             assert len(samples) == 60
+            assert kwargs["shared"] is not None  # A passed check enables sharing.
             return 60, 20
         assert len(samples) == 3
         return 3, 0
@@ -767,7 +769,9 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
     def fit_outcomes(route: Any, ladders: Any, samples: Any,
                      targets: Any) -> list[tuple[int, int]]:
         fit_calls.append(len(samples))
-        return [(60, 0) for _ in targets]
+        counts = [(60, 0) for _ in targets]
+        counts[2] = (0, 0)
+        return counts
 
     monkeypatch.setattr(logic, "outcomes_many", fit_outcomes)
     monkeypatch.setattr(logic, "outcomes", outcomes)
@@ -781,6 +785,31 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
     assert calls[1][1] == pytest.approx(0.05 / logic.INFLATIONS[0])
     assert calls[-1][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
     assert "risk   1.5" in capsys.readouterr().out
+
+
+def test_low_fit_coverage_checks_first_candidate_without_speculative_paths(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+    from nca.selective import Answer
+
+    calls: list[str] = []
+
+    def solve(route: Any, ladders: Any, text: str, target: float) -> Answer:
+        calls.append(text)
+        return Answer(None, 1.0, 1.0, True)
+
+    def unexpected(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("first failed check should not compute shared paths")
+
+    monkeypatch.setattr(logic, "solve", solve)
+    monkeypatch.setattr(logic, "solve_many", unexpected)
+    monkeypatch.setattr(logic, "outcomes_many", lambda r, l, s, t: [(0, 0) for _ in t])
+    monkeypatch.setattr(logic, "certification_order", lambda counts, alpha: [0, 1])
+    args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
+                           draws=1, audit=60, targets=[0.05], alpha=0.1)
+    logic.shifted(None, {}, args)
+    assert len(calls) == 63  # Full first check plus uncontrolled evaluation.
 
 
 @pytest.mark.parametrize("wrong_first", [False, True])

@@ -884,6 +884,9 @@ candidate order as independent solves. Checking lazily computes one shared
 path per visited sample and retains only its answer/error flags. Candidates
 still consume those flags in the predetermined order and stop on irreversible
 rejection; checking labels do not influence the fit trajectory or ordering.
+When the first candidate's fit coverage cannot certify even with zero errors,
+checking starts with that candidate alone and switches to sharing only after
+it passes. The fit-based choice changes computation, not the statistical test.
 
 `formulas.CertifiedSplit` manages a fixed-reference `Split` band and widens
 it until the relative tail and exact-maximum conditions of §23.3 hold.

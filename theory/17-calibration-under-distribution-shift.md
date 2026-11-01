@@ -216,6 +216,11 @@ per-sample refinement path. Caching each threshold's answer/error flag does
 not change the candidate order or the sequence of flags seen by a candidate;
 the irreversible-rejection rule still applies at the same sample. This
 sharing does not make checking labels available for reordering candidates.
+If even the fit half's answered count with zero errors cannot reach the
+target, the runner initially checks only the first candidate. It starts
+sharing after a candidate passes. This fit-based choice affects execution
+work only: it does not alter the fixed candidate order, checking sample,
+acceptance test, or early-rejection rule.
 
 These are *answered* audit expressions with no errors. With errors the
 requirement grows, since `U(k, n; α) ≈ k/n + O(√(k log(1/α))/n)`. Two

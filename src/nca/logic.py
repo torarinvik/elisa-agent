@@ -285,9 +285,13 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
                 chosen = None
                 if certification_possible(args.audit, delta, alpha):
                     targets = [delta / lam for lam in INFLATIONS]
-                    order = certification_order(
-                        outcomes_many(route, ladders, fit, targets), alpha)
-                    shared = _AuditPaths(route, ladders, check, targets)
+                    fit_counts = outcomes_many(route, ladders, fit, targets)
+                    order = certification_order(fit_counts, alpha)
+                    # If even a zero-error fit at this coverage could not
+                    # certify, avoid speculative paths until a check passes.
+                    shared = (_AuditPaths(route, ladders, check, targets)
+                              if order and certification_possible(fit_counts[order[0]][0],
+                                                                  delta, alpha) else None)
                     stats: dict[int, tuple[int, int]] = {}
                     accepted = []
                     for i in order:
@@ -297,6 +301,8 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
                         if not certify([stats[i]], delta, alpha):
                             break
                         accepted.append(i)
+                        if shared is None:
+                            shared = _AuditPaths(route, ladders, check, targets)
                     chosen = max(accepted, key=lambda i: stats[i][0], default=None)
                 for control, lam in (("none", 1.0),
                                      ("risk", None if chosen is None else INFLATIONS[chosen])):
