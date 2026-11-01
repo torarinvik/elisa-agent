@@ -29,6 +29,23 @@ def risk_from_log_weight(weight: float, log_z: float) -> float:
     return -math.expm1(min(0.0, difference))
 
 
+def risk_from_partition(chosen: float, alternative: float) -> float:
+    """Normalize separately summed selected and alternative log weights."""
+    if any(math.isnan(x) or x == math.inf for x in (chosen, alternative)):
+        raise ValueError("sequence risk requires finite or negative-infinite log weights")
+    if chosen == -math.inf:
+        if alternative == -math.inf:
+            raise ValueError("sequence risk requires positive total mass")
+        return 1.0
+    if alternative == -math.inf:
+        return 0.0
+    difference = alternative - chosen
+    if difference <= 0:
+        ratio = math.exp(difference)
+        return ratio / (1.0 + ratio)
+    return 1.0 / (1.0 + math.exp(-difference))
+
+
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
                         selected: Sequence[int]) -> float:
     """Log product of a selected sequence's position-wise weights (§21.5)."""
@@ -166,6 +183,74 @@ class ArityPrior:
             return result
         result = self.decode(rows)
         return -math.inf if result is None else result.log_z
+
+    def partition(self, log_probs: np.ndarray, selected: Sequence[int]) -> tuple[float, float]:
+        """Log weights of the selected sequence and all other sequences."""
+        rows = self._rows(log_probs)
+        selected = tuple(selected)
+        if len(selected) != len(rows):
+            raise ValueError("selected sequence must match the number of rows")
+        if any(symbol not in self.alphabet for symbol in selected):
+            return -math.inf, self.log_normalizer(rows)
+        native = getattr(_NATIVE, "prior_partition", None)
+        if native is not None:
+            result = native(np.ascontiguousarray(rows).reshape(-1), _native_alphabet(self.alphabet),
+                            self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                            self.log_final, self.start, np.asarray(selected, dtype=np.int64))
+            if len(result) != 2:
+                raise ValueError("prior partition arithmetic is not finite")
+            return float(result[0]), float(result[1])
+        alternatives = np.full(len(self.log_final), -np.inf)
+        state, matched = self.start, 0.0
+        for k, symbol in enumerate(selected):
+            following = np.full_like(alternatives, -np.inf)
+            for source in range(len(alternatives)):
+                for j, target in enumerate(self.transitions[source]):
+                    if target < 0:
+                        continue
+                    reading, edge = float(rows[k, j]), float(self.log_weights[source, j])
+                    if reading == -math.inf or edge == -math.inf:
+                        continue
+                    previous = float(alternatives[source])
+                    same = source == state and matched != -math.inf
+                    if previous == -math.inf and (not same or self.alphabet[j] == symbol):
+                        continue
+                    weight = reading + edge
+                    if not math.isfinite(weight):
+                        raise ValueError("prior partition arithmetic is not finite")
+                    for prefix in (previous, matched if same and self.alphabet[j] != symbol else -math.inf):
+                        if prefix != -math.inf:
+                            value = prefix + weight
+                            if not math.isfinite(value):
+                                raise ValueError("prior partition arithmetic is not finite")
+                            following[target] = np.logaddexp(following[target], value)
+            if matched != -math.inf:
+                j = self.alphabet.index(symbol)
+                target = int(self.transitions[state, j])
+                reading, edge = float(rows[k, j]), float(self.log_weights[state, j])
+                if target < 0 or reading == -math.inf or edge == -math.inf:
+                    matched = -math.inf
+                else:
+                    weight = reading + edge
+                    matched += weight
+                    if not math.isfinite(weight) or not math.isfinite(matched):
+                        raise ValueError("prior partition arithmetic is not finite")
+                    state = target
+            alternatives = following
+        chosen = -math.inf if matched == -math.inf or self.log_final[state] == -math.inf else matched + float(self.log_final[state])
+        if matched != -math.inf and self.log_final[state] != -math.inf and not math.isfinite(chosen):
+            raise ValueError("prior partition arithmetic is not finite")
+        other = -math.inf
+        for value, final in zip(alternatives, self.log_final, strict=True):
+            if value != -math.inf and final != -math.inf:
+                weight = float(value) + float(final)
+                if not math.isfinite(weight):
+                    raise ValueError("prior partition arithmetic is not finite")
+                other = float(np.logaddexp(other, weight))
+        return chosen, other
+
+    def sequence_risk(self, log_probs: np.ndarray, selected: Sequence[int]) -> float:
+        return risk_from_partition(*self.partition(log_probs, selected))
 
     def best(self, log_probs: np.ndarray) -> tuple[int, ...] | None:
         """Maximum-weight sequence without computing sums or marginals (§27.2–3)."""
@@ -506,4 +591,8 @@ class Decoded:
         """Posterior probability that the true sequence differs from
         ``arities`` (default: the decoded one), ``1 − weight / Z``."""
         chosen = self.arities if arities is None else arities
+        if self.prior is not None:
+            if tuple(alphabet) != self.prior.alphabet:
+                raise ValueError("alphabet must match the decoded prior")
+            return self.prior.sequence_risk(log_probs, chosen)
         return risk_from_log_weight(self.log_weight(log_probs, alphabet, chosen), self.log_z)

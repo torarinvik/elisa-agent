@@ -170,6 +170,78 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
             return log(-1.0) if weighted == unreachable or weighted == -unreachable
             total <- log_add(total, weighted)
 
+# Sum the selected path and every different path separately. Empty output
+# signals finite arithmetic overflow; -inf denotes absent mass.
+def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64, selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    states: i64 = final.len.i64()
+    m: i64 = selected.len.i64()
+    unreachable: f64 = log(0.0)
+    rows, matched_state, matched =
+        for k in 0..<m |rows: darray[f64] = [unreachable for _ in 0..<(2 * states)], matched_state: i64 = start, matched: f64 = 0.0| -> (rows, matched_state, matched):
+            here: i64 = (k % 2) * states
+            next: i64 = ((k + 1) % 2) * states
+            for state in 0..<states |rows|:
+                rows[next + state] <- unreachable
+            for state in 0..<states |rows|:
+                for j in 0..<width |rows|:
+                    edge: i64 = state * width + j
+                    target: i64 = transitions[edge]
+                    continue if target < 0
+                    reading: f64 = log_probs[k * width + j]
+                    edge_weight: f64 = prior[edge]
+                    continue if reading == unreachable or edge_weight == unreachable
+                    weight: f64 = reading + edge_weight
+                    source: f64 = rows[here + state]
+                    same: bool = state == matched_state and matched != unreachable
+                    continue if source == unreachable and (not same or alphabet[j] == selected[k])
+                    return [] if weight == unreachable or weight == -unreachable
+                    if source != unreachable:
+                        through: f64 = source + weight
+                        return [] if through == unreachable or through == -unreachable
+                        rows[next + target] <- log_add(rows[next + target], through)
+                    if same and alphabet[j] != selected[k]:
+                        through: f64 = matched + weight
+                        return [] if through == unreachable or through == -unreachable
+                        rows[next + target] <- log_add(rows[next + target], through)
+            if matched != unreachable:
+                chosen: i64 =
+                    for j in 0..<width |chosen: i64 = -1| -> chosen:
+                        if alphabet[j] == selected[k]:
+                            chosen <- j
+                            break
+                if chosen < 0:
+                    matched <- unreachable
+                else:
+                    edge: i64 = matched_state * width + chosen
+                    target: i64 = transitions[edge]
+                    reading: f64 = log_probs[k * width + chosen]
+                    edge_weight: f64 = prior[edge]
+                    if target < 0 or reading == unreachable or edge_weight == unreachable:
+                        matched <- unreachable
+                    else:
+                        weight: f64 = reading + edge_weight
+                        return [] if weight == unreachable or weight == -unreachable
+                        value: f64 = matched + weight
+                        return [] if value == unreachable or value == -unreachable
+                        matched <- value
+                        matched_state <- target
+    selected_weight: f64 =
+        if matched == unreachable or final[matched_state] == unreachable:
+            unreachable
+        else:
+            value: f64 = matched + final[matched_state]
+            return [] if value == unreachable or value == -unreachable
+            value
+    alternative: f64 =
+        for state in 0..<states |total: f64 = unreachable| -> total:
+            last: f64 = rows[(m % 2) * states + state]
+            continue if last == unreachable or final[state] == unreachable
+            value: f64 = last + final[state]
+            return [] if value == unreachable or value == -unreachable
+            total <- log_add(total, value)
+    return [selected_weight, alternative]
+
 # Max-product and traceback only. Traversal and strict ties match decode_prior.
 def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
@@ -608,6 +680,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return 1.0 - probabilities[groups[top]]
 
 export pymodule decoding:
+    fn prior_partition
     fn valid_log_weights
     fn normalized_rows_fast
     fn decode

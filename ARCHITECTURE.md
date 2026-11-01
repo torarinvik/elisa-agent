@@ -854,10 +854,10 @@ Decoded sequence risk uses `expm1` to retain small positive risks when the
 selected sequence's log probability is near zero; the stateful evaluator uses
 the same calculation. Elisa's prior log-sum uses `log1p` to retain small
 alternative weights. These improvements do not by themselves supply a
-certified floating-point error bound. If the rounded normalizer equals a
-dominant sequence's log weight, a positive risk can still round to zero;
-Theorem 27.16 describes a separate-alternative-mass calculation, which is not
-yet implemented.
+certified floating-point error bound. Prior-backed risk uses a separate
+Elisa sum of selected and alternative sequence weights (Theorem 27.16), with
+a Python reference path. The format-only path still relies on the rounded
+normalizer, so a sufficiently small positive risk can round to zero there.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.

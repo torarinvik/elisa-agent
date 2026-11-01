@@ -27,7 +27,9 @@ sequence's weight and `a` the sum of all other sequence weights. When
 `w + a > 0`, the selected sequence's posterior risk is
 `1 − w / (w + a) = a / (w + a)`. Computing `a` separately can avoid losing a
 small risk when the rounded total is indistinguishable from `w`. This is a
-real-number identity; it does not itself bound floating-point error.
+real-number identity; it does not itself bound floating-point error. The
+implementation sums selected and alternative paths separately in log space
+for prior-backed risk, then computes their normalized ratio.
 
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format

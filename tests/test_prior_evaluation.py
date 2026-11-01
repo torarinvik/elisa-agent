@@ -60,8 +60,9 @@ def test_prior_evaluator_selection_and_account_use_same_structural_prior(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("scale", [1.0, np.exp(-1.0)])
 def test_prior_evaluator_retains_tiny_risk_with_and_without_session(
-        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference: bool, scale: float, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1, 2), np.array([[0, 0, 0]]),
@@ -69,7 +70,7 @@ def test_prior_evaluator_retains_tiny_risk_with_and_without_session(
     evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=lambda length: prior)
     readings = one_hot(["true"])
     def distribution(k: int, decision: Decision) -> torch.Tensor:
-        return torch.tensor([1.0, np.exp(-40.0), 0.0], dtype=torch.float64)
+        return torch.tensor([scale, scale * np.exp(-40.0), 0.0], dtype=torch.float64)
     expected = np.exp(-40.0)
     fresh = evaluator.certificate(readings, lambda k, d: 0.0, distribution)
     session = evaluator.certificate_session()
@@ -274,9 +275,8 @@ def test_prior_account_uses_current_risk_between_marginal_refreshes(
         before = calls
         account = evaluator.certificate(readings, lambda k, d: 0.0, distribution, state)
         assert account is not None
-        native_sum = getattr(priors._NATIVE, "prior_normalizer", None) is not None
         native_best = getattr(priors._NATIVE, "prior_best", None) is not None
-        assert calls - before == int(not native_best) + int(step in (0, 3) or not native_sum)
+        assert calls - before == int(not native_best) + int(step in (0, 3))
         if step == 0:
             original_priorities = state.priorities
         elif step < 3:

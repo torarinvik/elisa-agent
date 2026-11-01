@@ -67,6 +67,65 @@ def test_prior_normalizer_preserves_tiny_alternative_probability(
     assert prior.log_normalizer(rows) == pytest.approx(np.log1p(np.exp(-40.0)), rel=1e-14)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_partition_matches_exhaustive_paths(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(42)
+    alphabet = (0, 1, 2)
+    for _ in range(100):
+        states, length = int(rng.integers(1, 5)), int(rng.integers(0, 5))
+        transitions = rng.integers(-1, states, size=(states, 3))
+        weights = rng.normal(size=(states, 3))
+        final = rng.normal(size=states)
+        rows = rng.normal(size=(length, 3))
+        weights[rng.random(weights.shape) < .1] = -np.inf
+        final[rng.random(final.shape) < .1] = -np.inf
+        rows[rng.random(rows.shape) < .1] = -np.inf
+        prior = priors.ArityPrior(alphabet, transitions, weights, final)
+        chosen = tuple(rng.integers(0, 3, size=length))
+        scores = [(seq, prior.log_weight(seq) + sum(rows[k, symbol] for k, symbol in enumerate(seq)))
+                  for seq in itertools.product(alphabet, repeat=length)]
+        selected = next(score for seq, score in scores if seq == chosen)
+        other = float(np.logaddexp.reduce([score for seq, score in scores if seq != chosen], initial=-np.inf))
+        np.testing.assert_allclose(prior.partition(rows, chosen), (selected, other), atol=1e-12)
+        if not (selected == -np.inf and other == -np.inf):
+            expected = 1.0 if selected == -np.inf else 0.0 if other == -np.inf else 1 / (1 + np.exp(selected - other))
+            assert prior.sequence_risk(rows, chosen) == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("rows", [np.array([[0.0, -40.0]]), np.array([[-1.0, -41.0]]),
+                                   np.array([[-41.0, -1.0]])])
+def test_prior_risk_preserves_tiny_alternative_mass(
+        reference: bool, rows: np.ndarray, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    decoded = prior.decode(rows)
+    assert decoded is not None
+    assert decoded.risk(rows, prior.alphabet) == pytest.approx(np.exp(-40), rel=1e-14)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_partition_handles_missing_paths_and_overflow(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0,), np.array([[0]]), np.zeros((1, 1)), np.zeros(1))
+    rows = np.zeros((1, 1))
+    assert prior.partition(rows, (1,)) == (-np.inf, 0.0)
+    assert prior.sequence_risk(rows, (1,)) == 1.0
+    with pytest.raises(ValueError, match="match the number of rows"):
+        prior.partition(rows, ())
+    with pytest.raises(ValueError, match="positive total mass"):
+        prior.sequence_risk(np.full((1, 1), -np.inf), (0,))
+    extreme = priors.ArityPrior((0,), np.array([[0]]), np.array([[-1e308]]), np.zeros(1))
+    with pytest.raises(ValueError, match="partition.*finite"):
+        extreme.partition(np.zeros((2, 1)), (0, 0))
+
+
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
                                       lambda value: pickle.loads(pickle.dumps(value))])
 def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:
