@@ -826,3 +826,95 @@ def test_solve_formula_preserves_weight_order_when_logs_tie(decode: bool) -> Non
     result = solve(route, {WORD_DISTRIBUTION: [Rung(reader)]}, "true", 1.0)
     assert not result.abstained
     assert result.value == (second == true)
+
+
+def test_formula_correction_recovers_after_missing_restricted_calibration() -> None:
+    from nca.ladder import MissingCalibrationError
+    from nca.modules.words import WORD_DISTRIBUTION
+    from nca.selective import solve_many
+
+    low = Constant(Manifest("formula-low", "1", READER, cost=1.0),
+                   (0.8, 0.1, 0.025, 0.025, 0.025, 0.025))
+    high = Constant(Manifest("formula-high", "1", READER, cost=2.0),
+                    (0.9, 0.1, 0.0, 0.0, 0.0, 0.0))
+    first, second = Rung(low), Rung(high)
+    first.calibrate(["true", "true"], torch.tensor([VOCABULARY.index("not"),
+                                                    VOCABULARY.index("and")]))
+    second.calibrate(["true"] * 10, torch.tensor([VOCABULARY.index("true")] * 9 +
+                                                   [VOCABULARY.index("false")]))
+    with pytest.raises(MissingCalibrationError):
+        first.temperature(ARITY_DECISION[0])
+    evaluator = FormulaEvaluator(decode=True)
+    route = plan_stable([Tokenizer(), low, high, evaluator], (FORMULA_TEXT,), BOOLEAN)
+    assert route is not None
+    answers = solve_many(route, {WORD_DISTRIBUTION: [first, second]}, "true", [float("inf"), 0.2])
+    assert all(not answer.abstained and answer.value is True and answer.cost == 3.0
+               for answer in answers)
+    assert answers[1].bound == pytest.approx(0.1, abs=0.02)
+    fresh = solve(route, {WORD_DISTRIBUTION: [second]}, "true", 0.2)
+    assert not fresh.abstained and fresh.value is True
+    assert answers[1].bound == pytest.approx(fresh.bound, abs=1e-14)
+
+
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("mode", ["exact", "banded", "prior"])
+def test_correction_preserves_subnormal_calibrated_masses(cached: bool, mode: str) -> None:
+    words = ["and", "true", "true"]
+    readings = one_hot(words)
+    rows = np.array([[0.0, 1.0, 1e-320], [1.0, 1e-310, 0.0], [1.0, 0.0, 0.0]])
+
+    def distribution(k: int, decision: Decision) -> torch.Tensor:
+        return torch.tensor(rows[k], dtype=torch.float64)
+
+    options = ({"band_slack": 0.01} if mode == "banded" else
+               {"prior": priors.format_prior} if mode == "prior" else {})
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, **options)
+    def risk(k: int, decision: Decision) -> float:
+        return 0.0
+
+    certificate = evaluator.certificate_session() if cached else evaluator.certificate
+    account = certificate(readings, risk, distribution)
+    assert account is not None
+    with np.errstate(divide="ignore"):
+        log_probs = np.log(rows)
+    posterior = decode(log_probs, ARITY_ORDER)
+    assert posterior is not None
+    expected = posterior.risk(log_probs, ARITY_ORDER, [2, 0, 0])
+    assert expected > 0.999999999
+    assert sum(account.values()) == pytest.approx(expected, abs=1e-12)
+
+
+def test_correction_refresh_preserves_subnormal_masses() -> None:
+    from nca.ladder import Distribution
+
+    readings = one_hot(["and", "true", "true"])
+    rows = np.array([[0.0, 1.0, 0.2], [1.0, 0.3, 0.0], [1.0, 0.0, 0.0]])
+    versions = [0, 0, 0]
+    distribution = Distribution(lambda k, decision: torch.tensor(rows[k]), versions.__getitem__)
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False)
+    def risk(k: int, decision: Decision) -> float:
+        return 0.0
+
+    session = evaluator.certificate_session()
+    assert session(readings, risk, distribution) is not None
+    rows[0, 2] = 1e-320
+    rows[1, 1] = 1e-310
+    versions[0] += 1
+    versions[1] += 1
+    cached = session(readings, risk, distribution)
+    fresh = evaluator.certificate(readings, risk, distribution)
+    assert cached is not None and fresh is not None
+    assert sum(cached.values()) > 0.999999999
+    assert sum(cached.values()) == pytest.approx(sum(fresh.values()), abs=1e-12)
+
+
+@pytest.mark.parametrize("mode", ["exact", "banded", "prior"])
+def test_correction_refuses_zero_mass_calibrated_row(mode: str) -> None:
+    readings = one_hot(["and", "true", "true"])
+    rows = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    options = ({"band_slack": 0.01} if mode == "banded" else
+               {"prior": priors.format_prior} if mode == "prior" else {})
+    evaluator = FormulaEvaluator(decode=True, **options)
+    account = evaluator.certificate_session()(
+        readings, lambda k, decision: 0.0, lambda k, decision: torch.tensor(rows[k]))
+    assert account is None

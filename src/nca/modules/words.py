@@ -683,16 +683,19 @@ class FormulaEvaluator:
         if cached is None or (self.prior is not None and versions is None):
             calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
                                       for k in range(n)]).double()
-            log_probs = calibrated.clamp_min(1e-300).log().numpy()
+            log_probs = calibrated.log().numpy()
         else:
             log_probs = cached.copy() if invalidated else cached
             for k in invalidated:
                 row = torch.as_tensor(distribution(k, ARITY_DECISION)).double()
-                log_probs[k] = row.clamp_min(1e-300).log().numpy()
+                log_probs[k] = row.log().numpy()
         if self.band_slack is not None:
             # Row factors cancel from both the selected weight and normalizer.
             for k in invalidated:
-                log_probs[k] -= np.logaddexp.reduce(log_probs[k])
+                total = np.logaddexp.reduce(log_probs[k])
+                if not math.isfinite(total):
+                    return None
+                log_probs[k] -= total
         if state is not None:
             if self.prior is not None:
                 state.prior_log_probs = log_probs

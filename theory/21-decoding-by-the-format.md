@@ -128,6 +128,12 @@ gives
 
 > `P(wrong | readings) ≤ R + Σ_{k ∈ E} rₖ`.
 
+Numerically, representable positive calibrated masses are logged without an
+arbitrary positive floor; exact zeros map to `−∞`. A row with no mass cannot
+support a posterior account. This preserves subnormal inputs but cannot
+recover mass that an earlier calculation already rounded to zero, and it is
+not an outward-rounding guarantee.
+
 ## 21.6 Charges for refinement
 
 Let `μₖ = 1 − π(aₖ = âₖ)` be word `k`'s posterior arity risk after decoding.
