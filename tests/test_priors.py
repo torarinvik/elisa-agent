@@ -333,6 +333,23 @@ def test_native_prior_best_does_not_compute_unused_posteriors(
     assert prior.best(np.zeros((3, 3))) == (2, 0, 0)
 
 
+def test_normalizer_matches_full_decoder_for_sparse_weighted_automata() -> None:
+    rng = np.random.default_rng(42)
+    for _ in range(100):
+        states = int(rng.integers(1, 9))
+        transitions = rng.integers(-1, states, size=(states, 3))
+        weights = rng.normal(size=(states, 3))
+        final = rng.normal(size=states)
+        rows = rng.normal(size=(int(rng.integers(1, 16)), 3))
+        weights[rng.random(weights.shape) < .2] = -np.inf
+        final[rng.random(final.shape) < .2] = -np.inf
+        rows[rng.random(rows.shape) < .2] = -np.inf
+        prior = priors.ArityPrior((0, 1, 2), transitions, weights, final)
+        decoded = prior.decode(rows)
+        expected = -np.inf if decoded is None else decoded.log_z
+        assert prior.log_normalizer(rows) == pytest.approx(expected, abs=1e-12)
+
+
 def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
     # Successive supports alternate between a wide range with holes and one cell.
     # The two reusable rows must clear their old, sometimes wider envelopes.
