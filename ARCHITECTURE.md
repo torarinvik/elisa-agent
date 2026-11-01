@@ -58,6 +58,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.1](theory/02-planning.md) | `planShallow_sound` | `Routing` |
 | [2.2](theory/02-planning.md) | `zero_fuel_nonempty_inputs` | `Planner` |
 | [2.2](theory/02-planning.md) | `renVar_ne_external`, `renVar_injective` | `PatternSearch` |
+| [2.2](theory/02-planning.md) | `subst_ground` | `PatternSearch` |
 | [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
 | [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
 | [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |
@@ -350,6 +351,9 @@ Generated variable identities pair a source name with a unique scope and
 are distinct from user-provided textual names.
 At the last search depth, pattern search skips contracts with inputs before
 renaming them, since no input can be solved at depth zero.
+For free-variable instances, ground inputs are checked before expanding the
+remaining pattern inputs; a failed ground check cannot be repaired by a later
+substitution.
 
 The index persists. `ProducerIndex.append` indexes a newly installed module
 after the others, and every cached result (closures, candidate sets, plans in

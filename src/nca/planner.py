@@ -379,6 +379,11 @@ def _free_instances(index: ProducerIndex, limit: int, available: Sequence[TypeId
     determined by pattern search over its inputs at depth ``fuel - 1``.
     With ``distinct``, close only until each binding has one valid plan."""
     renaming, inputs, _ = rename_apart(module.manifest.contract, binding)
+    # A ground input cannot be changed by solving earlier pattern inputs.
+    if fuel > 0 and any(not type_variables(t) and
+                        _plan(index, limit, available, format_type(t), fuel - 1, memo) is None
+                        for t in inputs):
+        return
     found: set[Binding] = set()
     for args, solved in _solve_inputs(index, limit, available, inputs, {}, fuel, memo):
         free = {v: resolve(Var(r), solved) for v, r in renaming.items()}

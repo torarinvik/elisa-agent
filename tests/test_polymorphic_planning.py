@@ -458,6 +458,23 @@ def test_free_binding_rejects_unusable_required_input() -> None:
     assert plan([add, zero, Fold()], available, INT, fuel=5, required=frozenset({2})) is None
 
 
+def test_free_binding_checks_ground_inputs_without_losing_dependent_inputs() -> None:
+    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
+    zero = fn("zero", [TEXT], INT, lambda _: 0)
+    blocked = fn("blocked", ["seq[?a]", "missing.v1"], "out.v1", lambda a, b: None)
+    modules, available = [add, zero, Fold(), blocked], (f"seq[{INT}]", TEXT)
+    assert plan_min(modules, available, "out.v1", length=1, fuel=5) is None
+    assert plan_pareto(modules, available, "out.v1", length=1, errors={}, fuel=5) == []
+    missing = fn("missing", [TEXT], "missing.v1", lambda _: None)
+    result = plan_min([*modules, missing], available, "out.v1", length=1, fuel=5)
+    assert result is not None and infer([*modules, missing], available, result[0]) == "out.v1"
+
+    dependent = fn("dependent", ["box[?a]", "?a"], "out.v1", lambda a, b: None)
+    boxing = fn("boxing", [INT], "box[int.v1]", lambda value: value)
+    result = plan_min([dependent, boxing], (INT,), "out.v1", length=1, fuel=4)
+    assert result is not None and infer([dependent, boxing], (INT,), result[0]) == "out.v1"
+
+
 def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     from nca import planner
 

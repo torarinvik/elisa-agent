@@ -92,6 +92,9 @@ fixes `α`.
 At depth one, an application with any inputs cannot succeed: its input search
 has depth zero. Such candidates can be skipped before renaming their variables;
 zero-input candidates and available inputs must still be considered.
+For a partially instantiated contract, a ground input is unchanged by every
+later substitution. If that input has no plan at the required depth, the
+contract cannot apply, regardless of solutions to earlier pattern inputs.
 
 **Map sources.** With polymorphic contracts, the candidate element types of
 step 3 include the elements of the sequence types that instances produce, of
