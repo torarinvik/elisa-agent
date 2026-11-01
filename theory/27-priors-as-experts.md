@@ -319,6 +319,35 @@ all rewards tie at the floor; the score rule supplies no coverage guarantee.
 A provider selected this way can still abstain on later inputs, and its
 answering policy still needs an independent risk audit.
 
+**Theorem 27.13 (support-preserving symbol tilts).** Given an automaton's
+edge weights v(s,a), final weights f(s) and positive symbol factors r(a),
+replace each edge weight by v(s,a) r(a). The weight of a sequence becomes
+`v_r(a₁…a_m) = v(a₁…a_m) Π_k r(a_k)`. Induction along the run proves
+this factorization. Its nonzero support is unchanged because every factor
+is positive. In log space, add log r(a) to that symbol's edge weights.
+This changes relative preferences within a structural model without adding
+hard exclusions. Finite arithmetic must reject edge overflow that would
+turn a previously finite log weight into an infinity.
+
+For example, r(1)=η with r(0)=r(2)=1 multiplies a sequence's weight by
+η to the number of unary nodes. η<1 discourages unary nodes and η>1
+encourages them. This is a residual tilt of the existing model; η is not
+in general a unary-node probability. A fixed catalog of such weighted
+experts can use the same evidence and bounded selection rules as structural
+experts. Models/factors and the clipping level must be fixed independently
+of the selection sample for Theorem 27.10. Support preservation does not
+make posterior risks calibrated, and the selected answering policy still
+requires an independent risk audit.
+
+A feature constant over every accepted sequence of a fixed length is
+unidentifiable from conditional decoding: its common multiplicative factor
+cancels from posterior probabilities and from normalized evidence. In the
+complete-skeleton model, length identifies depth and the numbers of binary
+nodes and leaves; remaining nodes are unary negations. A unary-only tilt
+therefore changes no conditional model there. It can change format-only
+and height-bounded models, whose unary counts vary at fixed length. This
+limits what parameter learning can express even with perfect observations.
+
 Two safeguards:
 
 1. Prefer the largest support among priors whose evidence is statistically

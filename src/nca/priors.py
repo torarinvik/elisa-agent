@@ -198,6 +198,23 @@ class ArityPrior:
             state = int(self.transitions[state, j])
         return Decoded(tuple(selected), log_z, marginals, self)
 
+def tilt_prior(prior: ArityPrior, log_factors: Sequence[float]) -> ArityPrior:
+    """Multiply each symbol's edge weights by a positive factor (§27.13).
+
+    Factors follow the prior alphabet. Finite log factors preserve support;
+    they do not fit parameters or imply a calibrated observation model.
+    Native weighted-automaton kernels evaluate the resulting immutable prior.
+    """
+    factors = np.asarray(log_factors, dtype=np.float64)
+    if factors.shape != (len(prior.alphabet),) or not np.all(np.isfinite(factors)):
+        raise ValueError("requires one finite log factor per prior symbol")
+    with np.errstate(over="ignore"):
+        weights = prior.log_weights + factors
+    if np.any(np.isfinite(prior.log_weights) & ~np.isfinite(weights)):
+        raise ValueError("tilted edge weights overflow")
+    return ArityPrior(prior.alphabet, prior.transitions, weights, prior.log_final, prior.start)
+
+
 @lru_cache(maxsize=32)
 def format_prior(length: int) -> ArityPrior:
     """Unit-weight prefix counter as a prior automaton for a fixed length."""

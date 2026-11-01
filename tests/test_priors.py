@@ -319,3 +319,65 @@ def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
         assert prior.decode(rows[:size]) is None
         assert prior.log_normalizer(rows[:size]) == -np.inf
         assert prior.best(rows[:size]) is None
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_symbol_tilts_preserve_support_and_weighted_decoding(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(1705)
+    prior = priors.ArityPrior((2, 0, 1), np.array([[1, 0, -1], [0, 1, 2], [2, 0, 1]]),
+                              np.array([[0., -1, 0], [1, 0, -np.inf], [-1, 1, 0]]),
+                              np.array([0., -np.inf, 1]), start=2)
+    factors = np.log([.5, 2, 4])
+    tilted = priors.tilt_prior(prior, factors)
+    for size in range(6):
+        for selected in itertools.product(prior.alphabet, repeat=size):
+            original = prior.log_weight(selected)
+            expected = original + sum(factors[prior.alphabet.index(a)] for a in selected)
+            assert tilted.log_weight(selected) == pytest.approx(expected)
+            assert np.isfinite(tilted.log_weight(selected)) == np.isfinite(original)
+        if size:
+            rows = rng.normal(size=(size, 3))
+            actual, shifted = tilted.decode(rows), prior.decode(rows + factors)
+            assert actual is not None and shifted is not None
+            assert actual.arities == shifted.arities
+            assert actual.log_z == pytest.approx(shifted.log_z)
+            np.testing.assert_allclose(actual.marginals, shifted.marginals, atol=1e-12)
+    factors[:] = 100
+    assert tilted.log_weights[0, 0] == np.log(.5)
+    assert not tilted.log_weights.flags.writeable
+    assert not np.shares_memory(tilted.transitions, prior.transitions)
+
+
+def test_symbol_tilt_validation_and_identity() -> None:
+    prior = priors.height_prior(2)
+    identity = priors.tilt_prior(prior, [0, 0, 0])
+    np.testing.assert_array_equal(identity.log_weights, prior.log_weights)
+    for bad in ([0, 0], [0, np.inf, 0], [0, -np.inf, 0], [0, np.nan, 0]):
+        with pytest.raises(ValueError, match="finite log factor"):
+            priors.tilt_prior(prior, bad)
+    for weight, factor in ((1e308, 1e308), (-1e308, -1e308)):
+        extreme = priors.ArityPrior((0,), np.array([[0]]), np.array([[weight]]), np.zeros(1))
+        with pytest.raises(ValueError, match="overflow"):
+            priors.tilt_prior(extreme, [factor])
+
+
+def test_complete_prior_unary_tilts_cancel_at_fixed_length() -> None:
+    rng = np.random.default_rng(1706)
+    for size in (7, 9, 11):
+        model = priors.complete_prior(size)
+        assert model is not None
+        rows = np.log(rng.dirichlet(np.ones(3), size=size))
+        base = np.log(np.full((size, 3), 1 / 3))
+        original = model.decode(rows)
+        assert original is not None
+        for factor in (.25, 4):
+            tilted = priors.tilt_prior(model, [0, np.log(factor), 0])
+            result = tilted.decode(rows)
+            assert result is not None
+            assert result.arities == original.arities
+            assert result.log_z == pytest.approx(original.log_z + (size - 7) * np.log(factor))
+            np.testing.assert_allclose(result.marginals, original.marginals, atol=1e-12)
+            assert tilted.log_evidence(rows, base) == pytest.approx(model.log_evidence(rows, base))

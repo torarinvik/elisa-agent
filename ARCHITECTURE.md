@@ -871,3 +871,12 @@ match the full native decoder. The support-pruning maximum identity is
 initialization and storage still cost O(mS). Without the export, the full decoder supplies the reference
 fallback. The recurrences correspond to §27.2–27.3; tests cover weighted
 priors, uniform ties, empty support, and a guard against full decoding.
+
+`priors.tilt_prior` adds finite per-symbol log factors to an automaton's edge
+weights, preserving alphabet, transitions, final weights and start state.
+It rejects edge overflow and returns an independent immutable model. The
+existing Elisa weighted kernels evaluate it without a new numerical path.
+Theorem 27.13 maps to `prior_tilt` and `prior_tilt_ne_zero` in `Product`.
+A caller can predeclare tilted providers in `select_prior`; no catalog or
+CLI default changes automatically. Constant feature counts cancel after
+conditioning, as tested for unary tilts of complete-skeleton priors.

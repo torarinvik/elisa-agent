@@ -75,6 +75,24 @@ theorem prior_nonneg (hv : ∀ t a, 0 ≤ v t a) (hf : ∀ t, 0 ≤ f t) :
   | t, [] => hf t
   | t, a :: l => mul_nonneg (hv t a) (prior_nonneg hv hf (ε t a) l)
 
+/-- A symbol-wise edge tilt multiplies the sequence weight by its symbol factors. -/
+theorem prior_tilt (r : α → ℝ) (t : τ) (l : List α) :
+    prior ε (fun t a => v t a * r a) f t l =
+      prior ε v f t l * (l.map r).prod := by
+  induction l generalizing t with
+  | nil => simp [prior]
+  | cons a l ih => simp only [prior, List.map_cons, List.prod_cons, ih]; ring
+
+/-- Nonzero symbol factors cannot add or remove sequence support. -/
+theorem prior_tilt_ne_zero (r : α → ℝ) (hr : ∀ a, r a ≠ 0) (t : τ) (l : List α) :
+    prior ε (fun t a => v t a * r a) f t l ≠ 0 ↔ prior ε v f t l ≠ 0 := by
+  have hprod : (l.map r).prod ≠ 0 := by
+    induction l with
+    | nil => simp
+    | cons a l ih => simp [hr a, ih]
+  rw [prior_tilt]
+  simp [hprod]
+
 /-- **Max-product with a prior, upper bound.** With nonnegative weights, no
 sequence's score × prior exceeds the product program. -/
 theorem pdpMax_ge (hv : ∀ t a, 0 ≤ v t a) : ∀ (ws : List (α → ℝ)), (∀ w ∈ ws, ∀ a, 0 ≤ w a) →
