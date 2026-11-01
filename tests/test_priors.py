@@ -551,6 +551,26 @@ def test_prior_passes_reuse_shrinking_and_gapped_state_ranges() -> None:
         assert prior.best(rows[:size]) is None
 
 
+def test_prior_partition_handles_shrinking_gapped_envelopes(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(priors._NATIVE, "prior_partition", None) is None:
+        pytest.skip("native partition is not built")
+    transitions = np.full((257, 3), -1, dtype=np.int64)
+    transitions[128] = [1, 255, 128]
+    transitions[1] = transitions[255] = [127, 127, 127]
+    transitions[127] = [2, 254, 127]
+    transitions[2] = transitions[254] = [128, 128, 128]
+    final = np.full(257, -np.inf)
+    final[[1, 2, 127, 128, 254, 255]] = 0
+    prior = priors.ArityPrior((2, 0, 1), transitions, np.zeros((257, 3)), final, start=128)
+    rows = np.log(np.random.default_rng(73).dirichlet(np.ones(3), size=17))
+    selected = (2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0)
+    actual = [prior.partition(rows[:n], selected[:n]) for n in range(18)]
+    monkeypatch.setattr(priors, "_NATIVE", None)
+    expected = [prior.partition(rows[:n], selected[:n]) for n in range(18)]
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
+
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_symbol_tilts_preserve_support_and_weighted_decoding(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:

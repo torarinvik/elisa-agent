@@ -177,14 +177,23 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
     states: i64 = final.len.i64()
     m: i64 = selected.len.i64()
     unreachable: f64 = log(0.0)
-    rows, matched_state, matched =
-        for k in 0..<m |rows: darray[f64] = [unreachable for _ in 0..<(2 * states)], matched_state: i64 = start, matched: f64 = 0.0| -> (rows, matched_state, matched):
+    rows, bounds, matched_state, matched =
+        for k in 0..<m |rows: darray[f64] = [unreachable for _ in 0..<(2 * states)], bounds: darray[i64] = [states, -1, states, -1], matched_state: i64 = start, matched: f64 = 0.0| -> (rows, bounds, matched_state, matched):
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            for state in 0..<states |rows|:
+            here_bound: i64 = (k % 2) * 2
+            next_bound: i64 = ((k + 1) % 2) * 2
+            for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:
                 rows[next + state] <- unreachable
-            for state in 0..<states |rows|:
-                for j in 0..<width |rows|:
+            bounds[next_bound] <- states
+            bounds[next_bound + 1] <- -1
+            low: i64 = matched_state if matched != unreachable and matched_state < bounds[here_bound] else bounds[here_bound]
+            high: i64 = matched_state if matched != unreachable and matched_state > bounds[here_bound + 1] else bounds[here_bound + 1]
+            for state in low..<(high + 1) |rows, bounds|:
+                source: f64 = rows[here + state]
+                same: bool = state == matched_state and matched != unreachable
+                continue if source == unreachable and not same
+                for j in 0..<width |rows, bounds|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
@@ -192,14 +201,14 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
                     edge_weight: f64 = prior[edge]
                     continue if reading == unreachable or edge_weight == unreachable
                     weight: f64 = reading + edge_weight
-                    source: f64 = rows[here + state]
-                    same: bool = state == matched_state and matched != unreachable
                     continue if source == unreachable and (not same or alphabet[j] == selected[k])
                     return [] if weight == unreachable or weight == -unreachable
                     if source != unreachable:
                         through: f64 = source + weight
                         return [] if through == unreachable or through == -unreachable
                         rows[next + target] <- log_add(rows[next + target], through)
+                    bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
+                    bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
                     if same and alphabet[j] != selected[k]:
                         through: f64 = matched + weight
                         return [] if through == unreachable or through == -unreachable
@@ -234,7 +243,7 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
             return [] if value == unreachable or value == -unreachable
             value
     alternative: f64 =
-        for state in 0..<states |total: f64 = unreachable| -> total:
+        for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |total: f64 = unreachable| -> total:
             last: f64 = rows[(m % 2) * states + state]
             continue if last == unreachable or final[state] == unreachable
             value: f64 = last + final[state]
