@@ -316,6 +316,28 @@ def test_split_cursor_follows_climbs() -> None:
                                                           full.arities))
 
 
+def test_banded_split_matches_banded_passes() -> None:
+    """With the band fixed, climbs rescored by the cursor match the banded
+    programs run in full on the changed weights (Theorems 23.7 and 23.8
+    applied to the position-restricted automaton)."""
+    rng = np.random.default_rng(8)
+    for m in (6, 20, 45):
+        probs = rng.dirichlet(np.full(3, 0.5), size=m)
+        reference = np.argmax(probs, axis=1)
+        centre = 1 + np.concatenate(([0], np.cumsum(np.asarray(ARITY_ORDER)[reference] - 1)))
+        split = Split(np.log(probs), ARITY_ORDER, centre, 4)
+        for _ in range(12):
+            k = int(rng.integers(m))
+            probs[k] = rng.dirichlet(np.full(3, 0.5))
+            log_z, log_x = split.climb(k, np.log(probs[k]))
+            full = formulas._banded_passes(np.log(probs), ARITY_ORDER, centre, 4)
+            if full is None:
+                assert log_z == -np.inf
+                continue
+            assert log_z == pytest.approx(full[0])
+            assert log_x == pytest.approx(full[1])
+
+
 @pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")
 def test_native_decoder_matches_reference() -> None:
     """The native kernel against NumPy at formula sizes up to depth 9, with

@@ -939,6 +939,17 @@ fewer operations for the incremental exact program, and the rest is the
 backtracking and marginals the full decode also does. Banding the swept
 vectors (`W ≈ 29` states instead of up to `m / 4`) is the remaining factor.
 
+**Banded cursor** (THEORY §23.4, fixed reference; NumPy). Same 20 depth-8
+formulas and 100 risk-ordered climbs from the bottom rung, `η = 10⁻⁴`, band
+widened and rebuilt whenever `U_j > η · Z_band`. The final certified risk
+exceeds the exact one by between 1.0e-7 and 1.9e-5, within `η`. A climb costs
+1.52 ms including 87 rebuilds (about 4 per formula), against 2.1 ms for the
+unbanded cursor. The final band averages `W = 62`, because readings start
+on the bottom rung, where `S` is large. The gain is small because in NumPy
+the cost per swept position is mostly call overhead, about 11 µs, nearly
+independent of the number of states. The operation counts of §23.5 apply
+only where the per-state work dominates, which means native code.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

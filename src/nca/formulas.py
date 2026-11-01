@@ -307,41 +307,64 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: np.nd
 
 
 class Split:
-    """Forward and backward vectors of the exact decoding programs, in log
-    space, kept valid around a cursor so that a change to one word's weights
-    is rescored from the vectors on either side of it (THEORY §23.4,
-    Theorems 23.7–23.9). Forward vectors ``0 ..= ahead`` and backward vectors
-    ``behind ..= m`` are current; ``swept`` counts the positions recomputed."""
+    """Forward and backward vectors of the decoding programs, in log space,
+    kept valid around a cursor so that a change to one word's weights is
+    rescored from the vectors on either side of it (THEORY §23.4, Theorems
+    23.7–23.9). With ``centre`` and ``half``, the programs are restricted to
+    counter values within ``half`` of ``centre[k]`` at position ``k``, a band
+    fixed for the object's lifetime. Forward vectors ``0 ..= ahead`` and
+    backward vectors ``behind ..= m`` are current; ``swept`` counts the
+    positions recomputed."""
 
-    def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> None:
+    def __init__(self, log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
+                 centre: np.ndarray | None = None, half: int | None = None) -> None:
         self.log_probs = np.array(log_probs, dtype=np.float64)
         m = len(self.log_probs)
         self.alphabet = tuple(alphabet)
-        self.width = m + 2
-        self.forward = np.full((m + 1, self.width), -np.inf)
-        self.forward_max = np.full((m + 1, self.width), -np.inf)
-        self.backward = np.full((m + 1, self.width), -np.inf)
-        self.backward_max = np.full((m + 1, self.width), -np.inf)
-        self.forward[0, 1] = self.forward_max[0, 1] = 0.0
-        self.backward[m, 0] = self.backward_max[m, 0] = 0.0
-        self.ahead, self.behind = 0, m
-        self.swept = 0
+        width = m + 2
+        position = np.arange(m + 1)
+        if centre is None or half is None:
+            self.low, self.high = np.zeros(m + 1, dtype=np.int64), m - position
+        else:
+            self.low = np.maximum(0, centre - half)
+            self.high = np.minimum(m - position, centre + half)
+        self.forward = np.full((m + 1, width), -np.inf)
+        self.forward_max = np.full((m + 1, width), -np.inf)
+        self.backward = np.full((m + 1, width), -np.inf)
+        self.backward_max = np.full((m + 1, width), -np.inf)
+        if self.low[0] <= 1 <= self.high[0]:
+            self.forward[0, 1] = self.forward_max[0, 1] = 0.0
+        if self.low[m] <= 0:
+            self.backward[m, 0] = self.backward_max[m, 0] = 0.0
+        self.ahead, self.behind, self.swept = 0, m, 0
         self._advance(m)
         self._retreat(0)
         self.swept = 0
+
+    def _moves(self, i: int) -> list[tuple[int, int, int, int]]:
+        """For each arity ``a`` (index ``j``), the run of in-band states
+        ``s ≥ 1`` at position ``i`` whose successor ``s − 1 + a`` is in band at
+        ``i + 1``: ``(j, s0, length, t0)``."""
+        moves = []
+        for j, a in enumerate(self.alphabet):
+            s0 = max(int(self.low[i]), 1, int(self.low[i + 1]) + 1 - a)
+            s1 = min(int(self.high[i]), int(self.high[i + 1]) + 1 - a)
+            if s1 >= s0:
+                moves.append((j, s0, s1 - s0 + 1, s0 - 1 + a))
+        return moves
 
     def _advance(self, k: int) -> None:
         """Make forward vectors current through position ``k``."""
         while self.ahead < k:
             i = self.ahead
-            self.forward[i + 1] = self.forward_max[i + 1] = -np.inf
-            for j, a in enumerate(self.alphabet):
-                span = min(a + self.width - 1, self.width) - a
+            band = slice(int(self.low[i + 1]), int(self.high[i + 1]) + 1)
+            self.forward[i + 1, band] = self.forward_max[i + 1, band] = -np.inf
+            for j, s0, n, t0 in self._moves(i):
                 step = self.log_probs[i, j]
-                self.forward[i + 1, a:a + span] = np.logaddexp(
-                    self.forward[i + 1, a:a + span], self.forward[i, 1:1 + span] + step)
-                self.forward_max[i + 1, a:a + span] = np.maximum(
-                    self.forward_max[i + 1, a:a + span], self.forward_max[i, 1:1 + span] + step)
+                self.forward[i + 1, t0:t0 + n] = np.logaddexp(
+                    self.forward[i + 1, t0:t0 + n], self.forward[i, s0:s0 + n] + step)
+                self.forward_max[i + 1, t0:t0 + n] = np.maximum(
+                    self.forward_max[i + 1, t0:t0 + n], self.forward_max[i, s0:s0 + n] + step)
             self.ahead += 1
             self.swept += 1
 
@@ -349,14 +372,14 @@ class Split:
         """Make backward vectors current from position ``k``."""
         while self.behind > k:
             i = self.behind - 1
-            self.backward[i] = self.backward_max[i] = -np.inf
-            for j, a in enumerate(self.alphabet):
-                span = min(a + self.width - 1, self.width) - a
+            band = slice(int(self.low[i]), int(self.high[i]) + 1)
+            self.backward[i, band] = self.backward_max[i, band] = -np.inf
+            for j, s0, n, t0 in self._moves(i):
                 step = self.log_probs[i, j]
-                self.backward[i, 1:1 + span] = np.logaddexp(
-                    self.backward[i, 1:1 + span], self.backward[i + 1, a:a + span] + step)
-                self.backward_max[i, 1:1 + span] = np.maximum(
-                    self.backward_max[i, 1:1 + span], self.backward_max[i + 1, a:a + span] + step)
+                self.backward[i, s0:s0 + n] = np.logaddexp(
+                    self.backward[i, s0:s0 + n], self.backward[i + 1, t0:t0 + n] + step)
+                self.backward_max[i, s0:s0 + n] = np.maximum(
+                    self.backward_max[i, s0:s0 + n], self.backward_max[i + 1, t0:t0 + n] + step)
             self.behind -= 1
             self.swept += 1
 
@@ -366,12 +389,11 @@ class Split:
         self._advance(k)
         self._retreat(k + 1)
         log_z = log_x = -np.inf
-        for j, a in enumerate(self.alphabet):
-            span = min(a + self.width - 1, self.width) - a
-            through = self.backward[k + 1, a:a + span] + row[j]
-            log_z = np.logaddexp(log_z, np.logaddexp.reduce(self.forward[k, 1:1 + span] + through))
-            best = self.forward_max[k, 1:1 + span] + self.backward_max[k + 1, a:a + span] + row[j]
-            log_x = max(log_x, float(best.max()))
+        for j, s0, n, t0 in self._moves(k):
+            log_z = np.logaddexp(log_z, np.logaddexp.reduce(
+                self.forward[k, s0:s0 + n] + self.backward[k + 1, t0:t0 + n]) + row[j])
+            best = self.forward_max[k, s0:s0 + n] + self.backward_max[k + 1, t0:t0 + n]
+            log_x = max(log_x, float(best.max()) + row[j])
         return float(log_z), log_x
 
     def climb(self, k: int, row: np.ndarray) -> tuple[float, float]:

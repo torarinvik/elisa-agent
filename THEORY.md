@@ -1720,6 +1720,21 @@ amortized, for instance once every `√m` climbs.
 The decoded sequence must still be backtracked after each step (`O(m)`), to
 evaluate the formula and find `E`.
 
+**Banding with a moving cursor.** Theorems 23.1–23.6 hold for *any*
+reference sequence `r`, not only the per-word argmax. So the reference, and
+with it the band's centre at every position, is fixed when the band is
+built and kept through later climbs, even where a climb changes a word's
+most probable arity. Only `S = Σₖ ρₖ`, with `ρₖ` the climbed word's mass off
+`rₖ`, changes, and it is updated in `O(1)` per climb. A climb that moves a
+word's mass away from its reference raises `S`, and with it `U_j`; the band is
+rebuilt wider (§23.3) only when `U_j > η · Z_band`.
+
+With the centre fixed, the band is a position-dependent restriction of the
+counter automaton: pair each state with its position and send states outside
+the band to the dead state. That is again a deterministic automaton, so the
+splits of Theorems 23.7 and 23.8 apply to the banded programs unchanged, and
+the cursor sweeps `W` states per position instead of up to `min(k + 1, m − k)`.
+
 ### 23.5 Predicted operation counts
 
 Per refinement step, counting multiply-adds over the arity alternatives:
