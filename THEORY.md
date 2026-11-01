@@ -1527,3 +1527,144 @@ generic extensions, grouped decisions and value-dependent certificates.
 Both reduce exactly to the old behavior on arithmetic. Certificates turn
 the union bound's `n` into `√n` for the decisions that matter, and that
 makes formulas answerable where static demand must abstain.
+
+## 19. Error detection by the format
+
+### 19.1 The observation
+
+Two findings of §18.10 point to the same place:
+
+1. the certificate bound was conservative, with no answered formula wrong at
+   mean bounds near 0.1;
+2. its arity term `Σ ρ_shape`, charged at every word, limits depth.
+
+Both suggest the arity term overcharges. It is a union bound that treats
+every arity error as silent. But the format is redundant. A prefix formula's
+arity sequence is constrained, the reading is answered only if it parses,
+and the truth parses too. Errors that break the constraint are *detected*
+(the controller climbs or abstains). Only errors that preserve it can make
+an answer wrong.
+
+### 19.2 Single errors are detected
+
+**Theorem** (`code_sum`, `lean/NCA/Detection.lean`). Every formula's
+preorder arity sequence sums to one less than its length:
+`Σ_k (a_k − 1) = −1`.
+
+**Theorem** (`code_no_single_change`). Two formulas with the same number of
+words whose arity sequences agree everywhere except possibly at one
+position have the same arity sequence.
+
+*Proof.* Equal lengths and `code_sum` give equal sums. Lists of equal length
+and equal sum agreeing outside one position agree there too
+(`List.eq_of_sum_eq_of_agree`).
+
+The premise is that word boundaries are known, so the reading and the truth
+have the same number of words. The channel never corrupts spaces. Then, given
+that the reading parses, the set of words whose arity is misread has size 0
+or at least 2.
+
+### 19.3 What a wrong answer requires
+
+Let the reading `r` parse, let `t` be the truth, and let `E` be the words the
+reading's certificate evaluates. Write `A_k` for "word `k`'s arity is
+misread" and `W_k` for "word `k` is misread but its arity is right".
+
+- If no arity is misread, the trees align node by node (`code_prefix`). A
+  wrong answer then needs a disagreement on an evaluated node (`cert_sound`),
+  that is, some `W_k` with `k ∈ E`.
+- If some arity is misread, at least two are (§19.2).
+
+Hence
+
+> `wrong ⊆ (⋃_{k ∈ E} W_k) ∪ {at least two A_k}`
+
+and (`detected_error_le`)
+
+> `P(wrong | r) ≤ Σ_{k ∈ E} P(W_k | r) + P(at least two A_k | r)`.
+
+**Evaluated words.** `P(W_k)` is the probability that the true word lies in
+the read word's arity group `g` but differs from it, `p(g) − p(r_k)`. This is
+at most the risk `1 − p(r_k) / p(g)` of the decision restricted to `g`
+(`joint_le_restricted`), which §16 already calibrates. For `not`, alone in
+its group, it is 0.
+
+**Arity.** What remains is the probability of at least two arity failures
+among all words.
+
+### 19.4 Two bounds on two failures
+
+Write `ρ_k` for word `k`'s arity risk and `S = Σ_k ρ_k`.
+
+**Without further premises** (`two_occur_le_half`). The number of failures
+`N = Σ_k 1[A_k]` has mean `S`. By Markov's inequality,
+`P(N ≥ 2) ≤ S / 2`. Detection halves the arity term, using nothing but the
+format.
+
+**Without positive correlation** (`two_occur_le_pairs`). If failures at two
+different words are never positively correlated given the readings,
+`P(A_i ∩ A_j | r) ≤ ρ_i ρ_j`, then
+
+> `P(N ≥ 2 | r) ≤ e₂(ρ) = Σ_{i<j} ρ_i ρ_j ≤ S² / 2`,
+
+quadratically small when `S` is small. The premise is plausible because
+each word is corrupted and read independently. It is not automatic: the
+truth is a formula, and conditioning on that couples words (it is what
+rules out single errors). So it is a premise to test, not a theorem. If it
+fails in use, the audit of §17 still certifies a policy honestly. Both
+bounds are valid under the premise, so the controller charges
+`min(S/2, e₂)`.
+
+A sharper bound would also use the sign of the errors: undetected errors
+must cancel in `Σ (a − 1)`, and a dynamic program over the net arity change
+computes that probability under independence. Since `e₂` is already
+quadratic, this is not pursued.
+
+### 19.5 Choosing the certificate
+
+With detection, the arity charge covers all words whichever certificate is
+chosen. The least-risk certificate therefore minimizes the evaluated words'
+within-group risks alone: `bestCert` with `w_full` the restricted risk and
+`w_shape = 0`.
+
+### 19.6 Risk accounts
+
+The bound is no longer a sum of per-item decision risks: `e₂` is a product
+over pairs. The generic interface therefore moves one step:
+
+- A consumer's certificate returns each item's **charge**, and the bound is
+  the sum of charges.
+- `refine` climbs the open item with the largest charge.
+- Validity of the account is the consumer's theorem.
+
+| account | charge of item `k` |
+|---|---|
+| static | risk of its fixed decision (as before) |
+| certificate (§18) | risk of the decision it serves |
+| detection, Markov | `ρ_k / 2`, plus its restricted risk if evaluated |
+| detection, pairs | `ρ_k (S − ρ_k) / 2` (these sum to `e₂`), plus its restricted risk if evaluated |
+
+### 19.7 Scaling
+
+Over `m` words with arity risk `ρ` each, the arity term is
+
+- `m ρ` without detection,
+- `m ρ / 2` with Markov,
+- about `(m ρ)² / 2` with pairs.
+
+Under a target `δ` the length limit on that term moves from `m ≲ δ / ρ` to
+`m ≲ √(2δ) / ρ`. For `δ = 0.2` and `ρ = 10⁻³` that is 632 words instead of
+200.
+
+### 19.8 Predictions
+
+1. **Validity.** The Markov account needs no new premise: the error among
+   answered formulas stays within `δ`. The pairs account stays within `δ` if
+   its premise holds; the experiment tests this.
+2. **Coverage.** Markov raises coverage modestly. Pairs raises it strongly
+   where the arity term dominates: depths 6 and 8, where §18 certified 21%
+   (depth 6, `δ = 0.05`) and 1.7% (depth 8, `δ = 0.2`).
+3. **Tightness.** The mean bound among answered formulas moves toward the
+   observed error.
+4. **Compute.** Less: arity charges no longer force climbs on words whose
+   arity is merely uncertain.

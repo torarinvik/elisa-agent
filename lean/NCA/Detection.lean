@@ -1,0 +1,163 @@
+import NCA.Certificate
+import Mathlib.MeasureTheory.Integral.Lebesgue.Markov
+
+/-!
+# Error detection by the format
+
+A consumer answers only when the readings are well formed: a prefix formula
+whose arities parse. The truth is well formed too, and the two have the same
+number of words. Every well-formed arity sequence satisfies
+`Σ (arity − 1) = −1` (`code_sum`), so two of them of equal length cannot
+differ in exactly one position (`code_no_single_change`): a single wrong
+arity is always *detected*. A wrong arity that goes unnoticed needs at least
+two.
+
+The certificate bound of `NCA.Certificate` charges every word's arity risk as
+if each error were silent. Crediting detection, the arity part of the bound
+becomes the probability that at least two arity decisions fail:
+
+* at most half the summed arity risks, with no further premise
+  (`two_occur_le_half`, Markov's inequality on the number of failures);
+* at most the sum over pairs of products of risks, if failures at two
+  different words are never positively correlated
+  (`two_occur_le_pairs`), quadratically small when the risks are.
+
+The identity of an evaluated word is then charged only for errors that keep
+its arity, whose joint probability is at most the risk of the decision
+restricted to the word's arity group (`joint_le_restricted`).
+`detected_error_le` assembles the bound.
+-/
+
+namespace NCA
+
+section Codes
+
+variable {ω ω' : Type}
+
+/-- **Arity balance.** Every formula's preorder arity sequence sums to one
+less than its length. -/
+theorem code_sum : ∀ f : Formula ω, (code f).sum + 1 = (code f).length
+  | .const _ _ => rfl
+  | .not _ f => by
+      have := code_sum f
+      simp only [code, List.sum_cons, List.length_cons]
+      omega
+  | .bin _ _ f g => by
+      have := code_sum f
+      have := code_sum g
+      simp only [code, List.sum_cons, List.sum_append, List.length_cons, List.length_append]
+      omega
+
+/-- Lists of equal length and equal sum that agree everywhere except possibly
+at position `i` are equal. -/
+theorem List.eq_of_sum_eq_of_agree : ∀ (l₁ l₂ : List ℕ) (i : ℕ), l₁.length = l₂.length →
+    (∀ j, j ≠ i → l₁[j]? = l₂[j]?) → l₁.sum = l₂.sum → l₁ = l₂
+  | [], [], _, _, _, _ => rfl
+  | [], _ :: _, _, hl, _, _ | _ :: _, [], _, hl, _, _ => by simp at hl
+  | a :: l₁, b :: l₂, 0, _, hd, hs => by
+      have ht : l₁ = l₂ := List.ext_getElem? fun j => by simpa using hd (j + 1) (by omega)
+      subst ht
+      simp only [List.sum_cons, Nat.add_right_cancel_iff] at hs
+      rw [hs]
+  | a :: l₁, b :: l₂, i + 1, hl, hd, hs => by
+      have hab : a = b := by simpa using hd 0 (by omega)
+      subst hab
+      have ht := List.eq_of_sum_eq_of_agree l₁ l₂ i (by simpa using hl)
+        (fun j hj => by simpa using hd (j + 1) (by omega))
+        (by simp only [List.sum_cons] at hs; omega)
+      rw [ht]
+
+/-- **No single change.** Two formulas with the same number of words whose
+arity sequences agree everywhere except possibly at one position have the
+same arity sequence: one wrong arity always breaks the parse. -/
+theorem code_no_single_change (f : Formula ω) (g : Formula ω') (i : ℕ)
+    (hl : (code f).length = (code g).length)
+    (hd : ∀ j, j ≠ i → (code f)[j]? = (code g)[j]?) : code f = code g :=
+  List.eq_of_sum_eq_of_agree _ _ i hl hd (by have := code_sum f; have := code_sum g; omega)
+
+end Codes
+
+section Counting
+
+open MeasureTheory Finset
+
+variable {Ω ι : Type*} [MeasurableSpace Ω] [Fintype ι] (μ : Measure Ω)
+
+open Classical in
+/-- The number of the events `A i` that occur at `ω`. -/
+noncomputable def occurring (A : ι → Set Ω) (ω : Ω) : ℕ := (univ.filter fun i => ω ∈ A i).card
+
+/-- **At least two, without independence.** By Markov's inequality on the
+number of occurring events, at least two occur with probability at most half
+the sum of their probabilities. -/
+theorem two_occur_le_half (A : ι → Set Ω) (hA : ∀ i, MeasurableSet (A i)) :
+    2 * μ {ω | 2 ≤ occurring A ω} ≤ ∑ i, μ (A i) := by
+  set F : Ω → ENNReal := fun ω => ∑ i, (A i).indicator 1 ω
+  have hF : ∀ ω, F ω = occurring A ω := by
+    intro ω
+    classical
+    simp only [F, occurring, Set.indicator_apply, Pi.one_apply, card_filter]
+    push_cast
+    rfl
+  have hmeas : Measurable F :=
+    Finset.measurable_sum _ fun i _ => measurable_one.indicator (hA i)
+  have hint : ∫⁻ ω, F ω ∂μ = ∑ i, μ (A i) := by
+    rw [lintegral_finsetSum _ fun i _ => measurable_one.indicator (hA i)]
+    exact sum_congr rfl fun i _ => lintegral_indicator_one (hA i)
+  have hset : {ω | 2 ≤ occurring A ω} = {ω | 2 ≤ F ω} := by
+    ext ω
+    simp only [Set.mem_ofPred_eq, hF]
+    exact_mod_cast Iff.rfl
+  rw [hset, ← hint]
+  exact mul_meas_ge_le_lintegral hmeas 2
+
+/-- **At least two, without positive correlation.** If no two events are
+positively correlated, at least two occur with probability at most the sum
+over pairs of the products of their probabilities. -/
+theorem two_occur_le_pairs [LinearOrder ι] (A : ι → Set Ω)
+    (h : ∀ i j, i < j → μ (A i ∩ A j) ≤ μ (A i) * μ (A j)) :
+    μ {ω | 2 ≤ occurring A ω} ≤
+      ∑ p ∈ univ.filter (fun p : ι × ι => p.1 < p.2), μ (A p.1) * μ (A p.2) := by
+  have hsub : {ω | 2 ≤ occurring A ω} ⊆
+      ⋃ p ∈ univ.filter (fun p : ι × ι => p.1 < p.2), A p.1 ∩ A p.2 := by
+    intro ω hω
+    classical
+    simp only [Set.mem_ofPred_eq, occurring] at hω
+    obtain ⟨a, ha, b, hb, hab⟩ := one_lt_card.mp hω
+    simp only [mem_filter, mem_univ, true_and] at ha hb
+    simp only [Set.mem_iUnion, Set.mem_inter_iff, mem_filter, mem_univ, true_and]
+    rcases lt_or_gt_of_ne hab with h | h
+    · exact ⟨(a, b), h, ha, hb⟩
+    · exact ⟨(b, a), h, hb, ha⟩
+  calc μ {ω | 2 ≤ occurring A ω}
+      ≤ μ (⋃ p ∈ univ.filter (fun p : ι × ι => p.1 < p.2), A p.1 ∩ A p.2) := measure_mono hsub
+    _ ≤ ∑ p ∈ univ.filter (fun p : ι × ι => p.1 < p.2), μ (A p.1 ∩ A p.2) :=
+        measure_biUnion_finset_le _ _
+    _ ≤ _ := sum_le_sum fun p hp => h _ _ (mem_filter.mp hp).2
+
+/-- **Assembled bound.** If a wrong answer implies that some evaluated word
+`i ∈ E` is misread within its arity group (`W i`) or that at least two arity
+decisions fail, the error probability is at most the evaluated words'
+within-group risks plus the probability of two arity failures. -/
+theorem detected_error_le (wrong : Set Ω) (E : Finset ι) (W A : ι → Set Ω)
+    (h : wrong ⊆ (⋃ i ∈ E, W i) ∪ {ω | 2 ≤ occurring A ω}) :
+    μ wrong ≤ ∑ i ∈ E, μ (W i) + μ {ω | 2 ≤ occurring A ω} :=
+  (measure_mono h).trans <| (measure_union_le _ _).trans <|
+    add_le_add_left (measure_biUnion_finset_le _ _) _
+
+end Counting
+
+/-- **Within-group errors.** Under a reading `p`, the probability that the
+true class lies in the read class's group `g` but differs from it,
+`p(g) − p(a)`, is at most the risk `1 − p(a) / p(g)` of the decision
+restricted to `g`. -/
+theorem joint_le_restricted {a g : ℝ} (hg : 0 < g) (hg1 : g ≤ 1) (ha : a ≤ g) :
+    g - a ≤ 1 - a / g := by
+  have hq : 0 ≤ 1 - a / g := by
+    rw [sub_nonneg, div_le_one hg]
+    exact ha
+  have : g - a = g * (1 - a / g) := by field_simp
+  rw [this]
+  nlinarith
+
+end NCA
