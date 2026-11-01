@@ -43,6 +43,25 @@ theorem osa_empty_left {C : Type} [DecidableEq C] (a b : ℕ → C) (j : ℕ) :
 theorem osa_empty_right {C : Type} [DecidableEq C] (a b : ℕ → C) (i : ℕ) :
     osaTable a b i 0 = i := by cases i <;> rw [osaTable]
 
+/-- The prefix recurrence is symmetric in its two strings. -/
+theorem osa_symmetric {C : Type} [DecidableEq C] (a b : ℕ → C) :
+    ∀ i j, osaTable a b i j = osaTable b a j i
+  | 0, j => by simp [osa_empty_left, osa_empty_right]
+  | i + 1, 0 => by simp [osa_empty_left, osa_empty_right]
+  | i + 1, j + 1 => by
+      rw [osaTable, osaTable]
+      rw [osa_symmetric a b i (j + 1), osa_symmetric a b (i + 1) j,
+          osa_symmetric a b i j, osa_symmetric a b (i - 1) (j - 1)]
+      have heq : (a i = b j) ↔ (b j = a i) := eq_comm
+      have hswap : (0 < i ∧ 0 < j ∧ a i = b (j - 1) ∧ a (i - 1) = b j) ↔
+          (0 < j ∧ 0 < i ∧ b j = a (i - 1) ∧ b (j - 1) = a i) := by
+        simp only [eq_comm, and_comm, and_left_comm]
+      simp only [heq, hswap]
+      unfold editCell
+      split <;> simp [min_comm, min_left_comm, min_assoc]
+termination_by i j => i + j
+decreasing_by all_goals omega
+
 /-- Identical prefixes have zero distance. -/
 theorem osa_self {C : Type} [DecidableEq C] (a : ℕ → C) (n : ℕ) :
     osaTable a a n n = 0 := by

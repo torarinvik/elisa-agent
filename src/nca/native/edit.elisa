@@ -1,6 +1,9 @@
 # Optimal-string-alignment distance on Unicode code points (§18.1).
 # Three cyclic rows suffice: a transposition reads two rows back.
 def edit_distance(a: view[i64], b: view[i64]) -> i64 can[Memory.Allocate, Abort.Panic]:
+    return edit_rows(b, a) if b.len > a.len else edit_rows(a, b)
+
+def edit_rows(a: view[i64], b: view[i64]) -> i64 can[Memory.Allocate, Abort.Panic]:
     m: i64 = a.len.i64()
     n: i64 = b.len.i64()
     width: i64 = n + 1
