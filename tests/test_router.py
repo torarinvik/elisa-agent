@@ -99,5 +99,4 @@ def test_malformed_and_noncanonical_types_are_rejected() -> None:
             parse_type(bad)
     with pytest.raises(ValueError, match="canonical"):
         Contract(("pair[a.v1, b.v1]",), C)
-    with pytest.raises(ValueError, match="range-restricted"):
-        Contract(("seq[?a]",), "length.v1")
+    assert Contract(("seq[?a]",), "length.v1").free == {"a"}

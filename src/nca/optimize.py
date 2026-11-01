@@ -50,7 +50,9 @@ def slot_calls(manifest: Manifest, length: int, expected: bool = False) -> list[
 
 def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
              length: int, fuel: int = 8, expected: bool = False) -> tuple[Plan, float] | None:
-    """The cheapest plan for ``goal`` and its cost (the first among equal costs)."""
+    """The cheapest plan for ``goal`` and its cost (the first among equal costs).
+
+    Contracts with free variables (THEORY §2.2) are not considered."""
     memo: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[Plan, float] | None] = {}
 
     def search(avail: tuple[TypeId, ...], t: TypeId, n: int) -> tuple[Plan, float] | None:
@@ -65,7 +67,7 @@ def plan_min(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeI
             candidates: list[tuple[Plan, float]] = []
             for module in modules:
                 binding = module.manifest.contract.producing(t)
-                if binding is None:
+                if binding is None or module.manifest.contract.free:
                     continue
                 contract = module.manifest.contract.instance(binding)
                 subs = [search(avail, i, n - 1) for i in contract.inputs]
@@ -116,7 +118,8 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
     ``errors`` maps a module's manifest ref to its per-invocation failure rate
     (absent means 0). Both objectives are additive over invocations, with map
     bodies counted ``length`` times, so combining the frontiers of sub-goals
-    and discarding dominated results yields the exact frontier.
+    and discarding dominated results yields the exact frontier. Contracts with
+    free variables (THEORY §2.2) are not considered.
     """
     memo: dict[tuple[tuple[TypeId, ...], TypeId, int], list[Option]] = {}
 
@@ -134,7 +137,7 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
         for module in modules:
             manifest = module.manifest
             binding = manifest.contract.producing(t)
-            if binding is None:
+            if binding is None or manifest.contract.free:
                 continue
             contract = manifest.contract.instance(binding)
             fronts = [search(avail, i, n - 1) for i in contract.inputs]

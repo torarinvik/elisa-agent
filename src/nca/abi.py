@@ -120,6 +120,33 @@ def match_type(pattern: Term, ground: Term, binding: dict[str, Term]) -> bool:
             and all(match_type(p, g, binding) for p, g in zip(pattern.args, ground.args)))
 
 
+def resolve(term: Term, binding: Mapping[str, Term]) -> Term:
+    """``term`` under a binding whose bound terms may mention bound variables:
+    substitute until no bound variable remains."""
+    if isinstance(term, Var):
+        bound = binding.get(term.name)
+        return term if bound is None else resolve(bound, binding)
+    return App(term.name, tuple(resolve(a, binding) for a in term.args))
+
+
+def unify(left: Term, right: Term, binding: dict[str, Term]) -> bool:
+    """Extend ``binding`` to a most general unifier of ``left`` and ``right``
+    (THEORY §2.2); ``False`` if none exists. ``binding`` may be partly extended
+    on failure, so callers pass a copy they can discard."""
+    left, right = resolve(left, binding), resolve(right, binding)
+    if isinstance(left, Var) or isinstance(right, Var):
+        if left == right:
+            return True
+        var, term = (left, right) if isinstance(left, Var) else (right, left)
+        assert isinstance(var, Var)
+        if var.name in type_variables(term):
+            return False
+        binding[var.name] = term
+        return True
+    return (left.name == right.name and len(left.args) == len(right.args)
+            and all(unify(a, b, binding) for a, b in zip(left.args, right.args)))
+
+
 Binding = tuple[tuple[str, TypeId], ...]
 """A substitution, as its variables (sorted) and the types bound to them."""
 
@@ -156,13 +183,19 @@ class Contract:
             if canonical_type(type_id) != type_id:
                 raise ValueError(f"type {type_id!r} is not in canonical form "
                                  f"{canonical_type(type_id)!r}")
-        unbound = frozenset().union(
-            *(type_variables(parse_type(t)) for t in (*self.inputs, *(
-                t for inputs, output in self.slots for t in (*inputs, output))))
-        ) - type_variables(parse_type(self.output))
-        if unbound:
-            raise ValueError(f"contract is not range-restricted: variables {sorted(unbound)} "
-                             "do not occur in its output")
+
+    @functools.cached_property
+    def variables(self) -> frozenset[str]:
+        """Every type variable of the contract."""
+        return frozenset().union(*(type_variables(parse_type(t)) for t in (
+            *self.inputs, self.output,
+            *(t for inputs, output in self.slots for t in (*inputs, output)))))
+
+    @functools.cached_property
+    def free(self) -> frozenset[str]:
+        """Variables that do not occur in the output (THEORY §2.2): the goal
+        does not determine them, the plans for the inputs do."""
+        return self.variables - type_variables(parse_type(self.output))
 
     @functools.cached_property
     def polymorphic(self) -> bool:

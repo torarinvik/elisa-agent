@@ -51,6 +51,48 @@ library of these instances, so Theorems 2.1–2.3 apply to it unchanged.
 
 Range restriction excludes contracts such as `seq(α) → length`, whose input
 variables cannot be read off the goal. Instantiating those needs a choice of
-type that the goal does not determine.
+type that the goal does not determine. §2.2 makes that choice.
+
+## 2.2 Free variables and pattern goals
+
+A variable of a contract's inputs that does not occur in its output is
+**free**. After matching the output against the goal, the free variables
+remain, and the inputs become **pattern goals**: types with variables, any
+instance of which will do. The free variables are determined by the plans
+found for the inputs, not by the goal.
+
+A pattern goal `P` is solved by the same backward search, with
+**unification** in place of matching. A unifier of two terms is a
+substitution that makes them equal. The candidates for `P` are:
+
+1. an available type `t` that `P` matches;
+2. a contract `c`, its variables renamed apart from `P`'s, whose output
+   unifies with `P`, with its inputs solved in turn as pattern goals; each
+   input's solution extends the substitution before the next input is solved;
+3. a `map` whose body solves the element pattern, when `P = seq(Q)`.
+
+The search keeps every alternative open: when a later input has no solution
+under the substitution an earlier one produced, it backtracks to the earlier
+input's next solution. A solution is accepted only if it determines every
+variable it involves, so the type it produces is ground. A candidate that
+leaves a variable undetermined is **ambiguous** and is skipped: the plan
+would not say which type to produce. For example, `nothing: → seq(α)` cannot
+be planned on its own, but it can be planned under a consumer whose goal
+fixes `α`.
+
+The answer is the plan built over types with variables, with the final
+substitution applied. Write `c ≼ lib` when `c = τ(d)` for a contract `d` in
+`lib` and some substitution `τ`.
+
+**Theorem 2.5 (answers are instances).** Instances of instances are
+instances: `σ(τ(d)) = (σ ∘ τ)(d)`. Hence if a plan is well-typed over
+contracts `c ≼ lib` producing `t`, then with an answer substitution `σ`
+applied, it is well-typed over contracts `σ(c) ≼ lib` producing `σ(t)`.
+
+The first part is proved by induction on terms; the second combines it with
+Theorem 1.2. So pattern search is sound however its unifiers are computed.
+Its completeness, that a pattern goal with an instance plannable within
+depth `n` is solved within depth `n`, rests on unification returning *most
+general* unifiers, through which every other solution factors.
 
 [Theory index](../THEORY.md)

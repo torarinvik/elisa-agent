@@ -60,6 +60,15 @@ theorem subst_congr (σ τ : Nat → Term) :
     congr 1
     exact List.map_congr_left fun t ht => subst_congr σ τ t fun n hn => h n (.app ht hn)
 
+/-- Substituting twice is substituting once with the composite. -/
+theorem subst_subst (σ τ : Nat → Term) :
+    (t : Term) → subst σ (subst τ t) = subst (fun n => subst σ (τ n)) t
+  | .var n => by rw [subst, subst]
+  | .app f ts => by
+    rw [subst_app, subst_app, subst_app, List.map_map]
+    congr 1
+    exact List.map_congr_left fun t _ => subst_subst σ τ t
+
 end Term
 
 /-- The argument of a `seq` term. -/
@@ -115,6 +124,23 @@ theorem Contract.subst_determined {σ τ : Nat → Term} (c : Contract Term)
   congr 1
   exact List.map_congr_left fun t ht => Term.subst_congr σ τ t fun n hn => agree n (hc n ⟨t, ht, hn⟩)
 
+theorem Contract.subst_subst (σ τ : Nat → Term) (c : Contract Term) :
+    Contract.subst σ (Contract.subst τ c) = Contract.subst (fun n => Term.subst σ (τ n)) c := by
+  simp only [Contract.subst, List.map_map]
+  congr 1
+  · exact List.map_congr_left fun t _ => Term.subst_subst σ τ t
+  · exact Term.subst_subst σ τ c.output
+
+/-- `c` is an instance of a contract in `lib`. -/
+def InstanceOf (lib : List (Contract Term)) (c : Contract Term) : Prop :=
+  ∃ d ∈ lib, ∃ τ : Nat → Term, c = Contract.subst τ d
+
+/-- Instances of instances are instances. -/
+theorem InstanceOf.subst {lib : List (Contract Term)} {c : Contract Term}
+    (h : InstanceOf lib c) (σ : Nat → Term) : InstanceOf lib (Contract.subst σ c) := by
+  obtain ⟨d, hd, τ, rfl⟩ := h
+  exact ⟨d, hd, _, Contract.subst_subst σ τ d⟩
+
 /-- A plan with every type in it substituted. -/
 def Plan.subst (σ : Nat → Term) : Plan Term → Plan Term
   | .given t => .given (Term.subst σ t)
@@ -158,5 +184,19 @@ theorem WellTypedArgs.subst (σ : Nat → Term) {lib : List (Contract Term)} :
   | _, _, _, .nil => .nil
   | _, _, _, .cons h hs => .cons (WellTyped.subst σ h) (WellTypedArgs.subst σ hs)
 end
+
+/-- **Answers are instances.** A plan well-typed over instances of library
+contracts stays well-typed, over instances of library contracts, when an
+answer substitution is applied: pattern search is sound however its
+unifiers are computed. -/
+theorem answer_sound {lib inst : List (Contract Term)} (hinst : ∀ c ∈ inst, InstanceOf lib c)
+    (σ : Nat → Term) {avail : List Term} {p : Plan Term} {t : Term}
+    (h : WellTyped inst avail p t) :
+    (∀ c ∈ inst.map (Contract.subst σ), InstanceOf lib c) ∧
+      WellTyped (inst.map (Contract.subst σ)) (avail.map (Term.subst σ)) (Plan.subst σ p)
+        (Term.subst σ t) := by
+  refine ⟨fun c hc => ?_, WellTyped.subst σ h⟩
+  obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
+  exact (hinst d hd).subst σ
 
 end NCA

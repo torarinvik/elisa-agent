@@ -396,3 +396,71 @@ def test_polymorphic_planning_equals_planning_with_instances() -> None:
             if found is not None and expected is not None:
                 assert shape(found, True) == shape(expected, False)
                 assert infer(modules, available, found) == goal
+
+
+def test_free_variables_are_determined_by_the_inputs() -> None:
+    """A contract whose input variables the goal leaves open is planned through
+    pattern goals: its inputs' plans determine them (THEORY §2.2)."""
+    length = fn("length", ["seq[?a]"], INT, len)
+    nothing = fn("nothing", [], "seq[?a]", list)
+    split = fn("split", [TEXT], "seq[text.v1]", str.split)
+    route = plan([length, nothing, split], (TEXT,), INT)
+    assert isinstance(route, Apply) and route.binding == (("a", TEXT),)
+    assert route.args == (Apply(split, (Given(TEXT),)),)
+    assert infer([length, nothing, split], (TEXT,), route) == INT
+    assert infer([length, nothing, split], (TEXT,), Apply(length, route.args)) is None
+    workspace = Workspace()
+    message = Message(TEXT, "a b c", "input")
+    workspace.post(message)
+    assert execute(route, {TEXT: message}, workspace, budget=10).payload == 3
+    assert plan([length, nothing], (TEXT,), INT) is None
+    pairs = fn("pairs", ["seq[?a]", "seq[?a]"], INT, lambda a, b: len(a) + len(b))
+    both = plan([pairs, nothing, split], (TEXT,), INT)
+    assert isinstance(both, Apply) and both.binding == (("a", TEXT),)
+    assert both.args == (Apply(nothing, (), (), (("a", TEXT),)), Apply(split, (Given(TEXT),)))
+
+
+def test_free_variable_planning_is_sound_and_complete_against_instances() -> None:
+    """Pattern search plans a goal exactly when the library of instances does,
+    and every plan it returns is well-typed (Theorem 2.5). Within fuel 3 from
+    inputs of depth at most 1, every type a plan can produce or bind has depth
+    at most 2, so one-variable instances over those terms suffice. Every
+    variable occurs in an input, so no candidate is ambiguous and the
+    instances are an exact reference."""
+    rng = np.random.default_rng(2)
+    universe, wide = _ground_terms(1), _ground_terms(2)
+    generic = [("forget", ["box[?a]"], "c1.v1"), ("size", ["box[?a]", "c0.v1"], "c2.v1"),
+               ("box", ["?a"], "box[?a]"),
+               ("unbox", ["box[?a]"], "?a"), ("dup", ["?a"], "pair[?a,?a]")]
+    planned = through_free = 0
+
+    def free_used(node: Plan) -> bool:
+        if isinstance(node, Given):
+            return False
+        if isinstance(node, Map):
+            return free_used(node.body) or free_used(node.source)
+        return bool(node.module.manifest.contract.free) or any(free_used(a) for a in node.args)
+
+    for trial in range(80):
+        specs = [(f"m{k}", [str(rng.choice(universe))], str(rng.choice(universe)))
+                 for k in range(int(rng.integers(1, 4)))]
+        specs += [generic[i] for i in rng.permutation(len(generic))[:int(rng.integers(1, 5))]]
+        modules = [fn(f"{specs[i][0]}-{trial}", specs[i][1], specs[i][2], lambda *x: x)
+                   for i in rng.permutation(len(specs))]
+        instances = [Fn(Manifest(m.manifest.module_id, "1.0.0",
+                                 m.manifest.contract.instance(((name, t),))), m.fn)
+                     if m.manifest.contract.variables else m
+                     for m in modules
+                     for name in sorted(m.manifest.contract.variables) or [""]
+                     for t in (wide if m.manifest.contract.variables else [""])]
+        available = (str(rng.choice(universe)), "c0.v1")
+        goals = [*rng.choice(wide, size=20), "c1.v1", "c2.v1", f"box[{available[0]}]"]
+        for goal in goals:
+            found = plan(modules, available, str(goal), fuel=3)
+            expected = plan(instances, available, str(goal), fuel=3)
+            assert (found is None) == (expected is None), (goal, specs)
+            if found is not None:
+                planned += 1
+                through_free += free_used(found)
+                assert infer(modules, available, found) == goal
+    assert planned > 100 and through_free > 30

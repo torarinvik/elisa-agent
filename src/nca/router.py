@@ -43,10 +43,9 @@ def infer(modules: Sequence[Module], available: Sequence[TypeId], node: Plan) ->
 
 def _instantiates(node: Apply) -> bool:
     """Whether ``node.binding`` binds exactly the variables of the module's
-    contract, each to a ground type in canonical form."""
+    contract, free ones included, each to a ground type in canonical form."""
     names = [name for name, _ in node.binding]
-    if (frozenset(names) != type_variables(parse_type(node.module.manifest.contract.output))
-            or len(names) != len(set(names))):
+    if frozenset(names) != node.module.manifest.contract.variables or len(names) != len(set(names)):
         return False
     try:
         return all(canonical_type(t) == t and not type_variables(parse_type(t))
