@@ -40,6 +40,12 @@ outward-rounded enclosure.
 For `m` positions, the tail is exactly zero when `j > m`: two length-`m`
 sequences cannot differ at more than `m` positions. The search therefore
 need not continue past `m + 1`, even if the polynomial bound remains large.
+The polynomial bounds satisfy `U_{j+1}/U_j = S/(j+1)` for `S > 0`.
+They therefore increase and then decrease. Since `C ≥ 1` and the search
+threshold is below one, if `U₁` exceeds the threshold, every qualifying
+index lies on the decreasing side and qualifying indices form a suffix.
+The native search uses this property to locate the first qualifying index
+with logarithmically many bound evaluations.
 
 Numerically, off-reference mass is summed directly in log space, rather than
 subtracting the reference mass from a rounded row total. The tail comparison

@@ -253,10 +253,19 @@ def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64]
 # Search only through the number of positions; beyond it the tail is empty.
 def initial_band_changes_scaled(log_off: f64, log_factor: f64, log_slack: f64, length: i64) -> i64:
     return 1 if log_off == log(0.0)
-    for j in 1..<(length + 1):
+    return 1 if length == 0
+    first: f64 = log_off + log_factor
+    return -1 if first == log(0.0) or first == -log(0.0) or first != first
+    return 1 if first <= log_slack
+    # Above a threshold below one, C*S^j/j! is first increasing and then
+    # decreasing. Since j=1 failed, its qualifying indices form a suffix.
+    for _ in 0..<64 |low: i64 = 1, high: i64 = length + 1|:
+        return high if high - low <= 1
+        j: i64 = low + (high - low) / 2
         estimate: f64 = j.f64() * log_off - lgamma((j + 1).f64()) + log_factor
         return -1 if estimate == log(0.0) or estimate == -log(0.0) or estimate != estimate
-        return j if estimate <= log_slack
+        high <- j if estimate <= log_slack else high
+        low <- j if estimate > log_slack else low
     return length + 1
 
 # Separate the selected format path from all different accepted paths.

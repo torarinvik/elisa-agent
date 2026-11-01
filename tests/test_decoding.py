@@ -528,6 +528,22 @@ def test_native_tail_search_matches_reference_at_rounding_boundaries(
                     assert actual == expected
 
 
+def test_native_tail_search_matches_linear_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "initial_band_changes_scaled", None) is None:
+        pytest.skip("native band tail search is not built")
+    rng = np.random.default_rng(267)
+    for _ in range(500):
+        length = int(rng.integers(0, 500))
+        log_off = float(rng.uniform(-20, math.log(600)))
+        log_factor = float(rng.uniform(0, 1))
+        slack = math.exp(float(rng.uniform(-40, -0.001)))
+        actual = decoding._initial_band_changes(log_off, slack, length, log_factor)
+        with monkeypatch.context() as patch:
+            patch.setattr(decoding, "_NATIVE", None)
+            expected = decoding._initial_band_changes(log_off, slack, length, log_factor)
+        assert actual == expected
+
+
 def test_native_log_decoder_signals_finite_log_weight_overflow() -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
     if native is None:
