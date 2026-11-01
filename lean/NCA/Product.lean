@@ -232,4 +232,12 @@ theorem partial_evidence_bounds {B : ℝ} (hB : 0 ≤ B) (score : Option ℝ) :
   | none => exact ⟨le_rfl, by dsimp [partialEvidenceScore]; linarith⟩
   | some x => exact clipped_evidence_bounds hB
 
+/-- A common nonzero factor cancels from every normalized finite weight. -/
+theorem normalized_common_factor {S : Type} (items : Finset S)
+    (weight : S → ℝ) (factor : ℝ) (hf : factor ≠ 0) (item : S) :
+    (factor * weight item) / (∑ x ∈ items, factor * weight x) =
+      weight item / (∑ x ∈ items, weight x) := by
+  rw [← Finset.mul_sum]
+  exact mul_div_mul_left (weight item) (∑ x ∈ items, weight x) hf
+
 end NCA
