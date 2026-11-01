@@ -38,9 +38,18 @@ value if the result is still unrepresentable. This avoids reporting zero for
 a finite alternative; it is not a proof that all computed risks are rounded
 upward or are calibrated error bounds.
 
-So the efficient policy is local: refine a glyph when its expected bound
-reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
-trade compute for reliability.
+Expert probabilities are converted to binary64 before taking logarithms.
+For finite nonnegative inputs, zero is replaced by the smallest positive
+binary64 value so temperature fitting has finite log inputs; positive inputs
+are not raised to an arbitrary larger floor, assuming gradual underflow. This
+is numerical smoothing, not evidence that a zero-probability prediction has a
+well-calibrated error rate. Negative outputs and all-zero vectors are invalid
+probability inputs but are not currently rejected by observation.
+
+For independent known reductions, the priced objective has a local threshold
+rule: refine when the reduction pays for its cost. Sweeping `λ` explores a
+compute–risk tradeoff; it need not solve every hard-target problem, and the
+implemented largest-charge heuristic does not know the reductions (§25.1).
 
 **Decision demand.** What of an input can change the consumer's *decision*,
 not only its value, is a demand too. Readings need to enter the bound only

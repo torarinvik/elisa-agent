@@ -104,6 +104,10 @@ theorem positive_alternative_risk {chosen outside : ℝ} (hc : 0 < chosen)
     (ho : 0 < outside) : 0 < outside / (chosen + outside) := by
   exact div_pos ho (add_pos hc ho)
 
+/-- A positive observation floor leaves every represented input positive. -/
+theorem positive_observation_floor {p ε : ℝ} (hε : 0 < ε) : 0 < max p ε := by
+  exact lt_of_lt_of_le hε (le_max_right p ε)
+
 /-- Bound plus priced compute after refining the symbols in `T`. -/
 def refinedObjective (r β κ : I → ℝ) (lam : ℝ) (S T : Finset I) : ℝ :=
   ∑ i ∈ S, r i - ∑ i ∈ T, β i + lam * ∑ i ∈ T, κ i

@@ -127,8 +127,9 @@ class Rung:
         return self.module.manifest.cost
 
     def observe(self, value: Any) -> torch.Tensor:
-        """Log-probabilities of the expert's output."""
-        return torch.tensor(self.module.invoke(value)).clamp_min(1e-12).log()
+        """Binary64 log-probabilities with a smallest-positive numerical floor."""
+        probabilities = torch.tensor(self.module.invoke(value), dtype=torch.float64)
+        return probabilities.clamp_min(math.nextafter(0.0, 1.0)).log()
 
     def calibrate(self, values: Sequence[Any], labels: torch.Tensor) -> None:
         """Keep held-out observations and fit the full output's temperature."""

@@ -166,6 +166,16 @@ def test_calibration_fits_temperature() -> None:
     assert rung.reading(rung.observe(0))[1].item() == pytest.approx(0.7, abs=0.02)
 
 
+def test_observation_preserves_small_positive_probabilities() -> None:
+    for probability in (1e-18, 1e-100, 1e-300):
+        rung = Rung(constant("small", (1.0, probability), 1.0))
+        observed = rung.observe(None)
+        assert observed.dtype == torch.float64
+        assert rung.risk(observed) == pytest.approx(probability, rel=1e-12, abs=0)
+    zero = Rung(constant("zero", (1.0, 0.0), 1.0))
+    assert zero.risk(zero.observe(None)) == math.nextafter(0.0, 1.0)
+
+
 def test_segmenter_alternatives_merge_narrowest_gap_first() -> None:
     from nca.modules.segmenter import Segmenter
 
@@ -908,7 +918,7 @@ def test_shared_refinement_trace_matches_independent_thresholds() -> None:
         assert shared.cost == independent.cost
         assert all(torch.equal(a, b) for a, b in zip(shared.readings, independent.readings))
     assert states[0].cost == 2.0
-    assert torch.allclose(states[0].readings[0], torch.tensor([0.4, 0.6]))
+    assert torch.allclose(states[0].readings[0], torch.tensor([0.4, 0.6], dtype=torch.float64))
     assert states[0].readings is not states[-1].readings
 
 
