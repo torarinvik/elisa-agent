@@ -1519,3 +1519,58 @@ def test_bounded_selection_scores_unavailable_lengths_without_losing_the_batch(
                                 np.zeros((1, 3)), np.array([-np.inf]))
     with pytest.raises(ValueError, match="zero mass"):
         formulas.select_prior([lambda length: empty], rows, base, score_clip=4, alpha=0.1)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_calibration_cache_tracks_revisions_and_unversioned_calls(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    rng = np.random.default_rng(1103)
+    readings = rng.dirichlet(np.ones(6), size=9)
+    calibrated = rng.dirichlet(np.ones(3), size=9)
+    versions = [0] * 9
+    seen: list[int] = []
+
+    def masses(k: int, decision: Decision) -> torch.Tensor:
+        seen.append(k)
+        return torch.tensor(calibrated[k])
+
+    evaluator = FormulaEvaluator(decode=True, prior=formulas.complete_prior)
+    distribution = Distribution(masses, versions.__getitem__)
+    state = CorrectionState()
+    expected_calls = list(range(9))
+    previous = None
+    for step in range(20):
+        if step:
+            k = int(rng.integers(9))
+            calibrated[k] = rng.dirichlet(np.ones(3))
+            versions[k] += 1
+            expected_calls = [k]
+        seen.clear()
+        account = evaluator.certificate(readings, lambda k, d: 0.001, distribution, state)
+        assert seen == expected_calls
+        fresh = evaluator.certificate(readings, lambda k, d: 0.001, distribution)
+        assert account is not None and fresh is not None
+        assert account == pytest.approx(fresh)
+        if previous is not None:
+            assert not np.shares_memory(state.prior_log_probs, previous)
+        previous = state.prior_log_probs
+        seen.clear()
+        assert evaluator.certificate(readings, lambda k, d: 0.001, distribution, state) == account
+        assert seen == []
+    # An unversioned refresh must not leave a revision-tagged cache reusable.
+    calibrated[:] = rng.dirichlet(np.ones(3), size=9)
+    seen.clear()
+    plain = evaluator.certificate(readings, lambda k, d: 0.001, masses, state)
+    assert seen == list(range(9))
+    assert plain == pytest.approx(evaluator.certificate(readings, lambda k, d: 0.001, masses))
+    calibrated[0] = rng.dirichlet(np.ones(3))
+    seen.clear()
+    restored = evaluator.certificate(readings, lambda k, d: 0.001, distribution, state)
+    assert seen == list(range(9))
+    assert restored == pytest.approx(evaluator.certificate(
+        readings, lambda k, d: 0.001, distribution))

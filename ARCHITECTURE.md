@@ -812,3 +812,10 @@ ordering, checking rejection and certification. The family count is not
 reduced using observed audit results. Default per-audit confidence is
 unchanged. `audit_family_le` proves the finite union bound from supplied
 individual failure bounds; it does not cover arbitrary later CLI runs.
+
+Prior-aware `CorrectionState` retains a calibrated log-row snapshot. A
+revision-tagged distribution refreshes only invalidated rows, using the same
+per-solve revision identity as the format cursor (Theorem 23.12). Unversioned
+distributions rebuild all rows and clear revision provenance. Snapshots are
+copied before updates so previous arrays remain independent. Prior
+normalizers and marginals still use a full native decode per account call.

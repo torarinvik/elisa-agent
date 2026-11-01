@@ -210,6 +210,7 @@ class CorrectionState:
     answer_readings: np.ndarray | None = None
     cursor: Split | None = None
     risk_band: CertifiedSplit | None = None
+    prior_log_probs: np.ndarray | None = None
     priorities: list[float] | None = None
     steps: int = 0
     changed: tuple[int, ...] = ()
@@ -443,12 +444,18 @@ class FormulaEvaluator:
         versions = tuple(revision(k) for k in range(n)) if revision is not None else None
         invalidated = tuple(k for k in range(n) if state is None or versions is None
                             or state.revisions is None or versions[k] != state.revisions[k])
-        if state is None or state.cursor is None:
+        cached = None
+        if state is not None:
+            if self.prior is not None:
+                cached = state.prior_log_probs
+            elif state.cursor is not None:
+                cached = state.cursor.log_probs
+        if cached is None or (self.prior is not None and versions is None):
             calibrated = torch.stack([torch.as_tensor(distribution(k, ARITY_DECISION))
                                       for k in range(n)]).double()
             log_probs = calibrated.clamp_min(1e-300).log().numpy()
         else:
-            log_probs = state.cursor.log_probs.copy()
+            log_probs = cached.copy()
             for k in invalidated:
                 row = torch.as_tensor(distribution(k, ARITY_DECISION)).double()
                 log_probs[k] = row.clamp_min(1e-300).log().numpy()
@@ -457,6 +464,8 @@ class FormulaEvaluator:
             for k in invalidated:
                 log_probs[k] -= np.logaddexp.reduce(log_probs[k])
         if state is not None:
+            if self.prior is not None:
+                state.prior_log_probs = log_probs
             state.revisions = versions
             for k in invalidated:
                 for a in ARITY_ORDER:
