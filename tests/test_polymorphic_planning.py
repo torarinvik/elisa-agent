@@ -504,6 +504,17 @@ def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
     assert any(partial == Given(TEXT) for partial, _ in available)
 
 
+def test_pattern_helpers_stop_at_nonpositive_depth() -> None:
+    from nca import planner
+
+    loop = fn("loop", ["?a"], "seq[?a]", lambda value: [value])
+    index = ProducerIndex([loop])
+    memo = index.memo(index.size)
+    assert planner._plan(index, index.size, (INT,), f"seq[{INT}]", -1) is None
+    assert list(planner._solutions(index, index.size, (INT,), Var("goal"), {}, -1, memo)) == []
+    assert planner.map_candidates(index, (), 0) == []
+
+
 def test_renaming_preserves_inputs_output_and_slot_only_variables() -> None:
     from nca.index import rename_apart
 

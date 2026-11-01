@@ -131,6 +131,7 @@ def _plan(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: T
     Planning is a pure function of those arguments for a fixed index and limit,
     so memoization returns exactly what recomputation would; it bounds the work
     by the number of distinct subgoals instead of the number of search paths.
+    Nonpositive depth has no solutions.
     """
     memo = index.memo(limit) if memo is None else memo
     key = (tuple(available), goal, fuel, required)
@@ -167,7 +168,7 @@ def _plan_args(index: ProducerIndex, limit: int, available: Sequence[TypeId],
 
 def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
             fuel: int, memo: Memo, required: frozenset[int] = frozenset()) -> Plan | None:
-    if fuel == 0:
+    if fuel <= 0:
         return None
     positions = [k for k, t in enumerate(available) if t == goal]
     for k in positions:
@@ -281,7 +282,7 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
                ) -> Iterator[tuple[_Partial, dict[VarName, Term]]]:
     """Plans producing instances of ``pattern`` under ``binding``, with the
     binding each extends, in search order (THEORY §2.2)."""
-    if fuel == 0:
+    if fuel <= 0:
         return
     goal = resolve(pattern, binding)
     if not type_variables(goal):
