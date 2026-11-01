@@ -472,7 +472,10 @@ def _resolved_slots_possible(index: ProducerIndex, limit: int, module: Module,
     """Check slots made ground by unifying a candidate's output."""
     ground = []
     for name in _slot_variables(module.manifest.contract):
-        value = resolve(Var(renaming[name]), binding)
+        value = binding.get(renaming[name])
+        if value is None:
+            continue
+        value = resolve(value, binding)
         if not type_variables(value):
             ground.append((name, format_type(value)))
     return not ground or _ground_slots_possible(index, limit, module, tuple(sorted(ground)),

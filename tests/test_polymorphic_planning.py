@@ -8,7 +8,8 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from nca.abi import App, Calls, Choice, Contract, Manifest, Message, Var, format_type, parse_type, type_variables
+from nca.abi import (App, Calls, Choice, Contract, Manifest, Message, ScopedName, Var,
+                     format_type, parse_type, type_variables)
 from nca.index import ProducerIndex
 from nca.modules.combinators import Case, Fold
 from nca.optimize import plan_min, plan_pareto
@@ -553,6 +554,25 @@ def test_nested_slot_grounded_by_output_unification() -> None:
                                  {}, 3, index.memo(index.size))
     assert any(isinstance(partial, planner._Open) and partial.module is unresolved
                for partial, _ in answers)
+
+
+def test_resolved_slot_follows_variable_aliases() -> None:
+    from nca import planner
+
+    nested = Fn(Manifest("nested-alias", "1.0.0", Contract(
+        (), "pair[?a,?b]", ((("?a",), "missing.v1"),)), calls=(Calls(1, 0),)),
+        lambda: None)
+    scoped = ScopedName("a", 100)
+    renaming = {"a": scoped}
+    index = ProducerIndex([nested])
+    memo = index.memo(index.size)
+    assert planner._resolved_slots_possible(index, index.size, nested, renaming, {}, 3, memo)
+    alias = {scoped: Var("link"), "link": parse_type(INT)}
+    assert not planner._resolved_slots_possible(index, index.size, nested, renaming, alias, 3, memo)
+    provider = fn("provider", [INT], "missing.v1", lambda value: value)
+    index = ProducerIndex([nested, provider])
+    assert planner._resolved_slots_possible(index, index.size, nested, renaming, alias, 3,
+                                            index.memo(index.size))
 
 
 def test_pattern_search_at_one_depth_keeps_zero_input_producers() -> None:
