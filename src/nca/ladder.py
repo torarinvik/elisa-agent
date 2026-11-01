@@ -446,12 +446,27 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
     bin). The rule abstains in a bin where the fraction of states that went on
     to answer is below ``lam`` times their mean remaining cost: refinement
     there buys less than ``lam`` coverage per unit of compute. Unseen bins
-    continue.
+    continue. At a zero target, all unfinished states share the unbounded bin.
     """
+    if math.isnan(delta) or delta < 0:
+        raise ValueError("target must be nonnegative and not NaN")
+    if not math.isfinite(width) or width <= 0:
+        raise ValueError("bin width must be positive and finite")
+    if not math.isfinite(lam) or lam < 0:
+        raise ValueError("cost weight must be nonnegative and finite")
+
     def key(state: State) -> float:
         if not math.isfinite(state.bound):
             return math.inf
-        return round(math.log10(max(state.bound, 1e-12) / delta) / width)
+        if delta == 0:
+            return math.inf
+        ratio = max(state.bound, 1e-12) / delta
+        if ratio == 0 or math.isinf(ratio):
+            # Avoid overflow or underflow before taking the logarithm.
+            scaled = (math.log10(max(state.bound, 1e-12)) - math.log10(delta)) / width
+        else:
+            scaled = math.log10(ratio) / width
+        return round(scaled) if math.isfinite(scaled) else scaled
 
     stats: dict[float, list[float]] = {}
     for trace, answered, cost in runs:

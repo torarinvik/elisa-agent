@@ -202,6 +202,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [21.7](theory/21-decoding-by-the-format.md) | `one_sub_prod_le_sum` | `Decoding` |
 | [22.1](theory/22-abstaining-early.md) | `detection_account_mono` | `Detection` |
 | [22.3](theory/22-abstaining-early.md) | `lower_fold_le` | `Selective` |
+| [22.4](theory/22-abstaining-early.md) | `committed_continuation_preferred` | `Stopping` |
 | [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
 | [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `outside_le_tail` | `Banding` |

@@ -28,6 +28,14 @@ namespace NCA
 
 open Finset
 
+/-- Continuing to completion has positive expected net reward exactly when
+its answer probability exceeds the weighted expected remaining cost. This
+compares two fixed choices; it does not prove optimality of a stopping policy. -/
+theorem committed_continuation_preferred (answerProbability remainingCost weight : ℝ) :
+    0 < answerProbability - weight * remainingCost ↔
+      weight * remainingCost < answerProbability := by
+  constructor <;> intro h <;> linarith
+
 /-- **Cost of a target drop.** If every item in `s` lowers the bound by at
 most `r > 0` per unit of its cost, items lowering it by `D` in total cost at
 least `D / r`. -/

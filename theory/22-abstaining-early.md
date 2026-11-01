@@ -55,15 +55,19 @@ predictive.
 ## 22.4 Predictive abstention
 
 For any account, let `s` be the controller's state after a step, and let
-`A` be the event that refinement eventually answers. A stopping policy
-trades coverage against compute. The policy that maximizes coverage minus
-`λ` times compute stops at `s` when
+`A` be the event that refinement eventually answers if it continues to
+completion. A stopping policy trades coverage against compute. Comparing
+stopping immediately (reward zero) with committing to that full continuation
+gives a positive expected reward exactly when
 
-> `P(A | s) < λ · E[remaining cost | s]`.
+> `P(A | s) > λ · E[remaining cost | s]`.
 
-Both terms are estimated on calibration formulas from a few features of the
-state: the ratio of bound to `δ`, the charge mass on open words, and the
-cost already spent. Since selection never breaks the guarantee (§22.2),
+The implementation stops when the inequality is reversed strictly and
+continues on a tie. It estimates both terms on held-out refinement traces,
+binning by the bound-to-target ratio. Applying the rule again at later states
+can improve on or differ from committed continuation; the comparison alone
+does not establish global optimality over all stopping policies (§25.3).
+Since selection never breaks the guarantee (§22.2),
 estimation errors cost only coverage or compute, never validity. Varying `λ`
 traces the coverage–compute frontier. The sound floors of §22.3 are its
 zero-loss end.

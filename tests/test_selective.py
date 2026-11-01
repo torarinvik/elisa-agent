@@ -384,6 +384,37 @@ def test_stopping_rule_only_abstains() -> None:
     assert stopped.abstained and stopped.cost == pytest.approx(2.0)
 
 
+def test_predictive_stopping_handles_zero_and_extreme_targets() -> None:
+    from nca.ladder import State, stopping_rule
+
+    state = State(0.1, 0.1, 1.0)
+    traces = [([state], False, 2.0)]
+    for target in (0.0, 5e-324, float("inf")):
+        stop = stopping_rule(traces, target, 0.1)
+        assert stop(state)
+    # The quotient overflows, but distinct finite logarithmic bins remain distinct.
+    near = State(1e-10, 0.1, 1.0)
+    far = State(1e308, 0.1, 1.0)
+    stop = stopping_rule([([far], False, 2.0)], 5e-324, 0.1)
+    assert stop(far) and not stop(near)
+    # A tie with stopping now continues; positive net reward does too.
+    assert not stopping_rule([([state], True, 2.0)], 0.1, 1.0)(state)
+    assert not stopping_rule([([state], True, 2.0)], 0.1, 0.5)(state)
+
+
+@pytest.mark.parametrize("target, weight, width", [(-1, 0.1, 0.25),
+                                                    (float("nan"), 0.1, 0.25),
+                                                    (0.1, -1, 0.25),
+                                                    (0.1, float("inf"), 0.25),
+                                                    (0.1, 0.1, 0),
+                                                    (0.1, 0.1, float("nan"))])
+def test_predictive_stopping_rejects_invalid_parameters(target, weight, width) -> None:
+    from nca.ladder import stopping_rule
+
+    with pytest.raises(ValueError):
+        stopping_rule([], target, weight, width)
+
+
 @pytest.mark.parametrize("priorities", [[0.0, 0.0], [0.0, 3.0, 1.0],
                                        [1e308, 1e308], [1e-320, 2e-320]])
 def test_risk_allocation_uses_current_bound(priorities: list[float]) -> None:
