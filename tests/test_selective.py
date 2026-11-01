@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from fractions import Fraction
 import math
 import random
@@ -222,6 +223,17 @@ def test_refinement_preserves_small_charges_in_total() -> None:
     result = refine([0] * 3, [[rung]] * 3, target, certificate=lambda *_: charges)
     assert result.bound >= math.fsum(charges.values())
     assert result.bound > target and result.abstained
+
+
+@pytest.mark.parametrize("charge, exact", [
+    (Fraction(1, 3), Fraction(1, 3)),
+    (Decimal("1e-400"), Fraction(1, 10 ** 400)),
+    (2 ** 53 + 1, Fraction(2 ** 53 + 1)),
+])
+def test_refinement_rounds_non_binary64_charge_up(charge: Any, exact: Fraction) -> None:
+    rung = Rung(constant("precise-charge-reader", (0.1, 0.9), 1.0))
+    result = refine([0], [[rung]], float("inf"), certificate=lambda *_: {0: charge})
+    assert Fraction.from_float(result.bound) >= exact
 
 
 @pytest.mark.parametrize("reference", [False, True])

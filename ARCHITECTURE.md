@@ -481,7 +481,8 @@ Selective solving creates a per-solve consumer session and holds each resolved
 prior fixed across refinement and final answer production.
 Refinement rejects invalid item indices, nonfinite or negative certificate
 charges, and nonfinite total charges before comparing a bound with a target.
-It sums binary64 charges with upward-rounded additions, assuming IEEE 754
+It rounds non-binary64 charges upward on conversion, then sums the binary64
+values with upward-rounded additions, assuming IEEE 754
 binary64 round-to-nearest arithmetic and gradual underflow. Lean proves the
 real-number accumulator principle, not the floating-point implementation or
 the conservativeness of the charges themselves.

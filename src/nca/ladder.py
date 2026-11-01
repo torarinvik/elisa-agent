@@ -368,11 +368,16 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             charges = {i: item_risk(i, d) for i, d in enumerate(decisions)}
         else:
             charges = account
-        if (any(isinstance(i, bool) or (not isinstance(i, int) and not isinstance(i, Integral))
-                or not 0 <= i < len(values)
-                or not math.isfinite(charge) or charge < 0 for i, charge in charges.items())):
-            raise ValueError("certificate charges must have valid item indices and finite nonnegative values")
-        bound = math.inf if account is None else _upper_sum(list(charges.values()))
+        binary_charges = []
+        for i, charge in charges.items():
+            if (isinstance(i, bool) or (not isinstance(i, int) and not isinstance(i, Integral))
+                    or not 0 <= i < len(values) or not math.isfinite(charge) or charge < 0):
+                raise ValueError("certificate charges must have valid item indices and finite nonnegative values")
+            rounded = float(charge)
+            if charge > rounded:
+                rounded = math.nextafter(rounded, math.inf)
+            binary_charges.append(rounded)
+        bound = math.inf if account is None else _upper_sum(binary_charges)
         if account is not None and not math.isfinite(bound):
             raise ValueError("certificate charges must have a finite total")
         available = account is not None
