@@ -868,6 +868,11 @@ recomputation. Selective adapters carry the source identity through their
 wrappers, so revision numbers from unrelated sources are never conflated.
 Restricted-risk cache entries are also cleared when the risk callback source
 changes; adapters preserve that callback's source identity across calls.
+For changed readings, `PartitionCursor` retains prefix summaries and recomputes
+from the first changed row or selected arity. The Elisa kernel performs the
+numeric update; without it, or when the estimated cache exceeds 64 MiB by
+default, the cursor uses the rolling full partition. The limit is configurable.
+The cache and its floating-point behavior are not formally verified in Lean.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
 full validation, as do wider alphabets and installations without the kernel.

@@ -49,6 +49,9 @@ of segments whose boundary states do not match. Boundary-state composition is
 associative over the reals; an empty segment maps each state to itself with
 selected mass one and alternative mass zero, and is an identity on both sides.
 This does not establish the numerical accuracy of a particular cached implementation.
+The current incremental implementation retains prefix summaries, rather than
+using a general boundary-composition tree; its state invariants are tested but
+not formally proved by these scalar and boundary identities.
 
 Decoding under the format automaton (§21.3) and a prior automaton together
 runs the dynamic program on their product. A product state pairs a format

@@ -1,0 +1,93 @@
+# Incremental selected/alternative path partitions for weighted automata.
+# Every table row describes the prefixes before the corresponding input row.
+extern exp(x: f64) -> f64
+extern log(x: f64) -> f64
+extern log1p(x: f64) -> f64
+
+def add_logs(x: f64, y: f64) -> f64:
+    return y if x == log(0.0)
+    return x if y == log(0.0)
+    return x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))
+
+# Mutates rows after `start`; the caller must supply a valid prefix at `start`.
+# Empty output signals overflow; otherwise returns selected and other log mass.
+def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], selected: view[i64], alternatives: mutable view[f64], bounds: mutable view[i64], matched_states: mutable view[i64], matched_weights: mutable view[f64], start: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    states: i64 = final.len.i64()
+    m: i64 = selected.len.i64()
+    unreachable: f64 = log(0.0)
+    for k in start..<m:
+        here: i64 = k * states
+        next: i64 = (k + 1) * states
+        for state in 0..<states:
+            alternatives[next + state] <- unreachable
+        match_state: i64 = matched_states[k]
+        match_weight: f64 = matched_weights[k]
+        low: i64 = match_state if match_weight != unreachable and match_state < bounds[k * 2] else bounds[k * 2]
+        high: i64 = match_state if match_weight != unreachable and match_state > bounds[k * 2 + 1] else bounds[k * 2 + 1]
+        bounds[(k + 1) * 2] <- states
+        bounds[(k + 1) * 2 + 1] <- -1
+        for state in low..<(high + 1):
+            source: f64 = alternatives[here + state]
+            same: bool = state == match_state and match_weight != unreachable
+            continue if source == unreachable and not same
+            for j in 0..<width:
+                edge: i64 = state * width + j
+                target: i64 = transitions[edge]
+                continue if target < 0
+                reading: f64 = log_probs[k * width + j]
+                edge_weight: f64 = prior[edge]
+                continue if reading == unreachable or edge_weight == unreachable
+                continue if source == unreachable and (not same or alphabet[j] == selected[k])
+                weight: f64 = reading + edge_weight
+                return [] if weight == unreachable or weight == -unreachable
+                if source != unreachable:
+                    through: f64 = source + weight
+                    return [] if through == unreachable or through == -unreachable
+                    alternatives[next + target] <- add_logs(alternatives[next + target], through)
+                if same and alphabet[j] != selected[k]:
+                    through: f64 = match_weight + weight
+                    return [] if through == unreachable or through == -unreachable
+                    alternatives[next + target] <- add_logs(alternatives[next + target], through)
+                bounds[(k + 1) * 2] <- target if target < bounds[(k + 1) * 2] else bounds[(k + 1) * 2]
+                bounds[(k + 1) * 2 + 1] <- target if target > bounds[(k + 1) * 2 + 1] else bounds[(k + 1) * 2 + 1]
+        matched_states[k + 1] <- match_state
+        matched_weights[k + 1] <- unreachable
+        if match_weight != unreachable:
+            chosen: i64 =
+                for j in 0..<width |found: i64 = -1| -> found:
+                    if alphabet[j] == selected[k]:
+                        found <- j
+                        break
+            if chosen >= 0:
+                edge: i64 = match_state * width + chosen
+                target: i64 = transitions[edge]
+                reading: f64 = log_probs[k * width + chosen]
+                edge_weight: f64 = prior[edge]
+                if target >= 0 and reading != unreachable and edge_weight != unreachable:
+                    weight: f64 = reading + edge_weight
+                    return [] if weight == unreachable or weight == -unreachable
+                    value: f64 = match_weight + weight
+                    return [] if value == unreachable or value == -unreachable
+                    matched_states[k + 1] <- target
+                    matched_weights[k + 1] <- value
+    match_state: i64 = matched_states[m]
+    match_weight: f64 = matched_weights[m]
+    chosen: f64 =
+        if match_weight == unreachable or final[match_state] == unreachable:
+            unreachable
+        else:
+            value: f64 = match_weight + final[match_state]
+            return [] if value == unreachable or value == -unreachable
+            value
+    other: f64 =
+        for state in bounds[m * 2]..<(bounds[m * 2 + 1] + 1) |total: f64 = unreachable| -> total:
+            prefix: f64 = alternatives[m * states + state]
+            continue if prefix == unreachable or final[state] == unreachable
+            value: f64 = prefix + final[state]
+            return [] if value == unreachable or value == -unreachable
+            total <- add_logs(total, value)
+    return [chosen, other]
+
+export pymodule partition:
+    fn update

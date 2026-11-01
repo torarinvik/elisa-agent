@@ -125,6 +125,114 @@ def test_prior_partition_handles_missing_paths_and_overflow(
         extreme.partition(np.zeros((2, 1)), (0, 0))
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_partition_cursor_recomputes_from_first_changed_position(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+    rng = np.random.default_rng(441)
+    prior = priors.height_prior(4)
+    rows = np.log(rng.dirichlet(np.ones(3), size=15))
+    selected = list(rng.integers(0, 3, size=len(rows)))
+    cursor = incremental.PartitionCursor(prior)
+    with pytest.raises(AttributeError):
+        cursor.prior = priors.height_prior(3)
+    np.testing.assert_allclose(cursor.partition(rows, tuple(selected)), prior.partition(rows, selected))
+    for pos in (14, 8, 12, 0, 10, 4, 14):
+        rows[pos] = np.log(rng.dirichlet(np.ones(3)))
+        selected[pos] = (selected[pos] + 1) % 3
+        actual = cursor.partition(rows, tuple(selected))
+        np.testing.assert_allclose(actual, prior.partition(rows, selected), atol=1e-12)
+        if incremental._NATIVE is not None:
+            assert cursor.last_start == pos
+            assert cursor.partition(rows, tuple(selected)) == actual
+            assert cursor.last_start == len(rows)
+
+
+def test_partition_cursor_recovers_after_overflow() -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.ArityPrior((0,), np.array([[0]]), np.array([[-1e308]]), np.zeros(1))
+    cursor = incremental.PartitionCursor(prior)
+    valid = np.array([[1e308], [1e308]])
+    assert cursor.partition(valid, (0, 0)) == (0.0, -np.inf)
+    with pytest.raises(ValueError, match="partition.*finite"):
+        cursor.partition(np.zeros((2, 1)), (0, 0))
+    assert cursor.partition(valid, (0, 0)) == (0.0, -np.inf)
+    assert cursor.last_start == 0
+
+
+def test_partition_cursor_discards_mutated_cache_after_native_exception(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import nca.partition as incremental
+
+    native = incremental._NATIVE
+    if native is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.height_prior(2)
+    rows = np.log(np.full((3, 3), 1 / 3))
+    selected = (2, 0, 0)
+    cursor = incremental.PartitionCursor(prior)
+    expected = cursor.partition(rows, selected)
+    changed = rows.copy()
+    changed[2] = np.log([0.5, 0.3, 0.2])
+    def fail(*args: Any) -> None:
+        args[6][:] = np.nan
+        raise RuntimeError("native failure")
+    monkeypatch.setattr(incremental, "_NATIVE", SimpleNamespace(update=fail))
+    with pytest.raises(RuntimeError, match="native failure"):
+        cursor.partition(changed, selected)
+    monkeypatch.setattr(incremental, "_NATIVE", native)
+    assert cursor.partition(rows, selected) == expected
+    assert cursor.last_start == 0
+
+
+def test_partition_cursor_matches_full_sparse_automata() -> None:
+    from nca.partition import PartitionCursor
+
+    rng = np.random.default_rng(2468)
+    for _ in range(50):
+        states, length = int(rng.integers(1, 12)), int(rng.integers(0, 16))
+        transitions = rng.integers(-1, states, size=(states, 3))
+        weights = rng.normal(size=(states, 3))
+        final = rng.normal(size=states)
+        rows = rng.normal(size=(length, 3))
+        transitions[rng.random(transitions.shape) < .4] = -1
+        weights[rng.random(weights.shape) < .1] = -np.inf
+        final[rng.random(final.shape) < .1] = -np.inf
+        selected = rng.integers(0, 3, size=length).tolist()
+        prior = priors.ArityPrior((0, 1, 2), transitions, weights, final)
+        cursor = PartitionCursor(prior)
+        for _ in range(6):
+            if length:
+                k = int(rng.integers(length))
+                rows[k] = rng.normal(size=3)
+                selected[k] = int(rng.integers(3))
+            np.testing.assert_allclose(cursor.partition(rows, tuple(selected)),
+                                       prior.partition(rows, selected), atol=1e-12)
+
+
+def test_partition_cursor_bounds_cache_and_falls_back() -> None:
+    import nca.partition as incremental
+
+    prior = priors.ArityPrior((0,), np.array([[0]]), np.zeros((1, 1)), np.zeros(1))
+    for invalid in (-1, True, 0.5):
+        with pytest.raises(ValueError, match="max_cache_bytes"):
+            incremental.PartitionCursor(prior, max_cache_bytes=invalid)
+    cursor = incremental.PartitionCursor(prior, max_cache_bytes=128)
+    with pytest.raises(AttributeError):
+        cursor.max_cache_bytes = 0
+    for n in (1, 100, 1):
+        rows, selected = np.zeros((n, 1)), (0,) * n
+        assert cursor.partition(rows, selected) == prior.partition(rows, selected)
+        if n == 100:
+            assert cursor._alternatives is None
+
+
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
                                       lambda value: pickle.loads(pickle.dumps(value))])
 def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:

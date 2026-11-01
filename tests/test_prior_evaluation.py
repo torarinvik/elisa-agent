@@ -106,6 +106,7 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
         use_prior: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
     from nca.modules.words import CorrectionState
+    from nca.partition import PartitionCursor
 
     rng = np.random.default_rng(557)
     readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=3)
@@ -114,13 +115,13 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
     distribution = Distribution(lambda k, d: torch.tensor(masses[k]), versions.__getitem__)
     evaluator = FormulaEvaluator(decode=True, prior=formulas.format_prior if use_prior else None)
     state = CorrectionState()
-    original = priors.ArityPrior.partition
+    original = PartitionCursor.partition
     calls = 0
-    def partition(prior: priors.ArityPrior, rows: np.ndarray, selected: tuple[int, ...]) -> tuple[float, float]:
+    def partition(cursor: PartitionCursor, rows: np.ndarray, selected: tuple[int, ...]) -> tuple[float, float]:
         nonlocal calls
         calls += 1
-        return original(prior, rows, selected)
-    monkeypatch.setattr(priors.ArityPrior, "partition", partition)
+        return original(cursor, rows, selected)
+    monkeypatch.setattr(PartitionCursor, "partition", partition)
     def risk(k: int, d: Decision) -> float:
         return 0.0
     first = evaluator.certificate(readings, risk, distribution, state)

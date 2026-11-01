@@ -35,8 +35,8 @@ from nca.abi import Calls, Contract, Manifest, seq_type
 from nca.efficiency import network_flops
 from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
 from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
-from nca.priors import (ArityPrior, complete_prior, format_sequence_risk, height_prior,
-                        risk_from_partition)
+from nca.priors import ArityPrior, complete_prior, format_prior, height_prior, risk_from_partition
+from nca.partition import PartitionCursor
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
 
@@ -258,6 +258,7 @@ class CorrectionState:
     risk_prior: ArityPrior | None = None
     risk_arities: tuple[int, ...] | None = None
     risk_value: float | None = None
+    partition_cursor: PartitionCursor | None = None
 
     def ensure_length(self, length: int) -> None:
         if self.length is not None and self.length != length:
@@ -278,6 +279,7 @@ class CorrectionState:
             self.risk_prior = None
             self.risk_arities = None
             self.risk_value = None
+            self.partition_cursor = None
         self.length = length
 
     def cached_risk(self, prior: ArityPrior | None, arities: Sequence[int],
@@ -288,6 +290,13 @@ class CorrectionState:
         value = calculate()
         self.risk_prior, self.risk_arities, self.risk_value = prior, selected, value
         return value
+
+    def partition_risk(self, prior: ArityPrior, rows: np.ndarray,
+                       arities: Sequence[int]) -> float | None:
+        if self.partition_cursor is None or self.partition_cursor.prior is not prior:
+            self.partition_cursor = PartitionCursor(prior)
+        chosen, other = self.partition_cursor.partition(rows, tuple(arities))
+        return None if chosen == -math.inf and other == -math.inf else risk_from_partition(chosen, other)
 
 
 class FormulaEvaluator:
@@ -577,10 +586,7 @@ class FormulaEvaluator:
                                     for k, a in enumerate(arities)]
                 state.steps = 0
             def calculate_prior_risk() -> float | None:
-                chosen_weight, alternative_weight = prior.partition(log_probs, arities)
-                if chosen_weight == -math.inf and alternative_weight == -math.inf:
-                    return None
-                return risk_from_partition(chosen_weight, alternative_weight)
+                return state.partition_risk(prior, log_probs, arities)
             sequence_risk = state.cached_risk(prior, arities, calculate_prior_risk)
             if sequence_risk is None:
                 return None
@@ -613,8 +619,9 @@ class FormulaEvaluator:
                 if not math.isfinite(log_z):
                     return None
                 sequence_risk = state.cached_risk(
-                    None, arities, lambda: format_sequence_risk(log_probs, ARITY_ORDER, arities))
-                assert sequence_risk is not None
+                    None, arities, lambda: state.partition_risk(format_prior(n), log_probs, arities))
+                if sequence_risk is None:
+                    return None
             if state.priorities is None or state.steps >= math.isqrt(n):
                 posterior = decode(log_probs, ARITY_ORDER)
                 if posterior is None:
