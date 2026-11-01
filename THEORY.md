@@ -2262,3 +2262,155 @@ zero-loss end.
 3. **Hard style.** Glyphs whose top-rung risk alone exceeds `δ` end
    refinement at once. That accounts for most of the compute saved on hard
    expressions.
+
+## 23. Efficient decoding
+
+### 23.1 Decoding is paid once per climb
+
+§21.4 prices one decoding at about `2.25 m²` multiply-adds, about 1% of a
+top-rung pass over all words. But refinement climbs one word per step and
+must recompute the bound after each climb. At depth 8 a full decoding
+(744k operations) costs about seven top-rung word readings (103k FLOPs
+each). Over the hundreds of climbs a depth-8 formula takes, exact decoding
+from scratch at every step would cost more than the reading it serves. This
+section makes each step's decoding cost small without giving up a valid
+bound. Two facts suffice: almost all posterior weight lies near the reading
+(**banding**), and a climb changes one word (**splitting**).
+
+### 23.2 The tail outside a band
+
+Fix a reference sequence `r`, for instance each word's most probable arity.
+Word `k` has weights `qₖ` (its calibrated arity probabilities, summing to at
+most 1) and off-reference mass `ρₖ = Σ_{a ≠ rₖ} qₖ(a)`; let `S = Σₖ ρₖ`.
+
+| Theorem | Statement (`lean/NCA/Banding.lean`) |
+|---|---|
+| `tail_le_esym` | the total weight of the sequences differing from `r` in at least `j` positions, parseable or not, is at most `e_j(ρ)`, the elementary symmetric polynomial |
+| `factorial_mul_esym_le` | `j! · e_j(ρ) ≤ S^j` for nonnegative `ρ` (a Maclaurin-type inequality) |
+| `outside_le_tail` | the accepted sequences among them weigh at most the same tail |
+
+So the weight outside `j − 1` changes is at most `U_j = S^j / j!`. For
+`j = 2` this is `e₂` of §19.4. Here it is a statement about the decoding
+model's weights, so it needs no premise beyond (P).
+
+**From changes to states** (`sum_sub_le_diff`). Arities are at most 2, so
+two sequences differing in `d` positions have sums at most `2d` apart. The
+same holds for every prefix. Hence the counter of `NCA.await` (one plus the
+prefix sum of `a − 1`) of a sequence within `j − 1` changes of `r` stays
+within `2(j − 1)` of `r`'s counter at every position. A dynamic program
+restricted to the **band** of counter values `|n − n_r(k)| ≤ 2(j − 1)`
+therefore sees every such sequence. The band has `W = 4(j − 1) + 1` states
+per position, against up to `min(k + 1, m − k)` live states unbanded.
+
+### 23.3 A certified banded risk
+
+The banded passes compute:
+
+- `Z_band`: the total weight of accepted sequences inside the band. It is at
+  least the weight of accepted sequences within `j − 1` changes.
+- `â`: the most probable accepted sequence inside the band, with weight `x`.
+
+Every other accepted sequence lies outside `j − 1` changes, so the true
+normalizer satisfies `Z ≤ Z_band + U_j`.
+
+**Theorem** (`banded_risk_le`). If `x ≥ 0`, `Z > 0` and
+`Z ≤ Z_band + U`, then `1 − x / Z ≤ 1 − x / (Z_band + U)`.
+
+The controller answers with `â` and charges `R_band = 1 − x / (Z_band + U_j)`.
+That is an upper bound on `â`'s exact posterior risk, so every guarantee of
+§21 holds unchanged. The cost is at most the slack `U_j`, at most
+`U_j / Z_band` in relative terms.
+
+**Exactness certificate.** Each sequence outside the band weighs at most
+`U_j`. So if `x ≥ U_j`, the banded `â` is a most probable parseable sequence
+overall, the same answer exact decoding gives.
+
+**Choosing `j`.** The bound tightens factorially. Given a slack `η`, take the
+least `j` with `S^j / j! ≤ η`. This is decided per formula from `S`, which
+is known before decoding. With `η = 10⁻⁴`:
+
+| `S` | `j` | band width `W` |
+|---:|---:|---:|
+| 0.04 | 3 | 9 |
+| 0.18 | 4 | 13 |
+| 0.71 | 7 | 25 |
+| 3 | 14 | 53 |
+
+The values of `S` are estimates: 0.71 is the measured top-rung value at
+depth 8 (§19.9); 0.18 and 0.04 scale it to depths 6 and 4 by word count;
+3 is a bottom-rung order of magnitude at depth 8.
+
+### 23.4 Splitting at the climbed word
+
+**Theorem** (`dpSum_append`). The sum over all sequences splits at any
+position into prefixes, each weighted by the sum over suffixes from the state
+the prefix ends in. Grouping prefixes by their end state gives
+
+> `Z = Σₙ F_k(n) · Σₐ qₖ(a) · B_{k+1}(δ(n, a))`,
+
+with `F_k` the forward vector before word `k` and `B_{k+1}` the backward
+vector after it. The max-product version holds by the same recursion with
+`max` in place of sum.
+
+A climb changes only `qₖ`. With `F_k` and `B_{k+1}` current, the new `Z` and
+the new maximal weight cost `O(3 · Wₖ)` operations, where `Wₖ` is the
+number of states at `k`. What must be maintained are the vectors themselves:
+
+- `F_i` depends only on words before `i`;
+- `B_i` depends only on words from `i` on.
+
+After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
+stays valid. The next climb at `k` needs `F_k`, which costs recomputing the
+forward vectors from `p` to `k` (or the backward ones, if `k < p`). The
+split point moves like a cursor, and each step costs the states it sweeps.
+Refinement climbs in charge order, which is spatially unordered, so the
+expected sweep is `m / 3` positions.
+
+**Charges need not be fresh.** The account's validity requires only that
+the charges sum to the bound (§19.6). The bound `R_band + Σ_{k ∈ E} rₖ` is
+recomputed exactly at every step. `E` comes from the certificate dynamic
+program over the decoded tree, which costs `O(m)`. The bound is split in
+proportion to marginals `μₖ` from the last full refresh. Stale marginals can
+only change which word climbs next, never the validity of the bound. A full
+refresh of the marginals costs one banded forward–backward pass and can be
+amortized, for instance once every `√m` climbs.
+
+The decoded sequence must still be backtracked after each step (`O(m)`), to
+evaluate the formula and find `E`.
+
+### 23.5 Predicted operation counts
+
+Per refinement step, counting multiply-adds over the arity alternatives:
+
+- **exact from scratch:** forward, backward and max passes, `2.25 m²`;
+- **banded from scratch:** `9 m W`, capped by the live states;
+- **incremental:** a sweep of `m / 3` positions for the sum and max forward
+  vectors, `0.5 m²` exact or `2 m W` banded.
+
+`W` is taken at the top-rung `S` for each depth, with `η = 10⁻⁴`.
+
+| depth | words `m` | `W` | exact | banded | incremental exact | incremental banded | one top-rung word |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4 | 35 | 9 | 2.8k | 2.8k (no gain) | 0.6k | 0.6k | 103k |
+| 6 | 143 | 13 | 46k | 17k | 10k | 3.7k | 103k |
+| 8 | 575 | 25 | 744k | 129k | 165k | 29k | 103k |
+
+At depth 8, banding and splitting together cut the per-step decoding cost
+from about seven word readings to about a quarter of one, a factor of 26.
+At depth 4 the band already covers every live state, and only splitting
+helps.
+
+### 23.6 Predictions
+
+1. **Same answers.** Banded decoding with `η = 10⁻⁴` returns the same
+   decoded sequence as exact decoding on every formula where the exactness
+   certificate `x ≥ U_j` holds, and that certificate holds on nearly all
+   formulas at the top rung. The reported risk exceeds the exact risk by at
+   most `U_j / Z_band`.
+2. **Decoding cost per formula.** Over a full refinement at depth 8,
+   exact-from-scratch decoding costs more than the reading it guides.
+   Incremental banded decoding costs a small fraction of it, close to the
+   counts above.
+3. **Coverage unchanged.** With charges refreshed every `√m` climbs,
+   coverage and error among answered formulas match per-step exact
+   decoding within sampling noise, because only the climb order changes.
