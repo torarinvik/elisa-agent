@@ -104,8 +104,24 @@ class ProducerIndex:
         self._candidate_cache: dict[tuple[tuple[TypeId, ...], int],
                                     tuple[list[TypeId], dict[TypeId, int]]] = {}
         self._source_cache: dict[tuple[TypeId, int], frozenset[TypeId] | None] = {}
+        self.head_of: list[tuple[str, int] | None] = []
+        """Root constructor and arity of each module's output; ``None`` for a variable."""
+        self.heads: dict[tuple[str, int], list[int]] = {}
+        self.open_outputs: list[int] = []
+        self.polymorphic: set[int] = set()
+        self._fired_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[int]] = {}
+        self._seq_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[TypeId] | None] = {}
         for position, module in enumerate(modules):
             contract = module.manifest.contract
+            output = parse_type(contract.output)
+            head = None if isinstance(output, Var) else (output.name, len(output.args))
+            self.head_of.append(head)
+            if head is None:
+                self.open_outputs.append(position)
+            else:
+                self.heads.setdefault(head, []).append(position)
+            if contract.polymorphic:
+                self.polymorphic.add(position)
             needs = frozenset(i for i in contract.inputs
                               if elem_type(i) is None and not type_variables(parse_type(i)))
             self.needs.append(needs)
@@ -197,6 +213,23 @@ class ProducerIndex:
                 self._source_cache[key] = frozenset(found)
         return self._source_cache[key]
 
+    def seq_elements(self, available: Sequence[TypeId], limit: int) -> frozenset[TypeId] | None:
+        """A superset of the non-sequence elements ``a`` for which ``seq a`` may be
+        derivable from ``available`` (THEORY §12, Theorem 12.17): the closure of
+        the elements of available sequence types and of the sequence types that
+        contracts firing in the closure produce. ``None`` when a polymorphic
+        producer may produce any sequence type."""
+        key = (tuple(available), limit)
+        if key not in self._seq_cache:
+            if any(self.head_of[p] in (None, ("seq", 1)) for p in self.polymorphic if p < limit):
+                self._seq_cache[key] = None
+            else:
+                self.reachable(available, limit)
+                outputs = (self.outputs[p] for p in self._fired_cache[key])
+                seeds = {e for t in (*available, *outputs) if (e := elem_type(t)) is not None}
+                self._seq_cache[key] = self.reachable(tuple(sorted(seeds)), limit)
+        return self._seq_cache[key]
+
     def may_derive(self, available: Sequence[TypeId], goal: Term, limit: int) -> bool:
         """The closure oracle (``NCA.SoundOracle``): ``False`` only if no
         instance of ``goal`` is derivable from ``available``. Sequence types and
@@ -232,7 +265,10 @@ class ProducerIndex:
                     reach.add(t)
                     queue.append(t)
 
+        fired: set[int] = set()
+
         def fire(position: int) -> None:
+            fired.add(position)
             output = self.outputs[position]
             if output not in reach:
                 reach.add(output)
@@ -250,7 +286,28 @@ class ProducerIndex:
                     fire(position)
         result = frozenset(reach)
         self._reach_cache[key] = result
+        self._fired_cache[key] = frozenset(fired)
         return result
+
+    def pattern_candidates(self, available: Sequence[TypeId], goal: Term,
+                           limit: int) -> list[int]:
+        """Positions, in installation order, of the modules among the first
+        ``limit`` that can produce an instance of the pattern ``goal``
+        (THEORY §2.2): an output whose root matches the goal's (Theorem 2.6)
+        or is a variable, and, for a monomorphic contract, all ground inputs
+        in the forward closure of ``available``."""
+        self.reachable(available, limit)
+        fired = self._fired_cache[(tuple(available), limit)]
+        if isinstance(goal, Var):
+            return [p for p in range(limit) if p in fired or p in self.polymorphic]
+        key = (goal.name, len(goal.args))
+        heads = self.heads.get(key, ())
+        if len(fired) < len(heads):
+            matching = [p for p in fired if self.head_of[p] == key]
+            matching += [p for p in heads if p in self.polymorphic and p < limit]
+        else:
+            matching = [p for p in heads if p < limit and (p in fired or p in self.polymorphic)]
+        return sorted({*matching, *(p for p in self.open_outputs if p < limit)})
 
 
 def _plan(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal: TypeId,
@@ -321,7 +378,10 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
     sources = index.sources(element_goal, limit)
     if sources is not None:
         candidates = sorted((a for a in sources if a in order), key=order.__getitem__)
+    made = index.seq_elements(available, limit)
     for element in candidates:
+        if made is not None and element not in made and elem_type(element) is None:
+            continue
         if not index.may_derive((element,), parse_type(element_goal), limit):
             continue
         body = _plan(index, limit, (element,), element_goal, fuel - 1, memo)
@@ -387,7 +447,8 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
         extended = dict(binding)
         if unify(goal, parse_type(type_id), extended):
             yield Given(type_id), extended
-    for position, module in enumerate(index.modules[:limit]):
+    for position in index.pattern_candidates(available, goal, limit):
+        module = index.modules[position]
         renaming, contract = _rename(module.manifest.contract, ())
         extended = dict(binding)
         if not unify(goal, parse_type(contract.output), extended):
@@ -403,7 +464,10 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
             sources = index.sources(format_type(body_goal), limit)
             if sources is not None:
                 candidates = sorted((a for a in sources if a in order), key=order.__getitem__)
+        made = index.seq_elements(available, limit)
         for element in candidates:
+            if made is not None and element not in made and elem_type(element) is None:
+                continue
             if not index.may_derive((element,), body_goal, limit):
                 continue
             source = _plan(index, limit, available, seq_type(element), fuel - 1, memo)

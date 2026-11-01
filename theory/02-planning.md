@@ -80,6 +80,25 @@ would not say which type to produce. For example, `nothing: → seq(α)` cannot
 be planned on its own, but it can be planned under a consumer whose goal
 fixes `α`.
 
+Most contracts cannot be candidates for a given pattern goal, for two
+reasons:
+
+- **Head mismatch.** Terms with different constructors at their roots, or the
+  same constructor with different arities, have no unifier: substitution
+  never changes a root constructor (Theorem 2.6). A goal `C(…)` needs only the contracts
+  whose output's root is `C` with the same arity, or a variable. Contracts
+  can be indexed by the root of their output.
+- **Underivable inputs.** A contract with a ground input outside the forward
+  closure of the available types (§12) has no plan, since its inputs cannot
+  all be derived. Only contracts that fire in that closure can be candidates,
+  and the closure records which ones fire.
+
+**Theorem 2.6 (head mismatch).** If `C ≠ D`, or `n ≠ k`, then
+`σ(C(t₁, …, tₙ)) ≠ τ(D(u₁, …, u_k))` for all substitutions `σ` and `τ`.
+
+Restricting candidates by both conditions never discards a solution. With
+both, a pattern goal visits only contracts that can still contribute to it.
+
 The answer is the plan built over types with variables, with the final
 substitution applied. Write `c ≼ lib` when `c = τ(d)` for a contract `d` in
 `lib` and some substitution `τ`.

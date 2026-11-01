@@ -467,9 +467,10 @@ def test_free_variable_planning_is_sound_and_complete_against_instances() -> Non
 
 
 def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Skipping ``map`` candidates that the closure oracle rejects, found
-    through the backward index, returns exactly the unpruned plan (Theorem
-    12.7)."""
+    """Skipping ``map`` candidates whose body goal (Theorem 12.7) or source
+    (Theorem 12.17) the closure oracle rejects, and pattern-goal candidates
+    with another output root (Theorem 2.6) or an underivable input, returns
+    exactly the unpruned plan."""
     rng = np.random.default_rng(3)
     names = [f"t{i}.v1" for i in range(6)]
     types = [*names, *(f"seq[{t}]" for t in names), *(f"seq[seq[{t}]]" for t in names[:2])]
@@ -488,6 +489,9 @@ def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) 
     pruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
     monkeypatch.setattr(ProducerIndex, "may_derive", lambda *_: True)
     monkeypatch.setattr(ProducerIndex, "sources", lambda *_: None)
+    monkeypatch.setattr(ProducerIndex, "seq_elements", lambda *_: None)
+    monkeypatch.setattr(ProducerIndex, "pattern_candidates",
+                        lambda self, available, goal, limit: list(range(limit)))
     unpruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
     assert pruned == unpruned
     assert sum(isinstance(p, Map) for p in pruned) > 20

@@ -41,6 +41,22 @@ type.
 | 12.8 | every derivable type is a sequence type or in the forward closure `Closure lib avail` |
 | 12.9 | any oracle accepting the closure (and all sequence types) is sound |
 
+The closure treats every sequence type as reachable, so it cannot reject the
+source `seq a` of a `map` candidate. A sharper oracle for sources follows
+from how a sequence is made. Let `E` be the elements `a` of the sequence types
+that are available or are the output of a contract whose non-sequence inputs
+are all in `Closure lib avail`.
+
+| Theorem | Statement |
+|---|---|
+| 12.17 | if `seq e` is derivable from `avail`, then `e` is a sequence type or in the closure of `E` |
+
+A derivation of `seq e` ends in an available type, a contract, or a `map`
+from some `seq a`. In the first two cases `e ∈ E`. In the third, `e` is in the
+closure of `[a]`, and by induction `a` is in the closure of `E`, which contains
+the closure of `[a]`. So `map` candidates whose element lies outside the closure
+of `E` can be skipped, by the argument of Theorem 12.7.
+
 `Closure lib avail` is the least set containing `avail` and closed under
 contracts whose non-sequence inputs it contains. It is computed by Horn-clause
 propagation: each contract keeps a count of

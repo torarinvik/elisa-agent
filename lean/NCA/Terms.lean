@@ -60,6 +60,17 @@ theorem subst_congr (σ τ : Nat → Term) :
     congr 1
     exact List.map_congr_left fun t ht => subst_congr σ τ t fun n hn => h n (.app ht hn)
 
+/-- **Head mismatch.** Substitution never changes a root constructor or its
+arity, so terms whose roots differ have no unifier. -/
+theorem subst_app_ne (σ τ : Nat → Term) {f g : String} {ts us : List Term}
+    (h : f ≠ g ∨ ts.length ≠ us.length) : subst σ (.app f ts) ≠ subst τ (.app g us) := by
+  intro heq
+  rw [subst_app, subst_app] at heq
+  injection heq with hf hts
+  rcases h with h | h
+  · exact h hf
+  · exact h (by simpa using congrArg List.length hts)
+
 /-- Substituting twice is substituting once with the composite. -/
 theorem subst_subst (σ τ : Nat → Term) :
     (t : Term) → subst σ (subst τ t) = subst (fun n => subst σ (τ n)) t

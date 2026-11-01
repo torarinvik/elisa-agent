@@ -59,6 +59,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
 | [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |
 | [2.5](theory/02-planning.md) | `InstanceOf.subst`, `answer_sound` | `Terms` |
+| [2.6](theory/02-planning.md) | `Term.subst_app_ne` | `Terms` |
 | [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
@@ -95,6 +96,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [12.13](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_repeat` | `Eviction` |
 | [12.15](theory/12-lazy-loading-and-scalable-discovery.md) | `demanded_missing_le` | `Eviction` |
 | [12.16](theory/12-lazy-loading-and-scalable-discovery.md) | `pinned_next_fits` | `Eviction` |
+| [12.17](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_seq_source` | `Pruning` |
 | [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
 | [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
 | [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |
@@ -278,7 +280,15 @@ body goal may be derived from `[a]`. `ProducerIndex.sources` finds a superset of
 those elements by searching backward from the body goal through producers'
 inputs, so a sequence goal visits only candidates that can lead to its element
 type instead of every element type in the library. Candidate lists are cached
-per available types and library prefix. `optimize.plan_min` and `plan_pareto` do not yet consider contracts
+per available types and library prefix. `ProducerIndex.seq_elements` is the
+source oracle of Theorem 12.17: the closure of the elements of available
+sequence types and of sequence types produced by contracts that fire in the
+closure, which `reachable` records.
+
+Pattern goals take their candidates from `ProducerIndex.pattern_candidates`:
+modules indexed by the root constructor and arity of their output
+(Theorem 2.6), plus those whose output is a variable, keeping a monomorphic
+contract only if it fires in the closure of the available types. `optimize.plan_min` and `plan_pareto` do not yet consider contracts
 with free variables.
 
 ## 5. Reliability under distribution shift
