@@ -455,13 +455,15 @@ _fresh = itertools.count()
 def renamed_output(module: Module) -> Term:
     """The module's output pattern with its variables renamed apart from any
     variable of a search."""
-    return parse_type(rename_apart(module.manifest.contract, ())[1].output)
+    return parse_type(rename_apart(module.manifest.contract, ())[2])
 
 
-def rename_apart(contract: Contract, binding: Binding) -> tuple[dict[str, str], Contract]:
-    """Fresh names for the variables of ``contract.instance(binding)``, and
-    the instance with them."""
+def rename_apart(contract: Contract, binding: Binding) -> tuple[dict[str, str], tuple[TypeId, ...], TypeId]:
+    """Fresh names and renamed input/output types for a contract instance."""
     instance = contract.instance(binding)
     tag = next(_fresh)
     renaming = {v: f"{v}_{tag}" for v in sorted(instance.variables)}
-    return renaming, instance.instance(tuple((v, f"?{r}") for v, r in renaming.items()))
+    terms = {v: Var(r) for v, r in renaming.items()}
+    def renamed(type_id: TypeId) -> TypeId:
+        return format_type(substitute(parse_type(type_id), terms))
+    return renaming, tuple(renamed(t) for t in instance.inputs), renamed(instance.output)

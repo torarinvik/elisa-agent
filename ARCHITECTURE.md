@@ -340,6 +340,9 @@ the sources of sequences that polymorphic producers make (THEORY §13).
 After a binding has one valid closed argument plan, duplicate solutions for
 that binding need not be closed again; failed closures do not suppress later
 solutions for the same binding.
+Pattern search renames the input and output types it needs, retaining fresh
+names for slot-only variables for later closure without constructing a full
+renamed contract at each search node.
 
 The index persists. `ProducerIndex.append` indexes a newly installed module
 after the others, and every cached result (closures, candidate sets, plans in

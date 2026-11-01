@@ -295,12 +295,12 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
             yield Given(type_id), extended
     for position in index.pattern_candidates(available, goal, limit):
         module = index.modules[position]
-        renaming, contract = rename_apart(module.manifest.contract, ())
+        renaming, inputs, output = rename_apart(module.manifest.contract, ())
         extended = dict(binding)
-        if not unify(goal, parse_type(contract.output), extended):
+        if not unify(goal, parse_type(output), extended):
             continue
         names = tuple(renaming.items())
-        for args, solved in _solve_inputs(index, limit, available, contract.inputs, extended,
+        for args, solved in _solve_inputs(index, limit, available, inputs, extended,
                                           fuel, memo):
             yield _Open(module, args, names, fuel), solved
     if isinstance(goal, App) and goal.name == "seq" and len(goal.args) == 1:
@@ -375,9 +375,9 @@ def _free_instances(index: ProducerIndex, limit: int, available: Sequence[TypeId
     ground goal that matched it with ``binding``: its free variables
     determined by pattern search over its inputs at depth ``fuel - 1``.
     With ``distinct``, close only until each binding has one valid plan."""
-    renaming, contract = rename_apart(module.manifest.contract, binding)
+    renaming, inputs, _ = rename_apart(module.manifest.contract, binding)
     found: set[Binding] = set()
-    for args, solved in _solve_inputs(index, limit, available, contract.inputs, {}, fuel, memo):
+    for args, solved in _solve_inputs(index, limit, available, inputs, {}, fuel, memo):
         free = {v: resolve(Var(r), solved) for v, r in renaming.items()}
         if any(type_variables(t) for t in free.values()):
             continue

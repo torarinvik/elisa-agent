@@ -439,7 +439,7 @@ def test_free_bindings_retry_after_failed_closure(monkeypatch: pytest.MonkeyPatc
     expert = fn("forget", ["box[?a]"], INT, lambda value: value)
     index = ProducerIndex([expert])
     monkeypatch.setattr(planner, "rename_apart",
-                        lambda contract, binding: ({"a": "fresh"}, contract))
+                        lambda contract, binding: ({"a": "fresh"}, contract.inputs, contract.output))
     def solutions(*args: Any) -> Any:
         solved = {"fresh": parse_type(TEXT)}
         yield (Given("bad"),), solved
@@ -455,3 +455,17 @@ def test_free_binding_rejects_unusable_required_input() -> None:
     zero = fn("zero", [TEXT], INT, lambda _: 0)
     available = (f"seq[{INT}]", TEXT, "unused.v1")
     assert plan([add, zero, Fold()], available, INT, fuel=5, required=frozenset({2})) is None
+
+
+def test_renaming_preserves_inputs_output_and_slot_only_variables() -> None:
+    from nca.index import rename_apart
+
+    contract = Contract(("box[?a]", "?b"), "?b", ((("?c", "?a"), "?b"),))
+    binding = (("b", INT),)
+    first, inputs, output = rename_apart(contract, binding)
+    second, _, _ = rename_apart(contract, binding)
+    instance = contract.instance(binding)
+    expected = instance.instance(tuple((v, f"?{r}") for v, r in first.items()))
+    assert inputs == expected.inputs and output == expected.output
+    assert set(first) == {"a", "c"}
+    assert set(first.values()).isdisjoint(second.values())
