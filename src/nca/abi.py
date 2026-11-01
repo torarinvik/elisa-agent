@@ -21,10 +21,20 @@ never implies compatibility. Conversions between types are modules.
 
 
 @dataclass(frozen=True)
+class ScopedName:
+    """Internal variable identity, disjoint from names parsed from contracts."""
+
+    name: str
+    scope: int
+
+VarName = str | ScopedName
+
+
+@dataclass(frozen=True)
 class Var:
     """A type variable."""
 
-    name: str
+    name: VarName
 
 
 @dataclass(frozen=True)
@@ -83,6 +93,8 @@ def parse_type(type_id: TypeId) -> Term:
 def format_type(term: Term) -> TypeId:
     """The canonical text form of ``term``."""
     if isinstance(term, Var):
+        if isinstance(term.name, ScopedName):
+            raise ValueError("cannot serialize an unresolved scoped variable")
         return f"?{term.name}"
     if not term.args:
         return term.name
@@ -94,21 +106,21 @@ def canonical_type(type_id: TypeId) -> TypeId:
     return format_type(parse_type(type_id))
 
 
-def type_variables(term: Term) -> frozenset[str]:
+def type_variables(term: Term) -> frozenset[VarName]:
     """The variables occurring in ``term``."""
     if isinstance(term, Var):
         return frozenset((term.name,))
     return frozenset().union(*(type_variables(a) for a in term.args))
 
 
-def substitute(term: Term, binding: Mapping[str, Term]) -> Term:
+def substitute(term: Term, binding: Mapping[VarName, Term]) -> Term:
     """``term`` with each bound variable replaced (THEORY §1.2)."""
     if isinstance(term, Var):
         return binding.get(term.name, term)
     return App(term.name, tuple(substitute(a, binding) for a in term.args))
 
 
-def match_type(pattern: Term, ground: Term, binding: dict[str, Term]) -> bool:
+def match_type(pattern: Term, ground: Term, binding: dict[VarName, Term]) -> bool:
     """Extend ``binding`` so that ``pattern`` instantiates to ``ground``; ``False``
     if no extension does. On success the bound variables are exactly those of
     ``pattern`` not bound before (THEORY §2.1)."""
@@ -120,7 +132,7 @@ def match_type(pattern: Term, ground: Term, binding: dict[str, Term]) -> bool:
             and all(match_type(p, g, binding) for p, g in zip(pattern.args, ground.args)))
 
 
-def resolve(term: Term, binding: Mapping[str, Term]) -> Term:
+def resolve(term: Term, binding: Mapping[VarName, Term]) -> Term:
     """``term`` under a binding whose bound terms may mention bound variables:
     substitute until no bound variable remains."""
     if isinstance(term, Var):
@@ -129,7 +141,7 @@ def resolve(term: Term, binding: Mapping[str, Term]) -> Term:
     return App(term.name, tuple(resolve(a, binding) for a in term.args))
 
 
-def unify(left: Term, right: Term, binding: dict[str, Term]) -> bool:
+def unify(left: Term, right: Term, binding: dict[VarName, Term]) -> bool:
     """Extend ``binding`` to a most general unifier of ``left`` and ``right``
     (THEORY §2.2); ``False`` if none exists. ``binding`` may be partly extended
     on failure, so callers pass a copy they can discard."""

@@ -27,7 +27,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Sequence, Union
 
-from nca.abi import (App, Binding, Contract, Module, Term, TypeId, Var, elem_type, format_type,
+from nca.abi import (App, Binding, Contract, Module, ScopedName, Term, TypeId, Var, VarName, elem_type, format_type,
                      parse_type, resolve, seq_type, type_variables, unify)
 from nca.index import ProducerIndex, rename_apart
 
@@ -264,7 +264,7 @@ class _Open:
 
     module: Module
     args: tuple["_Partial", ...]
-    renaming: tuple[tuple[str, str], ...]
+    renaming: tuple[tuple[str, ScopedName], ...]
     fuel: int
 
 
@@ -277,8 +277,8 @@ class _OpenMap:
 
 _Partial = Union[Plan, _Open, _OpenMap]
 def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pattern: Term,
-               binding: dict[str, Term], fuel: int, memo: Memo,
-               ) -> Iterator[tuple[_Partial, dict[str, Term]]]:
+               binding: dict[VarName, Term], fuel: int, memo: Memo,
+               ) -> Iterator[tuple[_Partial, dict[VarName, Term]]]:
     """Plans producing instances of ``pattern`` under ``binding``, with the
     binding each extends, in search order (THEORY §2.2)."""
     if fuel == 0:
@@ -329,8 +329,8 @@ def _solutions(index: ProducerIndex, limit: int, available: Sequence[TypeId], pa
 
 
 def _solve_inputs(index: ProducerIndex, limit: int, available: Sequence[TypeId],
-                  inputs: Sequence[Term], binding: dict[str, Term], fuel: int, memo: Memo,
-                  ) -> Iterator[tuple[tuple[_Partial, ...], dict[str, Term]]]:
+                  inputs: Sequence[Term], binding: dict[VarName, Term], fuel: int, memo: Memo,
+                  ) -> Iterator[tuple[tuple[_Partial, ...], dict[VarName, Term]]]:
     """Solutions for every input in turn, backtracking over earlier inputs'
     alternatives."""
     if not inputs:
@@ -343,7 +343,7 @@ def _solve_inputs(index: ProducerIndex, limit: int, available: Sequence[TypeId],
             yield (first, *rest), solved
 
 
-def _close(index: ProducerIndex, limit: int, node: _Partial, binding: dict[str, Term],
+def _close(index: ProducerIndex, limit: int, node: _Partial, binding: dict[VarName, Term],
            memo: Memo) -> Plan | None:
     """``node`` with the answer substitution applied, its slots planned; ``None``
     if a variable is undetermined (the candidate is ambiguous) or a slot has no

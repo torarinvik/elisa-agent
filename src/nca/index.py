@@ -14,7 +14,7 @@ import itertools
 from collections.abc import Collection, Iterator, Sequence
 from typing import TYPE_CHECKING
 
-from nca.abi import (Binding, Contract, Module, Term, TypeId, Var, elem_type, format_type,
+from nca.abi import (Binding, Contract, Module, ScopedName, Term, TypeId, Var, elem_type, format_type,
                      match_type, parse_type, substitute, type_variables, unify)
 
 if TYPE_CHECKING:
@@ -458,11 +458,11 @@ def renamed_output(module: Module) -> Term:
     return rename_apart(module.manifest.contract, ())[2]
 
 
-def rename_apart(contract: Contract, binding: Binding) -> tuple[dict[str, str], tuple[Term, ...], Term]:
+def rename_apart(contract: Contract, binding: Binding) -> tuple[dict[str, ScopedName], tuple[Term, ...], Term]:
     """Fresh names and renamed input/output terms for a contract instance."""
     instance = contract.instance(binding)
     tag = next(_fresh)
-    renaming = {v: f"{v}_{tag}" for v in sorted(instance.variables)}
+    renaming = {v: ScopedName(v, tag) for v in sorted(instance.variables)}
     terms = {v: Var(r) for v, r in renaming.items()}
     def renamed(type_id: TypeId) -> Term:
         return substitute(parse_type(type_id), terms)

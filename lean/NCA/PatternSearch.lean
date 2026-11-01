@@ -35,6 +35,21 @@ open Term SeqTypes
 Renamed variables are odd, which leaves the even ones for the goal. -/
 def renVar (π : List Nat) (n : Nat) : Nat := 2 * Encodable.encode (π, n) + 1
 
+/-- Generated variables cannot equal an external, even-numbered variable. -/
+theorem renVar_ne_external (π : List Nat) (n external : Nat) :
+    renVar π n ≠ 2 * external := by
+  unfold renVar
+  omega
+
+/-- The node path and original variable uniquely determine the generated identity. -/
+theorem renVar_injective {π σ : List Nat} {n m : Nat} (h : renVar π n = renVar σ m) :
+    π = σ ∧ n = m := by
+  have encoded : Encodable.encode (π, n) = Encodable.encode (σ, m) := by
+    unfold renVar at h
+    omega
+  have pair := Encodable.encode_injective encoded
+  exact ⟨congrArg Prod.fst pair, congrArg Prod.snd pair⟩
+
 /-- The renaming of the contract at path `π`. -/
 def ren (π : List Nat) (n : Nat) : Term := .var (renVar π n)
 

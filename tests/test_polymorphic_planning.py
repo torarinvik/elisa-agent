@@ -8,7 +8,7 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from nca.abi import Choice, Contract, Manifest, Message, format_type, parse_type, type_variables
+from nca.abi import App, Choice, Contract, Manifest, Message, Var, format_type, parse_type, type_variables
 from nca.index import ProducerIndex
 from nca.modules.combinators import Case, Fold
 from nca.optimize import plan_min, plan_pareto
@@ -465,8 +465,30 @@ def test_renaming_preserves_inputs_output_and_slot_only_variables() -> None:
     binding = (("b", INT),)
     first, inputs, output = rename_apart(contract, binding)
     second, _, _ = rename_apart(contract, binding)
-    instance = contract.instance(binding)
-    expected = instance.instance(tuple((v, f"?{r}") for v, r in first.items()))
-    assert tuple(map(format_type, inputs)) == expected.inputs and format_type(output) == expected.output
+    assert inputs == (App("box", (Var(first["a"]),)), parse_type(INT))
+    assert format_type(output) == INT
     assert set(first) == {"a", "c"}
     assert set(first.values()).isdisjoint(second.values())
+    with pytest.raises(ValueError, match="unresolved scoped variable"):
+        format_type(inputs[0])
+
+
+def test_generated_variable_cannot_collide_with_user_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import index as index_module
+
+    producer = fn("nested", [], "box[seq[?a]]", lambda: None)
+    index = ProducerIndex([producer])
+    index.reachable((), index.size)
+    monkeypatch.setattr(index_module, "_fresh", itertools.count(0))
+    assert index.may_derive((), parse_type("box[?a_0]"), index.size)
+
+    from nca import planner
+    producer = fn("wrap", ["?a"], "box[seq[?a]]", lambda value: value)
+    index = ProducerIndex([producer])
+    monkeypatch.setattr(index, "pattern_candidates", lambda *args: [0])
+    monkeypatch.setattr(index_module, "_fresh", itertools.count(0))
+    memo = index.memo(index.size)
+    partial, solved = next(planner._solutions(index, index.size, (INT,),
+                                              parse_type("box[?a_0]"), {}, 3, memo))
+    result = planner._close(index, index.size, partial, solved, memo)
+    assert result is not None and infer([producer], (INT,), result) == f"box[seq[{INT}]]"

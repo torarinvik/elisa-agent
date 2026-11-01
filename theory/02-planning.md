@@ -76,6 +76,10 @@ substitution that makes them equal. The candidates for `P` are:
    input's solution extends the substitution before the next input is solved;
 3. a `map` whose body solves the element pattern, when `P = seq(Q)`.
 
+Fresh variables carry a separate scope identity, rather than relying on a
+textual suffix that a user could also write. This makes a node's variables
+distinct from both external variables and variables at other nodes.
+
 The search keeps every alternative open: when a later input has no solution
 under the substitution an earlier one produced, it backtracks to the earlier
 input's next solution. A solution is accepted only if it determines every
