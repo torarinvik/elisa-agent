@@ -416,6 +416,11 @@ def test_predictive_stopping_can_split_by_open_charge() -> None:
     unbounded = State(float("inf"), 1.0, 1.0)
     assert stopping_rule([([unbounded], False, 2.0)], 0.0, 0.4,
                          open_charge=True)(unbounded)
+    low = State(float("inf"), 0.1, 1.0)
+    high = State(float("inf"), 10.0, 1.0)
+    split = stopping_rule([([low], False, 2.0), ([high], True, 2.0)],
+                         0.1, 0.4, open_charge=True)
+    assert split(low) and not split(high)
 
 
 @pytest.mark.parametrize("target, weight, width", [(-1, 0.1, 0.25),

@@ -121,7 +121,10 @@ that will answer with states that will not.
   - The number of open items whose charge exceeds the gap `bound − δ`.
 
   The implementation can optionally split each bound bin by the fraction
-  of current charge on open items. For two groups of trace states, with
+  of current charge on open items. If no account is available and the bound
+  is infinite, the controller instead bins the open charge relative to the
+  target; these charges are refinement priorities, not a certified bound.
+  For two groups of trace states, with
   sizes `n₁, n₂` and empirical answer rates `p₁, p₂`, their split reduces
   the in-sample sum of squared prediction errors by
 

@@ -652,7 +652,8 @@ calibrated distribution for any grouped decision it names, alongside the risk
 
 `nca.ladder.stopping_rule` estimates `P(A | s)` by binning calibration states
 (§25.3). Its optional open-charge feature also bins by the fraction of the
-current bound assigned to items that can still climb (§25.4).
+current bound assigned to items that can still climb (§25.4). When the
+account is unavailable, it bins open charge relative to the target instead.
 
 ## 26. Composing cascades
 

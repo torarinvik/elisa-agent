@@ -448,8 +448,9 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
     there buys less than ``lam`` coverage per unit of compute. Unseen bins
     continue. At a zero target, all unfinished states share the unbounded
     bound bin.
-    When ``open_charge`` is set, split each bin by the fraction of the bound
-    currently charged to open items. Undefined fractions share a separate bin.
+    When ``open_charge`` is set, split finite-bound bins by the fraction of
+    the bound charged to open items. With an unbounded account, use the open
+    charge relative to the target instead. A zero bound has its own bin.
     """
     if math.isnan(delta) or delta < 0:
         raise ValueError("target must be nonnegative and not NaN")
@@ -458,24 +459,26 @@ def stopping_rule(runs: Sequence[tuple[Sequence[State], bool, float]], delta: fl
     if not math.isfinite(lam) or lam < 0:
         raise ValueError("cost weight must be nonnegative and finite")
 
-    def bound_bin(state: State) -> float:
-        if not math.isfinite(state.bound):
+    def bound_bin(value: float) -> float:
+        if not math.isfinite(value):
             return math.inf
         if delta == 0:
             return math.inf
-        ratio = max(state.bound, 1e-12) / delta
+        ratio = max(value, 1e-12) / delta
         if ratio == 0 or math.isinf(ratio):
             # Avoid overflow or underflow before taking the logarithm.
-            scaled = (math.log10(max(state.bound, 1e-12)) - math.log10(delta)) / width
+            scaled = (math.log10(max(value, 1e-12)) - math.log10(delta)) / width
         else:
             scaled = math.log10(ratio) / width
         return round(scaled) if math.isfinite(scaled) else scaled
 
     def key(state: State) -> tuple[float, ...]:
-        bound = bound_bin(state)
+        bound = bound_bin(state.bound)
         if not open_charge:
             return (bound,)
-        if not math.isfinite(state.bound) or state.bound <= 0:
+        if not math.isfinite(state.bound):
+            return (bound, bound_bin(state.open_charge))
+        if state.bound <= 0:
             return (bound, -math.inf)
         share = min(1.0, max(0.0, state.open_charge / state.bound))
         scaled = share / width
