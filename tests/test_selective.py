@@ -294,3 +294,20 @@ def test_grouped_distribution_preserves_gradients() -> None:
     result[0].backward()
     assert row.grad is not None and torch.isfinite(row.grad).all()
     assert torch.count_nonzero(row.grad) > 0
+
+
+@pytest.mark.parametrize("classes", [None, ((0,), (1, 2)), ((0, 2), (1,))])
+def test_native_calibrated_risk_uses_top_class_group(classes: Any,
+                                                   monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibrated_risk", None) is None:
+        pytest.skip("native calibrated risk is not built")
+    rung = Rung(constant("risk", (0.4, 0.3, 0.3), 1.0))
+    rows = [torch.tensor([0.4, 0.3, 0.3]).log(), torch.zeros(3),
+            torch.tensor([0.0, -1000.0, -2.0])]
+    actual = [rung.risk(row, classes) for row in rows]
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    assert actual == pytest.approx([rung.risk(row, classes) for row in rows], abs=1e-7)
+    if classes == ((0,), (1, 2)):
+        assert actual[0] == pytest.approx(0.6, abs=1e-7)

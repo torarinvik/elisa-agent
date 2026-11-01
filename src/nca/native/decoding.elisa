@@ -324,6 +324,14 @@ def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temper
         for k in 0..<weights.count |result: darray[f64] = [0.0 for _ in 0..<entries]| -> result:
             result[groups[k]] <- result[groups[k]] + weights[k] / total
 
+# Risk belongs to the group containing the most probable individual class.
+def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    top: i64 =
+        for k in 0..<logits.len.i64() |top: i64 = 0| -> top:
+            top <- k if logits[k] > logits[top] else top
+    probabilities: darray[f64] = calibrated_groups(logits, groups, entries, temperature)
+    return 1.0 - probabilities[groups[top]]
+
 export pymodule decoding:
     fn decode
     fn advance
@@ -337,3 +345,4 @@ export pymodule decoding:
     fn risk_shares
     fn sequence_log_weight
     fn calibrated_groups
+    fn calibrated_risk

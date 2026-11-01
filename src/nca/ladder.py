@@ -150,6 +150,14 @@ class Rung:
 
     def risk(self, log: torch.Tensor, classes: Decision = None) -> float:
         """Calibrated error probability of the decision over ``classes``."""
+        native = getattr(_NATIVE, "calibrated_risk", None)
+        if native is not None and log.device.type == "cpu" and not log.requires_grad:
+            key = decision_key(classes) if classes is not None else tuple(range(len(log)))
+            union, positions = _layout(key)
+            groups = _group_ids(key)
+            if groups is not None:
+                return float(native(log[union].double().numpy(), groups, len(positions),
+                                    self.temperature(classes)))
         if classes is None:
             return risk(self.reading(log))
         union, positions = _layout(decision_key(classes))

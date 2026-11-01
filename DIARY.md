@@ -1349,6 +1349,21 @@ stored read-only; it does not cache logits or temperatures. Existing extreme
 logit comparisons still pass, and a new test confirms the PyTorch fallback
 preserves gradients. No isolated timing gain is claimed for metadata caching.
 
+**Native decision risk.** `calibrated_risk` computes the existing
+restricted decision risk using the group containing the highest-probability
+class. A regression distinguishes this from maximum-group-mass selection:
+probabilities `(0.4,0.3,0.3)` with groups `((0,),(1,2))` must charge 0.6,
+not 0.4. Tests also cover unrestricted risk, tied logits and extreme logits.
+Native suite: 121 passes; fallback: 108 passes and 13 native-only skips.
+
+For 3,000 five-class, three-group risk calculations at temperature 1.3,
+reference/native/native/reference times were
+0.02831/0.01030/0.01012/0.02804 s. Risks were 0.33392012119293213 for
+PyTorch and 0.3339201534322269 for native, differing by 3.23e-8.
+The decision rule and fitted temperatures are unchanged; the arithmetic
+precision differs. Full-refinement comparisons remain due before inferring
+anything about decision or compute invariance on deployment inputs.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
