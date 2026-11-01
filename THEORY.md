@@ -2,9 +2,9 @@
 
 Mathematical foundations of the agent: composing modules, planning routes,
 answering selectively under a risk target, and decoding by the input format.
-Every theorem is machine-checked; names in code font are those of the formal
-statements. ARCHITECTURE.md maps each section to its proofs and its
-implementation, and DIARY.md records the experiments that test it.
+Theorems are numbered by section. Every one is machine-checked;
+ARCHITECTURE.md gives its formal proof and implementation, and DIARY.md
+records the experiments that test it.
 
 ## 1. Types and contracts
 
@@ -33,7 +33,7 @@ only installed contracts `lib` and available inputs `avail`, and produces `t`.
 | apply | `c ∈ lib`, `ps : c.inputs` pointwise | `apply c ps : c.output` |
 | map | `body : e` under inputs `[a]`, `src : seq a` | `map a body src : seq e` |
 
-**Theorem (monotonicity, `WellTyped.mono`).** If `lib ⊆ lib'`, every plan
+**Theorem 1.1 (monotonicity).** If `lib ⊆ lib'`, every plan
 well-typed under `lib` is well-typed under `lib'`. Installing modules never
 invalidates an existing valid composition.
 
@@ -52,18 +52,18 @@ backward from the goal with depth bound `n`:
 **Derivability** `Derivable lib avail n t` is the specification: a composition
 of depth at most `n` exists (for `map`, with `a` a candidate element type).
 
-**Theorem (soundness, `plan_sound`).** `plan lib avail n t = some p` implies
+**Theorem 2.1 (soundness).** `plan lib avail n t = some p` implies
 `WellTyped lib avail p t`.
 
-**Theorem (completeness, `plan_complete`).** `Derivable lib avail n t` implies
+**Theorem 2.2 (completeness).** `Derivable lib avail n t` implies
 `plan lib avail n t` succeeds.
 
-**Type checking**. `infer lib avail p`
+**Type checking.** `infer lib avail p`
 computes the type a plan produces: `given t` needs `t ∈ avail`; `apply c ps`
 needs `c ∈ lib` and the argument types to equal `c.inputs`; `map a body src`
 needs `body` to type-check under `[a]` and `src` to produce `seq a`.
 
-**Theorem (decidability, `infer_iff`).** `infer lib avail p = some t ↔
+**Theorem 2.3 (decidability).** `infer lib avail p = some t ↔
 WellTyped lib avail p t`. Plans not produced by the planner, such as
 hand-written pipelines and proposed upgrades, are admitted by checking.
 
@@ -72,7 +72,7 @@ hand-written pipelines and proposed upgrades, are admitted by checking.
 The add-and-freeze protocol requires that installing a module does not
 change how already solved tasks are solved.
 
-**Theorem (instability, `plan_not_stable`).** The plain planner is not stable.
+**Theorem 3.1 (instability).** The plain planner is not stable.
 With `need1 : [x] → g`, `from2 : [y] → g`, input `y`, the planner routes `g`
 through `from2`; installing `make1 : [y] → x` makes the higher-priority
 `need1` applicable and the route changes, although the old route remains valid.
@@ -80,10 +80,10 @@ through `from2`; installing `make1 : [y] → x` makes the higher-priority
 **Generation-layered planning** `planStable`: plan with the first `k`
 installed contracts, for the smallest `k = 0, 1, …, |lib|` that succeeds.
 
-**Theorem (`planStable_sound`, `planStable_complete`).** Layered planning is
+**Theorem 3.2.** Layered planning is
 sound and complete in the same sense as `plan`.
 
-**Theorem (stability, `planStable_append`).** If `planStable lib avail n t`
+**Theorem 3.3 (stability).** If `planStable lib avail n t`
 succeeds, then `planStable (lib ++ extra) avail n t = planStable lib avail n t`
 for every `extra`.
 
@@ -98,10 +98,10 @@ failing on an event `fail i` with `μ(fail i) ≤ εᵢ`, and suppose the
 (`⋂ᵢ (fail i)ᶜ ⊆ correct`). Exact modules (parsers, arithmetic) have
 `εᵢ = 0`.
 
-**Theorem (union bound, `composition_error_le_sum`).** For any measure,
+**Theorem 4.1 (union bound).** For any measure,
 `μ(correctᶜ) ≤ Σᵢ εᵢ`.
 
-**Theorem (independent product bound, `composition_success_ge_prod`).** If μ
+**Theorem 4.2 (independent product bound).** If μ
 is a probability measure and the failure events are independent,
 `μ(correct) ≥ Πᵢ (1 − εᵢ)`.
 
@@ -128,16 +128,16 @@ where `g : Ω → X` is the upstream computation feeding it.
 `s`. For probability measures this is equivalent to total variation distance
 at most `δ`.
 
-**Theorem (shifted composition bound, `composition_error_le_shifted`).** If
+**Theorem 5.1 (shifted composition bound).** If
 invocation `i` receives `gᵢ(ω)`, fails on `Bᵢ`, has offline failure rate at
 most `εᵢ`, and `ShiftBound (gᵢ)_*μ ν₀ᵢ δᵢ`, then under the propagation
 hypothesis `μ(correctᶜ) ≤ Σᵢ (εᵢ + δᵢ)`.
 
-**Theorem (`offline_rate_insufficient`).** There are probability measures and
+**Theorem 5.2.** There are probability measures and
 a failure set with offline failure rate 0 and in-situ failure rate 1. Offline
 rates alone bound nothing; the shift term cannot be dropped.
 
-**Theorem (`shift_ge_gap`).** Every valid shift bound satisfies
+**Theorem 5.3.** Every valid shift bound satisfies
 `δ ≥ ν(B) − ν₀(B)`. The measured excess of in-situ over offline failure rate is
 therefore a lower bound on the distribution shift the composition induces,
 and can be measured per module.
@@ -149,12 +149,12 @@ the composition pays for in full.
 
 ## 6. Algorithms of the handwritten-arithmetic pipeline
 
-**Symbol fusion**. With operator
+**Symbol fusion.** With operator
 distribution `q` over `{+, −, ×, none}` and digit distribution `p`:
 `P(op) = q_op`, `P(d) = q_none · p_d`. The result is a probability
 distribution over the 13 symbols whenever `p` and `q` are.
 
-**MAP parsing**. The grammar `digit (op digit)*` fixes the
+**MAP parsing.** The grammar `digit (op digit)*` fixes the
 class of each position. Under independent per-position distributions the
 probability of a token string factorizes, so the most probable well-formed
 expression is the per-position argmax restricted to the position's class.
@@ -163,13 +163,13 @@ Even-length sequences have no parse.
 **Evaluation** (`Evaluator`). `×` binds tighter than `+` and `−`; terms are
 accumulated left to right.
 
-**Comparison chains**. `a₀ r₁ a₁ … rₖ aₖ` is true iff
+**Comparison chains.** `a₀ r₁ a₁ … rₖ aₖ` is true iff
 every adjacent relation `aᵢ₋₁ rᵢ aᵢ` holds.
 
 ## 7. Measuring accumulation
 
 For deterministic modules, an unchanged route implies identical answers, so
-`planStable_append` predicts **zero changed answers** on every previously
+Theorem 3.3 predicts **zero changed answers** on every previously
 covered task. The changed-answer count is the stricter regression metric:
 equal accuracy can hide offsetting changes; zero changed answers cannot.
 
@@ -188,13 +188,13 @@ and fails otherwise.
 
 | Theorem | Statement |
 |---|---|
-| `route_sound` | if all pins are well-typed, every route is well-typed |
-| `upgrade_valid` | upgrading preserves well-typedness of all pins |
-| `upgrade_target` | after upgrading `t` to `p`, `t` is routed through `p` |
-| `upgrade_local` | every goal `t' ≠ t` keeps its route |
-| `upgrade_rollback` | restoring the previous pin of `t` restores the router exactly |
-| `route_append` | installing modules never changes an existing route, pinned or not |
-| `PinsValid.append` | pins remain well-typed after installing modules |
+| 8.1 | if all pins are well-typed, every route is well-typed |
+| 8.2 | upgrading preserves well-typedness of all pins |
+| 8.3 | after upgrading `t` to `p`, `t` is routed through `p` |
+| 8.4 | every goal `t' ≠ t` keeps its route |
+| 8.5 | restoring the previous pin of `t` restores the router exactly |
+| 8.6 | installing modules never changes an existing route, pinned or not |
+| 8.7 | pins remain well-typed after installing modules |
 
 The theorems make upgrades safe to *apply*; whether to apply one is an
 empirical question. **Decision rule**: evaluate the
@@ -216,12 +216,12 @@ Let `disagree i` be the event that invocation `i` of the substitute gives a
 different decision than the original's, with in-situ probability at most `dᵢ`,
 and suppose the answer can change only if some such invocation disagrees.
 
-**Theorem (`substitution_change_le`).** `P(answer changes) ≤ Σᵢ dᵢ`.
+**Theorem 9.1.** `P(answer changes) ≤ Σᵢ dᵢ`.
 
-**Theorem (`accuracy_transfer`).** If original-correct and unchanged imply
+**Theorem 9.2.** If original-correct and unchanged imply
 substitute-correct, then `P(correct) ≤ P(correct′) + P(answer changes)`.
 
-**Theorem (`substitution_accuracy_ge`).** Hence
+**Theorem 9.3.** Hence
 `P(correct′) ≥ P(correct) − Σᵢ dᵢ`.
 
 The bound is only as tight as the choice of events. Every invocation of the
@@ -241,14 +241,14 @@ Systems are compared by the composition gain
 `A⊕B` adds integration modules to the installed capabilities and the
 baselines are the majority class and a monolithic model trained on the task.
 
-**Product-of-experts fusion**. With operator distribution
+**Product-of-experts fusion.** With operator distribution
 `q`, relation distribution `r` (each including a "none of mine" outcome) and
 digit distribution `p`: `P(op) ∝ q_op r_none`, `P(rel) ∝ r_rel q_none`,
 `P(d) ∝ q_none r_none p_d`. This treats the two recognizers as independent
 evidence; unlike the two-recognizer fuser it is an assumption, not an
 identity.
 
-**Constrained MAP parsing**. Grammar
+**Constrained MAP parsing.** Grammar
 `digit ((op | rel) digit)*` with at least one relation. Under independent
 per-position distributions the unconstrained MAP takes each position's best
 symbol of its class. If it contains no relation, the constrained MAP differs
@@ -268,12 +268,12 @@ decision.
 
 ## 11. Evaluation methodology
 
-**Accuracy intervals**. For `k` successes in `n` samples
+**Accuracy intervals.** For `k` successes in `n` samples
 the 95% Wilson score interval is
 `(p̂ + z²/2n ± z·√(p̂(1−p̂)/n + z²/4n²)) / (1 + z²/n)` with `z ≈ 1.96`. It stays
 inside `[0, 1]` and remains accurate near 0 and 1, where accuracies cluster.
 
-**Paired differences**. Systems are compared
+**Paired differences.** Systems are compared
 on the same samples, so their difference is estimated from per-sample
 differences `dᵢ = 1[second correct] − 1[first correct]`: mean `d̄`, interval
 `d̄ ± z·s_d/√n`. Shared successes and failures contribute zero, which makes the
@@ -290,15 +290,15 @@ least-recently-used eviction.
 
 | Theorem | Statement |
 |---|---|
-| `WellTyped.contracts_subset` | a well-typed plan invokes only installed contracts |
-| `route_contracts_append` | installing modules leaves the working set of every routed task unchanged |
-| `plan_derivable` | a successful plan witnesses `Derivable` at the same depth |
-| `Derivable.mono`, `plan_mono` | installing modules never makes a solvable goal unsolvable |
-| `plan_prefix_mono` | success with the first `k` modules implies success with the first `k' ≥ k` |
-| `planIdx_eq` | planning through an index of producers by output type computes exactly `plan` |
+| 12.1 | a well-typed plan invokes only installed contracts |
+| 12.2 | installing modules leaves the working set of every routed task unchanged |
+| 12.3 | a successful plan witnesses `Derivable` at the same depth |
+| 12.4 | installing modules never makes a solvable goal unsolvable |
+| 12.5 | success with the first `k` modules implies success with the first `k' ≥ k` |
+| 12.6 | planning through an index of producers by output type computes exactly `plan` |
 
-**Binary-search layered planning**. By
-`plan_prefix_mono`, success is monotone in the prefix length, so the smallest
+**Binary-search layered planning.** By
+Theorem 12.5, success is monotone in the prefix length, so the smallest
 successful prefix (the route `planStable` returns) is found with
 `O(log |lib|)` planner calls instead of `|lib| + 1`.
 
@@ -307,7 +307,7 @@ of `(available, goal, fuel)`; memoizing it within one call returns exactly what
 recomputation would and bounds the work by the number of distinct subgoals
 rather than search paths.
 
-**Reachability pruning**. Dormant producers of a
+**Reachability pruning.** Dormant producers of a
 relevant type, whose inputs nothing can supply, are dead ends the planner would
 otherwise explore. `planPruned` skips producers with an input rejected by a
 reachability oracle `reach`. An oracle is *sound* if it accepts every derivable
@@ -315,9 +315,9 @@ type.
 
 | Theorem | Statement |
 |---|---|
-| `planPruned_eq` | with a sound oracle, pruned planning returns exactly `plan` |
-| `derivable_closure` | every derivable type is a sequence type or in the forward closure `Closure lib avail` |
-| `closure_oracle_sound` | any oracle accepting the closure (and all sequence types) is sound |
+| 12.7 | with a sound oracle, pruned planning returns exactly `plan` |
+| 12.8 | every derivable type is a sequence type or in the forward closure `Closure lib avail` |
+| 12.9 | any oracle accepting the closure (and all sequence types) is sound |
 
 `Closure lib avail` is the least set containing `avail` and closed under
 contracts whose non-sequence inputs it contains. It is computed by Horn-clause
@@ -326,18 +326,18 @@ unsatisfied inputs, and each newly reachable type decrements the counts of its
 consumers. The work is proportional to the contracts consuming reachable
 types, independent of dormant modules elsewhere in the library.
 
-**Eviction**. The store holds a set `S` of experts
+**Eviction.** The store holds a set `S` of experts
 within a byte budget; serving a route with working set `R` moves it to some
 `S' ⊇ R` at cost `bytes(S' \ S)`.
 
 | Theorem | Statement |
 |---|---|
-| `load_lower_bound` | every transition serving `R` loads at least `bytes(R \ S)` |
-| `routeAware_load`, `routeAware_optimal` | keeping `R ∪ K` with `K ⊆ S` loads exactly `bytes(R \ S)`, the minimum |
-| `routeAware_switch` | alternating routes `A`, `B` costs `bytes(B \ A)` per switch: shared experts are never reloaded |
-| `routeAware_repeat` | serving a resident route loads nothing |
+| 12.10 | every transition serving `R` loads at least `bytes(R \ S)` |
+| 12.11 | keeping `R ∪ K` with `K ⊆ S` loads exactly `bytes(R \ S)`, the minimum |
+| 12.12 | alternating routes `A`, `B` costs `bytes(B \ A)` per switch: shared experts are never reloaded |
+| 12.13 | serving a resident route loads nothing |
 
-By `routeAware_repeat`, a task sequence costs only at route changes, so the
+By Theorem 12.13, a task sequence costs only at route changes, so the
 remaining lever is the number of changes: independent tasks grouped by route
 switch once per route. Least-recently-used eviction is not optimal in general:
 when one route runs a shared expert first and the next route runs its own
@@ -352,7 +352,7 @@ means linear in input length and constant in library size; quadratic cost
 should appear only in modules whose contracts require all-pairs interaction,
 and only there.
 
-**Cost model**. Each contract costs `κ(c)` per
+**Cost model.** Each contract costs `κ(c)` per
 invocation . On
 sequences of length `L`:
 `cost(given t) = 0`, `cost(apply c ps) = κ(c) + Σ cost(pᵢ)`,
@@ -362,11 +362,11 @@ its modules.
 
 | Theorem | Statement |
 |---|---|
-| `Plan.cost_le_pow` | `cost_L(p) ≤ (L + 1)^nest(p) · cost_1(p)`: polynomial degree is the map nesting depth |
-| `Plan.cost_linear` | plans without nested maps cost at most `(L + 1) · cost_1(p)`: linear in length |
-| `route_cost_append` | installing modules never changes the cost of an existing route |
+| 13.1 | `cost_L(p) ≤ (L + 1)^nest(p) · cost_1(p)`: polynomial degree is the map nesting depth |
+| 13.2 | plans without nested maps cost at most `(L + 1) · cost_1(p)`: linear in length |
+| 13.3 | installing modules never changes the cost of an existing route |
 
-Together with `route_contracts_append` (§12), a task's cost and memory are
+Together with Theorem 12.2 (§12), a task's cost and memory are
 independent of library size.
 
 **Minimum-cost planning**.
@@ -378,15 +378,15 @@ enumerates.
 
 | Theorem | Statement |
 |---|---|
-| `planMin_sound` | the returned plan is well-typed and its cost is the reported cost |
-| `planMin_optimal` | it costs at most any searchable plan of smaller depth |
+| 13.4 | the returned plan is well-typed and its cost is the reported cost |
+| 13.5 | it costs at most any searchable plan of smaller depth |
 
 With memoization the recursion visits each `(available, type, depth)` once.
 Minimizing total compute is polynomial; minimizing the number of *distinct*
 experts (memory) is a set-cover problem and is handled as a constraint, not an
 objective.
 
-**Cost under an error target**. By the union bound
+**Cost under an error target.** By the union bound
 (§4) a route's error is at most the sum of its invocations' failure rates, so
 error composes exactly like cost, with map bodies counted `L` times. The
 planner keeps the Pareto frontier of non-dominated (cost, error) pairs at each
@@ -399,10 +399,10 @@ recursion is `planMin` with `best` replaced by dominance pruning
 
 | Theorem | Statement |
 |---|---|
-| `front_cover` | pruning dominated options loses nothing: every option is dominated by a survivor |
-| `planPareto_sound` | every option is a well-typed plan with its reported cost and error bound |
-| `planPareto_cover` | every searchable plan within the depth bound is dominated by a returned option |
-| `planPareto_within` | if a searchable plan meets error target `τ`, a returned option meets it at no greater cost |
+| 13.6 | pruning dominated options loses nothing: every option is dominated by a survivor |
+| 13.7 | every option is a well-typed plan with its reported cost and error bound |
+| 13.8 | every searchable plan within the depth bound is dominated by a returned option |
+| 13.9 | if a searchable plan meets error target `τ`, a returned option meets it at no greater cost |
 
 **Length–accuracy coupling.** Every route's cost and error bound grow linearly
 in `L`, so the cheapest expert meeting a fixed target changes with length, and
@@ -429,24 +429,24 @@ requester's output.
 
 | Theorem | Statement |
 |---|---|
-| `resolve_sound` | a resolved request is a well-typed plan producing the requested type from the request's inputs |
-| `resolve_avoids` | it never invokes a module in the request chain |
-| `RequestChain.length_le` | every chain of nested requests is at most as long as the number of installed modules, whatever the budget |
+| 14.1 | a resolved request is a well-typed plan producing the requested type from the request's inputs |
+| 14.2 | it never invokes a module in the request chain |
+| 14.3 | every chain of nested requests is at most as long as the number of installed modules, whatever the budget |
 
 Termination follows from freshness: each new requester is a module of a plan
 resolved with the chain excluded, so the chain has no repeats and is bounded
 by the library.
 
-**Confidence-triggered refinement**. A cheap module answers when confident
+**Confidence-triggered refinement.** A cheap module answers when confident
 (event `C`) and otherwise requests refinement, served by a fallback. With
 `W₁`, `W₂` the cheap and fallback error events, the composite errs exactly on
 `(C ∩ W₁) ∪ (Cᶜ ∩ W₂)`.
 
 | Theorem | Statement |
 |---|---|
-| `cascade_error_eq` | `P(error) = P(C ∩ W₁) + P(Cᶜ ∩ W₂)` |
-| `cascade_le_fallback` | if `P(C ∩ W₁) ≤ P(C ∩ W₂)` (confidence is selective), the composite is at least as accurate as the fallback alone |
-| `cascade_expected_cost` | expected cost is `κ₁ + κ₂ · P(Cᶜ)` |
+| 14.4 | `P(error) = P(C ∩ W₁) + P(Cᶜ ∩ W₂)` |
+| 14.5 | if `P(C ∩ W₁) ≤ P(C ∩ W₂)` (confidence is selective), the composite is at least as accurate as the fallback alone |
+| 14.6 | expected cost is `κ₁ + κ₂ · P(Cᶜ)` |
 
 The fallback can itself be a refining module, so the two-stage results compose
 into chains of any depth. Refinement spends expensive computation only on the
@@ -461,14 +461,14 @@ gated refinement resolves requests only on `Cᶜ ∩ G`.
 
 | Theorem | Statement |
 |---|---|
-| `gated_error_le` | `P(error, gated) ≤ P(error, ungated) + P(Cᶜ ∩ Gᶜ ∩ R)`: gating costs at most the relevant requests it skips |
-| `gated_error_eq_of_sound` | if the gate is sound (`R ⊆ G`), gated and ungated refinement err exactly equally |
-| `gated_expected_cost` | gated refinement costs `κ₁ + κ₂ · P(Cᶜ ∩ G)` |
+| 14.7 | `P(error, gated) ≤ P(error, ungated) + P(Cᶜ ∩ Gᶜ ∩ R)`: gating costs at most the relevant requests it skips |
+| 14.8 | if the gate is sound (`R ⊆ G`), gated and ungated refinement err exactly equally |
+| 14.9 | gated refinement costs `κ₁ + κ₂ · P(Cᶜ ∩ G)` |
 
 Requests are therefore resolved lazily: a pending request is decided when
 its value is consumed. The *consumer* supplies the gate, since only the reader
 knows what it reads. A gate judged from provisional values is in general not
-sound, and its cost is the extra term of `gated_error_le`.
+sound, and its cost is the extra term of Theorem 14.7.
 
 **Demand-driven evaluation (a sound gate).** Soundness is easy to obtain when
 the gate comes from what a consumer provably reads rather than from what a
@@ -481,14 +481,14 @@ module's input differs in outside `δ d` cannot be seen in its output under `d`
 
 | Theorem | Statement |
 |---|---|
-| `DemandSound.comp` | demand-sound modules compose: `g ∘ f` is sound with `δ_f ∘ δ_g` |
-| `DemandSound.pair` | modules on a pair are sound when each component's demand is |
-| `DemandSound.map` | `map f` is sound on lists with per-element demand `(i, n) ↦ δ (d i n)` |
-| `DemandSound.exact` | at a top demand under which agreement is equality, agreeing inputs give equal answers |
+| 14.10 | demand-sound modules compose: `g ∘ f` is sound with `δ_f ∘ δ_g` |
+| 14.11 | modules on a pair are sound when each component's demand is |
+| 14.12 | `map f` is sound on lists with per-element demand `(i, n) ↦ δ (d i n)` |
+| 14.13 | at a top demand under which agreement is equality, agreeing inputs give equal answers |
 
 So inputs whose demand is empty can be replaced by anything, in particular
 never computed, and the answer is unchanged. Skipping the requests raised for
-them is therefore a sound gate: by `gated_error_eq_of_sound`, gated and
+them is therefore a sound gate: by Theorem 14.8, gated and
 ungated refinement err exactly equally.
 
 **Continuation requests.** Delegation replaces the requester's output; an
@@ -502,10 +502,10 @@ answers it receives.
 
 | Theorem | Statement |
 |---|---|
-| `Safe.run` | a handler returning only correct answers gives results meeting `post` |
-| `Safe.bind` | a sequence is safe when the first program establishes what the continuation needs |
-| `Depth.run_le` | a program of question depth `n` makes at most `n` requests on any run |
-| `Depth.bind` | depths add under `bind` |
+| 14.14 | a handler returning only correct answers gives results meeting `post` |
+| 14.15 | a sequence is safe when the first program establishes what the continuation needs |
+| 14.16 | a program of question depth `n` makes at most `n` requests on any run |
+| 14.17 | depths add under `bind` |
 
 Continuations are needed when the sub-result has a different type from the
 output, which delegation cannot express (for example, splitting a value and
@@ -513,16 +513,16 @@ requesting each part).
 
 ## 15. Normalization against shift
 
-**Theory**. A normalizer `N : X → Y` is a module
+**Theory.** A normalizer `N : X → Y` is a module
 placed before a recognizer, which is then trained and evaluated on normalized
 inputs. A style shift is a map `T` applied to reference inputs, so the shifted
 distribution is `T_*ν₀` and the recognizer sees `N_*T_*ν₀` instead of `N_*ν₀`.
 
 | Theorem | Statement |
 |---|---|
-| `ShiftBound.map` | normalization never increases a shift (data processing) |
-| `shift_le_of_invariant_on` | if `N ∘ T = N` on `G`, the normalized shift is at most `ν₀(Gᶜ)` |
-| `shift_zero_of_invariant` | if `N ∘ T = N` everywhere, the shift is removed |
+| 15.1 | normalization never increases a shift (data processing) |
+| 15.2 | if `N ∘ T = N` on `G`, the normalized shift is at most `ν₀(Gᶜ)` |
+| 15.3 | if `N ∘ T = N` everywhere, the shift is removed |
 
 With §5 this gives the design rule: a normalizer pays off exactly to the
 extent that it undoes the style, and no normalizer can help where the style
@@ -539,16 +539,16 @@ Errors cannot be corrected without redundancy, but they can be *located*:
 calibrated confidences say which glyphs are doubtful, compute can be spent
 there, and the system can decline to answer when doubt remains.
 
-**Theory**. Each input carries an error bound
+**Theory.** Each input carries an error bound
 `b`, the sum of its glyphs' calibrated error probabilities `1 − max p`
 (union bound, §4). Refining glyph `i` costs `κ i` and lowers the bound by
 `β i`.
 
 | Theorem | Statement |
 |---|---|
-| `selective_risk_le` | if the true error probability is at most `b` and only inputs with `b ≤ δ` are answered, the error rate among answered inputs is at most `δ` |
-| `threshold_optimal` | for a price `λ` per unit of compute, refining exactly `{i : λ κ i ≤ β i}` minimizes bound plus priced compute over all refinement sets |
-| `bound_ge_floor`, `length_limit` | if every item's risk is at least `ρ`, a bound of at most `δ` needs `n · ρ ≤ δ`: holding `δ` as inputs grow needs floors shrinking like `1 / n` |
+| 16.1 | if the true error probability is at most `b` and only inputs with `b ≤ δ` are answered, the error rate among answered inputs is at most `δ` |
+| 16.2 | for a price `λ` per unit of compute, refining exactly `{i : λ κ i ≤ β i}` minimizes bound plus priced compute over all refinement sets |
+| 16.3 | if every item's risk is at least `ρ`, a bound of at most `δ` needs `n · ρ ≤ δ`: holding `δ` as inputs grow needs floors shrinking like `1 / n` |
 
 So the efficient policy is local: refine a glyph when its expected bound
 reduction pays for its cost, and sweep `λ` (equivalently the target `δ`) to
@@ -568,28 +568,28 @@ reading's classes: at an operator position the parser chooses among
 operators, never "not an operator". With `C` the classes it ranges over, the
 item's risk becomes the error probability of that restricted decision,
 `1 − max_C p / Σ_C p`. When the most probable class lies in `C` this never
-exceeds `1 − max p` (`restricted_risk_le`), so the bound only tightens.
+exceeds `1 − max p` (Theorem 16.4), so the bound only tightens.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs
 whose label is among its classes.
 
-**Practice queue**. Abstentions
+**Practice queue.** Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with
 calibrated risk `r ≥ θ` are queued for a teacher's label.
 
 | Theorem | Statement |
 |---|---|
-| `queued_value` | each queued label is expected to correct at least `θ` errors |
-| `unqueued_errors` | at most `θ` expected errors per unqueued glyph escape the queue |
-| `queued_captures` | the queue holds all but `θ · n` of the expected errors among `n` glyphs |
-| `proportional_value` | drawing glyphs with probability `∝ r` finds `Σ r² / Σ r ≥ Σ r / n` expected errors per label, never fewer than random labels |
+| 16.5 | each queued label is expected to correct at least `θ` errors |
+| 16.6 | at most `θ` expected errors per unqueued glyph escape the queue |
+| 16.7 | the queue holds all but `θ · n` of the expected errors among `n` glyphs |
+| 16.8 | drawing glyphs with probability `∝ r` finds `Σ r² / Σ r ≥ Σ r / n` expected errors per label, never fewer than random labels |
 
 ## 17. Calibration under distribution shift
 
 ### 17.1 The problem
 
-`selective_risk_le` promises that the error rate among answered inputs is at
+Theorem 16.1 promises that the error rate among answered inputs is at
 most `δ`, under one premise: the bound is valid, `q(x) ≤ b(x)` for every
 input `x`, where `q(x)` is the true probability that the answer to `x` is
 wrong and `b(x)` the controller's bound. The bound is a sum of calibrated
@@ -612,7 +612,7 @@ Three facts organize the repair:
 
 Write `A = {x : b(x) ≤ δ}` for the answered inputs and `p` for the input
 distribution. Splitting `q = b + (q − b) ≤ δ + (q − b)⁺` on `A` gives
-(`selective_risk_le_excess`):
+(Theorem 17.1):
 
 > `Σ_{x∈A} p(x) q(x) ≤ δ · Σ_{x∈A} p(x) + Σ_{x∈A} p(x) (q(x) − b(x))⁺`.
 
@@ -631,7 +631,7 @@ inputs. Three remarks:
   appear at strict targets first.
 - **Transfer under bounded shift.** If deployment weights are at most `W`
   times reference weights (`pQ ≤ W · pP`), every nonnegative weighted sum
-  grows by at most `W` (`shift_ratio_le`). A deficit measured on `P` thus
+  grows by at most `W` (Theorem 17.2). A deficit measured on `P` thus
   bounds the deficit on `Q` up to the factor `W`, which is unknown in
   practice and can be large.
 
@@ -642,7 +642,7 @@ deployment distributions `Q₁` and `Q₂` with the same inputs as `P` but
 different labels on a set `S` of inputs that `b` answers. On `S` the true
 error probabilities differ, while `b` is the same for both, because it never
 saw `Q`. The bound cannot be valid for both unless it declines `S`. Pushed to
-the limit, this is `offline_rate_insufficient` (§5): a module that never fails
+the limit, this is Theorem 5.2 (§5): a module that never fails
 offline can fail always in situ. A guarantee on `Q` therefore requires
 observations from `Q`. The question is how few, and how to use them
 without spending the guarantee on their noise.
@@ -655,7 +655,7 @@ whose labels are chosen by risk to train better experts. Audit inputs must
 be drawn so that their distribution is known: uniformly from the deployment
 stream (the default), or with known inclusion probabilities `π(x) > 0`, in
 which case every audit quantity is weighted by `1 / π(x)` and remains
-unbiased for its population value (`horvitz_thompson`). The second option
+unbiased for its population value (Theorem 17.3). The second option
 lets practice labels drawn with probability proportional to risk be reused
 for auditing. Their weights are inversely proportional to risk, so
 low-risk inputs, rarely drawn, count heavily.
@@ -677,7 +677,7 @@ certify a member of it with the audit, as follows.
 **Policy family.** For an inflation factor `λ ≥ 1`, policy `π_λ` runs the
 controller with target `δ / λ` and answers when the final bound satisfies
 `λ · b ≤ δ`. Larger `λ` means more refinement and more caution. For a fixed
-bound function the answered sets are nested (`inflated_answered_mono`), and
+bound function the answered sets are nested (Theorem 17.4), and
 the family always contains a *trivially safe* member in the limit: never
 answer. The true selective risk of a policy on `Q` is
 
@@ -700,7 +700,7 @@ requires `U < R(λ)`, which has probability at most `α`: each test is valid
 at level `α`.
 
 **Fixed sequence.** Fix an order of the candidates, test them in that
-order, and stop at the first one not declared safe. By `fixed_sequence_le`:
+order, and stop at the first one not declared safe. By Theorem 17.5:
 
 > `P(some accepted candidate is unsafe) ≤ α`,
 
@@ -824,7 +824,7 @@ outside the chosen group. With singleton groups this is the restricted risk
 `1 − max_C p / p(C)` of §16. With `C` all classes and singleton groups, it is
 the class risk `1 − max p`.
 
-**Theorem** (`grouped_risk_le`). If the chosen
+**Theorem 18.1.** If the chosen
 group contains the most probable class `a`, then `p(a) ≤ p(g*)`, so the group
 risk is at most the class risk `1 − p(a) / p(C)`. Coarser decisions never
 carry more risk than finer ones under the same reading.
@@ -860,7 +860,7 @@ The certificate is computed from the reading. It never needs the truth,
 which is unknown. Note the asymmetry: `cert(t)` may differ from `cert(r)`,
 and only `cert(r)` matters.
 
-**Theorem** (`certificate_error_le`, `certificate_error_le_support`). For any
+**Theorem 18.2.** For any
 distribution of the truth given the reading `r`,
 
 > `P(f(t) ≠ f(r) | r) ≤ Σ_i P(t_i ≁_{cert(r), i} r_i | r)`,
@@ -900,12 +900,12 @@ constant at every evaluated node. Skipped subtrees are unconstrained.
 
 | Theorem | Statement |
 |---|---|
-| `cert_sound` | if `c` is valid for `r` and `t` agrees with `r` on `c`, then `t` and `r` have the same value |
-| `bestCert_valid`, `bestCert_le` | with a weight per node (`w_full` where evaluated, `w_shape` throughout skipped subtrees), the node-by-node choice `bestCert` is valid and weighs no more than any valid certificate |
-| `bestCert_le_full` | `bestCert` weighs no more than evaluating every node |
-| `code_prefix` | if one formula's arity sequence followed by `a` equals another's followed by `b`, the arity sequences are equal and `a = b` |
+| 18.3 | if `c` is valid for `r` and `t` agrees with `r` on `c`, then `t` and `r` have the same value |
+| 18.4 | with a weight per node (`w_full` where evaluated, `w_shape` throughout skipped subtrees), the node-by-node choice `bestCert` is valid and weighs no more than any valid certificate |
+| 18.5 | `bestCert` weighs no more than evaluating every node |
+| 18.6 | if one formula's arity sequence followed by `a` equals another's followed by `b`, the arity sequences are equal and `a = b` |
 
-**Words.** The words of a formula are its preorder. By `code_prefix`, the
+**Words.** The words of a formula are its preorder. By Theorem 18.6, the
 arity sequence of a word sequence determines the tree's shape and where each
 subformula ends. If every word's arity decision is right, the read tree and
 the true tree have the same shape, and the node at preorder position `k` is
@@ -914,7 +914,7 @@ word `k` in both. The word-level certificate is therefore:
 - the **arity decision** at every word;
 - the **full decision** at every word that is a node `bestCert` evaluates.
 
-Agreement on these gives agreement on the tree certificate, and `cert_sound`
+Agreement on these gives agreement on the tree certificate, and Theorem 18.3
 gives the right answer, so this certifies the evaluator in the sense of
 §18.4. If the read arities do not form a formula, no answer is certified:
 some arity decision is certainly wrong.
@@ -923,11 +923,11 @@ some arity decision is certainly wrong.
 of its full decision. For a skipped word, it is the risk of its arity
 decision. `bestCert` is then the least-risk certificate, computed bottom-up in
 one pass over the words. Its bound never exceeds the static bound that
-decides every word fully (`bestCert_le_full`).
+decides every word fully (Theorem 18.5).
 
 ### 18.6 How certificates scale
 
-**Theorem** (`alternating_cert_leaves`). Every complete alternating
+**Theorem 18.7.** Every complete alternating
 `and`/`or` tree of depth `d`, whatever its leaf values, has a valid certificate
 evaluating at most `2^⌈d/2⌉` of its `n = 2^d` leaves: about `√n`.
 
@@ -946,7 +946,7 @@ certificate bound on a formula with `m ≈ 2.25 n` words is about
 > `m · ρ_shape + c √n · ρ_full`,
 
 against `m · ρ_full` for static demand. The length limit of §16
-(`length_limit`) changes from `n ≲ δ / ρ_full` to roughly
+(Theorem 16.3) changes from `n ≲ δ / ρ_full` to roughly
 `n ≲ (δ / ρ_full)²`, until the shape term dominates at
 `n ≈ δ / ρ_shape`. Arity decisions are easy: `true`/`false` look nothing like
 the connectives. So `ρ_shape ≪ ρ_full`, and the gain is large exactly where
@@ -1002,17 +1002,16 @@ an answer wrong.
 
 ### 19.2 Single errors are detected
 
-**Theorem** (`code_sum`). Every formula's
+**Theorem 19.1.** Every formula's
 preorder arity sequence sums to one less than its length:
 `Σ_k (a_k − 1) = −1`.
 
-**Theorem** (`code_no_single_change`). Two formulas with the same number of
+**Theorem 19.2.** Two formulas with the same number of
 words whose arity sequences agree everywhere except possibly at one
 position have the same arity sequence.
 
-*Proof.* Equal lengths and `code_sum` give equal sums. Lists of equal length
-and equal sum agreeing outside one position agree there too
-(`List.eq_of_sum_eq_of_agree`).
+*Proof.* Equal lengths and Theorem 19.1 give equal sums. Lists of equal length
+and equal sum agreeing outside one position agree there too.
 
 The premise is that word boundaries are known, so the reading and the truth
 have the same number of words. The channel never corrupts spaces. Then, given
@@ -1025,8 +1024,8 @@ Let the reading `r` parse, let `t` be the truth, and let `E` be the words the
 reading's certificate evaluates. Write `A_k` for "word `k`'s arity is
 misread" and `W_k` for "word `k` is misread but its arity is right".
 
-- If no arity is misread, the trees align node by node (`code_prefix`). A
-  wrong answer then needs a disagreement on an evaluated node (`cert_sound`),
+- If no arity is misread, the trees align node by node (Theorem 18.6). A
+  wrong answer then needs a disagreement on an evaluated node (Theorem 18.3),
   that is, some `W_k` with `k ∈ E`.
 - If some arity is misread, at least two are (§19.2).
 
@@ -1034,14 +1033,14 @@ Hence
 
 > `wrong ⊆ (⋃_{k ∈ E} W_k) ∪ {at least two A_k}`
 
-and (`detected_error_le`)
+and (Theorem 19.3)
 
 > `P(wrong | r) ≤ Σ_{k ∈ E} P(W_k | r) + P(at least two A_k | r)`.
 
 **Evaluated words.** `P(W_k)` is the probability that the true word lies in
 the read word's arity group `g` but differs from it, `p(g) − p(r_k)`. This is
 at most the risk `1 − p(r_k) / p(g)` of the decision restricted to `g`
-(`joint_le_restricted`), which §16 already calibrates. For `not`, alone in
+(Theorem 19.4), which §16 already calibrates. For `not`, alone in
 its group, it is 0.
 
 **Arity.** What remains is the probability of at least two arity failures
@@ -1051,12 +1050,12 @@ among all words.
 
 Write `ρ_k` for word `k`'s arity risk and `S = Σ_k ρ_k`.
 
-**Without further premises** (`two_occur_le_half`). The number of failures
+**Without further premises** (Theorem 19.5). The number of failures
 `N = Σ_k 1[A_k]` has mean `S`. By Markov's inequality,
 `P(N ≥ 2) ≤ S / 2`. Detection halves the arity term, using nothing but the
 format.
 
-**Without positive correlation** (`two_occur_le_pairs`). If failures at two
+**Without positive correlation** (Theorem 19.6). If failures at two
 different words are never positively correlated given the readings,
 `P(A_i ∩ A_j | r) ≤ ρ_i ρ_j`, then
 
@@ -1140,13 +1139,13 @@ body is a planned sub-goal. Slots make it one library expert among others.
 
 ### 20.2 Slots
 
-A contract with slots (`HContract`) adds a list of
+A contract with slots adds a list of
 sub-goals `[a₁, …, aₖ] ⇒ b` to the inputs and output. A plan
 `apply c fs ps` fills slot `i` with the plan `fs[i]` and input `j` with
 `ps[j]`. The expert receives the fillings as functions and may call them
 during its invocation. It never learns which experts implement them.
 
-**Typing** (`HTyped`). It extends §1 with one premise. A slot filling must be
+**Typing.** It extends §1 with one premise. A slot filling must be
 a well-typed plan from *exactly the slot's inputs* to the slot's output:
 
 | Rule | Premises | Conclusion |
@@ -1161,7 +1160,7 @@ separately.
 The library is a predicate, not a list, so that it can contain families
 such as `map` at every pair of types.
 
-**Theorem** (`HTyped.mono`). Installing experts never invalidates a plan.
+**Theorem 20.1.** Installing experts never invalidates a plan.
 
 ### 20.3 `map` is a higher-order expert
 
@@ -1169,7 +1168,7 @@ such as `map` at every pair of types.
 `[a] ⇒ e`, input `seq a` and output `seq e`. It calls its slot once per
 element.
 
-**Theorem** (`embed_wellTyped`). Every plan well-typed in the sense of §1 is
+**Theorem 20.2.** Every plan well-typed in the sense of §1 is
 expressed by a plan in which `map` is a library expert with zero own cost
 and call bound `L`. The new plan has the same type and the same cost on
 sequences of length `L`.
@@ -1197,13 +1196,13 @@ times per invocation. Then
 
 `map` has `κ = 0` and `ν = L`, recovering §13.
 
-**Theorem** (`HPlan.cost_le_pow`). If `1 ≤ N` and every expert calls its
+**Theorem 20.3.** If `1 ≤ N` and every expert calls its
 slots at most `N` times, a plan costs at most `N^nest` times its cost with
 every slot called once. Here `nest` is the slot nesting depth, the largest
 number of fillings enclosing an expert.
 
 With `N = L`, plans whose fillings contain no further fillings are linear
-in `L`, as in `Plan.cost_linear`. The polynomial degree of a composition is
+in `L`, as in Theorem 13.2. The polynomial degree of a composition is
 visible from its shape before anything runs.
 
 **Worst case and expected cost.** `ν` is a worst-case bound and certifies a
@@ -1220,7 +1219,7 @@ two numbers per slot:
 - the bound `ν`, used for budgets and guarantees;
 - the expected number of calls `ν̄`, used as the planner's cost objective.
 
-For fallback, `ν̄ = (1, P(unsure))`, which is `cascade_expected_cost`. The
+For fallback, `ν̄ = (1, P(unsure))`, which is Theorem 14.6. The
 premise matters: a filling whose cost is correlated with being called (a
 cascade nested in a cascade, deferring on the same inputs) breaks it
 (§26).
@@ -1232,7 +1231,7 @@ the situation of `map`'s body, so the planner's state `(available, type,
 depth)` is unchanged. An expert with slots spawns one sub-goal per slot,
 alongside one per input.
 
-**Theorem** (`HPlan.cost_mono`, optimal substructure). Cost is monotone in
+**Theorem 20.4** (optimal substructure). Cost is monotone in
 the cost of every filling and every argument. Replacing either by a cheaper
 plan of the same type never makes a plan dearer.
 
@@ -1256,7 +1255,7 @@ plan of the same type never makes a plan dearer.
    cheapest route within an error target may now be a cascade, and the
    planner picks both of its components. Before, a cascade was hand-built.
    Its expected cost `κ₁ + κ₂ · P(unsure)` enters the objective through
-   `ν̄`. Its error is `P(C ∩ W₁) + P(Cᶜ ∩ W₂)` (`cascade_error_eq`). That
+   `ν̄`. Its error is `P(C ∩ W₁) + P(Cᶜ ∩ W₂)` (Theorem 14.4). That
    error is a property of the pair, not a sum of per-filling errors, so the
    fallback expert declares it per filling pair from audit data.
 
@@ -1275,15 +1274,15 @@ budget (`serve`):
   remains.
 - No expert is excluded, so a program may ask its own question again.
 
-The definition is accepted by Lean through well-founded recursion on the
+The definition is by well-founded recursion on the
 budget, which strictly decreases with every invocation. That acceptance is
 the termination proof: every run ends, recursive or not.
 
 | Theorem | Statement |
 |---|---|
-| `serve_sound` | if every expert's program is safe for its question's specification, every answer is correct, at any budget and recursion depth |
-| `serve_spent` | an answer leaves at most `b − κ q`: every invocation is paid from the budget |
-| `Prog.runB_le` | serving a program's questions never increases the budget |
+| 20.5 | if every expert's program is safe for its question's specification, every answer is correct, at any budget and recursion depth |
+| 20.6 | an answer leaves at most `b − κ q`: every invocation is paid from the budget |
+| 20.7 | serving a program's questions never increases the budget |
 
 **Consequences.**
 
@@ -1355,9 +1354,9 @@ awaited subformula, it ends with none awaited.
 
 | Theorem | Statement |
 |---|---|
-| `await_code` | reading a formula's arity sequence consumes exactly one awaited subformula |
-| `code_accepted` | every formula's arity sequence is accepted |
-| `accepts_iff_codes` | a sequence of arities at most 2 is accepted from `n` awaited exactly when it is the concatenated arity sequence of `n` formulas |
+| 21.1 | reading a formula's arity sequence consumes exactly one awaited subformula |
+| 21.2 | every formula's arity sequence is accepted |
+| 21.3 | a sequence of arities at most 2 is accepted from `n` awaited exactly when it is the concatenated arity sequence of `n` formulas |
 
 So `L_m` is exactly the set of length-`m` words the automaton accepts. The
 decoded sequence is therefore always a formula, and every formula is a
@@ -1370,9 +1369,9 @@ score of a sequence as its weight product if accepted, else 0.
 
 | Theorem | Statement |
 |---|---|
-| `dpSum_eq` | the sum-product recursion over states equals the total score of all sequences |
-| `dpMax_ge` | with nonnegative weights, no sequence scores more than the max-product recursion |
-| `dpMax_attained` | unless the maximum is 0, some sequence attains it; backtracking the maximizing choices finds it |
+| 21.4 | the sum-product recursion over states equals the total score of all sequences |
+| 21.5 | with nonnegative weights, no sequence scores more than the max-product recursion |
+| 21.6 | unless the maximum is 0, some sequence attains it; backtracking the maximizing choices finds it |
 
 With `wₖ = qₖ`:
 
@@ -1412,7 +1411,7 @@ exactly
 
 > `R = 1 − Πₖ qₖ(âₖ) / Z`.
 
-**Theorem** (`exact_risk_le_union`, `one_sub_prod_le_sum`). Since `Z ≤ 1`,
+**Theorem 21.7.** Since `Z ≤ 1`,
 `R ≤ 1 − Πₖ qₖ(âₖ) ≤ Σₖ (1 − qₖ(âₖ))`. Correction is never worse than the
 union bound over the decoded arities.
 
@@ -1427,7 +1426,7 @@ to the group `âₖ`. So each word is decoded as the most probable class within
 its decoded arity group. That pairs every word's identity with its own
 arity, which resolves the objection of §18.3 to choosing groups by mass.
 With `E` the words the decoded formula's least-risk certificate evaluates
-(§19.5), and `rₖ` the restricted risks, the argument of `detected_error_le`
+(§19.5), and `rₖ` the restricted risks, the argument of Theorem 19.3
 gives
 
 > `P(wrong | readings) ≤ R + Σ_{k ∈ E} rₖ`.
@@ -1440,9 +1439,9 @@ reading is uncertain can still have a small `μₖ` when only one arity fits
 its neighbours.
 
 **Errors come in pairs.** The truth and `â` are both formulas of `m` words,
-so they differ in no position or in at least two (`code_no_single_change`).
+so they differ in no position or in at least two (Theorem 19.2).
 Applied to the posterior measure, Markov's inequality on the number of
-differing positions (`two_occur_le_half`) gives
+differing positions (Theorem 19.5) gives
 
 > `R ≤ ½ Σₖ μₖ`.
 
@@ -1539,7 +1538,7 @@ abstaining at once changes no answer and saves the remaining climbs.
 Readings at the top rung never change. Call those words *fixed*.
 
 - **Detection accounts.** `min(S / 2, e₂)` is monotone in the arity risks
-  (`detection_account_mono`). Setting every open word's risk to zero gives
+  (Theorem 22.1). Setting every open word's risk to zero gives
   the floor `min(S_F / 2, e₂(F))` over the fixed words `F`. Within-group
   charges are nonnegative, and an unparseable reading has bound `∞`, so
   every reachable bound is at least this floor.
@@ -1598,15 +1597,15 @@ most 1) and off-reference mass `ρₖ = Σ_{a ≠ rₖ} qₖ(a)`; let `S = Σₖ
 
 | Theorem | Statement |
 |---|---|
-| `tail_le_esym` | the total weight of the sequences differing from `r` in at least `j` positions, parseable or not, is at most `e_j(ρ)`, the elementary symmetric polynomial |
-| `factorial_mul_esym_le` | `j! · e_j(ρ) ≤ S^j` for nonnegative `ρ` (a Maclaurin-type inequality) |
-| `outside_le_tail` | the accepted sequences among them weigh at most the same tail |
+| 23.1 | the total weight of the sequences differing from `r` in at least `j` positions, parseable or not, is at most `e_j(ρ)`, the elementary symmetric polynomial |
+| 23.2 | `j! · e_j(ρ) ≤ S^j` for nonnegative `ρ` (a Maclaurin-type inequality) |
+| 23.3 | the accepted sequences among them weigh at most the same tail |
 
 So the weight outside `j − 1` changes is at most `U_j = S^j / j!`. For
 `j = 2` this is `e₂` of §19.4. Here it is a statement about the decoding
 model's weights, so it needs no premise beyond (P).
 
-**From changes to states** (`sum_sub_le_diff`). Arities are at most 2, so
+**From changes to states** (Theorem 23.4). Arities are at most 2, so
 two sequences differing in `d` positions have sums at most `2d` apart. The
 same holds for every prefix. Hence the counter of `await` (one plus the
 prefix sum of `a − 1`) of a sequence within `j − 1` changes of `r` stays
@@ -1626,7 +1625,7 @@ The banded passes compute:
 Every other accepted sequence lies outside `j − 1` changes, so the true
 normalizer satisfies `Z ≤ Z_band + U_j`.
 
-**Theorem** (`banded_risk_le`). If `x ≥ 0`, `Z > 0` and
+**Theorem 23.5.** If `x ≥ 0`, `Z > 0` and
 `Z ≤ Z_band + U`, then `1 − x / Z ≤ 1 − x / (Z_band + U)`.
 
 The controller answers with `â` and charges `R_band = 1 − x / (Z_band + U_j)`.
@@ -1654,7 +1653,7 @@ word count) and the order of magnitude of bottom-rung readings at depth 8.
 
 ### 23.4 Splitting at the climbed word
 
-**Theorem** (`dpSum_append`). The sum over all sequences splits at any
+**Theorem 23.6.** The sum over all sequences splits at any
 position into prefixes, each weighted by the sum over suffixes from the state
 the prefix ends in. Grouping prefixes by their end state gives
 
@@ -1755,14 +1754,14 @@ Let `Λ = C / c`, and `R*` be the true posterior risk of `â`.
 
 | Theorem | Statement |
 |---|---|
-| `reweighted_odds` | reweighting nonnegative weights by `ρ ≤ C` on an event and `ρ ≥ c` off it multiplies the event's odds by at most `C / c` |
-| `reweighted_risk_le` | `R* ≤ Λ R / (1 − R + Λ R)` |
-| `reweighted_risk_le_mul` | for `Λ ≥ 1`, `R* ≤ Λ R` |
-| `dominated_risk_le` | if `ρ(â) ≥ ρ(a)` for every competitor (`Λ ≤ 1`), `R* ≤ R` |
+| 24.1 | reweighting nonnegative weights by `ρ ≤ C` on an event and `ρ ≥ c` off it multiplies the event's odds by at most `C / c` |
+| 24.2 | `R* ≤ Λ R / (1 − R + Λ R)` |
+| 24.3 | for `Λ ≥ 1`, `R* ≤ Λ R` |
+| 24.4 | if `ρ(â) ≥ ρ(a)` for every competitor (`Λ ≤ 1`), `R* ≤ R` |
 
 The bound is in odds: the true odds of an error are at most `Λ` times the
 model's. For small `R` it is close to `Λ R`. Exchanging the roles of the two
-priors (`reweighted_odds` applied to the inverse ratio) gives a lower bound of
+priors (Theorem 24.1 applied to the inverse ratio) gives a lower bound of
 the same form, with the *smallest* ratio at a competitor in place of the
 largest. Together they bracket how far the model's risk can be from the truth.
 
@@ -1791,7 +1790,7 @@ Two cases follow, and nothing in between:
 
 1. **The decoded sequence is a complete tree** (`â ∈ S_m`). Then
    `ρ(â) = κ ≥ ρ(a)` for every competitor, so `R* ≤ R`
-   (`dominated_risk_le`). The true risk is `R` restricted to the support:
+   (Theorem 24.4). The true risk is `R` restricted to the support:
    competitors the generator never produces drop out.
 2. **The decoded sequence is not a complete tree** (`â ∉ S_m`). Then
    `ρ(â) = 0`, `Λ = ∞`, and the bound says nothing. Indeed the truth lies in
@@ -1806,7 +1805,7 @@ audit of risk control (§24.5).
 
 ### 24.4 No prior, no guarantee
 
-**Theorem** (`adversarial_prior`). Put weight 1 on a competitor of positive
+**Theorem 24.5.** Put weight 1 on a competitor of positive
 weight `w'`, weight `t` on the decoded sequence (weight `ŵ`), and 0
 elsewhere. The true risk is `w' / (w' + t ŵ) ≥ 1 − t ŵ / w'`, which tends to
 1 as `t → 0`.
@@ -1836,7 +1835,7 @@ anything.
 Risk control (§17) never uses the account's premises. It treats each
 candidate threshold `δ / λ` as a policy, answers audit formulas drawn from
 the deployment generator, and tests each policy's error rate among answered
-formulas in a fixed order (`fixed_sequence_le`). With probability at least
+formulas in a fixed order (Theorem 17.5). With probability at least
 `1 − α` over the audit, every certified policy's error rate among answered
 formulas is at most `δ`, whether or not (P) holds. The account decides
 *which* formulas a policy answers, and so how much it covers. Only the
@@ -1851,7 +1850,7 @@ The distribution-level guarantee does not need the prior, only labeled
 formulas from where the system is used. The per-formula bound `R` is a
 model's claim, and §24.3 shows when it fails.
 
-**A better prior is an expert.** `dpSum_eq`, `dpMax_ge` and `dpMax_attained`
+**A better prior is an expert.** Theorems 21.4–21.6
 hold for any deterministic automaton and any position-wise weights. A prior
 given by a weighted finite automaton over arities, for example one fitted
 to training formulas, enters the same dynamic program through a product
@@ -1872,7 +1871,7 @@ Refinement solves a covering problem. Let `D` be the amount by which the
 bound must fall to reach `δ`. Climbing item `i` costs `cᵢ` and lowers the
 bound by `dᵢ`, a quantity revealed only after the climb.
 
-**Theorem** (`cost_ge_of_ratio`). If no climb
+**Theorem 25.1.** If no climb
 lowers the bound by more than `r` per unit of compute, then any set of
 climbs that lowers it by `D` costs at least `D / r`, in any order.
 
@@ -1897,7 +1896,7 @@ per cost. That is the ratio rule with three simplifications:
 - drops are not known in advance.
 
 The second assumption holds exactly when one ladder serves every item, as
-in both domains. This connects to `threshold_optimal` (§16): refining
+in both domains. This connects to Theorem 16.2 (§16): refining
 exactly the items whose bound reduction exceeds `λ` times their cost
 minimizes risk plus `λ` times compute. Greedy by charge implements that
 rule one item at a time.
@@ -1909,8 +1908,8 @@ riskiest words first, and those are not typical words. Words with large
 bottom-rung risk are mostly genuinely ambiguous ones, such as `not`
 misread as a connective, and they keep large risk at the top rung.
 
-**Theorem** (`pairs_ge_count`). If `t` risks are each at least `a ≥ 0`,
-their pairs function (`pairsList`, the `e₂` of §19.4) is at least
+**Theorem 25.2.** If `t` risks are each at least `a ≥ 0`,
+their pairs function (the `e₂` of §19.4) is at least
 `t (t − 1) / 2 · a²`.
 
 So the pairs floor exceeds `δ` once
@@ -1933,7 +1932,7 @@ the bound reaches `δ`, refinement stops and earns reward 1, one answered
 formula. Maximizing coverage minus `λ` times compute is maximizing this
 reward.
 
-**Model**. A finite tree of states. At each state the
+**Model.** A finite tree of states. At each state the
 controller may stop with reward `g`, or pay `c` and move to a random next
 state. The *lookahead set* is the set of states where stopping now is at
 least as good as one more step followed by stopping. The problem is
@@ -1942,17 +1941,17 @@ it.
 
 | Theorem | Statement |
 |---|---|
-| `lookahead_stop_optimal` | in a monotone problem, every state of the lookahead set is worth exactly its stopping reward: stopping there is optimal |
-| `lookahead_continue_better` | outside the lookahead set, continuing is worth strictly more than stopping |
+| 25.3 | in a monotone problem, every state of the lookahead set is worth exactly its stopping reward: stopping there is optimal |
+| 25.4 | outside the lookahead set, continuing is worth strictly more than stopping |
 
 So for monotone problems, the optimal policy is the one-step rule.
 
 **Floors are the monotone part.** The fixed set only grows, and floors are
-monotone in it (`detection_account_mono`). So once the floor exceeds `δ`,
+monotone in it (Theorem 22.1). So once the floor exceeds `δ`,
 it does so in every later state. There, no continuation ever answers.
 Stopping is worth 0 and every climb costs, so these states form a lookahead
 set closed under continuation, and abstaining there is optimal by
-`lookahead_stop_optimal`, at every `λ ≥ 0`. This is §22.3's soundness, seen
+Theorem 25.3, at every `λ ≥ 0`. This is §22.3's soundness, seen
 as optimal stopping.
 
 **Bound states are not monotone.** A state whose bound is far above `δ`,
@@ -2009,10 +2008,10 @@ cascade, so `c` varies with the input.
 
 | Theorem | Statement |
 |---|---|
-| `fallback_cost_eq` | `E[cost] = κ₁ + Σ_{ω ∈ U} p ω · c ω` |
-| `fallback_cost_conditional` | for `P(U) > 0`, this is `κ₁ + P(U) · E[c \| U]` |
-| `fallback_cost_sub_independent` | `Σ_U p c − P(U) · E[c] = Cov(1_U, c)` |
-| `fallback_cost_ge_independent` | if `Cov(1_U, c) ≥ 0`, the exact cost is at least the independent formula |
+| 26.1 | `E[cost] = κ₁ + Σ_{ω ∈ U} p ω · c ω` |
+| 26.2 | for `P(U) > 0`, this is `κ₁ + P(U) · E[c \| U]` |
+| 26.3 | `Σ_U p c − P(U) · E[c] = Cov(1_U, c)` |
+| 26.4 | if `Cov(1_U, c) ≥ 0`, the exact cost is at least the independent formula |
 
 So the independent formula `κ₁ + P(U) · E[c]` is exact precisely when the
 deferral indicator is uncorrelated with the second slot's cost. It
@@ -2037,12 +2036,12 @@ A chain of recognizers `0, …, k − 1` answers each input at one level:
 
 | Theorem | Statement |
 |---|---|
-| `chain_error_eq` | error `= Σᵢ P(lev = i ∩ Wᵢ)`, with `Wᵢ` level `i`'s errors |
-| `chain_cost_eq` | cost `= Σᵢ κᵢ · P(lev ≥ i)`: level `i` is paid wherever it is reached |
-| `split_error_eq` | splitting the level answering on `R` into a cascade that keeps `C ⊆ R` and passes `R \ C` on changes the error by `P((R \ C) ∩ W') − P((R \ C) ∩ W)` |
+| 26.5 | error `= Σᵢ P(lev = i ∩ Wᵢ)`, with `Wᵢ` level `i`'s errors |
+| 26.6 | cost `= Σᵢ κᵢ · P(lev ≥ i)`: level `i` is paid wherever it is reached |
+| 26.7 | splitting the level answering on `R` into a cascade that keeps `C ⊆ R` and passes `R \ C` on changes the error by `P((R \ C) ∩ W') − P((R \ C) ∩ W)` |
 
-`chain_error_eq` generalizes `cascade_error_eq` to any depth.
-`split_error_eq` says when depth helps: a new level lowers error exactly
+Theorem 26.5 generalizes Theorem 14.4 to any depth.
+Theorem 26.7 says when depth helps: a new level lowers error exactly
 when it errs less than the old level *on the inputs passed to it*, and it
 adds cost `κ_new · P(R \ C)`. Both quantities are conditional on the
 deferral set, not marginal.
@@ -2051,7 +2050,7 @@ deferral set, not marginal.
 
 **Worst-case cost stays compositional.** With worst-case call bounds `ν`,
 cost depends on a filling only through a number fixed in advance.
-`HPlan.cost_mono` applies, and the Bellman recursion of §20.5 is exact.
+Theorem 20.4 applies, and the Bellman recursion of §20.5 is exact.
 
 **Expected cost is not compositional under correlated deferral.** A
 filling's contribution is `E[c | U]`, which depends on the context `U` it is
@@ -2082,8 +2081,8 @@ candidates:
 
 | Theorem | Statement |
 |---|---|
-| `argmin_within` | if every candidate's estimate is within `ε` of its true value, the chosen one is within `2ε` of the best |
-| `some_deviates_le` | the probability that some estimate deviates is at most the sum over candidates |
+| 26.8 | if every candidate's estimate is within `ε` of its true value, the chosen one is within `2ε` of the best |
+| 26.9 | the probability that some estimate deviates is at most the sum over candidates |
 
 The per-candidate deviation probability comes from a standard concentration
 inequality for a binomial error rate, which is not formalized here. For an
@@ -2122,10 +2121,10 @@ final weight `f(t)`.
 
 | Theorem | Statement |
 |---|---|
-| `pdpSum_eq` | the product sum-product recursion equals the sum over all sequences of score × prior |
-| `pdpMax_ge` | with nonnegative weights, no sequence's score × prior exceeds the product max-product recursion |
-| `pdpMax_attained` | unless the maximum is 0, some sequence attains it; backtracking decodes it |
-| `pdpSum_unit` | with the one-state prior of weight 1, the product program is the format-only program `dpSum` |
+| 27.1 | the product sum-product recursion equals the sum over all sequences of score × prior |
+| 27.2 | with nonnegative weights, no sequence's score × prior exceeds the product max-product recursion |
+| 27.3 | unless the maximum is 0, some sequence attains it; backtracking decodes it |
+| 27.4 | with the one-state prior of weight 1, the product program is the format-only program `dpSum` |
 
 So everything in §21 carries over unchanged under any prior automaton:
 
@@ -2156,7 +2155,7 @@ A prior expert has the contract
 producing, for a formula of `m` words, a prior automaton over arities
 `{0, 1, 2}`. The evaluator consumes it alongside the word distributions. It
 decodes under the product, and the format-only prior is the default
-(`pdpSum_unit`).
+(Theorem 27.4).
 
 Nothing about a generator is written into the evaluator. A generator's
 structure enters as a separately installed, separately chosen expert, as
@@ -2214,7 +2213,7 @@ different `d`. So `length → arity.prior.v1` is a function.
 weights all 1, the effective prior is (P)'s restricted to `S_m`, which is
 proportional to the generator's. The prior ratio `ρ` is constant on the
 whole support, and `â` always lies in it. So `Λ = 1` in both directions
-(`dominated_risk_le` and its exchange): under per-word calibration and
+(Theorem 24.4 and its exchange): under per-word calibration and
 independent readings, `R* = R` exactly. Decodings outside `S_m`, which §24.3
 showed are certainly wrong, cannot occur.
 
@@ -2248,7 +2247,7 @@ where:
   weights (the prior's own normalizer);
 - the constant `Πₖ p(xₖ) / Πₖ πₖ(·)` is shared by all priors, so it cancels.
 
-Both terms are instances of `pdpSum_eq`. The kernel selects the prior with
+Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
 
 **What evidence rewards.** `−log Z_e(π)` rewards small support: an Occam
