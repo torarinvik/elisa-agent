@@ -1707,3 +1707,20 @@ def test_failed_recalibration_preserves_state_and_snapshots_labels(monkeypatch) 
         rung.calibrate([0, 1], torch.tensor([0, 1]))
     assert rung.held_out is previous
     assert rung.temperatures == previous_temperatures
+
+
+def test_calibration_snapshots_labels_before_invoking_expert() -> None:
+    labels = torch.tensor([0, 1])
+
+    class MutatingExpert:
+        manifest = Manifest("label-mutator", "1", Contract(("x",), "dist"))
+
+        def invoke(self, value):
+            labels[1] = 0
+            return (0.6, 0.4)
+
+    rung = Rung(MutatingExpert())
+    rung.calibrate([0, 1], labels)
+    assert labels.tolist() == [0, 0]
+    assert rung.held_out is not None
+    assert rung.held_out[1].tolist() == [0, 1]
