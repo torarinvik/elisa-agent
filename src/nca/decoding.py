@@ -11,7 +11,7 @@ import numpy as np
 
 from nca.native import load
 from nca.priors import (Decoded, _generic_format_sequence_risk as _format_sequence_risk,
-                        risk_from_log_weight, sequence_log_weight)
+                        _native_format_symbols, risk_from_log_weight, sequence_log_weight)
 
 _NATIVE = load("decoding")
 
@@ -90,13 +90,14 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
         return decode_reference(log_probs, alphabet)
     m = len(log_probs)
     flat = np.ascontiguousarray(log_probs, dtype=np.float64).ravel()
-    out = np.asarray(_NATIVE.decode(flat, np.asarray(alphabet, dtype=np.int64)))
+    native_alphabet = _native_format_symbols(alphabet, m)
+    out = np.asarray(_NATIVE.decode(flat, native_alphabet))
     if out[0] <= -1e300:
         # The linear-space kernel requests log space when it loses precision.
         native_log = getattr(_NATIVE, "decode_log", None)
         if native_log is None:
             return decode_reference(log_probs, alphabet)
-        out = np.asarray(native_log(flat, np.asarray(alphabet, dtype=np.int64)))
+        out = np.asarray(native_log(flat, native_alphabet))
         if not len(out):
             return None
         if np.isnan(out[0]):
@@ -279,7 +280,7 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Seque
         high = np.array([max(-1, min(m - k, int(c) + half, 1 + k * growth))
                          for k, c in enumerate(centre)], dtype=np.int64)
         result = native(np.ascontiguousarray(log_probs, dtype=np.float64).reshape(-1),
-                        np.asarray(alphabet, dtype=np.int64), low, high)
+                        _native_format_symbols(alphabet, m), low, high)
         if not result:
             return None
         if math.isnan(result[0]):
@@ -344,7 +345,7 @@ class Split:
                 or np.any(np.isnan(self.log_probs)) or np.any(np.isposinf(self.log_probs))):
             raise ValueError("requires rows of finite or negative-infinite weights over nonnegative arities")
         m = len(self.log_probs)
-        self.arities = np.asarray(alphabet, dtype=np.int64)
+        self.arities = _native_format_symbols(alphabet, m)
         width = m + 2
         self.width = width
         position = np.arange(m + 1)
@@ -627,8 +628,8 @@ class CertifiedSplit:
         native = getattr(_NATIVE, "accepted_log_weight", None)
         if native is not None:
             accepted = native(self.log_probs.reshape(-1),
-                              np.asarray(self.alphabet, dtype=np.int64),
-                              np.asarray(arities, dtype=np.int64))
+                              _native_format_symbols(self.alphabet, len(arities)),
+                              _native_format_symbols(arities, len(arities)))
             if not accepted:
                 raise ValueError("sequence must be accepted by the arity alphabet")
             weight = float(accepted[0])

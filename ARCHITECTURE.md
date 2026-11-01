@@ -204,7 +204,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [21.1](theory/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
-| [21.3](theory/21-decoding-by-the-format.md) | `await_balance`, `accepted_arity_sum` | `Decoding` |
+| [21.3](theory/21-decoding-by-the-format.md) | `await_balance`, `accepted_arity_sum`, `accepted_arity_lt_length` | `Decoding` |
 | [21.4](theory/21-decoding-by-the-format.md) | `dpSum_eq` | `Decoding` |
 | [21.5](theory/21-decoding-by-the-format.md) | `dpMax_ge` | `Decoding` |
 | [21.6](theory/21-decoding-by-the-format.md) | `dpMax_attained`, `tiedChoice_eq_min`, `tiedChoice_comm`, `arity_exceeds_state_bound`, `counter_growth_bound` | `Decoding` |
@@ -1008,8 +1008,9 @@ THEORY §27. Its validated transition, log-edge and log-final arrays are copied
 and read-only. Alphabets may contain distinct nonnegative integer arities.
 When a label exceeds native signed 64-bit range, native calls use dense
 alphabet indices and map decoded labels back to their original integers.
-This relabelling applies to prior automata; the separate format decoder still
-converts its alphabet to signed 64-bit values.
+The separate format decoder maps arities too large for a fixed input to an
+unreachable sentinel before native conversion (`accepted_arity_lt_length`
+in `NCA.Decoding`).
 `prior_relabel` in `NCA.Product` proves path-weight preservation for a
 relabelling with a left inverse.
 Selected symbols are checked as integers before native conversion. `decode`

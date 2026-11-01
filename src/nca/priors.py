@@ -66,6 +66,12 @@ def _native_decoded_symbols(alphabet: tuple[int, ...], selected: Sequence[int]) 
     return tuple(int(symbol) for symbol in selected)
 
 
+def _native_format_symbols(symbols: Sequence[int], length: int) -> np.ndarray:
+    """Map arities that cannot fit a complete prefix to an unreachable sentinel."""
+    return np.fromiter((max(-1, min(int(a), length)) for a in symbols),
+                       dtype=np.int64, count=len(symbols))
+
+
 def risk_from_log_weight(weight: float, log_z: float) -> float:
     """Complement of a normalized log weight, stable near probability one."""
     difference = weight - log_z
@@ -451,9 +457,10 @@ def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], sel
     """Exact model risk with selected and alternative paths summed separately."""
     native = getattr(_NATIVE, "format_partition", None)
     if native is not None:
+        m = len(rows)
         partition = native(np.ascontiguousarray(rows, dtype=np.float64).reshape(-1),
-                           np.asarray(alphabet, dtype=np.int64),
-                           np.asarray(selected, dtype=np.int64))
+                           _native_format_symbols(alphabet, m),
+                           _native_format_symbols(selected, m))
         if len(partition) == 2:
             return risk_from_partition(*partition)
     m = len(rows)

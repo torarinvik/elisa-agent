@@ -812,6 +812,52 @@ def test_certified_cursor_scores_ternary_alternative(
     with pytest.raises(ValueError):
         cursor.sequence_risk((2**63 - 1, 0, 0, 0))
 
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_format_interfaces_support_arities_beyond_native_integer_range(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    big = 10**100
+    alphabet = (0, 1, 3, big, big + 1)
+    rows = np.log(np.tile([0.15, 0.2, 0.25, 0.3, 0.1], (4, 1)))
+    exact = decode_reference(rows, alphabet)
+    actual = decode(rows, alphabet)
+    banded = decode_banded(rows, alphabet)
+    cursor = decoding.CertifiedSplit(rows, alphabet)
+    result = cursor.result()
+    assert exact is not None and actual is not None and banded is not None and result is not None
+    assert exact.arities == actual.arities == banded.arities == result.arities == (1, 1, 1, 0)
+    assert actual.log_z == pytest.approx(exact.log_z, abs=1e-12)
+    np.testing.assert_allclose(actual.marginals, exact.marginals, atol=1e-12)
+    risk = exact.risk(rows, alphabet)
+    assert banded.risk == pytest.approx(risk, abs=1e-12)
+    assert result.risk == pytest.approx(risk, abs=1e-12)
+    assert cursor.sequence_risk(exact.arities) == pytest.approx(risk, abs=1e-12)
+    with pytest.raises(ValueError):
+        cursor.sequence_risk((big, 0, 0, 0))
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_large_arity_sentinel_preserves_underflowed_valid_path(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = (0, 1, 3, 10**100, 10**100 + 1)
+    rows = np.array([[-np.inf, 0.0, -1000.0, -np.inf, -np.inf],
+                     [0.0, -1000.0, -np.inf, -np.inf, -np.inf],
+                     [0.0, -np.inf, -np.inf, -np.inf, -np.inf],
+                     [0.0, -np.inf, -np.inf, -np.inf, -np.inf]])
+    exact = decode(rows, alphabet)
+    banded = decode_banded(rows, alphabet)
+    cursor = decoding.CertifiedSplit(rows, alphabet).result()
+    assert exact is not None and banded is not None and cursor is not None
+    assert exact.arities == banded.arities == cursor.arities == (3, 0, 0, 0)
+    assert exact.log_z == pytest.approx(-1000.0)
+    assert exact.risk(rows, alphabet) == banded.risk == cursor.risk == 0.0
+
 def test_certified_sequence_risk_requires_current_normalizer_and_valid_answer() -> None:
     cursor = formulas.CertifiedSplit(np.log(np.full((3, 3), 1 / 3)))
     with pytest.raises(ValueError, match="successful result"):

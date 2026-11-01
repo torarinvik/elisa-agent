@@ -287,6 +287,13 @@ theorem accepted_arity_sum (l : List ℕ) (h : l.foldl await (some 1) = some 0) 
   have balance := await_balance l 1 0 h
   omega
 
+/-- No arity in a complete prefix can reach the number of words. -/
+theorem accepted_arity_lt_length (l : List ℕ) (a : ℕ) (member : a ∈ l)
+    (accepted : l.foldl await (some 1) = some 0) : a < l.length := by
+  have bound := List.le_sum_of_mem member
+  have total := accepted_arity_sum l accepted
+  omega
+
 /-- Concatenated arity sequences of `n` formulas are accepted from `n`
 awaited subformulas. -/
 theorem codes_accepted : ∀ fs : List (Formula ω),

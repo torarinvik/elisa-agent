@@ -63,6 +63,9 @@ For any nonnegative arities, not only binary ones, a successful counter run
 conserves `start + Σ arities = finish + words read`. In particular a complete
 sequence of `m` words has `m − 1` child edges. That count is necessary but
 not sufficient: the counter must also remain positive before every word.
+Consequently every arity in a complete sequence is less than `m`. For a
+fixed-length format calculation, all larger arities can share an unreachable
+sentinel without changing any accepted path or its weight.
 
 ## 21.4 Decoding by dynamic programming
 
