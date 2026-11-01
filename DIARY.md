@@ -1364,6 +1364,28 @@ The decision rule and fitted temperatures are unchanged; the arithmetic
 precision differs. Full-refinement comparisons remain due before inferring
 anything about decision or compute invariance on deployment inputs.
 
+**Native risk in full refinement.** Six formulas each at depths 6 and 8,
+test seed 5, noise 0.1, target 0.05, used the existing reader and shared
+100 depth-4 calibration formulas. Only `calibrated_risk` was switched in
+reference/native/native/reference order:
+
+| depth | reference seconds | native seconds | answered | wrong answered |
+|---|---|---|---:|---:|
+| 6 | 0.16979, 0.09615 | 0.08826, 0.10318 | 4/6 | 0 |
+| 8 | 2.40256, 2.43806 | 2.37442, 2.36678 | 1/6 | 0 |
+
+Values, abstentions and total expert costs agreed (30,239,738 at depth 6;
+300,411,292 at depth 8). Maximum bound differences were 2.88e-7 and
+1.75e-7. Depth-6 timings overlap; depth-8 timings suggest a small local
+benefit. This sample cannot establish threshold invariance generally.
+
+The standard three-formula profile took 0.923 s with 605 certificate calls,
+0.475 s in correction preparation and 0.192 s in word selection. Temperature
+lookups accumulated 0.076 s, but include lazy fitting on first use; these
+must not be interpreted as recurring dictionary-lookup overhead. Subsequent
+performance experiments should separate cold calibration preparation from
+warmed execution before selecting another hot loop to port.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test
