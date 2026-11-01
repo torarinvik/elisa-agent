@@ -526,3 +526,42 @@ def test_structural_shift_reaches_both_audit_halves_and_evaluation(
     assert checked[0] == -60
     assert checked.count(60) == len(logic.INFLATIONS)
     assert checked[-2:] == [3, 3]
+
+
+def test_family_budget_reaches_all_audit_decision_paths(
+        monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from types import SimpleNamespace
+    from nca import logic
+    from nca.stats import family_audit_alpha
+
+    level = family_audit_alpha(0.1, 8)
+    seen = {"order": 0, "check": 0, "certify": 0}
+    original = logic.certify
+
+    def order(counts: Any, alpha: float) -> list[int]:
+        assert alpha == level
+        seen["order"] += 1
+        return [0]
+
+    def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
+                 **kwargs: Any) -> tuple[int, int]:
+        if "reject_above" in kwargs:
+            assert kwargs["alpha"] == level
+            seen["check"] += 1
+        return len(samples), 0
+
+    def certify(counts: Any, delta: float, alpha: float) -> Any:
+        assert alpha == level
+        seen["certify"] += 1
+        return original(counts, delta, alpha)
+
+    monkeypatch.setattr(logic, "certification_order", order)
+    monkeypatch.setattr(logic, "certify", certify)
+    monkeypatch.setattr(logic, "outcomes", outcomes)
+    monkeypatch.setattr(logic, "outcomes_many", lambda route, ladders, samples, targets: [
+        (len(samples), 0) for _ in targets])
+    args = SimpleNamespace(depths=[0, 1], draws=2, targets=[0.05, 0.1], samples=1,
+                           audit=400, shift=0.2, seed=0, xor=0.0, alpha=0.1, family_alpha=0.1)
+    logic.shifted(None, {}, args)
+    assert seen == {"order": 8, "check": 8, "certify": 8}
+    assert "audit family: 8 tests" in capsys.readouterr().out

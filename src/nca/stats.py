@@ -11,6 +11,19 @@ import numpy as np
 Z95 = 1.959963984540054
 
 
+def family_audit_alpha(total: float, audits: int) -> float:
+    """Allocate one confidence budget over a predeclared finite audit family."""
+    if (not math.isfinite(total) or not 0 < total < 1
+            or not isinstance(audits, int) or audits < 1):
+        raise ValueError("requires 0 < total < 1 and a positive integer audit count")
+    level = total / audits
+    if audits > 1:
+        level = math.nextafter(level, 0.0)
+    if level <= 0:
+        raise ValueError("audit confidence allocation underflow")
+    return level
+
+
 def wilson(successes: int, n: int, z: float = Z95) -> tuple[float, float]:
     """Wilson score interval for a binomial proportion."""
     if n == 0:

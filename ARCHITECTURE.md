@@ -127,6 +127,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [17.3](theory/17-calibration-under-distribution-shift.md) | `horvitz_thompson` | `Calibration` |
 | [17.4](theory/17-calibration-under-distribution-shift.md) | `inflated_answered_mono` | `Calibration` |
 | [17.8](theory/17-calibration-under-distribution-shift.md) | `threshold_trace_prefix` | `Calibration` |
+| [17.9](theory/17-calibration-under-distribution-shift.md) | `audit_family_le` | `Calibration` |
 | [17.7](theory/17-calibration-under-distribution-shift.md) | `audit_rejection_of_completion` | `Calibration` |
 | [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_budget_obstruction` | `Calibration` |
 | [17.5](theory/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
@@ -801,3 +802,13 @@ selection penalizes each unavailable observation without discarding earlier
 valid scores or excluding the whole batch. `partialEvidenceScore` and
 `partial_evidence_bounds` formalize this reward's range (§27.12); no
 likelihood interpretation or coverage guarantee is assigned to absence.
+
+`logic --family-alpha A --shift ...` allocates A over the predeclared
+`len(depths) * draws * len(targets)` risk-control audits (§17.9). It is
+mutually exclusive with per-audit `--alpha`. `stats.family_audit_alpha`
+rounds the divided level downward by one representable float for multiple
+audits and rejects underflow. The level reaches feasibility checks, fit
+ordering, checking rejection and certification. The family count is not
+reduced using observed audit results. Default per-audit confidence is
+unchanged. `audit_family_le` proves the finite union bound from supplied
+individual failure bounds; it does not cover arbitrary later CLI runs.

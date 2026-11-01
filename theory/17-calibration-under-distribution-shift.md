@@ -211,4 +211,26 @@ the guarantee, the audit is split: one part fits temperatures, the other
 tests the sequence. Reusing the fitting part for testing would make the
 policy depend on the labels it is tested on.
 
+## 17.7 Confidence across an audit family
+
+**Theorem 17.9 (finite audit-family budget).** Let F_j be the event that
+condition j certifies a policy whose population answered-error rate exceeds
+its requested target. If P(F_j) ≤ α_j and sum_j α_j ≤ A, then
+P(union_j F_j) ≤ sum_j P(F_j) ≤ A. No independence between conditions is
+required. The individual audits must still satisfy their checking-data and
+fixed-sequence assumptions.
+
+For a predeclared family of M depth/draw/target combinations, allocating
+α_j=A/M gives one answer-risk confidence budget for the whole report.
+Candidate inflation thresholds within one fixed-sequence audit do not add
+another factor: Theorem 17.5 already controls that sequence at α_j.
+Uncontrolled evaluation policies are not covered. Impossible audits may
+remain in the declared count, conservatively leaving some budget unused.
+
+This does not cover arbitrary later runs, adaptive enlargement of the
+family, selection among previously inspected checking results, or a joint
+prior-regret claim. Such scopes need their own predeclared budget or valid
+sequential procedure. Evaluation confidence intervals remain descriptive;
+they are not the audit-family guarantee.
+
 [Theory index](../THEORY.md)

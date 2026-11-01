@@ -45,3 +45,18 @@ def test_certification_order_puts_certifiable_candidates_first() -> None:
     from nca.ladder import certification_order
 
     assert certification_order([(10, 0), (300, 3), (300, 30)], 0.1) == [1, 2, 0]
+
+
+def test_finite_audit_family_budget_is_not_overspent() -> None:
+    import math
+    from nca.stats import family_audit_alpha
+
+    for count in (1, 2, 3, 6, 100):
+        level = family_audit_alpha(0.1, count)
+        assert 0 < level <= 0.1 / count
+        assert math.fsum([level] * count) <= 0.1
+    assert family_audit_alpha(0.1, 1) == 0.1
+    for total, count in ((0, 2), (1, 2), (float("nan"), 2), (0.1, 0), (0.1, 1.5),
+                          (float.fromhex("0x0.0000000000001p-1022"), 2)):
+        with pytest.raises(ValueError):
+            family_audit_alpha(total, count)

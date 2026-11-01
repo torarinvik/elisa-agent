@@ -59,7 +59,7 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
 from nca.planner import Plan, plan_stable
 from nca.registry import Module
 from nca.selective import Answer, build_ladders, solve, solve_many
-from nca.stats import clopper_pearson_upper, poisson_binomial_tails, wilson
+from nca.stats import clopper_pearson_upper, family_audit_alpha, poisson_binomial_tails, wilson
 
 
 ACCOUNTS = {"static": (False, "none", False), "certificate": (True, "none", False),
@@ -231,6 +231,12 @@ def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Name
 
 
 def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Namespace) -> None:
+    family = getattr(args, "family_alpha", None)
+    audits = len(args.depths) * args.draws * len(args.targets)
+    alpha = args.alpha if family is None else family_audit_alpha(family, audits)
+    if family is not None:
+        print(f"audit family: {audits} tests, total alpha={family:g}, per-test alpha={alpha:g}",
+              flush=True)
     print(f"{'depth':>5s} {'draw':>5s} {'δ':>5s} {'control':>8s} {'λ':>5s} {'coverage':>9s} "
           f"{'error answered [95% CI]':>27s} {'≤ δ':>5s}")
     for depth in args.depths:
@@ -245,16 +251,16 @@ def shifted(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Names
             check = [audit.sample(i) for i in range(args.audit, 2 * args.audit)]
             for delta in args.targets:
                 chosen = None
-                if certification_possible(args.audit, delta, args.alpha):
+                if certification_possible(args.audit, delta, alpha):
                     order = certification_order(
                         outcomes_many(route, ladders, fit, [delta / lam for lam in INFLATIONS]),
-                        args.alpha)
+                        alpha)
                     stats: dict[int, tuple[int, int]] = {}
                     accepted = []
                     for i in order:
                         stats[i] = outcomes(route, ladders, check, delta / INFLATIONS[i],
-                                            reject_above=delta, alpha=args.alpha)
-                        if not certify([stats[i]], delta, args.alpha):
+                                            reject_above=delta, alpha=alpha)
+                        if not certify([stats[i]], delta, alpha):
                             break
                         accepted.append(i)
                     chosen = max(accepted, key=lambda i: stats[i][0], default=None)
@@ -365,7 +371,10 @@ def main() -> None:
                         help="the account risk control certifies")
     parser.add_argument("--audit", type=int, default=200, help="formulas per audit half")
     parser.add_argument("--draws", type=int, default=3)
-    parser.add_argument("--alpha", type=float, default=0.1)
+    confidence = parser.add_mutually_exclusive_group()
+    confidence.add_argument("--alpha", type=float, default=0.1, help="confidence error per audit")
+    confidence.add_argument("--family-alpha", type=float,
+                            help="total confidence error across all declared audit conditions")
     parser.add_argument("--floors", action="store_true", help="compare early abstention")
     parser.add_argument("--frontier", action="store_true",
                         help="trace the predictive stopping rule for --account")
@@ -374,6 +383,10 @@ def main() -> None:
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
+    if args.family_alpha is not None:
+        if (not math.isfinite(args.family_alpha) or not 0 < args.family_alpha < 1
+                or args.draws <= 0 or args.shift is None or args.frontier or args.premises):
+            parser.error("--family-alpha requires a valid budget and shifted audit mode with positive draws")
     if not 0 <= args.early_leaf <= 1:
         parser.error("--early-leaf must be between zero and one")
     if args.prior in ("height", "auto"):

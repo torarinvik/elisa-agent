@@ -165,4 +165,12 @@ theorem threshold_trace_prefix {S : Type} (bound : S → ℝ) (initial remaining
   | none => exact False.elim (hfound h)
   | some value => simp
 
+/-- A finite family of valid audits spends at most the sum of its error budgets. -/
+theorem audit_family_le {Ω I : Type*} [MeasurableSpace Ω] [Fintype I]
+    (μ : MeasureTheory.Measure Ω) (failure : I → Set Ω) (budget : I → ENNReal)
+    (α : ENNReal) (htest : ∀ i, μ (failure i) ≤ budget i)
+    (htotal : ∑ i, budget i ≤ α) : μ (⋃ i, failure i) ≤ α := by
+  exact (MeasureTheory.measure_iUnion_fintype_le μ failure).trans
+    ((Finset.sum_le_sum fun i _ => htest i).trans htotal)
+
 end NCA
