@@ -1,6 +1,7 @@
 import itertools
 import math
 from collections.abc import Callable, Sequence
+from decimal import Decimal, localcontext
 from typing import Any
 
 import numpy as np
@@ -135,16 +136,16 @@ def test_banded_decoder_keeps_tiny_off_reference_mass(
     assert changes == 1 and tail > 0
 
 
-def test_native_off_reference_log_mass_matches_reference(monkeypatch: pytest.MonkeyPatch) -> None:
-    if getattr(decoding._NATIVE, "off_reference_log_mass", None) is None:
-        pytest.skip("native off-reference kernel is not built")
+def test_native_tail_mass_summary_matches_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "tail_mass_summary", None) is None:
+        pytest.skip("native tail mass kernel is not built")
     rng = np.random.default_rng(239)
     rows = rng.choice([0.0, -40.0, -1000.0, -np.inf], size=(12, 5))
     reference = rng.integers(0, rows.shape[1], size=len(rows))
-    actual = decoding._off_reference_log_mass(rows, reference)
+    actual = decoding._tail_mass_summary(rows, reference)
     monkeypatch.setattr(decoding, "_NATIVE", None)
-    expected = decoding._off_reference_log_mass(rows, reference)
-    assert actual == pytest.approx(expected, abs=1e-12)
+    expected = decoding._tail_mass_summary(rows, reference)
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
 
 
 @pytest.mark.parametrize("shift", [0.0, -40.0])
@@ -424,6 +425,40 @@ def test_band_tail_for_empty_input_is_zero() -> None:
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+def test_band_tail_accounts_for_tolerated_row_excess(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    m = 1000
+    log_epsilon = float(np.log(5e-13))
+    rows = np.tile(np.array([0.0, log_epsilon]), (m, 1))
+    changes, bound = decoding.band_changes(rows, np.zeros(m, dtype=np.int64), 0.1)
+    with localcontext() as context:
+        context.prec = 80
+        epsilon = Decimal.from_float(log_epsilon).exp()
+        true_tail = (Decimal(1) + epsilon) ** m - 1
+        assert changes == 1
+        assert Decimal.from_float(bound) >= true_tail
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_band_tail_accounts_for_excess_after_cursor_update(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.array([[0.2, 0.8], [0.8, 0.2], [0.8, 0.2]]))
+    cursor = decoding.CertifiedSplit(rows, (0, 1))
+    assert cursor.normalizer() is not None
+    update = np.array([0.0, np.log(5e-13)])
+    assert cursor.climb_normalizer(0, update) is not None
+    rows[0] = update
+    log_off, log_factor = decoding._tail_mass_summary(rows, cursor.reference)
+    assert log_factor > 0
+    assert cursor.sequence_risk((1, 1, 0)) >= decoding.decode_reference(rows, (0, 1)).risk(
+        rows, (0, 1), (1, 1, 0)) - 1e-12
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 @pytest.mark.parametrize("reference", [[0.5, 1], [0.0, 1.0], [-1, 1], [0, 2],
                                         [0, 10**100], np.array([[0], [1]])])
 def test_band_changes_rejects_invalid_reference_indices(
@@ -442,15 +477,17 @@ def test_band_changes_accepts_integer_reference_arrays(dtype) -> None:
         decoding.band_changes(rows, [0, 1], 0.1)
 
 
+@pytest.mark.parametrize("log_factor", [0.0, 0.1, 1e-8])
 def test_native_tail_search_matches_reference_at_rounding_boundaries(
+        log_factor: float,
         monkeypatch: pytest.MonkeyPatch) -> None:
-    if getattr(decoding._NATIVE, "initial_band_changes", None) is None:
+    if getattr(decoding._NATIVE, "initial_band_changes_scaled", None) is None:
         pytest.skip("native band tail search is not built")
     for length in (2, 3, 10, 50):
         for total in (0.1, 0.5, 1.0, 3.0, 10.0):
             log_off = math.log(total)
             for changes in range(1, min(length, 30) + 1):
-                log_tail = decoding._band_log_tail(log_off, changes)
+                log_tail = decoding._band_log_tail(log_off, changes, log_factor)
                 if not -740 < log_tail < 0:
                     continue
                 threshold = math.exp(log_tail)
@@ -458,10 +495,10 @@ def test_native_tail_search_matches_reference_at_rounding_boundaries(
                               math.nextafter(threshold, 1.0)):
                     if not 0 < slack < 1:
                         continue
-                    actual = decoding._initial_band_changes(log_off, slack, length)
+                    actual = decoding._initial_band_changes(log_off, slack, length, log_factor)
                     with monkeypatch.context() as patch:
                         patch.setattr(decoding, "_NATIVE", None)
-                        expected = decoding._initial_band_changes(log_off, slack, length)
+                        expected = decoding._initial_band_changes(log_off, slack, length, log_factor)
                     assert actual == expected
 
 

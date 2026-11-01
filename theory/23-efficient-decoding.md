@@ -27,6 +27,14 @@ most 1) and off-reference mass `ρₖ = Σ_{a ≠ rₖ} qₖ(a)`; let `S = Σₖ
 So the weight outside `j − 1` changes is at most `U_j = S^j / j!`. For
 `j = 2` this is `e₂` of §19.4. Here it is a statement about the decoding
 model's weights, so it needs no premise beyond (P).
+If a row has total mass above one, let `cₖ = max(1, Σₐ qₖ(a))` and
+`C = Πₖ cₖ`. Dividing each row by `cₖ` produces subprobability rows; their
+off-reference masses sum to at most `S`. Every complete sequence weight is
+divided by the same `C`, so the original tail is bounded by
+`C · S^j / j!`. This covers the small row-mass excess accepted by the
+implementation's numerical tolerance. The scaling identity and tail bound
+are exact-real statements; their floating-point evaluation is not an
+outward-rounded enclosure.
 For `m` positions, the tail is exactly zero when `j > m`: two length-`m`
 sequences cannot differ at more than `m` positions. The search therefore
 need not continue past `m + 1`, even if the polynomial bound remains large.

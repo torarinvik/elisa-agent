@@ -128,6 +128,13 @@ theorem tail_above_length (ps : List ((α → ℝ) × α)) (j : ℕ) (h : ps.len
     omega
   simp [hz]
 
+/-- Scaling a bounded normalized tail by a nonnegative factor preserves its bound. -/
+theorem scaled_tail_bound (tail normalized bound factor : ℝ)
+    (factor_nonneg : 0 ≤ factor) (scaled : tail = factor * normalized)
+    (normalized_le : normalized ≤ bound) : tail ≤ factor * bound := by
+  rw [scaled]
+  exact mul_le_mul_of_nonneg_left normalized_le factor_nonneg
+
 omit [DecidableEq α] in
 theorem sum_split (p : α → Prop) [DecidablePred p] (f : α → ℝ) : ∀ l : List α,
     (l.map f).sum = ((l.filter p).map f).sum + ((l.filter (¬p ·)).map f).sum

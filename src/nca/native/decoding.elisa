@@ -230,22 +230,31 @@ def log_add(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return log_add_present(x, y)
 
-# Sum all off-reference masses without exponentiating or subtracting row totals.
-def off_reference_log_mass(log_probs: view[f64], reference: view[i64]) -> f64 can[Abort.Panic]:
+# Sum off-reference masses and log(max(1, row mass)) without cancellation.
+def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = reference.len.i64()
-    return log(0.0) if m == 0
+    return [log(0.0), 0.0] if m == 0
     width: i64 = log_probs.len.i64() / m
-    return
-        for k in 0..<m |total: f64 = log(0.0)| -> total:
-            for j in 0..<width |total|:
-                continue if j == reference[k]
-                total <- log_add(total, log_probs[k * width + j])
+    total, scale, _ =
+        for k in 0..<m |total: f64 = log(0.0), scale: f64 = 0.0, correction: f64 = 0.0| -> (total, scale, correction):
+            row, next_total =
+                for j in 0..<width |row: f64 = log(0.0), off: f64 = total| -> (row, off):
+                    reading: f64 = log_probs[k * width + j]
+                    row <- log_add(row, reading)
+                    off <- log_add(off, reading) if j != reference[k] else off
+            total <- next_total
+            excess: f64 = row if row > 0.0 else 0.0
+            adjusted: f64 = excess - correction
+            next: f64 = scale + adjusted
+            correction <- (next - scale) - adjusted
+            scale <- next
+    return [total, scale]
 
 # Search only through the number of positions; beyond it the tail is empty.
-def initial_band_changes(log_off: f64, log_slack: f64, length: i64) -> i64:
+def initial_band_changes_scaled(log_off: f64, log_factor: f64, log_slack: f64, length: i64) -> i64:
     return 1 if log_off == log(0.0)
     for j in 1..<(length + 1):
-        estimate: f64 = j.f64() * log_off - lgamma((j + 1).f64())
+        estimate: f64 = j.f64() * log_off - lgamma((j + 1).f64()) + log_factor
         return -1 if estimate == log(0.0) or estimate == -log(0.0) or estimate != estimate
         return j if estimate <= log_slack
     return length + 1
@@ -1121,8 +1130,8 @@ export pymodule decoding:
     fn normalized_rows_fast
     fn decode
     fn decode_log
-    fn off_reference_log_mass
-    fn initial_band_changes
+    fn tail_mass_summary
+    fn initial_band_changes_scaled
     fn format_partition
     fn banded_format
     fn decode_prior
