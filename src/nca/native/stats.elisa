@@ -1,11 +1,12 @@
 # Distribution of a sum of independent Bernoulli variables.
 # Descending updates preserve the preceding row in place.
-def poisson_binomial_pmf(probabilities: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     n: i64 = probabilities.len.i64()
+    return [] if complements.len.i64() != n
     pmf: darray[f64] = [1.0 if i == 0 else 0.0 for i in 0..<(n + 1)]
     for i in 0..<n:
         p: f64 = probabilities[i]
-        q: f64 = 1.0 - p
+        q: f64 = complements[i]
         for j in 0..<(i + 1):
             k: i64 = i + 1 - j
             pmf[k] <- pmf[k] * q + pmf[k - 1] * p

@@ -93,8 +93,11 @@ def poisson_binomial_tails(observed: int, probabilities: Sequence[float]) -> tup
     entry, the first is still a valid one-sided p-value for an excess."""
     clipped = np.clip(probabilities, 0.0, 1.0)
     native = getattr(_NATIVE, "poisson_binomial_pmf", None)
-    if native is not None and clipped.ndim == 1:
-        pmf = np.asarray(native(np.ascontiguousarray(clipped, dtype=np.float64)), dtype=float)
+    if (native is not None and clipped.ndim == 1 and clipped.dtype.kind in "biuf"
+            and clipped.dtype.itemsize <= 8):
+        values = np.ascontiguousarray(clipped, dtype=np.float64)
+        complements = np.ascontiguousarray(1 - clipped, dtype=np.float64)
+        pmf = np.asarray(native(values, complements), dtype=float)
     else:
         pmf = _poisson_binomial_pmf_reference(clipped)
     return float(pmf[observed:].sum()), float(pmf[:observed + 1].sum())

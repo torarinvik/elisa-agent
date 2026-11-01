@@ -29,7 +29,8 @@ def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch) -> None:
 
     rng = np.random.default_rng(412)
     cases = [[], [0, 1], [0.0, 1.0], [-1.0, 0.2, 2.0],
-             np.array([0.25, 0.5], dtype=np.float32)]
+             np.array([0.1, 0.2, 0.3], dtype=np.float16),
+             np.array([0.1, 0.2, 0.3], dtype=np.float32)]
     cases += [rng.random(n).tolist() for n in range(1, 9)]
     native = stats._NATIVE
     for probabilities in cases:
@@ -44,8 +45,9 @@ def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch) -> None:
             fallback = stats.poisson_binomial_tails(observed, probabilities)
             monkeypatch.setattr(stats, "_NATIVE", native)
             accelerated = stats.poisson_binomial_tails(observed, probabilities)
-            assert fallback == pytest.approx(expected, abs=2e-15)
-            assert accelerated == pytest.approx(fallback, abs=2e-15)
+            tolerance = 5e-4 if clipped.dtype == np.float16 else 1e-7 if clipped.dtype == np.float32 else 2e-15
+            assert fallback == pytest.approx(expected, abs=tolerance)
+            assert accelerated == pytest.approx(fallback, rel=0, abs=2e-15)
 
 
 def test_native_poisson_binomial_matches_reference() -> None:
@@ -54,12 +56,30 @@ def test_native_poisson_binomial_matches_reference() -> None:
 
     if stats._NATIVE is None:
         pytest.skip("Elisa statistics kernel is not built")
+    assert stats._NATIVE.poisson_binomial_pmf([0.5], []) == []
     rng = np.random.default_rng(413)
     for n in (0, 1, 2, 31, 256, 1000):
         probabilities = rng.random(n)
         expected = stats._poisson_binomial_pmf_reference(probabilities)
-        actual = np.asarray(stats._NATIVE.poisson_binomial_pmf(probabilities))
+        actual = np.asarray(stats._NATIVE.poisson_binomial_pmf(probabilities, 1 - probabilities))
         np.testing.assert_allclose(actual, expected, rtol=1e-14, atol=1e-300)
+
+
+def test_poisson_binomial_preserves_input_precision(monkeypatch) -> None:
+    import numpy as np
+    import nca.stats as stats
+
+    native = stats._NATIVE
+    if native is None:
+        pytest.skip("Elisa statistics kernel is not built")
+    rng = np.random.default_rng(72)
+    for dtype in (np.float16, np.float32, np.float64):
+        for n in (1, 10, 100):
+            probabilities = rng.random(n).astype(dtype)
+            monkeypatch.setattr(stats, "_NATIVE", None)
+            reference = stats.poisson_binomial_tails(n // 3, probabilities)
+            monkeypatch.setattr(stats, "_NATIVE", native)
+            assert stats.poisson_binomial_tails(n // 3, probabilities) == reference
 
 
 def test_clopper_pearson_upper_matches_closed_form_and_sample_sizes() -> None:

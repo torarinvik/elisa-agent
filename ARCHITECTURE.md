@@ -262,6 +262,8 @@ linear rows of total 1 with per-row log scales (`forward_scale`,
 
 `stats.elisa` computes the Poisson-binomial count recurrence (§21.8) in place;
 `bernoulliStep_zero` and `bernoulliStep_succ` in `NCA.Decoding` state its steps.
+The caller computes complements in the input array's precision, preserving
+the NumPy reference's rounding for reduced-precision inputs.
 
 ## 1. Types and contracts
 
