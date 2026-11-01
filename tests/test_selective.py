@@ -1477,3 +1477,22 @@ def test_partition_layout_positions_follow_class_order() -> None:
     union, positions = _layout(((8, 2, 5), 7, (0, 4)))
     assert union == [8, 2, 5, 7, 0, 4]
     assert positions == [[0, 1, 2], [3], [4, 5]]
+
+
+def test_native_restricted_risk_tracks_mutated_decisions() -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
+        pytest.skip("native reading-risk kernel is not built")
+    rung = Rung(constant("changing-decision", (0.6, 0.3, 0.1), 1.0))
+    observation = rung.observe_ranked(None)
+    decision = [[0], [1]]
+    first = rung.risk(observation, decision)
+    decision[1].append(2)
+    second = rung.risk(observation, decision)
+    assert first == pytest.approx(1 / 3)
+    assert second == pytest.approx(0.4)
+    key = ladder_module.decision_key(decision)
+    indices = ladder_module._native_indices(key)
+    assert indices.tolist() == [0, 1, 2]
+    assert not indices.flags.writeable

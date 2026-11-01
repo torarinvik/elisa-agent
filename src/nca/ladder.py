@@ -118,6 +118,14 @@ def _group_ids(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
     return groups
 
 
+@cache
+def _native_indices(key: tuple[int | tuple[int, ...], ...]) -> np.ndarray:
+    """Read-only class indices for native restricted decisions."""
+    indices = np.asarray(_layout(key)[0], dtype=np.int64)
+    indices.setflags(write=False)
+    return indices
+
+
 class SecondLook:
     """An expert reading its input and ``views`` of it, averaging the readings."""
 
@@ -327,7 +335,8 @@ class Rung:
                 logits = np.ascontiguousarray(logits)
                 ordering = np.ascontiguousarray(ordering)
             else:
-                logits, ordering = logits[union], ordering[union]
+                indices = _native_indices(key)
+                logits, ordering = logits[indices], ordering[indices]
             return float(native_reading(logits, ordering, groups, len(positions),
                                         temperature))
         if ranked is not None:
