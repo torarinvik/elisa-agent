@@ -144,9 +144,24 @@ def solve_many(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
     return _solve_targets(route, ladders, value, targets, start)
 
 
+def solve_stops(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: float,
+                stops: Sequence[Stop | None], start: int = 0,
+                floors: bool = False) -> list[Answer]:
+    """Evaluate pure stopping policies on one deterministic refinement path.
+
+    ``None`` continues to the normal endpoint. Consumers, experts and stopping
+    policies must be deterministic and must not mutate their inputs or session
+    state in a way that changes the final evaluation of a saved reading.
+    """
+    if not stops:
+        return []
+    return _solve_targets(route, ladders, value, [delta], start, floors, stops=stops)
+
+
 def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
                    targets: Sequence[float], start: int = 0, floors: bool = False,
-                   stop: Stop | None = None, trace: list[State] | None = None) -> list[Answer]:
+                   stop: Stop | None = None, trace: list[State] | None = None,
+                   stops: Sequence[Stop | None] | None = None) -> list[Answer]:
     if any(math.isnan(target) or target < 0 for target in targets):
         raise ValueError("targets must be nonnegative and not NaN")
     delta = min(targets)
@@ -166,7 +181,7 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
         if any(r != NOTHING for r in reads):
             break
     else:
-        return [Answer(None, 0.0, 1.0, True) for _ in targets]
+        return [Answer(None, 0.0, 1.0, True) for _ in (stops if stops is not None else targets)]
     declare = getattr(fuse, "decides", getattr(fuse, "demand", None))
     items = [(i, k) for i, read in enumerate(reads) if read != NOTHING
              for k in range(len(experts))
@@ -177,15 +192,27 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
     assert certificate is None or fuse is None, "certificates are declared on direct readings"
     floor = element_floor(consumer, items, len(elements)) if floors else None
     selected: dict[float, Refinement] = {}
+    stopped: dict[int, Refinement] = {}
+    latest: Refinement | None = None
 
     def observe(state: Refinement) -> None:
+        nonlocal latest
+        latest = state
         for target in targets:
             if target not in selected and state.available and state.bound <= target:
                 selected[target] = state
 
+    def stop_shared(state: State) -> bool:
+        assert stops is not None and latest is not None
+        for i, policy in enumerate(stops):
+            if i not in stopped and policy is not None and policy(state):
+                stopped[i] = latest
+        return len(stopped) == len(stops)
+
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
                      delta, start, [ranges(k, reads[i]) for i, k in items], certificate,
-                     floor, floors, stop, trace, observe if len(targets) > 1 else None)
+                     floor, floors, stop_shared if stops is not None else stop, trace,
+                     observe if len(targets) > 1 or stops is not None else None)
 
     def answer(state: Refinement, target: float) -> Answer:
         inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]
@@ -199,6 +226,8 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
         return Answer(result, state.cost, state.bound,
                       not state.available or state.bound > target)
 
+    if stops is not None:
+        return [answer(stopped.get(i, refined), delta) for i in range(len(stops))]
     return [answer(selected.get(target, refined), target) for target in targets]
 
 

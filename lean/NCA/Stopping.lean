@@ -29,6 +29,21 @@ namespace NCA
 
 open Finset
 
+/-- First state accepted by a stopping policy on a finite trace. -/
+def firstStoppingState {α : Type*} (p : α → Bool) : List α → Option α
+  | [] => none
+  | x :: xs => if p x then some x else firstStoppingState p xs
+
+/-- Appending later states cannot change a policy's first stopping state. -/
+theorem firstStoppingState_append {α : Type*} (p : α → Bool) (xs ys : List α) :
+    firstStoppingState p (xs ++ ys) =
+      (firstStoppingState p xs).orElse (fun _ => firstStoppingState p ys) := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    simp only [List.cons_append, firstStoppingState]
+    cases p x <;> simp [ih]
+
 /-- The gain in empirical squared error from splitting a bin is nonnegative
 after multiplication by its total count. Generalization is a separate issue. -/
 theorem split_bin_gain_nonneg {n₁ n₂ p₁ p₂ : ℝ} (h₁ : 0 ≤ n₁) (h₂ : 0 ≤ n₂) :

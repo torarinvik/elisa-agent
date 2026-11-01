@@ -72,4 +72,12 @@ estimation errors cost only coverage or compute, never validity. Varying `λ`
 traces the coverage–compute frontier. The sound floors of §22.3 are its
 zero-loss end.
 
+For deterministic refinement, multiple pure stopping policies can share one
+trace: each selects its first stopping state, or the terminal state if it
+never stops. Appending later states cannot change an earlier policy's chosen
+state. Saved readings and costs must remain independent snapshots, and the
+consumer must evaluate saved readings without dependence on later session
+mutations. Sharing computation is an evaluation optimization; reported cost
+for each policy remains the cost at its own selected state.
+
 [Theory index](../THEORY.md)

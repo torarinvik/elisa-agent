@@ -59,7 +59,7 @@ from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, C
                                CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator,
                                pair_risk_upper)
 from nca.planner import Plan, plan_stable
-from nca.selective import Answer, build_ladders, solve, solve_many
+from nca.selective import Answer, build_ladders, solve, solve_many, solve_stops
 from nca.stats import (clopper_pearson_exceeds, family_audit_alpha, format_upper_bound,
                        pair_gap_sum, poisson_binomial_tails, poisson_binomial_upper_bound, wilson)
 
@@ -225,10 +225,15 @@ def frontier(route: Plan, ladders: dict[TypeId, list[Rung]], args: argparse.Name
                 answer = solve(route, ladders, fit.sample(i).text, delta, floors=True,
                                trace=trace)
                 runs.append((trace, not answer.abstained, answer.cost))
-            for lam in (0.0, *args.lambdas):
-                stop = (stopping_rule(runs, delta, lam, open_charge=args.stop_open_charge)
-                        if lam > 0 else None)
-                answers = run(route, ladders, samples, delta, floors=True, stop=stop)
+            lambdas = (0.0, *args.lambdas)
+            stops = [(stopping_rule(runs, delta, lam, open_charge=args.stop_open_charge)
+                      if lam > 0 else None) for lam in lambdas]
+            outcomes: list[list[Answer]] = [[] for _ in stops]
+            for sample in samples:
+                for answers, answer in zip(outcomes, solve_stops(route, ladders, sample.text,
+                                                                 delta, stops, floors=True)):
+                    answers.append(answer)
+            for lam, answers in zip(lambdas, outcomes):
                 print(f"{depth:5d} {delta:5g} {lam:8.1e} " + summary(answers, samples),
                       flush=True)
 

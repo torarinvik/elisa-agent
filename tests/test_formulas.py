@@ -243,6 +243,21 @@ def test_solve_short_circuits_noisy_formulas() -> None:
     assert answer.bound < solve(static, ladders, text, delta=1.0).bound
 
 
+def test_shared_stopping_paths_match_formula_evaluator() -> None:
+    from nca.selective import solve_stops
+
+    reader = EditReader()
+    route = plan_stable([Tokenizer(), reader, FormulaEvaluator()], (FORMULA_TEXT,), BOOLEAN)
+    assert route is not None
+    ladders = {READER.output: [Rung(reader), Rung(reader)]}
+    policies = [None, lambda state: state.cost >= 2000, lambda state: True]
+    for text in ("and flse or xro true true tru", "and true false", ""):
+        shared = solve_stops(route, ladders, text, 0.05, policies, floors=True)
+        separate = [solve(route, ladders, text, 0.05, floors=True, stop=policy)
+                    for policy in policies]
+        assert shared == separate
+
+
 def test_one_wrong_arity_never_parses() -> None:
     """``NCA.code_no_single_change``: a single wrong arity is always detected."""
     rng = np.random.default_rng(3)

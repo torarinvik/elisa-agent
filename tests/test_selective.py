@@ -736,6 +736,54 @@ def test_solve_many_matches_independent_answers_and_costs() -> None:
         solve_many(route, ladders, "abcd", [float("nan")])
 
 
+@pytest.mark.parametrize("floors", [False, True])
+def test_solve_stops_matches_independent_policies(floors: bool) -> None:
+    from nca.selective import solve_stops
+
+    cheap = constant("cheap", (0.4, 0.6), 1.0, Contract(("ch",), "dist"))
+    strong = constant("strong", (0.001, 0.999), 3.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), Joiner(), Argmax(), cheap, strong], ("text",), "out")
+    assert route is not None
+    ladders = {"dist": [Rung(cheap), Rung(strong)]}
+    policies = [None, lambda state: state.cost >= 4, lambda state: state.cost >= 7,
+                lambda state: False, lambda state: True]
+    for text in ("abcd", ""):
+        shared = solve_stops(route, ladders, text, 0.01, policies, floors=floors)
+        assert shared == [solve(route, ladders, text, 0.01, floors=floors, stop=policy)
+                          for policy in policies]
+        stopped = policies[1:3]
+        assert solve_stops(route, ladders, text, 0.01, stopped, floors=floors) == [
+            solve(route, ladders, text, 0.01, floors=floors, stop=policy) for policy in stopped]
+    assert solve_stops(route, ladders, "abcd", 0.01, []) == []
+
+
+def test_solve_stops_preserves_certificate_and_floor_endpoints() -> None:
+    from nca.selective import solve_stops
+
+    class Consumer:
+        manifest = Manifest("certified", "1.0.0", Contract(("seq[dist]",), "out"))
+
+        def certificate(self, readings, risk, distribution):
+            return {i: risk(i, None) for i in range(len(readings))}
+
+        def floor(self, readings, risk, fixed):
+            return sum(risk(i, None) for i in fixed)
+
+        def invoke(self, readings):
+            return tuple(int(np.argmax(row)) for row in readings)
+
+    cheap = constant("cheap-cert", (0.4, 0.6), 1.0, Contract(("ch",), "dist"))
+    strong = constant("strong-cert", (0.1, 0.9), 3.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), Consumer(), cheap, strong], ("text",), "out")
+    assert route is not None
+    ladders = {"dist": [Rung(cheap), Rung(strong)]}
+    policies = [None, lambda state: state.cost >= 4, lambda state: state.cost >= 7]
+    for target in (0.01, 0.4, 1.0):
+        shared = solve_stops(route, ladders, "abcd", target, policies, floors=True)
+        assert shared == [solve(route, ladders, "abcd", target, floors=True, stop=policy)
+                          for policy in policies]
+
+
 def test_structural_shift_reaches_both_audit_halves_and_evaluation(
         monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
