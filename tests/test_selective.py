@@ -1530,6 +1530,13 @@ def test_native_partition_group_ids_match_reference(monkeypatch) -> None:
     assert native(np.array([2, 1, 3], dtype=np.int64), 6) == [0, 0, 1, 2, 2, 2]
     assert native(np.array([2, 0], dtype=np.int64), 2) == []
     assert native(np.array([2, 2], dtype=np.int64), 3) == []
+    assert native(np.array([1], dtype=np.int64), 10**12) == []
+    assert native(np.array([1, -1], dtype=np.int64), 2) == []
+    rng = np.random.default_rng(738)
+    for count in range(1, 32):
+        lengths = rng.integers(1, 12, size=count, dtype=np.int64)
+        expected = np.repeat(np.arange(count, dtype=np.int64), lengths).tolist()
+        assert native(lengths, int(lengths.sum())) == expected
     key = ((7, 3), 2, (9, 5, 1))
     actual = ladder_module._group_ids.__wrapped__(key)
     monkeypatch.setattr(ladder_module, "_NATIVE", None)

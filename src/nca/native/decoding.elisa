@@ -686,15 +686,19 @@ def grouped_masses(scores: view[f64], groups: view[i64], entries: i64) -> darray
 # Expand a validated partition's group sizes into per-class group IDs.
 def partition_group_ids(lengths: view[i64], size: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     return [] if size < 0
+    remaining: i64 =
+        for group in 0..<lengths.len.i64() |remaining: i64 = size| -> remaining:
+            length: i64 = lengths[group]
+            return [] if length <= 0 or length > remaining
+            remaining <- remaining - length
+    return [] if remaining != 0
     result: darray[i64] = [0 for _ in 0..<size]
     offset: darray[i64] = [0]
     for group in 0..<lengths.len.i64():
         length: i64 = lengths[group]
-        return [] if length <= 0 or length > size - offset[0]
         for i in offset[0]..<(offset[0] + length):
             result[i] <- group
         offset[0] <- offset[0] + length
-    return [] if offset[0] != size
     return result
 
 # First maximum in each row, matching NumPy's first-NaN behavior as well.
