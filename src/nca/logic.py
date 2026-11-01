@@ -38,7 +38,8 @@ risks.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Sequence
+import math
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -47,7 +48,8 @@ import torch
 from nca.abi import TypeId
 from nca.certify import INFLATIONS
 from nca.formulas import (ARITY, VOCABULARY, ArityPrior, FormulaDataset, FormulaSample, decode,
-                          complete_prior, labeled_words, parse)
+                          PriorSelection, complete_prior, format_prior, height_prior,
+                          labeled_words, parse, select_prior)
 from nca.ladder import (Rung, State, Stop, certification_order, certification_possible, certify,
                         stopping_rule)
 from nca.modules.symbols import BOOLEAN
@@ -86,6 +88,26 @@ def library(reader: Path, short_circuit: bool, detection: str = "none",
         modules.append(FormulaEvaluator(short_circuit, detection, decoding, band_slack,
                                         prior if decoding else None))
     return modules
+
+
+def choose_prior(rung: Rung, calibration_labels: np.ndarray, texts: Iterable[str],
+                 height: int, score_clip: float, alpha: float) -> PriorSelection:
+    """Fit a fixed catalog on texts only; labels belong to reader calibration."""
+    frequencies = np.bincount(np.asarray(ARITY)[calibration_labels], minlength=3).astype(float)
+    frequencies /= frequencies.sum()
+
+    def readings() -> Iterable[np.ndarray]:
+        for text in texts:
+            rows = np.array([rung.distribution(rung.observe(word), ARITY_DECISION).tolist()
+                             for word in text.split()])
+            rows /= rows.sum(axis=1, keepdims=True)
+            with np.errstate(divide="ignore"):
+                yield np.log(rows)
+
+    with np.errstate(divide="ignore"):
+        base = np.log(frequencies)
+    return select_prior([format_prior, lambda length: height_prior(height), complete_prior],
+                        readings(), base, score_clip=score_clip, alpha=alpha)
 
 
 def certificate_leaves(sample: FormulaSample) -> int:
@@ -315,9 +337,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--reader", type=Path, default=Path("checkpoints/words.pt"))
     parser.add_argument("--band-slack", type=float, help="certified band slack for answer selection and calibrated risk")
-    parser.add_argument("--prior", choices=("format", "complete", "height"), default="format",
+    parser.add_argument("--prior", choices=("format", "complete", "height", "auto"), default="format",
                         help="structural prior for correction accounts (premise diagnostics remain format-only)")
-    parser.add_argument("--prior-height", type=int, help="edge-height budget required by --prior height")
+    parser.add_argument("--prior-height", type=int, help="edge-height budget required by --prior height or auto")
+    parser.add_argument("--prior-fit", type=int, default=400,
+                        help="fixed number of separate unlabeled formulas for --prior auto")
+    parser.add_argument("--prior-score-clip", type=float, default=100.0)
+    parser.add_argument("--prior-alpha", type=float, default=0.1)
     parser.add_argument("--noise", type=float, default=0.1)
     parser.add_argument("--xor", type=float, default=0.0)
     parser.add_argument("--calibration", type=int, default=100, help="validation formulas")
@@ -340,19 +366,25 @@ def main() -> None:
                         default=[1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6])
     parser.add_argument("--premises", action="store_true", help="test the premises of §21.8 at every reader rung")
     args = parser.parse_args()
-    if args.prior == "height":
+    if args.prior in ("height", "auto"):
         if args.prior_height is None or args.prior_height < 0:
-            parser.error("--prior height requires a nonnegative --prior-height")
+            parser.error("--prior height/auto requires a nonnegative --prior-height")
     elif args.prior_height is not None:
-        parser.error("--prior-height requires --prior height")
+        parser.error("--prior-height requires --prior height or auto")
     if args.prior != "format" and args.band_slack is not None:
         parser.error("structural priors cannot yet be combined with --band-slack")
+    if args.prior == "auto":
+        if args.prior_height < max(args.depths) + 1:
+            parser.error("auto prior height must cover max(--depths) + 1")
+        if (args.prior_fit <= 0 or not math.isfinite(args.prior_score_clip)
+                or args.prior_score_clip <= 0 or not 0 < args.prior_alpha < 1):
+            parser.error("auto prior needs positive fit count/clipping and 0 < prior-alpha < 1")
     prior = complete_prior if args.prior == "complete" else None
 
     routes = {}
     for name, (short_circuit, detection, decoding) in ACCOUNTS.items():
         route = plan_stable(library(args.reader, short_circuit, detection, decoding, args.band_slack, prior,
-                                    args.prior_height),
+                                    args.prior_height if args.prior == "height" else None),
                             (FORMULA_TEXT,), BOOLEAN)
         assert route is not None
         routes[name] = route
@@ -360,8 +392,25 @@ def main() -> None:
                                                  args.seed, args.xor))
     ladders = build_ladders(library(args.reader, True), routes["certificate"],
                             {WORD_DISTRIBUTION: (words, torch.from_numpy(labels))})
-    print(f"correction prior: {args.prior}" + (f" (height {args.prior_height})"
-          if args.prior_height is not None else ""), flush=True)
+    chosen_prior = args.prior
+    if args.prior == "auto" and not args.premises:
+        fit = FormulaDataset("validation", args.prior_fit, max(args.depths),
+                             args.noise if args.shift is None else args.shift,
+                             args.seed + 10_000, args.xor)
+        choice = choose_prior(ladders[WORD_DISTRIBUTION][-1], labels,
+                              (fit.sample(i).text for i in range(len(fit))),
+                              args.prior_height, args.prior_score_clip, args.prior_alpha)
+        chosen_prior = ("format", "height", "complete")[choice.index]
+        routes["correction"] = plan_stable(library(
+            args.reader, True, "none", True,
+            prior=complete_prior if choice.index == 2 else None,
+            prior_height=args.prior_height if choice.index == 1 else None),
+            (FORMULA_TEXT,), BOOLEAN)
+        assert routes["correction"] is not None
+        print(f"prior fit: validation seed {args.seed + 10_000}, n={choice.samples}, "
+              f"scores={choice.scores}, total error={choice.score_error:g}", flush=True)
+    print(f"correction prior: {chosen_prior}" + (f" (height {args.prior_height})"
+          if chosen_prior == "height" else ""), flush=True)
     print(f"{WORD_DISTRIBUTION}: " + ", ".join(
         f"{r.module.manifest.module_id} (cost {r.cost:g}, T={r.temperature():.2f})"
         for r in ladders[WORD_DISTRIBUTION]))

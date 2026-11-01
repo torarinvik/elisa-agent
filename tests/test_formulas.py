@@ -1343,3 +1343,26 @@ def test_clipped_prior_selection_derives_uniform_total_score_error(
             formulas.select_prior(candidates, [rows], base, **options)
     with pytest.raises(ValueError, match="every observed length"):
         formulas.select_prior([lambda length: None], [rows], base, score_clip=2, alpha=0.1)
+
+
+def test_logic_prior_fit_consumes_texts_with_separate_calibration_labels() -> None:
+    from nca.logic import choose_prior
+
+    class Reader:
+        seen: list[str] = []
+
+        def observe(self, word: str) -> str:
+            self.seen.append(word)
+            return word
+
+        def distribution(self, word: str, decision: Decision) -> torch.Tensor:
+            assert decision == ARITY_DECISION
+            return torch.tensor([0.0, 1.0, 0.0] if word == "not" else [1.0, 0.0, 0.0])
+
+    reader = Reader()
+    selected = choose_prior(reader, np.arange(6), iter(["not not true", "not not false"]),
+                            height=2, score_clip=2, alpha=0.1)
+    assert selected.index == 0 and selected.samples == 2
+    assert selected.scores == (4.0, 4.0, -4.0)
+    assert reader.seen == ["not", "not", "true", "not", "not", "false"]
+    assert selected.score_clip == 2 and selected.alpha == 0.1

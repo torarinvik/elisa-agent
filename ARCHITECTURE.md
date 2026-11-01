@@ -752,3 +752,13 @@ the clipping range and `prior_selection_regret` proves the conditional
 selection step; Hoeffding concentration is not formalized in Lean here.
 The bound concerns expected clipped scores, not raw evidence or deployment
 error. An answering policy still requires an independent risk audit.
+
+`logic --prior auto --prior-height D` performs bounded selection after
+reader calibration. It uses `--prior-fit` validation formulas at
+`seed + 10000`, maximum requested depth and deployment noise when shifted.
+Calibration labels supply only the common base frequencies; selection reads
+texts through the highest reader rung. Candidate order is format, height D,
+complete, with fixed `--prior-score-clip` and `--prior-alpha`. The chosen
+correction route is then held fixed through audit and evaluation. D must
+cover the generator's maximum requested depth plus optional leaf negation.
+The default remains format-only; premise diagnostics remain format-only.
