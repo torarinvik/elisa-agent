@@ -567,3 +567,11 @@ must treat tensors as read-only. This is the basis for shared-target inference
 under Theorem 17.8. Audit fitting does not yet use the hook. A future client
 should retain only selected target snapshots, rather than every trace state.
 Target-dependent floors/stopping must not be mixed into shared-path selection.
+
+`selective.solve_many` runs to the strictest requested target and retains at
+most one first-qualifying reading snapshot per distinct target. It reconstructs
+each answer through the same consumer chain, preserving the cost and bound
+of that policy's stopping state. Exhausted targets use the final state.
+`solve` shares the internal preparation/rendering path; its floor/stop options
+remain available. Multi-target calls exclude those options and require
+deterministic consumers. Audit fitting has not yet switched to this API.

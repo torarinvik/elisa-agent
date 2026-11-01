@@ -1521,6 +1521,22 @@ This tests reader refinement only; Boolean answer reconstruction and audit
 fit-pass integration remain pending. Floors and predictive stopping were
 disabled, as required for target-independent transitions.
 
+**Multi-target solving.** `solve_many` now reconstructs answers from the
+shared refinement trajectory of Theorem 17.8, retaining only selected target
+snapshots. Tests compare full answers, costs and bounds against independent
+solves, covering unordered/duplicate targets, abstention, empty input and
+empty target lists. Native suite: 130 passes; fallback: 117 passes, 13 skips.
+Floors and predictive stopping are excluded; consumers must be deterministic.
+
+Three depth-6 Boolean formulas at noise 0.2, test seed 8, used the existing
+reader calibrated on 100 depth-4 validation formulas at noise 0.1, seed 0.
+Seven thresholds were `0.05 / λ` for the current audit inflations. Independent
+solves used 5,656 expert observations and 0.70937 s; shared solves used 866
+observations and 0.10479 s. Every returned Answer compared exactly equal,
+including cost and bound. This single ordered timing pair includes warm-up
+effects; the observation reduction is directly counted. Audit fit-pass
+integration remains the next step, while checking keeps its lazy rejection.
+
 ## 24. When the prior is wrong
 
 ### 24.6 Predictions for the calibration test

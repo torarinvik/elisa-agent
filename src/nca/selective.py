@@ -41,6 +41,7 @@ calibration check), error when forced to answer, and compute per expression.
 from __future__ import annotations
 
 import argparse
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,7 +52,7 @@ import torch
 from nca.abi import NOTHING, Contract, SequenceDemand, TypeId
 from nca.efficiency import costed, network_flops
 from nca.expressions import ExpressionDataset
-from nca.ladder import (Distribution, Certificate, Decision, Floor, Rung, SecondLook, State, Stop, ladder,
+from nca.ladder import (Distribution, Certificate, Decision, Floor, Refinement, Rung, SecondLook, State, Stop, ladder,
                         refine)
 from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, DigitRecognizer
 from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, SymbolRecognizer, make_dataset
@@ -108,6 +109,27 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
     without a certificate, the additive floor) exceeds ``delta``; ``stop`` and
     ``trace`` are passed to ``refine``.
     """
+    return _solve_targets(route, ladders, value, [delta], start, floors, stop, trace)[0]
+
+
+def solve_many(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
+               targets: Sequence[float], start: int = 0) -> list[Answer]:
+    """Answer several targets from one target-independent refinement path.
+
+    Consumers must be deterministic. Floors and predictive stopping are not
+    enabled; answers retain the cost at their own first qualifying state.
+    """
+    if any(math.isnan(target) or target < 0 for target in targets):
+        raise ValueError("targets must be nonnegative and not NaN")
+    if not targets:
+        return []
+    return _solve_targets(route, ladders, value, targets, start)
+
+
+def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
+                   targets: Sequence[float], start: int = 0, floors: bool = False,
+                   stop: Stop | None = None, trace: list[State] | None = None) -> list[Answer]:
+    delta = min(targets)
     chain, mapped = split_route(route)
     consumer, body, source = chain[-1], mapped.body, mapped.source
     experts = readers(mapped)
@@ -123,7 +145,7 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
         if any(r != NOTHING for r in reads):
             break
     else:
-        return Answer(None, 0.0, 1.0, True)
+        return [Answer(None, 0.0, 1.0, True) for _ in targets]
     declare = getattr(fuse, "decides", getattr(fuse, "demand", None))
     items = [(i, k) for i, read in enumerate(reads) if read != NOTHING
              for k in range(len(experts))
@@ -133,18 +155,29 @@ def solve(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any, delta: flo
     certificate = element_certificate(consumer, items, len(elements))
     assert certificate is None or fuse is None, "certificates are declared on direct readings"
     floor = element_floor(consumer, items, len(elements)) if floors else None
+    selected: dict[float, Refinement] = {}
+
+    def observe(state: Refinement) -> None:
+        for target in targets:
+            if target not in selected and state.bound <= target:
+                selected[target] = state
+
     refined = refine([elements[i] for i, _ in items], [ladders[types[k]] for _, k in items],
                      delta, start, [ranges(k, reads[i]) for i, k in items], certificate,
-                     floor, floors, stop, trace)
-    inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]
-    for (i, k), observed in zip(items, refined.readings):
-        inputs[i][k] = tuple(observed.tolist())
-    result: Any = ([args[0] for args in inputs] if fuse is None else
-                   [fuse.invoke(*args) if read != NOTHING else None
-                    for args, read in zip(inputs, reads)])
-    for module in reversed(chain):
-        result = module.invoke(result)
-    return Answer(result, refined.cost, refined.bound, refined.abstained)
+                     floor, floors, stop, trace, observe if len(targets) > 1 else None)
+
+    def answer(state: Refinement, target: float) -> Answer:
+        inputs: list[list[Any]] = [[None] * len(experts) for _ in elements]
+        for (i, k), observed in zip(items, state.readings):
+            inputs[i][k] = tuple(observed.tolist())
+        result: Any = ([args[0] for args in inputs] if fuse is None else
+                       [fuse.invoke(*args) if read != NOTHING else None
+                        for args, read in zip(inputs, reads)])
+        for module in reversed(chain):
+            result = module.invoke(result)
+        return Answer(result, state.cost, state.bound, state.bound > target)
+
+    return [answer(selected.get(target, refined), target) for target in targets]
 
 
 def element_certificate(consumer: Module, items: Sequence[tuple[int, int]],

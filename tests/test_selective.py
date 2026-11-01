@@ -469,3 +469,23 @@ def test_shared_refinement_trace_matches_independent_thresholds() -> None:
     assert states[0].cost == 2.0
     assert torch.allclose(states[0].readings[0], torch.tensor([0.4, 0.6]))
     assert states[0].readings is not states[-1].readings
+
+
+def test_solve_many_matches_independent_answers_and_costs() -> None:
+    from nca.selective import solve_many
+
+    cheap = constant("cheap", (0.4, 0.6), 1.0, Contract(("ch",), "dist"))
+    strong = constant("strong", (0.001, 0.999), 3.0, Contract(("ch",), "dist"))
+    route = plan_stable([Splitter(), Joiner(), Argmax(), cheap, strong], ("text",), "out")
+    assert route is not None
+    ladders = {"dist": [Rung(cheap), Rung(strong)]}
+    targets = [0.9, 0.01, 0.0001, 0.2, 0.9]
+    shared = solve_many(route, ladders, "abcd", targets)
+    assert shared == [solve(route, ladders, "abcd", delta) for delta in targets]
+    assert shared[0].cost < shared[1].cost
+    assert shared[2].abstained
+    assert solve_many(route, ladders, "abcd", []) == []
+    assert solve_many(route, ladders, "", targets) == [
+        solve(route, ladders, "", delta) for delta in targets]
+    with pytest.raises(ValueError):
+        solve_many(route, ladders, "abcd", [float("nan")])
