@@ -126,6 +126,41 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
         for state in 0..<states |total: f64 = log(0.0)| -> total:
             total <- log_add(total, rows[(m % 2) * states + state] + final[state])
 
+# Max-product and traceback only. Traversal and strict ties match decode_prior.
+def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    states: i64 = final.len.i64()
+    m: i64 = log_probs.len.i64() / width
+    return [] if m == 0
+    rows, choice =
+        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (rows, choice):
+            here: i64 = (k % 2) * states
+            next: i64 = ((k + 1) % 2) * states
+            for state in 0..<states |rows|:
+                rows[next + state] <- log(0.0)
+            for state in 0..<states |rows, choice|:
+                continue if rows[here + state] == log(0.0)
+                for j in 0..<width |rows, choice|:
+                    edge: i64 = state * width + j
+                    target: i64 = transitions[edge]
+                    continue if target < 0
+                    candidate: f64 = rows[here + state] + (log_probs[k * width + j] + prior[edge])
+                    if candidate > rows[next + target]:
+                        rows[next + target] <- candidate
+                        choice[(k + 1) * states + target] <- edge
+    terminal: i64 =
+        for state in 0..<states |top: f64 = log(0.0), terminal: i64 = -1| -> terminal:
+            candidate: f64 = rows[(m % 2) * states + state] + final[state]
+            if candidate > top:
+                top <- candidate
+                terminal <- state
+    return [] if terminal < 0
+    return
+        for step in 0..<m |selected: darray[i64] = [0 for _ in 0..<m], state: i64 = terminal| -> selected:
+            edge: i64 = choice[(m - step) * states + state]
+            selected[m - step - 1] <- alphabet[edge % width]
+            state <- edge / width
+
 # Weighted deterministic prior automaton (§27), including any format restriction.
 # Caller validates dimensions and state indices; -1 denotes a forbidden transition.
 def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -463,6 +498,7 @@ export pymodule decoding:
     fn decode_prior
     fn prior_log_weight
     fn prior_normalizer
+    fn prior_best
     fn advance
     fn retreat
     fn scores

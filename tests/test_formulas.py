@@ -830,6 +830,7 @@ def test_weighted_prior_decode_matches_exhaustive_sequences(
         assert posterior is not None
         assert posterior.log_z == pytest.approx(log_z, abs=1e-10)
         assert prior.log_normalizer(rows) == posterior.log_z
+        assert prior.best(rows) == posterior.arities
         assert posterior.arities == candidates[int(np.argmax(scores))]
         probabilities = np.exp(scores - log_z)
         expected = np.array([[sum(p for selected, p in zip(candidates, probabilities)
@@ -1611,9 +1612,9 @@ def test_prior_account_uses_current_risk_between_marginal_refreshes(
         before = calls
         account = evaluator.certificate(readings, lambda k, d: 0.0, distribution, state)
         assert account is not None
-        # words() decodes raw selection each call; calibration marginals refresh only at 0 and 3.
         native_sum = getattr(formulas._NATIVE, "prior_normalizer", None) is not None
-        assert calls - before == (2 if step in (0, 3) or not native_sum else 1)
+        native_best = getattr(formulas._NATIVE, "prior_best", None) is not None
+        assert calls - before == int(not native_best) + int(step in (0, 3) or not native_sum)
         if step == 0:
             original_priorities = state.priorities
         elif step < 3:
@@ -1624,3 +1625,35 @@ def test_prior_account_uses_current_risk_between_marginal_refreshes(
         assert oracle is not None
         assert sum(account.values()) == pytest.approx(
             oracle.risk(np.log(calibrated), ARITY_ORDER, selected), abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_best_matches_full_decoder_ties_and_zero_support(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    prior = formulas.ArityPrior((2, 0, 1), np.array([[0, 1, -1], [1, 0, 2], [2, 2, 1]]),
+                                np.zeros((3, 3)), np.zeros(3))
+    for size in (1, 2, 5, 31):
+        rows = np.zeros((size, 3))
+        posterior = prior.decode(rows)
+        assert posterior is not None
+        assert prior.best(rows) == posterior.arities
+    assert prior.best(np.empty((0, 3))) is None
+    assert prior.best(np.full((3, 3), -np.inf)) is None
+    with pytest.raises(ValueError):
+        prior.best(np.ones((3, 2)))
+
+
+def test_native_prior_best_does_not_compute_unused_posteriors(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(formulas._NATIVE, "prior_best", None) is None:
+        pytest.skip("native prior maximum is not built")
+
+    def no_decode(*args: Any) -> Any:
+        raise AssertionError("maximum-only selection must not compute sums or marginals")
+
+    monkeypatch.setattr(formulas.ArityPrior, "decode", no_decode)
+    prior = formulas.complete_prior(3)
+    assert prior is not None
+    assert prior.best(np.zeros((3, 3))) == (2, 0, 0)

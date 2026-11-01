@@ -291,11 +291,13 @@ class FormulaEvaluator:
                                for r in readings])
             with np.errstate(divide="ignore"):
                 prior = None if self.prior is None else self._arity_prior(len(readings))
-                decoded = (decode(np.log(masses), ARITY_ORDER) if self.prior is None else
-                           None if prior is None else prior.decode(np.log(masses)))
-            if decoded is None:
+                if self.prior is None:
+                    decoded = decode(np.log(masses), ARITY_ORDER)
+                    arities = None if decoded is None else decoded.arities
+                else:
+                    arities = None if prior is None else prior.best(np.log(masses))
+            if arities is None:
                 return [VOCABULARY[int(np.argmax(r))] for r in readings]
-            arities = decoded.arities
             if state is not None:
                 state.answer_readings = np.asarray(readings, dtype=np.float64).copy()
         elif self.band_slack is not None:

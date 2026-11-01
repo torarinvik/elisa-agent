@@ -824,3 +824,11 @@ between refreshes, the rolling native normalizer scores the actual selected
 sequence. Cached nonnegative priorities allocate that current risk under
 Theorem 23.11. Unversioned calls invalidate all rows and therefore retain
 full refreshes. Stateless calls remain a full-decode reference.
+
+`ArityPrior.best` uses Elisa `prior_best` for weighted maximum selection
+without normalizers or marginals. Prior-aware raw answer selection calls
+this path. It retains two maximum rows plus predecessor choices for
+traceback; state/symbol traversal and strict tie updates match the full
+native decoder. Without the export, the full decoder supplies the reference
+fallback. The recurrences correspond to §27.2–27.3; tests cover weighted
+priors, uniform ties, empty support, and a guard against full decoding.

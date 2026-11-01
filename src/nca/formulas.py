@@ -252,6 +252,21 @@ class ArityPrior:
         result = self.decode(rows)
         return -math.inf if result is None else result.log_z
 
+    def best(self, log_probs: np.ndarray) -> tuple[int, ...] | None:
+        """Maximum-weight sequence without computing sums or marginals (§27.2–3)."""
+        rows = self._rows(log_probs)
+        if not len(rows):
+            return None
+        native = getattr(_NATIVE, "prior_best", None)
+        if native is not None:
+            selected = native(np.ascontiguousarray(rows).reshape(-1),
+                              np.asarray(self.alphabet, dtype=np.int64),
+                              self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                              self.log_final, self.start)
+            return tuple(int(a) for a in selected) if selected else None
+        result = self.decode(rows)
+        return None if result is None else result.arities
+
     def decode(self, log_probs: np.ndarray) -> Decoded | None:
         """Sum, maximize and marginalize reading weight times prior weight."""
         rows = self._rows(log_probs)

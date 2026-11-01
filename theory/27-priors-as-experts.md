@@ -198,6 +198,12 @@ passes from 2KN to KN + KL for K candidates. This is exact reuse, not a
 probability approximation; it requires the base and models to stay fixed
 throughout the selection batch.
 
+**Answer-only maximization.** The posterior normalizer is common to every
+accepted sequence. Selecting an answer therefore needs only max-product
+and traceback (Theorems 27.2–27.3), not forward sums or marginals. Rolling
+maximum rows suffice during the forward pass, while predecessor choices
+must remain available for backtracking.
+
 **Risk-only refinement.** Once an answer is selected, its posterior risk
 needs its own weighted score and the current normalizer, not a new maximum
 or marginal table. Allocation priorities may be older nonnegative weights:
