@@ -309,8 +309,9 @@ class Rung:
                 or labels.dtype not in integer_types or len(values) == 0
                 or labels.numel() != len(values)):
             raise ValueError("calibration needs nonempty values and one integer label per value")
+        value_snapshot = tuple(values)
         label_snapshot = labels.detach().clone()
-        observations = torch.stack([self.observe(v) for v in values])
+        observations = torch.stack([self.observe(v) for v in value_snapshot])
         targets = label_snapshot.to(device=observations.device, dtype=torch.long)
         if bool(((targets < 0) | (targets >= observations.shape[1])).any()):
             raise ValueError("calibration labels must be valid class indices")

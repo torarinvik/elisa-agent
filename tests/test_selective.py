@@ -1724,3 +1724,20 @@ def test_calibration_snapshots_labels_before_invoking_expert() -> None:
     assert labels.tolist() == [0, 0]
     assert rung.held_out is not None
     assert rung.held_out[1].tolist() == [0, 1]
+
+
+def test_calibration_snapshots_value_sequence_before_invoking_expert() -> None:
+    values = [0, 1]
+
+    class MutatingExpert:
+        manifest = Manifest("value-list-mutator", "1", Contract(("x",), "dist"))
+
+        def invoke(self, value):
+            values[1] = 0
+            return (0.9, 0.1) if value == 0 else (0.1, 0.9)
+
+    rung = Rung(MutatingExpert())
+    rung.calibrate(values, torch.tensor([0, 1]))
+    assert values == [0, 0]
+    assert rung.held_out is not None
+    assert rung.held_out[0].exp().tolist()[1] == pytest.approx([0.1, 0.9])
