@@ -1769,6 +1769,20 @@ c_k`. With the backward rows divided by the same totals, a marginal is
 constants out of `dpSum`, so the results are exact. The most probable sequence
 stays in log space, where it needs only additions.
 
+The same rescaling serves the cursor of §23.4. Store each forward row as
+`F̂_k = F_k / C_k` with `log C_k`, and each backward row as `B̂_k = B_k / D_k`
+with `log D_k`. A row recomputed from its neighbour costs one multiply-add per
+transition, one division per state and one logarithm per row:
+`log C_{k+1} = log C_k + log Σₙ F̃_{k+1}(n)`, with `F̃_{k+1}` the unnormalized row
+computed from `F̂_k`. The split of Theorem 23.7 becomes
+
+> `log Z = log C_k + log D_{k+1} + log Σₙ F̂_k(n) Σₐ qₖ(a) B̂_{k+1}(δ(n, a))`,
+
+since both factors come out of the double sum. The band restricts which
+states a row holds, not how it is scaled, so banding is unaffected. A row
+whose total is 0 has no accepted continuation through it; it is stored as
+zeros with `log C = −∞`, and so is every row computed from it.
+
 ## 24. When the prior is wrong
 
 ### 24.1 The question

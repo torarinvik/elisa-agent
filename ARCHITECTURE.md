@@ -200,7 +200,9 @@ passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
 It also exports `advance`, `retreat` and `scores`, the banded cursor of §23.4:
 `formulas.Split` keeps the forward and backward tables in NumPy arrays and the
 kernel recomputes rows in place through `mutable view[f64]` parameters, which
-borrow the arrays' writable buffers.
+borrow the arrays' writable buffers. With the kernel built, the sum tables are
+linear rows of total 1 with per-row log scales (`forward_scale`,
+`backward_scale`); without it, `Split` keeps them in log space.
 
 ## 1. Types and contracts
 

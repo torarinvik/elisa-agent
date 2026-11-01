@@ -967,6 +967,22 @@ in native code. Against one native full decode (0.9 ms) a banded climb is
 (about 4 per formula, each a full banded pass) and the log-space additions,
 each an exponential and a logarithm.
 
+**Rescaled native cursor** (THEORY §23.7, cursor paragraph). The kernel's
+sum tables in linear space, each row of total 1 with its log scale; the max
+tables stay in log space. Same experiments:
+
+| cursor | log space | rescaled linear |
+|---|---:|---:|
+| exact, unbanded | 0.78 ms | 0.43 ms |
+| banded, including rebuilds | 0.17 ms | 0.10 ms |
+
+Final `|Δ log Z|` ≤ 1.2e-14 and banded slack 1.0e-7 to 1.9e-5, unchanged.
+A banded climb is now 9 times cheaper than one native full decode (0.9 ms)
+and 240 times cheaper than a NumPy full decode. The unbanded cursor does
+about 78k transitions per climb in 0.43 ms, 5.5 ns each, so the
+transcendental functions were less than half the cost; the rest is the max
+pass, bounds-checked indexing, and the Python side of each climb.
+
 **Native decoder (§23.7).** Over random inputs of up to 1200 words, both give
 the same decoded sequence, `log Z` within relative 10⁻⁹ and marginals within
 10⁻⁹. At depth 8 (575 words) a full decode takes 0.9 ms, against 30 ms in

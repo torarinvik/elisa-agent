@@ -330,16 +330,22 @@ class Split:
         else:
             self.low = np.maximum(0, centre - half)
             self.high = np.minimum(m - position, centre + half)
-        self.forward = np.full((m + 1, width), -np.inf)
+        self.low = np.ascontiguousarray(self.low, dtype=np.int64)
+        self.high = np.ascontiguousarray(self.high, dtype=np.int64)
+        # The native kernel keeps the sum tables in linear space, each row of total 1 with
+        # its log scale beside it (THEORY §23.7); the NumPy path keeps them in log space.
+        start, empty = (1.0, 0.0) if _NATIVE is not None else (0.0, -np.inf)
+        self.weights = np.exp(self.log_probs)
+        self.forward = np.full((m + 1, width), empty)
+        self.backward = np.full((m + 1, width), empty)
+        self.forward_scale = np.full(m + 1, -np.inf)
+        self.backward_scale = np.full(m + 1, -np.inf)
         self.forward_max = np.full((m + 1, width), -np.inf)
-        self.backward = np.full((m + 1, width), -np.inf)
         self.backward_max = np.full((m + 1, width), -np.inf)
         if self.low[0] <= 1 <= self.high[0]:
-            self.low = np.ascontiguousarray(self.low, dtype=np.int64)
-        self.high = np.ascontiguousarray(self.high, dtype=np.int64)
-        self.forward[0, 1] = self.forward_max[0, 1] = 0.0
+            self.forward[0, 1], self.forward_max[0, 1], self.forward_scale[0] = start, 0.0, 0.0
         if self.low[m] <= 0:
-            self.backward[m, 0] = self.backward_max[m, 0] = 0.0
+            self.backward[m, 0], self.backward_max[m, 0], self.backward_scale[m] = start, 0.0, 0.0
         self.ahead, self.behind, self.swept = 0, m, 0
         self._advance(m)
         self._retreat(0)
@@ -360,7 +366,8 @@ class Split:
     def _advance(self, k: int) -> None:
         """Make forward vectors current through position ``k``."""
         if _NATIVE is not None and self.ahead < k:
-            self.swept += _NATIVE.advance(self.forward.reshape(-1), self.forward_max.reshape(-1),
+            self.swept += _NATIVE.advance(self.forward.reshape(-1), self.forward_scale,
+                                          self.forward_max.reshape(-1), self.weights.reshape(-1),
                                           self.log_probs.reshape(-1), self.arities, self.low,
                                           self.high, self.width, self.ahead, k)
             self.ahead = k
@@ -380,7 +387,8 @@ class Split:
     def _retreat(self, k: int) -> None:
         """Make backward vectors current from position ``k``."""
         if _NATIVE is not None and self.behind > k:
-            self.swept += _NATIVE.retreat(self.backward.reshape(-1), self.backward_max.reshape(-1),
+            self.swept += _NATIVE.retreat(self.backward.reshape(-1), self.backward_scale,
+                                          self.backward_max.reshape(-1), self.weights.reshape(-1),
                                           self.log_probs.reshape(-1), self.arities, self.low,
                                           self.high, self.width, self.behind, k)
             self.behind = k
@@ -403,10 +411,12 @@ class Split:
         self._advance(k)
         self._retreat(k + 1)
         if _NATIVE is not None:
-            log_z, log_x = _NATIVE.scores(self.forward.reshape(-1), self.forward_max.reshape(-1),
-                                          self.backward.reshape(-1), self.backward_max.reshape(-1),
+            log_row = np.ascontiguousarray(row, dtype=np.float64)
+            log_z, log_x = _NATIVE.scores(self.forward.reshape(-1), self.forward_scale,
+                                          self.forward_max.reshape(-1), self.backward.reshape(-1),
+                                          self.backward_scale, self.backward_max.reshape(-1),
                                           self.arities, self.low, self.high, self.width, k,
-                                          np.ascontiguousarray(row, dtype=np.float64))
+                                          np.exp(log_row), log_row)
             return float(log_z), float(log_x)
         log_z = log_x = -np.inf
         for j, s0, n, t0 in self._moves(k):
@@ -422,6 +432,7 @@ class Split:
         after it, backward before it) stop being current."""
         result = self.scores(k, row)
         self.log_probs[k] = row
+        self.weights[k] = np.exp(row)
         self.ahead = min(self.ahead, k)
         self.behind = max(self.behind, k + 1)
         return result
