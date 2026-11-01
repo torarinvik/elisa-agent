@@ -31,6 +31,15 @@ def test_prior_arrays_cannot_be_made_writeable() -> None:
     assert prior.log_weight((0, 1)) == expected
 
 
+def test_native_alphabet_buffer_is_shared_without_becoming_writeable() -> None:
+    first = priors._native_alphabet((2, 0, 1))
+    assert first is priors._native_alphabet((2, 0, 1))
+    assert first.tolist() == [2, 0, 1]
+    assert priors._native_alphabet((0, 1, 2)).tolist() == [0, 1, 2]
+    with pytest.raises(ValueError):
+        first.setflags(write=True)
+
+
 @pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
                                       lambda value: pickle.loads(pickle.dumps(value))])
 def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:

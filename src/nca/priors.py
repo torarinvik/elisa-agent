@@ -15,6 +15,12 @@ from nca.native import load
 _NATIVE = load("decoding")
 
 
+@lru_cache(maxsize=32)
+def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
+    """Immutable native buffer shared by priors with the same alphabet."""
+    return np.frombuffer(np.asarray(alphabet, dtype=np.int64).tobytes(), dtype=np.int64)
+
+
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
                         selected: Sequence[int]) -> float:
     """Log product of a selected sequence's position-wise weights (§21.5)."""
@@ -80,7 +86,7 @@ class ArityPrior:
         """Log prior weight, or -inf for a forbidden sequence."""
         native = getattr(_NATIVE, "prior_log_weight", None)
         if native is not None:
-            return float(native(np.asarray(self.alphabet, dtype=np.int64),
+            return float(native(_native_alphabet(self.alphabet),
                                 self.transitions.reshape(-1), self.log_weights.reshape(-1),
                                 self.log_final, self.start, np.asarray(arities, dtype=np.int64)))
         state, total = self.start, 0.0
@@ -139,7 +145,7 @@ class ArityPrior:
         native = getattr(_NATIVE, "prior_normalizer", None)
         if native is not None:
             return float(native(np.ascontiguousarray(rows).reshape(-1),
-                                np.asarray(self.alphabet, dtype=np.int64),
+                                _native_alphabet(self.alphabet),
                                 self.transitions.reshape(-1), self.log_weights.reshape(-1),
                                 self.log_final, self.start))
         result = self.decode(rows)
@@ -153,7 +159,7 @@ class ArityPrior:
         native = getattr(_NATIVE, "prior_best", None)
         if native is not None:
             selected = native(np.ascontiguousarray(rows).reshape(-1),
-                              np.asarray(self.alphabet, dtype=np.int64),
+                              _native_alphabet(self.alphabet),
                               self.transitions.reshape(-1), self.log_weights.reshape(-1),
                               self.log_final, self.start)
             return tuple(int(a) for a in selected) if selected else None
@@ -169,7 +175,7 @@ class ArityPrior:
         native = getattr(_NATIVE, "decode_prior", None)
         if native is not None:
             out = native(np.ascontiguousarray(rows).reshape(-1),
-                         np.asarray(self.alphabet, dtype=np.int64),
+                         _native_alphabet(self.alphabet),
                          self.transitions.reshape(-1), self.log_weights.reshape(-1),
                          self.log_final, self.start)
             if out is None:
