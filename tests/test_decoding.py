@@ -361,6 +361,26 @@ def test_native_decode_preserves_partially_underflowed_paths() -> None:
     np.testing.assert_allclose(result.marginals, reference.marginals, rtol=1e-12, atol=0)
 
 
+def test_native_decode_ties_match_log_space_order() -> None:
+    rows = np.array([[-np.inf, -1.0, 0.0], [-1.0, 0.0, -1.0],
+                     [0.0, 0.0, 0.0]])
+    result, reference = decode(rows, ARITY_ORDER), decode_reference(rows, ARITY_ORDER)
+    assert result is not None and reference is not None
+    assert result.arities == reference.arities == (2, 0, 0)
+
+
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0)])
+def test_native_decode_ties_match_reference_across_alphabet_orders(alphabet) -> None:
+    rng = np.random.default_rng(920)
+    for length in range(2, 9):
+        for _ in range(100):
+            rows = rng.choice([0.0, -1.0, -2.0, -np.inf], size=(length, 3))
+            actual, expected = decode(rows, alphabet), decode_reference(rows, alphabet)
+            assert (actual is None) == (expected is None)
+            if actual is not None and expected is not None:
+                assert actual.arities == expected.arities
+
+
 def test_native_decode_retries_when_normal_weights_have_underflowing_product() -> None:
     native = getattr(decoding._NATIVE, "decode", None)
     if native is None:

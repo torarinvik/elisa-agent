@@ -76,6 +76,11 @@ With `wₖ = qₖ`:
 - `dpMax` is `Πₖ qₖ(âₖ)` for the most probable parseable arity sequence
   `â`, the **decoded** sequence.
 
+For equal-scoring candidates entering the same state, choose the smaller
+alphabet index. This preserves the maximum and makes the selected predecessor
+independent of the order in which those tied candidates are visited. It does
+not remove differences caused by floating-point scores rounding differently.
+
 **Marginals.** Forward sums `F_k(n)` and backward sums `B_k(n)` over the
 same states give each word's posterior arity distribution:
 

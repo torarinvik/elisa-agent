@@ -22,6 +22,19 @@ which never exceeds the union bound (`exact_risk_le_union`).
 
 namespace NCA
 
+/-- Keep the earlier alphabet index when two candidates have equal score. -/
+def tiedChoice (current candidate : ℕ) : ℕ :=
+  if candidate < current then candidate else current
+
+/-- The tie rule chooses the minimum index, independently of encounter order. -/
+theorem tiedChoice_eq_min (current candidate : ℕ) :
+    tiedChoice current candidate = min current candidate := by
+  unfold tiedChoice
+  split <;> omega
+
+theorem tiedChoice_comm (a b : ℕ) : tiedChoice a b = tiedChoice b a := by
+  simp [tiedChoice_eq_min, min_comm]
+
 section Automaton
 
 variable {σ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)

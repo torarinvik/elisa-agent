@@ -154,7 +154,7 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                         return [FLOOR] if here > 0.0 and weight > 0.0 and contribution < 2.2250738585072014e-308
                         forward[cell] <- forward[cell] + contribution
                         candidate: f64 = here_best + log_probs[k * width + j]
-                        choice[cell] <- j if candidate > best[cell] else choice[cell]
+                        choice[cell] <- j if candidate > best[cell] or (candidate == best[cell] and j < choice[cell]) else choice[cell]
                         best[cell] <- candidate if candidate > best[cell] else best[cell]
                 for n in 0..<(next_top + 1) |total: f64 = 0.0| -> total:
                     total += forward[next_row + n]
