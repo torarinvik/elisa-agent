@@ -3,14 +3,21 @@
 def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     n: i64 = probabilities.len.i64()
     return [] if complements.len.i64() != n
-    pmf: darray[f64] = [1.0 if i == 0 else 0.0 for i in 0..<(n + 1)]
-    for i in 0..<n:
-        p: f64 = probabilities[i]
-        q: f64 = complements[i]
-        for j in 0..<(i + 1):
-            k: i64 = i + 1 - j
-            pmf[k] <- pmf[k] * q + pmf[k - 1] * p
-        pmf[0] <- pmf[0] * q
+    bounded: bool =
+        for i in 0..<n |valid: bool = true| -> valid:
+            p: f64 = probabilities[i]
+            q: f64 = complements[i]
+            valid <- valid and p >= 0.0 and p <= 1.0 and q >= 0.0 and q <= 1.0
+    pmf: darray[f64] =
+        for i in 0..<n |pmf: darray[f64] = [1.0 if j == 0 else 0.0 for j in 0..<(n + 1)], active: i64 = 0| -> pmf:
+            p: f64 = probabilities[i]
+            q: f64 = complements[i]
+            continue if bounded and p == 0.0 and q == 1.0
+            active <- active + 1
+            for j in 0..<active:
+                k: i64 = active - j
+                pmf[k] <- pmf[k] * q + pmf[k - 1] * p
+            pmf[0] <- pmf[0] * q
     return pmf
 
 export pymodule stats:

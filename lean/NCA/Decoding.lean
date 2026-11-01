@@ -159,6 +159,11 @@ theorem bernoulliStep_zero (mass : ℕ → ℝ) (p : ℝ) :
     bernoulliStep mass p 0 = (1 - p) * mass 0 := by
   simp [bernoulliStep]
 
+/-- An impossible event leaves every count's mass unchanged. -/
+theorem bernoulliStep_impossible (mass : ℕ → ℝ) (k : ℕ) :
+    bernoulliStep mass 0 k = mass k := by
+  simp [bernoulliStep]
+
 theorem bernoulliStep_succ (mass : ℕ → ℝ) (p : ℝ) (k : ℕ) :
     bernoulliStep mass p (k + 1) = (1 - p) * mass (k + 1) + p * mass k := by
   simp [bernoulliStep]
