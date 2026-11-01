@@ -220,6 +220,17 @@ def log_add(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return log_add_present(x, y)
 
+# Sum all off-reference masses without exponentiating or subtracting row totals.
+def off_reference_log_mass(log_probs: view[f64], reference: view[i64]) -> f64 can[Abort.Panic]:
+    m: i64 = reference.len.i64()
+    return log(0.0) if m == 0
+    width: i64 = log_probs.len.i64() / m
+    return
+        for k in 0..<m |total: f64 = log(0.0)| -> total:
+            for j in 0..<width |total|:
+                continue if j == reference[k]
+                total <- log_add(total, log_probs[k * width + j])
+
 # Exact format decoding in log space, used when linear-space paths underflow.
 def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     alphabet_size: i64 = alphabet.len.i64()
@@ -942,6 +953,7 @@ export pymodule decoding:
     fn normalized_rows_fast
     fn decode
     fn decode_log
+    fn off_reference_log_mass
     fn decode_prior
     fn prior_log_weight
     fn prior_normalizer

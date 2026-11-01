@@ -108,6 +108,43 @@ def test_banded_decoder_rejects_invalid_parameters(alphabet, slack) -> None:
     with pytest.raises(ValueError):
         decode_banded(np.zeros((1, len(alphabet))), alphabet, slack)
 
+
+@pytest.mark.parametrize("rows", [np.array([[np.inf, -np.inf]]),
+                                  np.array([[np.nan, -np.inf]]),
+                                  np.array([[0.0, 0.0]])])
+def test_banded_decoder_rejects_invalid_probability_rows(rows) -> None:
+    with pytest.raises(ValueError, match="log probabilities"):
+        decode_banded(rows, (0, 1))
+    with pytest.raises(ValueError, match="log-probability"):
+        decoding.band_changes(rows, [0], 1e-4)
+
+
+@pytest.mark.parametrize("log_mass", [-40.0, -1000.0])
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_banded_decoder_keeps_tiny_off_reference_mass(
+        log_mass: float, reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.array([[-np.inf, 0.0, log_mass], [0.0, -np.inf, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    result = decode_banded(rows)
+    assert result is not None and result.arities == (2, 0, 0)
+    assert result.exact
+    changes, tail = decoding.band_changes(rows, np.argmax(rows, axis=1), 1e-4)
+    assert changes == 1 and tail > 0
+
+
+def test_native_off_reference_log_mass_matches_reference(monkeypatch: pytest.MonkeyPatch) -> None:
+    if getattr(decoding._NATIVE, "off_reference_log_mass", None) is None:
+        pytest.skip("native off-reference kernel is not built")
+    rng = np.random.default_rng(239)
+    rows = rng.choice([0.0, -40.0, -1000.0, -np.inf], size=(12, 5))
+    reference = rng.integers(0, rows.shape[1], size=len(rows))
+    actual = decoding._off_reference_log_mass(rows, reference)
+    monkeypatch.setattr(decoding, "_NATIVE", None)
+    expected = decoding._off_reference_log_mass(rows, reference)
+    assert actual == pytest.approx(expected, abs=1e-12)
+
 def test_split_matches_full_decoding() -> None:
     """``NCA.dpSum_append`` and ``NCA.dpMax_append``: after changing one
     word's weights, the cached vectors give the full programs' results."""

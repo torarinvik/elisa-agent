@@ -947,6 +947,8 @@ it passes. The fit-based choice changes computation, not the statistical test.
 
 `formulas.CertifiedSplit` manages a fixed-reference `Split` band and widens
 it until the relative tail and exact-maximum conditions of §23.3 hold.
+It and `decode_banded` sum off-reference log masses using Elisa's
+`off_reference_log_mass`, with a NumPy fallback, and compare tails in log space.
 Single-row updates reuse native cursor sweeps; rebuilds preserve the reference.
 Its `Banded` result bounds model risk with the requested slack. After a
 successful result, `sequence_risk` scores any accepted arity sequence with the

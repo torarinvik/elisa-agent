@@ -28,6 +28,12 @@ So the weight outside `j − 1` changes is at most `U_j = S^j / j!`. For
 `j = 2` this is `e₂` of §19.4. Here it is a statement about the decoding
 model's weights, so it needs no premise beyond (P).
 
+Numerically, off-reference mass is summed directly in log space, rather than
+subtracting the reference mass from a rounded row total. The tail comparison
+also stays in log space, retaining finite mass below the probability range.
+This avoids that cancellation and underflow; it is not an outward-rounding
+guarantee for the entire risk calculation.
+
 **From changes to states** (Theorem 23.4). Arities are at most 2, so
 two sequences differing in `d` positions have sums at most `2d` apart. The
 same holds for every prefix. Hence the counter of `await` (one plus the
