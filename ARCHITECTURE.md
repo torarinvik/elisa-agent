@@ -655,8 +655,9 @@ factory can be supplied through `FormulaEvaluator(prior=complete_prior,
 decode=True)`. The evaluator accepts a generic deterministic length-to-prior
 provider, uses it for raw answer selection and calibrated sequence risk, and
 refuses certificates at unsupported lengths. The alphabet must be
-`ARITY_ORDER`, and the prior must include syntax constraints. Full native
-decoding refreshes prior marginals on every account call; the default format
+`ARITY_ORDER`, and the prior must include syntax constraints. Native
+normalizers refresh prior risk at every account call, while marginal
+allocation priorities refresh periodically; the default format
 cursor and its revision caches remain unchanged. Prior decoding and format
 banding cannot yet be combined. `logic --prior complete` supplies the prior to correction routes, including
 selective and shifted-policy audit runs; other accounts remain unchanged.
@@ -818,4 +819,8 @@ revision-tagged distribution refreshes only invalidated rows, using the same
 per-solve revision identity as the format cursor (Theorem 23.12). Unversioned
 distributions rebuild all rows and clear revision provenance. Snapshots are
 copied before updates so previous arrays remain independent. Prior
-normalizers and marginals still use a full native decode per account call.
+risk uses a full decode initially and after each isqrt(n) invalidated rows;
+between refreshes, the rolling native normalizer scores the actual selected
+sequence. Cached nonnegative priorities allocate that current risk under
+Theorem 23.11. Unversioned calls invalidate all rows and therefore retain
+full refreshes. Stateless calls remain a full-decode reference.

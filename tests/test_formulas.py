@@ -1555,7 +1555,8 @@ def test_prior_calibration_cache_tracks_revisions_and_unversioned_calls(
         assert seen == expected_calls
         fresh = evaluator.certificate(readings, lambda k, d: 0.001, distribution)
         assert account is not None and fresh is not None
-        assert account == pytest.approx(fresh)
+        assert sum(account.values()) == pytest.approx(sum(fresh.values()), abs=1e-12)
+        assert all(charge >= 0 for charge in account.values())
         if previous is not None:
             assert not np.shares_memory(state.prior_log_probs, previous)
         previous = state.prior_log_probs
@@ -1574,3 +1575,52 @@ def test_prior_calibration_cache_tracks_revisions_and_unversioned_calls(
     assert seen == list(range(9))
     assert restored == pytest.approx(evaluator.certificate(
         readings, lambda k, d: 0.001, distribution))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_account_uses_current_risk_between_marginal_refreshes(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.ladder import Distribution
+    from nca.modules.words import CorrectionState
+
+    if reference:
+        monkeypatch.setattr(formulas, "_NATIVE", None)
+    original_decode = formulas.ArityPrior.decode
+    calls = 0
+
+    def decode(prior: formulas.ArityPrior, rows: np.ndarray) -> Any:
+        nonlocal calls
+        calls += 1
+        return original_decode(prior, rows)
+
+    monkeypatch.setattr(formulas.ArityPrior, "decode", decode)
+    rng = np.random.default_rng(1203)
+    readings = rng.dirichlet(np.ones(6), size=9)
+    calibrated = rng.dirichlet(np.ones(3), size=9)
+    versions = [0] * 9
+    distribution = Distribution(lambda k, d: torch.tensor(calibrated[k]), versions.__getitem__)
+    evaluator = FormulaEvaluator(decode=True, prior=formulas.complete_prior)
+    state = CorrectionState()
+    selected = tuple(ARITY[VOCABULARY.index(w)] for w in evaluator.words(readings))
+    calls = 0
+    original_priorities = None
+    for step in range(4):
+        if step:
+            calibrated[step - 1] = rng.dirichlet(np.ones(3))
+            versions[step - 1] += 1
+        before = calls
+        account = evaluator.certificate(readings, lambda k, d: 0.0, distribution, state)
+        assert account is not None
+        # words() decodes raw selection each call; calibration marginals refresh only at 0 and 3.
+        native_sum = getattr(formulas._NATIVE, "prior_normalizer", None) is not None
+        assert calls - before == (2 if step in (0, 3) or not native_sum else 1)
+        if step == 0:
+            original_priorities = state.priorities
+        elif step < 3:
+            assert state.priorities is original_priorities
+        else:
+            assert state.priorities is not original_priorities
+        oracle = original_decode(formulas.complete_prior(9), np.log(calibrated))
+        assert oracle is not None
+        assert sum(account.values()) == pytest.approx(
+            oracle.risk(np.log(calibrated), ARITY_ORDER, selected), abs=1e-12)

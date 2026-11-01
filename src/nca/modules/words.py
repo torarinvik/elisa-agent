@@ -471,7 +471,7 @@ class FormulaEvaluator:
                 for a in ARITY_ORDER:
                     state.within.pop((k, a), None)
         arities = [ARITY[VOCABULARY.index(w)] for w in words]
-        if state is None or self.prior is not None:
+        if state is None:
             prior = None if self.prior is None else self._arity_prior(n)
             posterior = (decode(log_probs, ARITY_ORDER) if self.prior is None else
                          None if prior is None else prior.decode(log_probs))
@@ -480,6 +480,26 @@ class FormulaEvaluator:
             sequence_risk = posterior.risk(log_probs, ARITY_ORDER, arities)
             priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
                           for k, a in enumerate(arities)]
+        elif self.prior is not None:
+            prior = self._arity_prior(n)
+            if prior is None:
+                return None
+            state.steps += len(invalidated)
+            if state.priorities is None or state.steps >= math.isqrt(n):
+                posterior = prior.decode(log_probs)
+                if posterior is None:
+                    return None
+                log_z = posterior.log_z
+                state.priorities = [max(0.0, 1.0 - posterior.marginals[k, ARITY_ORDER.index(a)])
+                                    for k, a in enumerate(arities)]
+                state.steps = 0
+            else:
+                log_z = prior.log_normalizer(log_probs)
+                if not math.isfinite(log_z):
+                    return None
+            weight = sequence_log_weight(log_probs, ARITY_ORDER, arities) + prior.log_weight(arities)
+            sequence_risk = max(0.0, 1.0 - math.exp(min(0.0, weight - log_z)))
+            priorities = state.priorities
         else:
             if state.cursor is None:
                 if self.band_slack is None:

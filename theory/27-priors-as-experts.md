@@ -198,6 +198,15 @@ passes from 2KN to KN + KL for K candidates. This is exact reuse, not a
 probability approximation; it requires the base and models to stay fixed
 throughout the selection batch.
 
+**Risk-only refinement.** Once an answer is selected, its posterior risk
+needs its own weighted score and the current normalizer, not a new maximum
+or marginal table. Allocation priorities may be older nonnegative weights:
+Theorem 23.11 still makes their normalized charges sum to the current
+sequence risk. Periodic marginal refreshes can guide refinement without
+being part of the risk certificate. Different priorities can change the
+refinement path, so deployment certification applies to the resulting
+policy rather than transferring automatically from another refresh rule.
+
 **What evidence rewards.** `−log Z_e(π)` rewards small support: an Occam
 term. `log Z_e(q)` penalizes supports that exclude sequences the readings
 favor. A prior that excludes the truth loses evidence on every formula
