@@ -33,7 +33,7 @@ from torch import nn
 from nca.abi import Contract, Manifest, seq_type
 from nca.efficiency import network_flops
 from nca.formulas import (ALPHABET, ARITY, VOCABULARY, ArityPrior, Banded, CertifiedSplit, FormulaDataset, Split, apply, decode,
-                          labeled_words, parse, sequence_log_weight)
+                          complete_prior, labeled_words, parse, sequence_log_weight)
 from nca.ladder import Decision, allocate_risk
 from nca.native import load
 
@@ -48,6 +48,31 @@ NOISY_WORD = "text.word.noisy.v1"
 
 WORD_DISTRIBUTION = "logic.word.distribution.v1"
 """Tuple of probabilities over ``VOCABULARY``."""
+
+FORMULA_LENGTH = "logic.formula.length.v1"
+"""Positive integer count of words in a prefix formula."""
+
+ARITY_PRIOR = "logic.arity.prior.v1"
+"""Weighted arity automaton, including the formula syntax restriction."""
+
+
+class CompleteTreePrior:
+    """Independent length-to-prior expert for complete binary skeletons (§27).
+
+    Unsupported lengths produce empty support, never a format-only fallback.
+    """
+
+    manifest = Manifest("nca.logic.complete-tree-prior", "1.0.0",
+                        Contract((FORMULA_LENGTH,), ARITY_PRIOR))
+
+    def __init__(self) -> None:
+        self._empty = ArityPrior((0, 1, 2), np.full((1, 3), -1, dtype=np.int64),
+                                 np.zeros((1, 3)), np.array([-np.inf]))
+
+    def invoke(self, length: int) -> ArityPrior:
+        prior = complete_prior(length)
+        return self._empty if prior is None else prior
+
 
 READER = Contract((NOISY_WORD,), WORD_DISTRIBUTION)
 
@@ -326,10 +351,14 @@ class FormulaEvaluator:
         return None if result is None else result.arities
 
     def invoke(self, readings: Sequence[Sequence[float]]) -> bool | None:
-        if self.prior is not None and self._arity_prior(len(readings)) is None:
+        prior = self._arity_prior(len(readings))
+        if self.prior is not None and prior is None:
             return None
         words = self.words(readings)
-        children = parse([ARITY[VOCABULARY.index(w)] for w in words])
+        arities = [ARITY[VOCABULARY.index(w)] for w in words]
+        if prior is not None and not math.isfinite(prior.log_weight(arities)):
+            return None
+        children = parse(arities)
         if children is None:
             return None
         values = [False] * len(words)

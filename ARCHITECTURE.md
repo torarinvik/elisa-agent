@@ -662,3 +662,14 @@ negative infinity in forward, backward and marginal passes (§27.6,
 valid on forward support, sufficient for all emitted posteriors, rather than
 a continuation table for arbitrary starting states. Arrays remain dense; no
 finite low-probability state is pruned.
+
+`modules.words.CompleteTreePrior` exposes the independent contract
+`logic.formula.length.v1 → logic.arity.prior.v1`. It delegates supported
+lengths to the cached constructor and returns an empty-support automaton
+otherwise, retaining the output type without a format fallback. The ordinary
+stable planner and runtime can route and execute it independently; the
+evaluator can consume its `invoke` method as a prior provider. Direct
+evaluation refuses selected shapes outside the supplied prior support.
+Binding the expert through a typed higher-order slot in selective refinement
+remains outstanding: that solver currently handles single-input consumer
+chains, while the ordinary runtime already executes higher-order slots.

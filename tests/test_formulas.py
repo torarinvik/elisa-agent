@@ -1000,3 +1000,30 @@ def test_unreachable_prior_states_do_not_change_posteriors(
     assert actual.arities == expected.arities
     assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
     np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+
+
+def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
+    from nca.abi import Message
+    from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    expert = CompleteTreePrior()
+    evaluator = FormulaEvaluator(decode=True, prior=expert.invoke)
+    unsupported = one_hot("and or true false not false".split())
+    assert evaluator.invoke(unsupported) is None
+    assert plan_stable([], (FORMULA_LENGTH,), ARITY_PRIOR) is None
+    route = plan_stable([expert], (FORMULA_LENGTH,), ARITY_PRIOR)
+    assert route is not None
+    assert plan_stable([expert], (FORMULA_TEXT,), ARITY_PRIOR) is None
+    for size in (1, 3, 9, 6, 12):
+        workspace = Workspace()
+        result = execute(route, {FORMULA_LENGTH: Message(FORMULA_LENGTH, size, "input")},
+                         workspace, budget=1)
+        assert result.type_id == ARITY_PRIOR
+        assert isinstance(result.payload, formulas.ArityPrior)
+        assert workspace.spent == expert.manifest.cost
+        if size in (6, 12):
+            assert result.payload.decode(np.zeros((size, 3))) is None
+        else:
+            assert result.payload is formulas.complete_prior(size)

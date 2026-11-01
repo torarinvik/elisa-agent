@@ -1895,6 +1895,18 @@ took 5.58659 s versus the previously recorded 6.31743 s. This historical
 comparison is not a controlled timing estimate. Model assumptions and
 policy thresholds are unchanged; no finite-probability state is truncated.
 
+**Independent typed prior expert.** `CompleteTreePrior` now declares the
+length-to-arity-prior contract of §27.3. Runtime tests show that installing
+it enables a route from formula length, while formula text alone cannot
+satisfy the contract. They execute supported and unsupported lengths through
+the ordinary stable planner and kernel, check the declared invocation cost,
+and verify cached model reuse. Unsupported lengths return an empty-support
+automaton rather than changing type or falling back. Direct evaluation now
+refuses selected sequences outside supplied support, including such empty
+automata. Typed slot binding in selective refinement remains outstanding;
+its current consumer-chain adapter does not bind higher-order slots. The
+existing constructor-provider path and CLI remain available.
+
 ### 27.6 Predictions
 
 The experiment decodes with three prior experts: format only, height at most
