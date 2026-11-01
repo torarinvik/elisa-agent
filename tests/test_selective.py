@@ -1933,3 +1933,34 @@ def test_missing_calibration_is_reused_until_item_changes(operation) -> None:
     result = refine([0, 0], [[missing], [low] * 8 + [high]], 0.05, certificate=certificate)
     assert not result.abstained and result.cost == 10.0
     assert missing.missing_checks == 1
+
+
+@pytest.mark.parametrize("missing_operation", ["risk", "distribution"])
+def test_missing_calibration_cache_is_scoped_to_query_type(missing_operation) -> None:
+    from nca.ladder import MissingCalibrationError
+
+    class PartialRung(Rung):
+        def risk(self, log, classes=None, *, reading=None):
+            if classes == (0, 1) and missing_operation == "risk":
+                raise MissingCalibrationError("risk unavailable")
+            return super().risk(log, classes, reading=reading)
+
+        def distribution(self, log, classes=None):
+            if classes == (0, 1) and missing_operation == "distribution":
+                raise MissingCalibrationError("distribution unavailable")
+            return super().distribution(log, classes)
+
+    partial = PartialRung(constant("partial-calibration", (0.7, 0.3), 1.0))
+    low = Rung(constant("query-low", (0.5, 0.5), 1.0))
+    high = Rung(constant("query-high", (0.99, 0.01), 1.0))
+
+    def certificate(readings, risk, distribution):
+        if readings[1][0] < 0.9:
+            (risk if missing_operation == "risk" else distribution)(0, (0, 1))
+        else:
+            (distribution if missing_operation == "risk" else risk)(0, (0, 1))
+        return {1: risk(1, None)}
+
+    result = refine([0, 0], [[partial], [low, high]], 0.05, certificate=certificate)
+    assert not result.abstained and result.bound == pytest.approx(0.01)
+    assert result.cost == 3.0
