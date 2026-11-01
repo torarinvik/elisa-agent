@@ -229,6 +229,25 @@ def test_native_tail_blocks_recombine_reference_and_off_mass() -> None:
         assert factor == pytest.approx(float(exact_factor), rel=1e-14, abs=1e-25)
 
 
+@pytest.mark.parametrize("reference", [0, 1, 2])
+@pytest.mark.parametrize("log_mass", [-40.0, -100.0, -700.0])
+def test_native_tail_blocks_keep_tiny_excess_for_any_reference_order(
+        reference: int, log_mass: float) -> None:
+    native = getattr(decoding._NATIVE, "tail_block_summary", None)
+    if native is None:
+        pytest.skip("native tail block kernel is not built")
+    rows = np.full((1, 3), -np.inf)
+    rows[0, reference] = 0.0
+    rows[0, (reference + 1) % 3] = log_mass
+    blocks = np.empty(2)
+    off, factor = native(rows.reshape(-1), np.array([reference], dtype=np.int64), blocks, 1, -1)
+    with localcontext() as context:
+        context.prec = 400
+        exact_factor = (Decimal(1) + Decimal.from_float(log_mass).exp()).ln()
+        assert off == log_mass
+        assert factor == pytest.approx(float(exact_factor), rel=1e-14, abs=0.0)
+
+
 def test_native_tail_blocks_remain_stable_across_many_updates() -> None:
     native = getattr(decoding._NATIVE, "tail_block_summary", None)
     if native is None:
