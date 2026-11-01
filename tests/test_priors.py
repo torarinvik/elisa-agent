@@ -1,4 +1,6 @@
+import copy
 import itertools
+import pickle
 from typing import Any
 
 import numpy as np
@@ -24,6 +26,17 @@ def test_prior_arrays_cannot_be_made_writeable() -> None:
         with pytest.raises(ValueError):
             array.flat[0] = 0
     assert prior.log_weight((0, 1)) == expected
+
+
+@pytest.mark.parametrize("restore", [copy.copy, copy.deepcopy,
+                                      lambda value: pickle.loads(pickle.dumps(value))])
+def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:
+    original = priors.height_prior(2)
+    restored = restore(original)
+    assert restored.log_weight((1, 0)) == original.log_weight((1, 0))
+    for array in (restored.transitions, restored.log_weights, restored.log_final):
+        with pytest.raises(ValueError):
+            array.setflags(write=True)
 
 
 @pytest.mark.parametrize("reference", [False, True])

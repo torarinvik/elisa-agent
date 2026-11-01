@@ -6,6 +6,7 @@ import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Any
 
 import numpy as np
 
@@ -67,6 +68,11 @@ class ArityPrior:
                             ("log_weights", weights), ("log_final", final)):
             frozen = np.frombuffer(array.tobytes(order="C"), dtype=array.dtype).reshape(array.shape)
             object.__setattr__(self, name, frozen)
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        for name, value in state.items():
+            object.__setattr__(self, name, value)
+        self.__post_init__()
 
     def log_weight(self, arities: Sequence[int]) -> float:
         """Log prior weight, or -inf for a forbidden sequence."""
