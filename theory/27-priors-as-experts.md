@@ -244,6 +244,22 @@ still requires Theorem 27.8's assumptions. Calibration data may fix the
 reader and base before this sample; selecting B, K or models using the same
 sample is outside this guarantee.
 
+**Theorem 27.11 (independent selection before risk audit).** Let p_e be the
+probability of selecting prior e before an audit. If, conditional on each
+selected prior and all upstream fitting information, the probability of
+certifying a policy whose population answered-error rate exceeds δ is at
+most α_audit, then the unconditional failure probability is also at most
+α_audit: sum_e p_e failure_e ≤ sum_e p_e α_audit = α_audit.
+
+Independent checking data and a valid fixed-policy audit justify the
+conditional premise. It is not justified by inspecting several prior-specific
+checking results and selecting the most favorable one. The prior-selection
+regret confidence α_prior concerns a different event; it need not be added
+to α_audit for the answer-risk statement alone. A joint claim of both
+regret and audit soundness has failure probability at most
+α_prior + α_audit by a union bound. Neither result says that each finite
+evaluation sample's observed error rate must lie below δ.
+
 Two safeguards:
 
 1. Prefer the largest support among priors whose evidence is statistically

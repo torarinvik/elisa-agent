@@ -1366,3 +1366,35 @@ def test_logic_prior_fit_consumes_texts_with_separate_calibration_labels() -> No
     assert selected.scores == (4.0, 4.0, -4.0)
     assert reader.seen == ["not", "not", "true", "not", "not", "false"]
     assert selected.score_clip == 2 and selected.alpha == 0.1
+
+
+def test_auto_prior_is_fixed_before_deployment_audit(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    from types import SimpleNamespace
+    from nca import logic
+
+    phases: list[str] = []
+    monkeypatch.setattr(sys, "argv", ["logic", "--prior", "auto", "--prior-height", "1",
+        "--prior-fit", "2", "--calibration", "1", "--samples", "1", "--depths", "0",
+        "--shift", "0.2", "--account", "correction", "--draws", "2"])
+    monkeypatch.setattr(logic, "library", lambda *args, **kwargs: [
+        SimpleNamespace(prior=kwargs.get("prior"))])
+    monkeypatch.setattr(logic, "plan_stable", lambda modules, available, target: modules[0])
+    monkeypatch.setattr(logic, "build_ladders", lambda *args: {
+        logic.WORD_DISTRIBUTION: [Rung(EditReader())]})
+
+    def choose(rung: Rung, labels: np.ndarray, texts: Any, *args: Any) -> Any:
+        phases.append("select")
+        assert len(list(texts)) == 2 and len(labels) > 0
+        return formulas.PriorSelection(2, (0.0, 1.0, 2.0), 2, 1.0, 100.0, 0.1)
+
+    def audit(route: Any, ladders: Any, args: Any) -> None:
+        phases.append("audit")
+        assert route.prior is formulas.complete_prior
+        assert args.draws == 2
+
+    monkeypatch.setattr(logic, "choose_prior", choose)
+    monkeypatch.setattr(logic, "shifted", audit)
+    logic.main()
+    assert phases == ["select", "audit"]

@@ -162,4 +162,15 @@ theorem clipped_evidence_bounds {x B : ℝ} (hB : 0 ≤ B) :
     -B ≤ max (-B) (min B x) ∧ max (-B) (min B x) ≤ B := by
   exact ⟨le_max_left _ _, max_le (by linarith) (min_le_left _ _)⟩
 
+/-- Mixing conditional audit failure bounds preserves the audit level. -/
+theorem selected_audit_failure_le {S : Type} [Fintype S]
+    (selection failure : S → ℝ) (α : ℝ)
+    (hp : ∀ s, 0 ≤ selection s) (htotal : ∑ s, selection s = 1)
+    (haudit : ∀ s, failure s ≤ α) :
+    ∑ s, selection s * failure s ≤ α := by
+  calc
+    ∑ s, selection s * failure s ≤ ∑ s, selection s * α :=
+      Finset.sum_le_sum fun s _ => mul_le_mul_of_nonneg_left (haudit s) (hp s)
+    _ = α := by rw [← Finset.sum_mul, htotal, one_mul]
+
 end NCA

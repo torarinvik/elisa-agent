@@ -38,7 +38,7 @@ run the Python tests with `uv run pytest`.
 | [§24 When the prior is wrong](theory/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
 | [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
-| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product` | not implemented |
+| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `formulas.ArityPrior`, `formulas.select_prior`, `modules.words`, `logic` |
 
 ## Theorems
 
@@ -197,6 +197,13 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.2](theory/27-priors-as-experts.md) | `pdpMax_ge` | `Product` |
 | [27.3](theory/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
 | [27.4](theory/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
+| [27.5](theory/27-priors-as-experts.md) | `complete_shape_length` | `Decoding` |
+| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum` | `Product` |
+| [27.7](theory/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
+| [27.8](theory/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
+| [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret` | `Product` |
+| [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds` (range only; concentration not formalized) | `Product` |
+| [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
 
 ## Native kernels
 
@@ -762,3 +769,10 @@ complete, with fixed `--prior-score-clip` and `--prior-alpha`. The chosen
 correction route is then held fixed through audit and evaluation. D must
 cover the generator's maximum requested depth plus optional leaf negation.
 The default remains format-only; premise diagnostics remain format-only.
+
+The auto-prior route is fixed before `shifted` receives it; checking labels
+do not choose a prior. The regression verifies one selection precedes the
+audit call even when multiple audit draws are requested. Theorem 27.11 and
+`selected_audit_failure_le` express the conditional failure-mixture step.
+They do not formalize the data-generation independence assumptions or
+upgrade a reused checking split into fresh validation.
