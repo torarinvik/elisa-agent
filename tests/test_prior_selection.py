@@ -323,6 +323,17 @@ def test_native_row_validation_falls_back_at_normalization_boundary() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_selection_rejects_rows_outside_base_support(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    base = np.array([np.log(0.5), np.log(0.5), -np.inf])
+    rows = np.tile(np.log([0.4, 0.4, 0.2]), (3, 1))
+    with pytest.raises(ValueError, match="supported by the shared base"):
+        priors.select_prior([priors.format_prior], [rows], base)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("layout", ["contiguous", "transposed", "strided"])
 def test_prior_log_weight_validation_preserves_edge_cases(
         reference: bool, layout: str, monkeypatch: pytest.MonkeyPatch) -> None:

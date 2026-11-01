@@ -291,14 +291,13 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
         rows = np.array(observation, dtype=np.float64, copy=True)
         if rows.ndim != 2 or not len(rows) or rows.shape[1] != len(alphabet):
             raise ValueError("readings must be nonempty matrices over the shared alphabet")
-        common = np.broadcast_to(base, rows.shape)
         # Validate every observation even after some candidates become unavailable.
         fast_validate = getattr(_NATIVE, "normalized_rows_fast", None)
         fast_valid = (fast_validate is not None
                       and fast_validate(rows.reshape(-1), base))
         if (not fast_valid and (np.any(np.isnan(rows)) or np.any(rows > 0)
                 or not np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)
-                or np.any(np.isneginf(common) & np.isfinite(rows)))):
+                or np.any(np.isneginf(base) & np.isfinite(rows)))):
             raise ValueError("readings must be normalized and supported by the shared base")
         for i, provider in enumerate(candidates):
             if scores[i] == -math.inf:
@@ -311,7 +310,7 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                 else:
                     if prior.alphabet != alphabet:
                         raise ValueError("candidate alphabet must match the shared base")
-                    denominator = prior.log_normalizer(common)
+                    denominator = prior.log_normalizer(np.broadcast_to(base, rows.shape))
                     if denominator == -math.inf:
                         raise ValueError("candidate prior has zero mass under the base")
                     models[key] = prior, denominator
