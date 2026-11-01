@@ -393,6 +393,23 @@ def format_prior(length: int) -> ArityPrior:
     final[0] = 0.0
     return ArityPrior((0, 1, 2), transitions, np.zeros((states, 3)), final, start=1)
 
+
+def format_sequence_risk(log_probs: np.ndarray, alphabet: Sequence[int],
+                         selected: Sequence[int]) -> float:
+    """Risk of an arity sequence under the complete prefix format."""
+    alphabet = tuple(alphabet)
+    if not alphabet or len(set(alphabet)) != len(alphabet) or any(a not in (0, 1, 2) for a in alphabet):
+        raise ValueError("format risk requires distinct arities from 0, 1, and 2")
+    rows = np.asarray(log_probs, dtype=np.float64)
+    if rows.ndim != 2 or rows.shape[1] != len(alphabet) or not len(rows):
+        raise ValueError("format risk requires nonempty rows over the alphabet")
+    if alphabet != (0, 1, 2):
+        canonical = np.full((len(rows), 3), -np.inf)
+        for column, arity in enumerate(alphabet):
+            canonical[:, arity] = rows[:, column]
+        rows = canonical
+    return format_prior(len(rows)).sequence_risk(rows, selected)
+
 @dataclass(frozen=True)
 class PriorSelection:
     index: int
@@ -595,4 +612,7 @@ class Decoded:
             if tuple(alphabet) != self.prior.alphabet:
                 raise ValueError("alphabet must match the decoded prior")
             return self.prior.sequence_risk(log_probs, chosen)
-        return risk_from_log_weight(self.log_weight(log_probs, alphabet, chosen), self.log_z)
+        symbols = tuple(alphabet)
+        if symbols and len(set(symbols)) == len(symbols) and all(a in (0, 1, 2) for a in symbols):
+            return format_sequence_risk(log_probs, symbols, chosen)
+        return risk_from_log_weight(self.log_weight(log_probs, symbols, chosen), self.log_z)

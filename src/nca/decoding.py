@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from nca.native import load
-from nca.priors import Decoded, sequence_log_weight
+from nca.priors import Decoded, risk_from_log_weight, sequence_log_weight
 
 _NATIVE = load("decoding")
 
@@ -441,7 +441,7 @@ class CertifiedSplit:
         log_x, half = certified
         _, arities = self.split.best(k)
         assert self.log_upper is not None
-        risk = max(0.0, float(-np.expm1(min(0.0, log_x - self.log_upper))))
+        risk = risk_from_log_weight(log_x, self.log_upper)
         return Banded(arities, risk, True, self.changes, 2 * half + 1)
 
     def sequence_risk(self, arities: Sequence[int]) -> float:
@@ -468,7 +468,7 @@ class CertifiedSplit:
             weight = sequence_log_weight(self.log_probs, self.alphabet, arities)
         if self.log_upper is None:
             raise ValueError("requires a successful result for the current rows")
-        return max(0.0, float(-np.expm1(min(0.0, weight - self.log_upper))))
+        return risk_from_log_weight(weight, self.log_upper)
 
     def _replace(self, k: int, row: np.ndarray) -> tuple[float, float]:
         """Replace one validated row and retain the reference and band."""

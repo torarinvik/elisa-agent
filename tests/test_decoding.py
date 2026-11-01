@@ -16,6 +16,29 @@ from nca.modules.words import (ARITY_ORDER)
 def parseable(m: int) -> list[tuple[int, ...]]:
     return [a for a in itertools.product(ARITY_ORDER, repeat=m) if parse(list(a)) is not None]
 
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0)])
+def test_format_risk_preserves_tiny_alternative_and_excludes_invalid_sequences(
+        reference: bool, alphabet: tuple[int, ...], monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    canonical = np.array([[-np.inf, -40.0, 0.0], [0.0, 0.0, -np.inf],
+                          [-1.0, -np.inf, -np.inf]])
+    rows = canonical[:, alphabet]
+    decoded = decode(rows, alphabet)
+    assert decoded is not None and decoded.arities == (2, 0, 0)
+    assert decoded.risk(rows, alphabet) == pytest.approx(np.exp(-40.0), rel=1e-14)
+    assert decoded.risk(rows, alphabet, (2, 1, 0)) == 1.0
+
+
+def test_format_risk_accepts_a_reduced_alphabet() -> None:
+    rows = np.array([[0.0, 0.0], [0.0, 0.0]])
+    result = decode(rows, (1, 0))
+    assert result is not None and result.arities == (1, 0)
+    assert result.risk(rows, (1, 0)) == 0.0
+
 @pytest.mark.parametrize("decoder", [decode_reference, decode])
 def test_decoder_matches_enumeration(decoder: Callable[..., Decoded | None]) -> None:
     """``NCA.dpSum_eq``, ``NCA.dpMax_ge`` and ``NCA.dpMax_attained`` against

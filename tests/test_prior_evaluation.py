@@ -80,6 +80,26 @@ def test_prior_evaluator_retains_tiny_risk_with_and_without_session(
         assert account is not None
         assert sum(account.values()) == pytest.approx(expected, rel=1e-14)
 
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_format_evaluator_retains_tiny_risk_with_and_without_session(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False)
+    readings = one_hot(["and", "true", "true"])
+    masses = np.array([[0.0, np.exp(-40.0), 1.0], [1.0, 1.0, 0.0],
+                       [np.exp(-1.0), 0.0, 0.0]])
+    def distribution(k: int, decision: Decision) -> torch.Tensor:
+        return torch.tensor(masses[k], dtype=torch.float64)
+    fresh = evaluator.certificate(readings, lambda k, d: 0.0, distribution)
+    session = evaluator.certificate_session()
+    cached = session(readings, lambda k, d: 0.0, distribution)
+    for account in (fresh, cached):
+        assert account is not None
+        assert sum(account.values()) == pytest.approx(np.exp(-40.0), rel=1e-14)
+
 def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
     from nca.abi import Message
     from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior

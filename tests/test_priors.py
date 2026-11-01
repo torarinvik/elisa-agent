@@ -46,11 +46,10 @@ def test_decoded_risk_preserves_tiny_probabilities_and_rejects_nan(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
-    decoded = priors.Decoded((0,), 0.0, np.ones((1, 1)))
-    assert decoded.risk(np.array([[-1e-18]]), (0,)) == pytest.approx(1e-18, rel=1e-15)
-    assert decoded.risk(np.array([[-np.inf]]), (0,)) == 1.0
+    assert priors.risk_from_log_weight(-1e-18, 0.0) == pytest.approx(1e-18, rel=1e-15)
+    assert priors.risk_from_log_weight(-np.inf, 0.0) == 1.0
     with pytest.raises(ValueError, match="sequence risk"):
-        decoded.risk(np.array([[np.nan]]), (0,))
+        priors.risk_from_log_weight(np.nan, 0.0)
 
 
 @pytest.mark.parametrize("reference", [False, True])
