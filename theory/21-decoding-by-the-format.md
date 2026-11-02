@@ -118,6 +118,9 @@ same states give each word's posterior arity distribution:
 > `π(aₖ = a) = Σₙ F_k(n + 1) · qₖ(a) · B_{k+1}(n + a) / Z`.
 
 Each is the sum-product theorem applied to a prefix and a suffix.
+Finite-precision implementations check that each emitted marginal row is
+nonnegative, finite, and sums approximately to one. This catches some severe
+roundoff failures but does not certify otherwise normalized results.
 The maximum recurrence needs only its preceding state row; retaining its
 chosen predecessor at each position is sufficient for traceback. Likewise,
 the marginal calculation needs only the next backward row while traversing

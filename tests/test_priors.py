@@ -544,6 +544,31 @@ def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -
         formulas.sequence_log_weight(rows, alphabet, selected[:-1])
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("row, valid", [([0.25, 0.75], True), ([0.0, 0.0], False),
+                                         ([-0.1, 1.1], False), ([np.nan, 1.0], False),
+                                         ([np.inf, 0.0], False)])
+def test_decoded_checks_marginal_rows(reference, row, valid, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    if valid:
+        priors.Decoded((0,), 0.0, np.array([row]))
+    else:
+        with pytest.raises(ValueError, match="marginals are not normalized"):
+            priors.Decoded((0,), 0.0, np.array([row]))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_decode_rejects_unnormalized_marginals_from_precision_loss(
+        reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    rows = np.array([[1e292, -1e308], [0.0, 0.0], [1e308, 1e308], [0.0, 0.0]])
+    with pytest.raises(ValueError, match="marginals are not normalized"):
+        prior.decode(rows)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_weighted_prior_decode_matches_exhaustive_sequences(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:

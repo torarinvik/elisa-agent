@@ -266,6 +266,9 @@ an accepted sequence. It does not constitute a general floating-point error
 bound. Native maximum and full decoding also reject detected non-finite
 intermediate sums; this can conservatively reject cases whose final result
 would be representable after cancellation.
+Full decoding also checks marginal rows for finite, nonnegative entries and
+approximate unit sum. This detects some loss of precision but is not a
+floating-point error bound and cannot validate every normalized result.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

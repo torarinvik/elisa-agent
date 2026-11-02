@@ -1035,7 +1035,8 @@ Selected symbols are checked as integers before native conversion. `decode`
 uses Elisa `decode_prior` for forward sums, maximum
 backtracking and backward marginals, with a NumPy reference fallback.
 `Decoded` retains the prior so its sequence risks include the edge and final
-weights. The recurrences correspond to `pdpSum_eq`, `pdpMax_ge` and
+weights. Its marginal-row check detects invalid normalization but is not a
+floating-point accuracy certificate. The recurrences correspond to `pdpSum_eq`, `pdpMax_ge` and
 `pdpMax_attained` in `NCA/Product.lean`; the format-only comparison exercises
 the unit-prior specialization of §27.4.
 

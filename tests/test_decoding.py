@@ -1995,6 +1995,13 @@ def test_decode_rejects_invalid_arity_alphabet(decoder, alphabet) -> None:
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_rejects_unnormalized_marginals_from_precision_loss(decoder) -> None:
+    rows = np.full((3, 3), 1e307)
+    with pytest.raises(ValueError, match="marginals are not normalized"):
+        decoder(rows)
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
 def test_decode_skips_overflow_in_unreachable_suffix(decoder) -> None:
     rows = np.array([[-np.inf, 0.0], [-1e308, 0.0], [-1e308, -np.inf]])
     result = decoder(rows, (0, 1))

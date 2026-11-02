@@ -701,12 +701,28 @@ class Decoded:
 
     Acceptance is the prefix format by default, or the supplied prior automaton.
     Posterior weights include the prior when present.
+    Marginal rows are checked for finite nonnegative values and approximate
+    unit sum; this check does not certify their numerical accuracy.
     """
 
     arities: tuple[int, ...]
     log_z: float
     marginals: np.ndarray
     prior: ArityPrior | None = None
+
+    def __post_init__(self) -> None:
+        # This detects gross numerical loss; it is not a roundoff certificate.
+        check = getattr(_NATIVE, "posterior_rows_valid", None)
+        if check is not None and self.marginals.ndim == 2 and self.marginals.shape[1]:
+            valid = check(np.ascontiguousarray(self.marginals, dtype=np.float64).ravel(),
+                          self.marginals.shape[1], 1.01e-8)
+        else:
+            with np.errstate(over="ignore", invalid="ignore"):
+                totals = self.marginals.sum(axis=1)
+            valid = (np.all(np.isfinite(self.marginals)) and np.all(self.marginals >= 0)
+                     and np.allclose(totals, 1.0, rtol=1e-8, atol=1e-10))
+        if not valid:
+            raise ValueError("decoder marginals are not normalized; numerical precision was lost")
 
     def log_weight(self, log_probs: np.ndarray, alphabet: Sequence[int],
                    arities: Sequence[int]) -> float:

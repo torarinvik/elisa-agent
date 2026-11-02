@@ -126,6 +126,18 @@ def live(k: i64, m: i64, max_arity: i64) -> i64:
     return remaining if growth > (remaining - 1) / k
     return 1 + k * growth
 
+# Detect invalid posterior rows without claiming a floating-point error bound.
+def posterior_rows_valid(rows: view[f64], width: i64, tolerance: f64) -> bool can[Abort.Panic]:
+    return false if width < 1 or rows.len.i64() % width != 0
+    for k in 0..<(rows.len.i64() / width):
+        total: f64 =
+            for j in 0..<width |total: f64 = 0.0| -> total:
+                value: f64 = rows[k * width + j]
+                return false if value != value or value < 0.0 or value > 1.0 + tolerance
+                total += value
+        return false if total < 1.0 - tolerance or total > 1.0 + tolerance
+    return true
+
 # `log_probs` holds m rows of one log-probability per entry of `alphabet` (the arities).
 # The result is [log Z, decoded arities (m), posterior marginals (m rows)], or [FLOOR] when
 # no parseable sequence has positive weight.
