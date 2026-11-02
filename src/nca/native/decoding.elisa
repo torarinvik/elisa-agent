@@ -395,9 +395,13 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
                     completable[k * width + state] <- true
     return [] if not completable[1]
     forward: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
-    best: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
+    best: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<(2 * width)]
     choice: darray[i64] = [0 for _ in 0..<((m + 1) * width)]
     for k in 0..<m:
+        best_source: i64 = (k % 2) * width
+        best_target: i64 = ((k + 1) % 2) * width
+        for state in 0..<width:
+            best[best_target + state] <- unreachable
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
             return [] if arity < 0
@@ -411,10 +415,10 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
                 through: f64 = source + step
                 return [log(-1.0)] if source != unreachable and step != unreachable and (through == unreachable or through == -unreachable or through != through)
                 forward[cell] <- log_add(forward[cell], through)
-                candidate: f64 = best[k * width + state] + step
-                return [log(-1.0)] if best[k * width + state] != unreachable and step != unreachable and (candidate == unreachable or candidate == -unreachable or candidate != candidate)
-                if candidate > best[cell]:
-                    best[cell] <- candidate
+                candidate: f64 = best[best_source + state] + step
+                return [log(-1.0)] if best[best_source + state] != unreachable and step != unreachable and (candidate == unreachable or candidate == -unreachable or candidate != candidate)
+                if candidate > best[best_target + target]:
+                    best[best_target + target] <- candidate
                     choice[cell] <- j
     log_z: f64 = forward[m * width]
     return [] if log_z == unreachable
@@ -426,10 +430,14 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
         arity: i64 = alphabet[choice[k * width + trace[0]]]
         result[k] <- arity.f64()
         trace[0] <- trace[0] + 1 - arity
-    backward: darray[f64] = [0.0 if i == m * width else unreachable for i in 0..<((m + 1) * width)]
+    backward: darray[f64] = [0.0 if i == (m % 2) * width else unreachable for i in 0..<(2 * width)]
     marginal: darray[f64] = [unreachable for _ in 0..<(m * alphabet_size)]
     for step in 0..<m:
         k: i64 = m - 1 - step
+        backward_here: i64 = (k % 2) * width
+        backward_next: i64 = ((k + 1) % 2) * width
+        for state in 0..<width:
+            backward[backward_here + state] <- unreachable
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
             continue if arity >= m - k
@@ -438,10 +446,10 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
                 target: i64 = state - 1 + arity
                 source: f64 = forward[k * width + state]
                 continue if source == unreachable
-                suffix: f64 = backward[(k + 1) * width + target]
+                suffix: f64 = backward[backward_next + target]
                 through: f64 = reading + suffix
                 return [log(-1.0)] if reading != unreachable and suffix != unreachable and (through == unreachable or through == -unreachable or through != through)
-                backward[k * width + state] <- log_add(backward[k * width + state], through)
+                backward[backward_here + state] <- log_add(backward[backward_here + state], through)
                 weighted: f64 = source + through
                 return [log(-1.0)] if source != unreachable and through != unreachable and (weighted == unreachable or weighted == -unreachable or weighted != weighted)
                 marginal[k * alphabet_size + j] <- log_add(marginal[k * alphabet_size + j], weighted)

@@ -106,6 +106,10 @@ same states give each word's posterior arity distribution:
 > `π(aₖ = a) = Σₙ F_k(n + 1) · qₖ(a) · B_{k+1}(n + a) / Z`.
 
 Each is the sum-product theorem applied to a prefix and a suffix.
+The maximum recurrence needs only its preceding state row; retaining its
+chosen predecessor at each position is sufficient for traceback. Likewise,
+the marginal calculation needs only the next backward row while traversing
+positions in reverse. Forward rows remain available for the marginal sums.
 
 **Cost.** At position `k`, at most `min(k + 1, m − k)` subformulas can be
 awaited and still be completed, because every awaited subformula needs at
