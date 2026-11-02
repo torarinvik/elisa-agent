@@ -94,6 +94,15 @@ def pair_shares(risks: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Pani
         suffix[n - i - 1] <- upper_add(suffix[n - i], risks[n - i - 1])
     return [upper_product(upper_product(risks[i], upper_add(prefix[i], suffix[i + 1])), 0.5) for i in 0..<n]
 
+# Map arities outside the usable range to its two sentinel boundaries.
+def clamp_format_symbols(symbols: mutable view[i64], length: i64) -> i64 can[Abort.Panic]:
+    for i in 0..<symbols.len.i64():
+        if symbols[i] < -1:
+            symbols[i] <- -1
+        elif symbols[i] > length:
+            symbols[i] <- length
+    return 0
+
 # Log weights may contain negative infinity but not NaN or positive infinity.
 def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
     for i in 0..<rows.len.i64():
@@ -1467,6 +1476,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn clamp_format_symbols
     fn observation_logs
     fn upper_sum
     fn lower_sum

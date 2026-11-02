@@ -69,6 +69,13 @@ def _native_decoded_symbols(alphabet: tuple[int, ...], selected: Sequence[int]) 
 
 def _native_format_symbols(symbols: Sequence[int], length: int) -> np.ndarray:
     """Map arities that cannot fit a complete prefix to an unreachable sentinel."""
+    native = getattr(_NATIVE, "clamp_format_symbols", None)
+    if native is not None and len(symbols) >= 32:
+        values = np.asarray(symbols)
+        if values.dtype.kind == "i":
+            result = np.array(values, dtype=np.int64, order="C", copy=True)
+            native(result, length)
+            return result
     return np.fromiter((max(-1, min(int(a), length)) for a in symbols),
                        dtype=np.int64, count=len(symbols))
 

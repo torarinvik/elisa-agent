@@ -772,6 +772,25 @@ def test_sequence_log_weight_rejects_invalid_inputs_even_on_zero_paths(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("dtype", [np.int32, np.int64, np.uint64, object])
+def test_native_format_symbols_preserves_inputs_and_large_integers(reference, dtype, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    values = np.arange(64, dtype=dtype)
+    if dtype in (np.int32, np.int64):
+        values[0] = -5
+    if dtype is object:
+        values[-1] = 10**100
+        values[0] = -(10**100)
+    before = values.copy()
+    actual = priors._native_format_symbols(values, 17)
+    expected = [max(-1, min(int(value), 17)) for value in before]
+    np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_array_equal(values, before)
+    assert actual.dtype == np.int64
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_log_weight_supports_dense_and_reordered_alphabets(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
