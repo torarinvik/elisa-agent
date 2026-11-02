@@ -401,3 +401,61 @@ def test_polynomial_regression_growth_respects_structural_budgets() -> None:
         fit_polynomial_regression_features(Measurement(), rows, targets,
                     max_degree=2, max_terms=10, max_error=float("nan"),
                     lifting_cost=0, projection_cost=0)
+
+
+def test_polynomial_growth_snapshot_reuse_preserves_models_and_runtime_source() -> None:
+    from nca.projection_learning import fit_polynomial_regression_features
+
+    class Counting(Measurement):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def invoke(self, value: Any) -> Any:
+            self.calls += 1
+            return value
+
+    source = Counting()
+    rng = random.Random(3646)
+    rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(100)]
+    targets = [1.7 * x * y - 0.4 * x * x + 0.2 for (x, y), in rows]
+
+    def fit(reuse: bool) -> Any:
+        return fit_polynomial_regression_features(source, rows, targets,
+                    max_degree=5, max_terms=100, max_error=1e-9,
+                    lifting_cost=0, projection_cost=0, reuse_observations=reuse)
+
+    reference = fit(False)
+    assert source.calls == 401
+    source.calls = 0
+    cached = fit(True)
+    assert source.calls == 100 and len(reference) == len(cached) == 2
+    for a, b in zip(reference, cached, strict=True):
+        assert a.constructors == b.constructors
+        assert a.expert.direction == b.expert.direction
+        assert a.expert.measurement.measurement is b.expert.measurement.measurement is source
+        assert a.expert.invoke((0.3, -0.7)) == b.expert.invoke((0.3, -0.7))
+    assert source.calls == 104  # Inference still invokes the original source.
+
+
+@pytest.mark.parametrize("effects,slotted", [(None, False), (frozenset({"effect"}), False),
+                                            (frozenset(), True)])
+def test_polynomial_growth_snapshot_reuse_requires_pure_slot_free_source(
+        effects: Any, slotted: bool) -> None:
+    from dataclasses import replace
+
+    from nca.projection_learning import fit_polynomial_regression_features
+
+    class NeverCalled(Measurement):
+        def invoke(self, value: Any) -> Any:
+            pytest.fail("invalid reuse must reject before observing the source")
+
+    source = NeverCalled()
+    contract = source.manifest.contract
+    if slotted:
+        contract = replace(contract, slots=((("input",), "slot-output"),))
+    source.manifest = replace(source.manifest, contract=contract, effects=effects)
+    rows = [(None, (1.0,)), (None, (2.0,))] if slotted else [((1.0,),), ((2.0,),)]
+    with pytest.raises(ValueError, match="known empty effects and no slots"):
+        fit_polynomial_regression_features(source, rows, [1.0, 2.0], max_degree=2,
+                    max_terms=10, max_error=0, lifting_cost=0, projection_cost=0,
+                    reuse_observations=True)

@@ -327,4 +327,9 @@ theorem nested_fit_comparison {H : Type*} (admitted : H → Prop) (error : H →
     error best ≤ error witness := by
   exact optimal witness hw
 
+/-- Equal deterministic observations give equal mapped training snapshots. -/
+theorem training_snapshot_map_eq {X A : Type*} (xs : List X) (f g : X → A)
+    (same : ∀ x, f x = g x) : xs.map f = xs.map g := by
+  rw [show f = g from funext same]
+
 end NCA

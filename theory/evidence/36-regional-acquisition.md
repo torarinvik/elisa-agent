@@ -309,3 +309,20 @@ claim. Least squares minimizes squared error, while the stopping statistic here
 is maximum absolute residual. Training stopping can miss better generalizing
 higher degrees. Families, tolerance and vector source remain supplied; resource
 budgets bound retained structures, not callback time or numerical conditioning.
+
+
+## 36.43 Training snapshot reuse during representation growth
+
+For a deterministic slot-free measurement with known empty effects, capture
+v_i once during growth. For each degree compute the validated polynomial lift
+once and reuse it for projection fitting and residual evaluation. If the
+captured values equal repeated observations, the fitted design and stopping
+residuals are identical. Lean proves pointwise equality implies equality of the
+mapped observations. It does not prove determinism, FFI correctness, floating
+solver reproducibility or a time bound. Purity metadata alone is insufficient:
+the caller explicitly asserts determinism by opting in.
+
+Snapshots are local to acquisition. Returned projections retain the original
+measurement/lift graph, not training caches. Temporary memory increases with
+sample count and basis size; existing degree/term budgets do not bound total
+bytes. Independent head fitting and selection retain their original behavior.

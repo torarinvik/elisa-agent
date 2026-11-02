@@ -129,19 +129,25 @@ def fit_regression_projection(measurement: Module, rows: Sequence[tuple[Any, ...
         raise ValueError("projection cost must be finite and nonnegative")
     targets = tuple(map(_observation, feedback))
     values = tuple(_vector(measurement.invoke(*row)) for row in rows)
+    direction = _regression_direction(values, targets)
+    return ProjectionEncoder(measurement, direction, projection_cost) if any(direction) else None
+
+
+def _regression_direction(values: Sequence[tuple[float, ...]],
+                          targets: Sequence[float]) -> tuple[float, ...]:
+    """Fit already validated, aligned finite training snapshots."""
     if any(len(value) != len(values[0]) for value in values):
         raise ValueError("inconsistent vector dimensions")
-    n = len(rows)
+    n = len(values)
     means = tuple(math.fsum(value[i] / n for value in values) for i in range(len(values[0])))
     mean_target = math.fsum(target / n for target in targets)
     design = np.asarray([_vector(tuple(x - m for x, m in zip(value, means, strict=True)))
                          for value in values])
     response = np.asarray([_observation(target - mean_target) for target in targets])
     try:
-        direction = _vector(tuple(np.linalg.lstsq(design, response, rcond=None)[0].tolist()))
+        return _vector(tuple(np.linalg.lstsq(design, response, rcond=None)[0].tolist()))
     except np.linalg.LinAlgError as error:
         raise ValueError("projection least-squares solver failed") from error
-    return ProjectionEncoder(measurement, direction, projection_cost) if any(direction) else None
 
 
 def propose_projections(incumbent: Module, measurement: Module,
@@ -213,7 +219,11 @@ class PolynomialEncoder:
             cost=measurement.manifest.cost + cost)
 
     def invoke(self, *inputs: Any) -> tuple[float, ...]:
-        value = _vector(self.measurement.invoke(*inputs))
+        return self.encode(self.measurement.invoke(*inputs))
+
+    def encode(self, value: tuple[float, ...]) -> tuple[float, ...]:
+        """Evaluate a training snapshot using the same validated polynomial path."""
+        value = _vector(value)
         if len(value) != self.dimension:
             raise ValueError("polynomial input dimension differs from training")
         if _NATIVE is None:
@@ -265,7 +275,7 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
 def fit_polynomial_regression_features(measurement: Module,
         rows: Sequence[tuple[Any, ...]], feedback: Sequence[float], *, max_degree: int,
         max_terms: int, max_error: float, lifting_cost: float,
-        projection_cost: float) -> list[Proposal]:
+        projection_cost: float, reuse_observations: bool = False) -> list[Proposal]:
     """Grow polynomial representations while training residuals remain (§36.42).
 
     Fit a centered regression projection at each complete degree, retaining its
@@ -277,6 +287,9 @@ def fit_polynomial_regression_features(measurement: Module,
     continue. Use independent whole-task selection after head acquisition; this
     training stop can miss features that generalize better at higher degrees.
     Stable measurements and finite floating-point arithmetic remain assumptions.
+    Opt-in reuse asserts determinism and requires known empty effects and no
+    slots (§36.43). It observes each row once and retains snapshots only for this
+    training call, trading temporary memory for fewer repeated evaluations.
     """
     if any(type(n) is not int or n < 1 for n in (max_degree, max_terms)):
         raise ValueError("degree and term budgets must be positive integers")
@@ -287,20 +300,34 @@ def fit_polynomial_regression_features(measurement: Module,
     contract = measurement.manifest.contract
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("training row arity differs from contract")
+    if reuse_observations and (measurement.manifest.effects != frozenset() or contract.slots):
+        raise ValueError("observation reuse requires known empty effects and no slots")
     targets = tuple(map(_observation, feedback))
-    dimension = len(_vector(measurement.invoke(*rows[0])))
+    observations = (tuple(_vector(measurement.invoke(*row)) for row in rows)
+                    if reuse_observations else ())
+    dimension = len(observations[0] if reuse_observations
+                    else _vector(measurement.invoke(*rows[0])))
     proposals = []
     for degree in range(1, max_degree + 1):
         if math.comb(dimension + degree, degree) - 1 > max_terms:
             break
         lift = PolynomialEncoder(measurement, dimension, degree,
                                  max_terms=max_terms, cost=lifting_cost)
-        projection = fit_regression_projection(lift, rows, targets, projection_cost=projection_cost)
+        if reuse_observations:
+            lifted = tuple(lift.encode(value) for value in observations)
+            direction = _regression_direction(lifted, targets)
+            projection = (ProjectionEncoder(lift, direction, projection_cost)
+                          if any(direction) else None)
+        else:
+            projection = fit_regression_projection(lift, rows, targets,
+                                                   projection_cost=projection_cost)
         if projection is None:
             continue
         proposals.append(Proposal(projection, (lift.constructor, projection.constructor)))
-        residuals = tuple(_observation(target - projection.invoke(*row))
-                          for row, target in zip(rows, targets, strict=True))
+        predictions = (map(projection.project, lifted) if reuse_observations
+                       else (projection.invoke(*row) for row in rows))
+        residuals = tuple(_observation(target - prediction)
+                          for target, prediction in zip(targets, predictions, strict=True))
         offset = math.fsum(residual / len(rows) for residual in residuals)
         if max(abs(_observation(residual - offset)) for residual in residuals) <= max_error:
             break
