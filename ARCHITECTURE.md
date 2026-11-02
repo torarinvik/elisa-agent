@@ -1271,6 +1271,9 @@ For changed readings, `PartitionCursor` retains prefix summaries and recomputes
 from the first changed row or selected arity. The Elisa kernel performs the
 numeric update; without it, or when the estimated cache exceeds 64 MiB by
 default, the cursor uses the rolling full partition. The limit is configurable.
+Selected symbols use the same exact native encoding as the full partition;
+changing that encoding invalidates the cached prefix, even if encoded values
+match an earlier selection.
 The cache and its floating-point behavior are not formally verified in Lean.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's

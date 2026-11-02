@@ -533,6 +533,43 @@ def test_partition_cursor_tracks_independent_reading_and_selection_changes() -> 
     assert cursor.last_start == 3
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_partition_cursor_supports_large_symbols_and_revisions(reference, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+    alphabet = (0, 2**64, 2**100)
+    prior = priors.ArityPrior(alphabet, np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    rows = np.log(np.array([[.2, .3, .5], [.1, .7, .2], [.5, .4, .1]]))
+    cursor = incremental.PartitionCursor(prior)
+    for selected in ((0, 2**64, 2**100), (0, 2**64, 0), (2**100, 2**64, 0)):
+        np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected))
+        if incremental._NATIVE is not None:
+            assert cursor.partition(rows, selected) == cursor.partition(rows, selected)
+            assert cursor.last_start == len(rows)
+    with pytest.raises(ValueError, match="selected symbols must be integers"):
+        cursor.partition(rows, (0.0, 2**64, 0))
+
+
+def test_partition_cursor_invalidates_when_symbol_encoding_changes() -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.ArityPrior((1, 2), np.zeros((1, 2), dtype=np.int64),
+                              np.zeros((1, 2)), np.zeros(1))
+    rows = np.log(np.array([[.8, .2], [.7, .3]]))
+    cursor = incremental.PartitionCursor(prior)
+    first = cursor.partition(rows, (1, 1))
+    selected = (np.uint64(2), np.int64(2))
+    actual = cursor.partition(rows, selected)
+    np.testing.assert_allclose(actual, prior.partition(rows, selected))
+    assert actual != first
+    assert cursor.last_start == 0
+
+
 def test_partition_cursor_reuses_snapshot_after_out_of_alphabet_fallback() -> None:
     import nca.partition as incremental
 

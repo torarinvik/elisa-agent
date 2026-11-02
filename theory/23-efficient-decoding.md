@@ -275,6 +275,9 @@ cached value `f(v₀)` is exact whenever `v = v₀`. The revision must identify
 both the observation and its calibration; equality of raw observations
 alone is insufficient. Revisions are scoped to one refinement run, whose
 experts and calibration parameters remain fixed.
+When a cache stores encoded inputs, the encoding is also part of the cache
+key: equal encoded values can denote different original symbols under two
+different encodings.
 
 **Theorem 23.13 (one-sided numerical allowance).** Let `q(x)` be the
 true error probability, `b(x)` a valid real-valued bound, and `b̂(x)` its

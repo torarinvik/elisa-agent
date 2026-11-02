@@ -17,8 +17,8 @@ from nca.native import load
 _NATIVE = load("decoding")
 
 
-def _integer_symbols(symbols: Sequence[int]) -> bool:
-    values = np.asarray(symbols)
+def _integer_symbols(symbols: Sequence[int], *, values: np.ndarray | None = None) -> bool:
+    values = np.asarray(symbols) if values is None else values
     if values.ndim != 1:
         return False
     if values.size == 0 or values.dtype.kind in "iu":
@@ -44,9 +44,10 @@ def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
     return np.frombuffer(np.asarray(alphabet, dtype=np.int64).tobytes(), dtype=np.int64)
 
 
-def _native_symbol_pair(alphabet: tuple[int, ...], selected: Sequence[int]) -> tuple[np.ndarray, np.ndarray]:
+def _native_symbol_pair(alphabet: tuple[int, ...], selected: Sequence[int], *,
+                        values: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     dense = _dense_alphabet_needed(alphabet)
-    values = np.asarray(selected)
+    values = np.asarray(selected) if values is None else values
     # NumPy may infer float64 for mixed signed and out-of-range integers,
     # losing their identity before an integer cast. Encode those from the
     # original Python values instead.
