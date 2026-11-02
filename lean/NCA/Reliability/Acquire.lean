@@ -276,4 +276,14 @@ theorem decoded_reloaded_eq {X A Y : Type*} (f0 f1 : X → A) (h0 h1 : A → Y)
   funext x
   rw [hf x, hh (f1 x)]
 
+/-- Auxiliary labels can separate ordered observations even with constant correctness.
+No feedback quality or generalization claim is made. -/
+theorem auxiliary_feedback_separation {A : Type*} (a c : A)
+    (lower upper boundary : ℝ) (hl : lower < boundary) (hu : boundary ≤ upper) :
+    (if lower < boundary then a else c) = a ∧
+    (if upper < boundary then a else c) = c := by
+  constructor
+  · simp [hl]
+  · simp [not_lt.mpr hu]
+
 end NCA

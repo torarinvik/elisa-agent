@@ -165,3 +165,21 @@ Per-node byte sizes are caller declarations, not measured process memory.
 The iterative visitor introduces no extra recursion-depth limit, but existing
 store/install/runtime resource constraints still apply. Stable functional models
 and faithful factories/dependencies remain assumptions.
+
+
+## 36.35 Auxiliary feedback for bootstrap routing
+
+Binary correctness is constant when every incumbent prediction is wrong. Let
+an optional supplied function assign a stable hashable auxiliary label to each
+training triple (input row, incumbent prediction, original target). Fit routing
+cuts to these labels, while regional experts still train on original targets.
+Require at least one incumbent error and at least two distinct routing labels.
+The feedback function is needed only during acquisition, not inference.
+
+For two observations l < b ≤ u and arbitrary labels a, c, the threshold rule
+returns a at l and c at u. Lean proves this ordered two-observation special case.
+It does not prove arbitrary feedback separable, useful, calibrated, or learned.
+Larger empirical fitting and independent whole-task selection retain their
+previous assumptions. Stable callbacks and observations are required; a supplied
+feedback function extends the search signal, not the available measurements or
+expert families, and offers no universal bootstrap guarantee.

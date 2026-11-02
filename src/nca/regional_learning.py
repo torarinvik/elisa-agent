@@ -199,13 +199,20 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         place_boundary: Callable[[float, float], float] | None = None,
         routing_regions: int = 2, tie_break: SplitTieBreak | None = None,
         max_combinations: int = 0, refine: RegionalRefiner | None = None,
-        max_refinements: int = 0) -> list[Proposal]:
+        max_refinements: int = 0,
+        routing_signal: Callable[[tuple[Any, ...], Any, Any], Hashable] | None = None
+        ) -> list[Proposal]:
     """Learn routing cuts from training failures, then acquire task specialists (§36.27).
 
     Measurements are finite-float experts with the original external inputs.
     Auxiliary failure labels train only the router; specialists receive original
-    task targets in their assigned regions. Constant failure indicators yield no
-    proposals. Use inside discover's training callback. Inputs/models/scoring
+    task targets in their assigned regions. By default constant failure indicators
+    yield no proposals. Optional routing_signal(row, prediction, target) supplies
+    stable hashable auxiliary labels, once per training row including successes;
+    it can distinguish failures even when all predictions are wrong (§36.35).
+    Constant auxiliary labels or no failures still yield no proposals. The callback
+    is not retained for inference. Its meaning and usefulness are caller supplied.
+    Use inside discover's training callback. Inputs/models/scoring
     must remain stable; training may invoke the incumbent/measurements repeatedly.
     This family learns scalar cuts, not measurement implementations. An explicit
     routing_regions budget permits interval refinement (§36.28); tie_break is a
@@ -230,18 +237,24 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     measurements = tuple(measurements[:max_measurements])
     if any(replace(m.manifest.contract, output=contract.output) != contract for m in measurements):
         raise ValueError("measurements must preserve inputs, slots and relevance")
-    failures = tuple(not correct(incumbent.invoke(*row), target)
-                     for row, target in zip(rows, labels, strict=True))
-    if len(set(failures)) < 2:
+    failures = []
+    signals = []
+    for row, target in zip(rows, labels, strict=True):
+        prediction = incumbent.invoke(*row)
+        failure = not correct(prediction, target)
+        failures.append(failure)
+        signals.append(failure if routing_signal is None
+                       else routing_signal(row, prediction, target))
+    if not any(failures) or len(set(signals)) < 2:
         return []
     proposals = []
     for measurement in measurements:
         if routing_regions == 2:
-            encoder = fit_partition_encoder(measurement, rows, failures,
+            encoder = fit_partition_encoder(measurement, rows, signals,
                         encoding_cost=encoding_cost, place_boundary=place_boundary,
                         tie_break=tie_break)
         else:
-            encoder = fit_regions_encoder(measurement, rows, failures, max_regions=routing_regions,
+            encoder = fit_regions_encoder(measurement, rows, signals, max_regions=routing_regions,
                         encoding_cost=encoding_cost, place_boundary=place_boundary,
                         tie_break=tie_break)
         if encoder is None:

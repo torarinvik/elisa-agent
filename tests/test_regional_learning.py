@@ -416,3 +416,53 @@ def test_learned_failure_routing_forwards_the_refinement_budget() -> None:
                 place_boundary=midpoint_boundary, refine=refine, max_refinements=1)
     assert seen == [(incumbent, ((1.0,), (2.0,)), (1, 1))]
     assert len(proposals) == 1 and proposals[0].expert.invoke(0.5) == 1
+
+
+def test_auxiliary_feedback_bootstraps_an_all_wrong_incumbent() -> None:
+    from nca.numeric_learning import midpoint_boundary
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0.0)
+    reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
+    rows = [(x / 100,) for x in range(-100, 101)]
+    random.Random(3639).shuffle(rows)
+    labels = [2 * x - 3 if x < 0.13 else 3 * x + 2 for x, in rows]
+    feedback, trained = [], []
+
+    def signal(row: tuple[Any, ...], prediction: Any, target: Any) -> Any:
+        feedback.append((row, prediction, target))
+        return frozenset({prediction < target})
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        trained.extend(zip(train, targets, strict=True))
+        return [Proposal(fit_affine(CONTRACT, [r[0] for r in train], targets, cost=1))]
+
+    def propose(train: Any, targets: Any, auxiliary: bool = True) -> list[Proposal]:
+        return propose_failure_partitions(incumbent, [reading], acquire, train, targets,
+                    lambda a, b: abs(a - b) < 1e-9, max_measurements=1, max_regions=2,
+                    encoding_cost=0, overhead_cost=0, place_boundary=midpoint_boundary,
+                    max_combinations=1, routing_signal=signal if auxiliary else None)
+
+    assert propose(rows, labels, False) == []
+    chosen = discover(incumbent, propose, rows, labels, lambda a, b: abs(a - b) < 1e-9)
+    assert chosen.chosen is not None
+    n = len(rows) // 2
+    assert feedback == [(row, 0.0, target) for row, target in zip(rows[:n], labels[:n])]
+    assert sorted(trained) == sorted(zip(rows[:n], labels[:n], strict=True))
+    assert chosen.chosen.constructors
+    assert abs(chosen.chosen.expert.invoke(-0.5) + 4) < 1e-9
+    assert abs(chosen.chosen.expert.invoke(0.5) - 3.5) < 1e-9
+    assert len(feedback) == n
+
+
+def test_auxiliary_feedback_does_not_acquire_for_a_perfect_incumbent() -> None:
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("identity", "1", CONTRACT), lambda x: x)
+    seen = []
+    result = propose_failure_partitions(incumbent, [incumbent],
+                lambda rows, targets: pytest.fail("perfect incumbent must not train"),
+                [(-1.0,), (1.0,)], [-1.0, 1.0], lambda a, b: a == b,
+                max_measurements=1, max_regions=2, encoding_cost=0, overhead_cost=0,
+                routing_signal=lambda row, prediction, target: seen.append(row) or row)
+    assert result == [] and seen == [(-1.0,), (1.0,)]

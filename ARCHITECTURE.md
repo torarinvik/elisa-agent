@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.34) are described in the
+Regional acquisition and composition (§§36.26–36.35) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2314,3 +2314,11 @@ and fitted categorical/scalar/vector heads use parameter artifacts. Other types
 bindings. Per-node sizes are caller declarations. `load_composition` reifies
 fixed feature/head wiring; `decoded_reloaded_eq` proves conditional pure
 composition fidelity, not executable serialization or mutable-state equivalence.
+
+
+`regional_learning.propose_failure_partitions` (§36.35) optionally accepts a
+training-only `routing_signal(row, prediction, target)`. Its opaque labels fit
+the router, while specialists receive original targets. The default remains
+binary failure routing; no-error samples produce no proposals. The callback is
+not part of retained inference graphs. `auxiliary_feedback_separation` proves
+only the ordered two-observation threshold identity.
