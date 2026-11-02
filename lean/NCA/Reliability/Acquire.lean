@@ -405,4 +405,12 @@ theorem incremented_allowance_distinct {K : Type*} [DecidableEq K]
   have impossible := congrFun h chosen
   simp at impossible
 
+/-- Faithful restoration preserves the ordered outputs of all exposed roots. -/
+theorem retained_root_outputs_eq {X Y : Type*} (roots : List (X → Y))
+    (restore : (X → Y) → (X → Y)) (same : ∀ f ∈ roots, ∀ x, restore f x = f x)
+    (x : X) : roots.map (fun f => restore f x) = roots.map (fun f => f x) := by
+  apply List.map_congr_left
+  intro f hf
+  exact same f hf x
+
 end NCA

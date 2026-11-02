@@ -1,6 +1,6 @@
 """Retain known learned-runtime graphs while keeping external experts opaque (§36.34)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -126,18 +126,31 @@ def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
 
 def store_acquired_model(store: Store, model: Module, bind: Callable[[Module], Binding], *,
                          size: Callable[[Module], int]) -> Binding:
-    """Retain supported learned runtimes; bind other experts without inspecting bodies.
+    """Retain one model using the shared multi-root graph retention path."""
+    return store_acquired_models(store, (model,), bind, size=size)[0]
+
+
+def store_acquired_models(store: Store, models: Sequence[Module],
+                          bind: Callable[[Module], Binding], *,
+                          size: Callable[[Module], int]) -> tuple[Binding, ...]:
+    """Retain explicit reusable model/representation roots together (§36.55).
+
+    Return bindings in input order, including duplicates. Shared objects are
+    visited once across roots, with one size or opaque binding callback per node.
+    Callers choose which learned components to expose; no private graph inspection
+    is needed after reopening. Empty roots perform no writes or callbacks.
 
     Supports regional policies, feature/head composition, structural products,
-    numeric encoders and categorical/scalar/vector fitted heads. Other leaves must already be
-    content-identified. Byte sizes apply per
-    learned node and exclude its dependencies. Sizes/factories must remain
-    faithful, and models must remain stable throughout traversal. Writes are
-    postorder, not transactional. No active library or training evidence changes.
+    numeric encoders and categorical/scalar/vector fitted heads. Other leaves
+    must already be content-identified. Byte sizes apply per learned node and
+    exclude dependencies. Sizes/factories must remain faithful, and models stable
+    throughout traversal. Writes are postorder, not transactional. No active
+    library or training evidence changes; state snapshots are not provided.
     """
+    models = tuple(models)
     saved: dict[int, tuple[Binding, Module]] = {}
     active: set[int] = set()
-    pending = [(model, False)]
+    pending = [(model, False) for model in reversed(models)]
     known = (*_ENCODERS, RegionalExpert, RegionalPolicy, Decoded, JointFeature,
              Decoder, AffineAdapter, VectorAffineAdapter)
     while pending:
@@ -171,4 +184,4 @@ def store_acquired_model(store: Store, model: Module, bind: Callable[[Module], B
             _metadata(node, restored)
         saved[identity] = binding, restored
         active.remove(identity)
-    return saved[id(model)][0]
+    return tuple(saved[id(model)][0] for model in models)

@@ -526,3 +526,24 @@ generalization. Distinct allocations can produce identical models and still
 consume trials. Frontier memory depends on category count and trial budget;
 callbacks/measurements remain subject to stable-training assumptions. Independent
 whole-task selection remains mandatory.
+
+
+## 36.55 Exposing reusable acquisition roots
+
+Retain an ordered family of chosen model roots in one shared postorder traversal.
+A root may be a selected whole-task model or a learned representation intended
+for later heads. Return explicit bindings in original order, preserving duplicate
+root positions. Shared object identities reuse one retained binding and one
+parameter-size or external-binding callback. Empty root families do no work.
+External implementations remain opaque and content-verified.
+
+If every restored root function agrees pointwise with its original, evaluating
+the ordered root family gives the same outputs; Lean proves this conditional
+map equality. It does not prove traversal, serialization or cross-task usefulness.
+Independent tasks can install a representation binding through its public
+contract instead of inspecting a whole model's private graph. Install related
+roots in one shared scope family so shared primitive references have one wrapper
+in a residency pool. Independent installations retain their collision checks.
+Exposing an intermediate representation does not establish that it preserves information
+needed by another task. Stable functional models, faithful factories and explicit
+selection remain assumptions; writes are not transactional or state snapshots.

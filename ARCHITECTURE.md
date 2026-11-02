@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.54) are described in the
+Regional acquisition and composition (§§36.26–36.55) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2444,3 +2444,12 @@ alternative allocation search, deduplicating allowance signatures and scoring
 all fitted models before independent selection. It preserves greedy defaults.
 `incremented_allowance_distinct` proves only that a one-slot increment changes a
 state, not correctness or completeness of the priority frontier.
+
+`acquisition_objects.store_acquired_models` (§36.55) retains chosen models and
+representations as ordered public bindings with one shared traversal memo. The
+single-root API delegates to it. `packages.install_scopes` installs related roots
+with a shared primitive memo; `install` delegates for one scope. This avoids
+conflicting wrappers in one residency pool without weakening collision checks.
+Reinstalled representations can feed new head
+acquisition through ordinary contracts/invocations, preserving expert opacity.
+`retained_root_outputs_eq` proves only conditional ordered output equality.

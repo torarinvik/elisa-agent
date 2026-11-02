@@ -448,3 +448,25 @@ def test_export_identity_survives_reinstallation_and_store_reload(tmp_path: Path
     assert [m.identity for m in first] == [m.identity for m in second]
     assert [m.identity for m in first] == [m.identity for m in reloaded]
     assert [m.manifest for m in first] == [m.manifest for m in reloaded]
+
+
+def test_shared_root_scopes_reuse_wrappers_without_weakening_collision_checks() -> None:
+    from nca.loader import ExpertStore
+    from nca.packages import install_scopes
+
+    store = Store()
+    split = store.put(primitive("split", [TEXT], seq_type(WORD)))
+    length = store.put(primitive("length", [seq_type(WORD)], INT))
+    both = store.put(Composite("both", "1", (split, length)))
+    resident = ExpertStore(budget=64)
+    scopes = install_scopes(store, [split, both, split], experts=resident)
+    assert scopes[0][0] is scopes[1][0] is scopes[2][0]
+    assert [m.identity for m in scopes[1]] == [split, length]
+    assert resident.stats.loads == 0
+    assert scopes[0][0].invoke("a b") == ["a", "b"]
+    assert scopes[1][1].invoke(["a", "b"]) == 2
+    assert resident.stats.loads == 2
+    assert install_scopes(store, [], experts=resident) == ()
+    independent = install(store, split, experts=resident)[0]
+    with pytest.raises(ValueError, match="conflicting expert definitions"):
+        independent.invoke("a b")

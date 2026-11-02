@@ -180,7 +180,16 @@ def _forward(expert: LazyExpert, name: str, default: Any) -> Callable[..., Any]:
 
 def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
             budget: int = 10_000, length: int = 1) -> list[Module]:
-    """The experts a scope sees for the object ``ref``, in order.
+    """Install one object scope; see install_scopes for shared multi-root installation."""
+    return install_scopes(store, (ref,), experts, budget=budget, length=length)[0]
+
+
+def install_scopes(store: Store, references: Sequence[Ref], experts: ExpertStore | None = None, *,
+                   budget: int = 10_000, length: int = 1) -> tuple[list[Module], ...]:
+    """Install ordered roots with shared primitive wrappers across scopes (§36.55).
+
+    Return one scope per input reference, in order. Sharing is scoped to this
+    call; independent calls into one residency pool can conflict deliberately.
 
     Primitives become lazy experts in ``experts`` (a fresh unbounded store by
     default), each with its reference as identity, so a primitive shared by
@@ -241,7 +250,7 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
         return [Export(obj, i, inner, budget=budget, length=length)
                 for i in range(len(obj.exports))]
 
-    return scope(ref)
+    return tuple(scope(ref) for ref in tuple(references))
 
 
 def resolve_binding(store: Store, reference: Ref, index: int, expected: Module) -> Module:

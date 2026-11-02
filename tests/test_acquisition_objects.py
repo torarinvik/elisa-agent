@@ -4,6 +4,7 @@ from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
@@ -306,3 +307,66 @@ def test_prototype_interface_graph_can_be_retained(tmp_path: Path) -> None:
     restored = install(Store.open(tmp_path), root)[index]
     fresh = [(-0.2, 0.1), (0.3, 0.1), (0.0, 0.0)]
     assert [restored.invoke(v) for v in fresh] == [model.invoke(v) for v in fresh]
+
+
+def test_multiple_roots_expose_a_reusable_representation_without_graph_inspection(
+        tmp_path: Path) -> None:
+    from nca.acquisition_objects import store_acquired_models
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import propose_heads
+    from nca.projection_learning import fit_prototype_encoder
+    from test_projection_learning import Measurement as VectorMeasurement
+
+    store = Store()
+    ref = store.put(Primitive(VectorMeasurement.manifest,
+                             "test_projection_learning:Measurement", size=8))
+    source = install(store, ref)[0]
+    rows = [((-2.0, -2.0),), ((2.0, 2.0),), ((-2.0, 2.0),), ((2.0, -2.0),)]
+    labels = ["a", "a", "b", "b"]
+    encoder = fit_prototype_encoder(source, rows, labels, max_centroids=4,
+                    centers_per_category=2, encoding_cost=1)
+    head = fit_decoder(Contract((encoder.constructor.type(),), "primary"),
+                        [encoder.invoke(*r) for r in rows], labels, cost=1)
+    primary = Decoded(encoder, head, Contract(("input",), "primary"))
+    bound, sized = [], []
+
+    def bind(module: Module) -> tuple[str, int]:
+        bound.append(module)
+        return module.identity, 0
+
+    def size(module: Module) -> int:
+        sized.append(module)
+        return 16
+
+    roots = store_acquired_models(store, [primary, encoder, primary, encoder], bind, size=size)
+    assert roots[0] == roots[2] and roots[1] == roots[3] and roots[0] != roots[1]
+    assert bound == [source] and {id(m) for m in sized} == {id(primary), id(encoder), id(head)}
+    assert len(sized) == 3
+    assert store.get(roots[0][0]).dependencies[0] == roots[1][0]
+    assert store_acquired_model(store, primary, bind, size=size) == roots[0]
+    store.save(tmp_path)
+    reopened = Store.open(tmp_path)
+    resident = ExpertStore(budget=128)
+    from nca.packages import install_scopes
+
+    scopes = install_scopes(reopened, [roots[0][0], roots[1][0]], experts=resident)
+    old, feature = scopes[0][roots[0][1]], scopes[1][roots[1][1]]
+    assert resident.stats.loads == 0
+    targets = ["p0", "p1", "p2", "p3"]
+    fitted = []
+    for representation in [old, feature]:
+        fitted.append(propose_heads(Identity(), [Proposal(representation)],
+            lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+            rows, targets, max_features=1, max_heads=1)[0].expert)
+    assert [sum(m.invoke(*r) == t for r, t in zip(rows, targets)) for m in fitted] == [2, 4]
+    assert [old.invoke(*r) for r in rows] == [primary.invoke(*r) for r in rows]
+    assert fitted[1].manifest.contract == Identity.manifest.contract
+
+
+def test_empty_acquisition_roots_do_not_call_bind_or_size() -> None:
+    from nca.acquisition_objects import store_acquired_models
+
+    def unexpected(module: Module) -> NoReturn:
+        pytest.fail("empty roots must not invoke callbacks")
+
+    assert store_acquired_models(Store(), [], unexpected, size=unexpected) == ()
