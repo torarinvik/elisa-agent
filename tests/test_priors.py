@@ -787,6 +787,21 @@ def test_decoded_checks_marginal_rows(reference, row, valid, monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_decoded_checks_marginal_shape(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    for arities, marginals, chosen_prior in (
+            ((0,), np.array([0.5, 0.5]), None),
+            ((0, 1), np.array([[0.5, 0.5]]), None),
+            ((0,), np.array([[1.0]]), prior),
+            ((), np.empty((0, 1)), prior)):
+        with pytest.raises(ValueError, match="marginal shape"):
+            priors.Decoded(arities, 0.0, marginals, chosen_prior)
+    priors.Decoded((), 0.0, np.empty((0, 2)), prior)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_unit_prior_decode_recovers_marginals_from_precision_loss(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)

@@ -118,6 +118,8 @@ same states give each word's posterior arity distribution:
 > `π(aₖ = a) = Σₙ F_k(n + 1) · qₖ(a) · B_{k+1}(n + a) / Z`.
 
 Each is the sum-product theorem applied to a prefix and a suffix.
+The marginal array has one row per sequence position and one column per
+alphabet symbol; an empty sequence has zero rows.
 Finite-precision implementations check that each emitted marginal row is
 nonnegative, finite, and sums approximately to one. This catches some severe
 roundoff failures but does not certify otherwise normalized results.

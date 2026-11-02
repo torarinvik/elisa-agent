@@ -935,6 +935,9 @@ class Decoded:
     prior: ArityPrior | None = None
 
     def __post_init__(self) -> None:
+        if (self.marginals.ndim != 2 or self.marginals.shape[0] != len(self.arities)
+                or (self.prior is not None and self.marginals.shape[1] != len(self.prior.alphabet))):
+            raise ValueError("decoder marginal shape must match the sequence and prior alphabet")
         # This detects gross numerical loss; it is not a roundoff certificate.
         check = getattr(_NATIVE, "posterior_rows_valid", None)
         if check is not None and self.marginals.ndim == 2 and self.marginals.shape[1]:
