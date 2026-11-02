@@ -246,3 +246,21 @@ with the same tuple/scalar structure. The tuple case follows componentwise from
 the scalar and smaller-tuple cases. This codec is representation machinery,
 not a declaration of domain value types. Existing scalar model encodings stay
 unchanged; richer key support does not establish generalization or transfer.
+
+## 36.12 Residual correction proposals
+
+For a fixed incumbent and candidate feature, group training invocations by the
+feature key. In each group compare the incumbent's number of correct answers
+with the count of its modal target. Install a constant-label correction only
+when the latter is strictly larger; otherwise retain the incumbent. At unseen
+keys retain the incumbent as well. This learns local replacements where errors
+concentrate instead of replacing behavior everywhere. Features, incumbent and
+key/label equality must remain fixed.
+
+**Proposition 36.9 (empirical residual dominance).** The corrected expert has
+at least the incumbent's training successes: each group's contribution is the
+maximum of incumbent successes and modal-label count. Sum the pointwise
+inequalities. This gives no held-out guarantee; freeze every candidate using
+training data only, then apply the finite-family selection of §36.3. Declared
+costs and slot counts conservatively include both feature and incumbent, even
+though corrected invocations skip the incumbent.

@@ -96,4 +96,11 @@ theorem pair_codec_roundtrip {A B U V : Type*} (ea : A → U) (da : U → A)
     (da (ea a), db (eb b)) = (a, b) := by
   rw [ha, hb]
 
+/-- Choosing a local correction only when it improves cannot reduce the
+sum of empirical successes. This asserts nothing about held-out samples. -/
+theorem residual_successes_le {K : Type*} (groups : Finset K)
+    (baseline mode : K → ℕ) :
+    ∑ k ∈ groups, baseline k ≤ ∑ k ∈ groups, max (baseline k) (mode k) := by
+  exact Finset.sum_le_sum fun k _ => Nat.le_max_left _ _
+
 end NCA

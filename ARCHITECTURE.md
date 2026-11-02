@@ -2112,3 +2112,12 @@ unknown records, unsupported values and nonfinite numbers fail explicitly.
 on faithful component codecs; Python structural encoding is regression-tested.
 Joint feature keys and tuple labels can now be persisted through normal loading.
 The empirical-state constructor factory still requires scalar labels.
+
+`discovery.propose_corrections` (§36.12) groups training invocations by supplied
+feature keys, fitting constant-label corrections only when modal target counts
+strictly exceed incumbent successes in that region. Empty corrections are
+omitted. `Corrected` consults its feature and otherwise delegates to the unchanged
+incumbent, including unseen keys. Contracts, effects and conservative slot/cost
+bounds are composed generically. `residual_successes_le` proves training-count
+dominance; held-out improvement is evaluated by the existing discovery split.
+These are in-memory learned proposals, without persisted identity or calibration.

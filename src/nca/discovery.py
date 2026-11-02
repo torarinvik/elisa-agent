@@ -404,6 +404,65 @@ def train_tree(incumbent: Module, features: Sequence[Module],
                        projection_exhausted=exhausted)
 
 
+class Corrected:
+    """A learned local correction, otherwise delegating to the incumbent."""
+
+    def __init__(self, incumbent: Module, feature: Module,
+                 corrections: Mapping[Hashable, Hashable], cost: float) -> None:
+        self.incumbent, self.feature = incumbent, feature
+        self.corrections = dict(corrections)
+        a, b = incumbent.manifest, feature.manifest
+        effects = None if a.effects is None or b.effects is None else a.effects | b.effects
+        self.manifest = replace(a, module_id=f"{a.module_id}/corrected/{b.module_id}",
+                                cost=a.cost + b.cost + cost, calls=_total_calls((a, b)),
+                                expected_calls=None, effects=effects)
+
+    def invoke(self, *inputs: Any) -> Any:
+        key = self.feature.invoke(*inputs)
+        if key in self.corrections:
+            return self.corrections[key]
+        return self.incumbent.invoke(*inputs)
+
+
+def propose_corrections(incumbent: Module, features: Sequence[Module],
+                        rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
+                        correction_cost: float) -> list[Proposal]:
+    """Fit only feature regions improving on incumbent training accuracy (§36.12).
+
+    Use inside discover's training callback. Equality defines correctness here;
+    keys/labels must be stable and hashable. Unseen keys retain the incumbent.
+    Empty corrections yield no proposal. Cost and slot declarations include
+    both experts conservatively; no persistence or risk certificate is claimed.
+    """
+    if not rows or len(rows) != len(labels):
+        raise ValueError("correction training needs aligned nonempty rows and labels")
+    if not math.isfinite(correction_cost) or correction_cost < 0:
+        raise ValueError("correction cost must be finite and nonnegative")
+    contract = incumbent.manifest.contract
+    features = tuple(features)
+    if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
+        raise ValueError("rows must supply slot fillings followed by inputs")
+    if any(replace(f.manifest.contract, output=contract.output) != contract for f in features):
+        raise ValueError("features must preserve inputs, slots and relevance")
+    baseline = [incumbent.invoke(*row) == label for row, label in zip(rows, labels, strict=True)]
+    proposals = []
+    for feature in features:
+        counts: dict[Hashable, Counter[Hashable]] = {}
+        successes: Counter[Hashable] = Counter()
+        for row, label, correct in zip(rows, labels, baseline, strict=True):
+            key = feature.invoke(*row)
+            counts.setdefault(key, Counter())[label] += 1
+            successes[key] += int(correct)
+        corrections = {}
+        for key, count in counts.items():
+            label, mass = count.most_common(1)[0]
+            if mass > successes[key]:
+                corrections[key] = label
+        if corrections:
+            proposals.append(Proposal(Corrected(incumbent, feature, corrections, correction_cost)))
+    return proposals
+
+
 def discover(incumbent: Module,
              propose: Callable[[Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Proposal]],
              rows: Sequence[tuple[Any, ...]], labels: Sequence[Any],

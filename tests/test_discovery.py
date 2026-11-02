@@ -520,3 +520,41 @@ def test_learned_head_persists_values_fallback_and_canonical_identity(tmp_path: 
     assert restored.invoke("a") == 1.5  # Stored data is a snapshot.
     with pytest.raises(TypeError, match="JSON scalar"):
         decoder_object(Decoder(contract, {frozenset({1, 2}): "x"}, "x", 1), size=0)
+
+
+def test_residual_learning_preserves_good_regions_and_unseen_keys() -> None:
+    from nca.discovery import Corrected, propose_corrections
+
+    class Baseline(Constant):
+        def invoke(self, value: str) -> str:
+            return "old"
+
+    baseline = Baseline()
+    feature = Feature(Contract(("source",), "region"), lambda value: value.split(":")[0])
+    rows = [(f"{i % 10}:{i}",) for i in range(400)]
+    labels = ["new" if i % 10 == 0 else "old" for i in range(400)]
+
+    def propose(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        return propose_corrections(baseline, [feature], train, targets, correction_cost=0.1)
+
+    result = discover(baseline, propose, rows, labels, lambda a, b: a == b)
+    assert result.chosen is not None and isinstance(result.chosen.expert, Corrected)
+    expert = result.chosen.expert
+    assert expert.corrections == {"0": "new"}
+    assert sum(result.baseline) == 180 and sum(result.trials[0].outcomes) == 200
+    assert expert.invoke("unseen:1") == "old"
+    assert expert.invoke("1:1") == "old"
+    assert expert.manifest.contract == baseline.manifest.contract
+    assert propose_corrections(baseline, [feature], rows, ["old"] * 400,
+                               correction_cost=0) == []
+
+
+def test_residual_learning_does_not_patch_a_region_where_incumbent_is_better() -> None:
+    from nca.discovery import propose_corrections
+
+    feature = Feature(Contract(("source",), "region"), lambda value: "same-key")
+    rows = [(float(i),) for i in range(20)]
+    assert propose_corrections(Constant(), [feature], rows, [0.0] * 20,
+                               correction_cost=1) == []
+    with pytest.raises(ValueError, match="aligned"):
+        propose_corrections(Constant(), [feature], [], [], correction_cost=1)
