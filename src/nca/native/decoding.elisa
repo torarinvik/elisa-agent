@@ -1674,13 +1674,16 @@ def weighted_decision_risk(weights: view[f64], groups: view[i64], entries: i64, 
         for i in 0..<weights.len.i64() |total: f64 = 0.0, outside: f64 = 0.0| -> (total, outside):
             total += weights[i]
             outside += weights[i] if groups[i] != chosen else 0.0
-    return outside / total if total != -log(0.0)
+    if total != -log(0.0):
+        value: f64 = outside / total
+        return nextafter(0.0, 1.0) if value == 0.0 and outside > 0.0 else value
     scaled_total, scaled_outside =
         for i in 0..<weights.len.i64() |total: f64 = 0.0, outside: f64 = 0.0| -> (total, outside):
             scaled: f64 = weights[i] / largest
             total += scaled
             outside += scaled if groups[i] != chosen else 0.0
-    return (outside / largest) / scaled_total if outside != -log(0.0) else scaled_outside / scaled_total
+    value: f64 = (outside / largest) / scaled_total if outside != -log(0.0) else scaled_outside / scaled_total
+    return nextafter(0.0, 1.0) if value == 0.0 and outside > 0.0 else value
 
 # Stable temperature-scaled softmax, summed into caller-declared groups.
 def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:

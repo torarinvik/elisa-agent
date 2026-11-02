@@ -876,6 +876,8 @@ real-arithmetic ordering effect of the temperature's sign.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.
+Both return the smallest positive binary64 value if positive outside mass
+would otherwise yield zero, without claiming a general upward error bound.
 For a large temperature, scaled differences that overflow before division
 are computed by scaling each finite operand first, in both Elisa and PyTorch.
 The PyTorch path promotes lower-precision logits when the temperature is

@@ -37,6 +37,10 @@ alternative mass in log space and returns the smallest positive binary64
 value if the result is still unrepresentable. This avoids reporting zero for
 a finite alternative; it is not a proof that all computed risks are rounded
 upward or are calibrated error bounds.
+For direct nonnegative weights, the decision-risk calculation similarly
+returns the smallest positive binary64 value when a positive outside mass
+would otherwise underflow to zero. Lower-precision inputs are accumulated in
+wider arithmetic where supported. Neither measure proves upward rounding.
 
 Expert probabilities are converted to binary64 before taking logarithms.
 For finite nonnegative inputs, zero is replaced by the smallest positive

@@ -625,8 +625,7 @@ def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = 
         return value
     if not bool(torch.isfinite(mass).all()) or bool((mass < 0).any()):
         raise ValueError("decision weights must be finite, nonnegative and have positive mass")
-    if not mass.is_floating_point():
-        mass = mass.to(torch.float32 if mass.device.type == "mps" else torch.float64)
+    mass = mass.to(torch.float32 if mass.device.type == "mps" else torch.float64)
     largest = mass.max()
     if not bool(largest > 0):
         raise ValueError("decision weights must be finite, nonnegative and have positive mass")
@@ -635,12 +634,15 @@ def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = 
     selected = set(chosen)
     outside = [i for i in range(len(union)) if i not in selected]
     outside_mass, total = mass[outside].sum(), mass.sum()
-    if bool(torch.isfinite(total)):
-        return (outside_mass / total).item()
-    scaled = mass / largest
-    scaled_total = scaled.sum()
-    return ((outside_mass / largest) / scaled_total if bool(torch.isfinite(outside_mass))
-            else scaled[outside].sum() / scaled_total).item()
+    outside_value, total_value = outside_mass.item(), total.item()
+    if math.isfinite(total_value):
+        value = outside_value / total_value
+    else:
+        scaled = mass / largest
+        scaled_total = scaled.sum().item()
+        value = ((outside_value / largest.item()) / scaled_total if math.isfinite(outside_value)
+                 else scaled[outside].sum().item() / scaled_total)
+    return math.nextafter(0.0, 1.0) if value == 0.0 and outside_value > 0.0 else value
 
 
 @dataclass(frozen=True)

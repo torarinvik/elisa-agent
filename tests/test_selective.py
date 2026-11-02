@@ -1678,6 +1678,34 @@ def test_decision_risk_retains_small_summed_tail_when_total_overflows(native, mo
 
 
 @pytest.mark.parametrize("native", [False, True])
+def test_decision_risk_preserves_positive_alternatives(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
+        pytest.skip("native weighted-risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    half = torch.tensor([60000.0, 0.001], dtype=torch.float16)
+    expected = half[1].item() / (half[0].item() + half[1].item())
+    assert ladder_module.risk(half) == pytest.approx(expected, rel=1e-12)
+    extreme = torch.tensor([1e308, math.nextafter(0.0, 1.0)], dtype=torch.float64)
+    assert ladder_module.risk(extreme) == math.nextafter(0.0, 1.0)
+    assert ladder_module.risk(torch.tensor([1.0, 0.0], dtype=torch.float64)) == 0.0
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_decision_risk_preserves_half_precision_tail(device) -> None:
+    from nca.ladder import risk
+
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+    weights = torch.tensor([60000.0, 0.001], dtype=torch.float16, device=device)
+    expected = weights[1].item() / (weights[0].item() + weights[1].item())
+    assert risk(weights) == pytest.approx(expected, rel=1e-6)
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("weights", [[0.0, 0.0], [-1.0, 2.0], [float('nan'), 1.0], [float('inf'), 1.0]])
 def test_decision_risk_rejects_invalid_weights(native, weights, monkeypatch) -> None:
     from nca import ladder as ladder_module
