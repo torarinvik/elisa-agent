@@ -9,7 +9,8 @@ import torch
 
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
-from nca.evidence import benchmark, error_bound, evaluation, rates, route_risk
+from nca.evidence import (benchmark, error_bound, evaluation, exact, rates, route_bound,
+                          route_risk)
 from nca.optimize import cheapest_within, plan_pareto
 from nca.ladder import CALIBRATION, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
@@ -354,3 +355,24 @@ def test_planning_by_risk_picks_the_cheapest_route_within_a_target() -> None:
     del bounds[modules[1].identity]
     assert [o.error for o in plan_pareto(modules, (TEXT,), INT, 5, rates(bounds, 5))] == [
         pytest.approx(0.25)]
+
+
+def test_route_bounds_spend_confidence_by_invocations_and_skip_exact_experts() -> None:
+    store = Store()
+    reader = store.put(primitive("count-letters", [WORD], INT))
+    world = install(store, store.put(Composite("world", "1", (reader, counting_package(store)))))
+    route = plan_stable(world, (TEXT,), INT)
+    inner = {m.manifest.module_id: m.identity for m in route.module.library
+             if hasattr(m, "identity")}
+    bench = benchmark(list(range(1000)))
+    for identity, failures in ((world[0].identity, 10), (inner["split"], 0), (inner["sum"], 0)):
+        store.put(evaluation(identity, bench, [i >= failures for i in range(1000)], "lab"))
+    benches = dict.fromkeys((world[0].identity, inner["split"], inner["sum"]), bench)
+    audited = route_bound(route, store, benches, {"lab"}, 0.05, length=5)
+    store.put(exact(inner["split"], "splits on spaces by construction", "lab"))
+    store.put(exact(inner["sum"], "integer addition", "lab"))
+    tighter = route_bound(route, store, benches, {"lab"}, 0.05, length=5)
+    reader_alone = 5 * error_bound(store, world[0].identity, bench, {"lab"}, 0.05)
+    assert tighter == pytest.approx(reader_alone) and tighter < audited
+    del benches[world[0].identity]
+    assert route_bound(route, store, benches, {"lab"}, 0.05, length=5) is None

@@ -27,7 +27,7 @@ from nca.abi import Module
 from nca.cache import Checks, value_digest
 from nca.objects import Attestation, Ref, Store
 from nca.packages import Export, Requirement, Upcast, charge
-from nca.planner import Plan
+from nca.planner import Apply, Map, Plan
 from nca.router import sign_test
 from nca.stats import clopper_pearson_upper, family_audit_alpha
 from nca.trust import Trust
@@ -210,3 +210,70 @@ def refuted(store: Store, identity: str, issuers: Issuers) -> bool:
     return any(_trusted(a, issuers) and a.claim.get("identity") == identity
                and a.claim.get("mismatches", 0) > 0
                for a in store.attestations(identity.partition("#")[0], PURITY))
+
+
+EXACT = "exact"
+
+
+def exact(identity: str, reason: str, issuer: str = "") -> Attestation:
+    """An attestation that ``identity`` never fails on correct inputs, by
+    ``reason`` (a proof or construction), so it is charged rate 0 (§31.5)."""
+    return Attestation(identity.partition("#")[0], EXACT,
+                       {"identity": identity, "reason": reason}, issuer)
+
+
+def _attested_exact(store: Store, identity: str, issuers: Issuers) -> bool:
+    return any(_trusted(a, issuers) and a.claim.get("identity") == identity
+               for a in store.attestations(identity.partition("#")[0], EXACT))
+
+
+def _identities(plan: Plan) -> list[str]:
+    """The identities of the experts ``plan`` may invoke, inside exports too."""
+    found: list[str] = []
+
+    def visit(node: Plan) -> None:
+        if isinstance(node, Map):
+            visit(node.source)
+            visit(node.body)
+        elif isinstance(node, Apply):
+            module = node.module
+            if isinstance(module, Export):
+                visit(module.route)
+            elif not isinstance(module, (Upcast, Requirement)):
+                identity = getattr(module, "identity", None)
+                if identity is not None and identity not in found:
+                    found.append(identity)
+            for child in (*node.args, *node.slots):
+                visit(child)
+
+    visit(plan)
+    return found
+
+
+def route_bound(plan: Plan, store: Store, benches: Mapping[str, Ref], issuers: Issuers,
+                beta: float, length: int = 1) -> float | None:
+    """A bound on ``plan``'s error holding with probability at least
+    ``1 - beta`` (Theorem 31.4): experts attested exact are charged 0, and
+    ``beta`` is split among the others in proportion to their invocation
+    counts, a split fixed by the route before any outcome is read. Each
+    expert's rate bound comes from its trusted evaluation on
+    ``benches[identity]``, its in-situ benchmark. ``None`` if an expert
+    lacks one."""
+    identities = _identities(plan)
+    audited = [i for i in identities if not _attested_exact(store, i, issuers)]
+    counts = {i: route_risk(plan, lambda m, i=i: float(getattr(m, "identity", None) == i),
+                            length) for i in audited}
+    if any(c is None for c in counts.values()):
+        return None
+    total = sum(counts.values())
+    bounds = {i: 0.0 for i in identities if i not in counts}
+    for identity, count in counts.items():
+        if not count:  # Never invoked: its rate is never charged.
+            bounds[identity] = 0.0
+            continue
+        bound = (None if identity not in benches else
+                 error_bound(store, identity, benches[identity], issuers, beta * count / total))
+        if bound is None:
+            return None
+        bounds[identity] = bound
+    return route_risk(plan, rates(bounds, length), length)

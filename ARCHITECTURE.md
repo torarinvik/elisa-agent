@@ -42,7 +42,7 @@ run the Python tests with `uv run pytest`.
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
 | [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
-| [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `packages.charge`, `optimize.plan_pareto` |
+| [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
 | [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
@@ -318,6 +318,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [30.2](theory/30-selection-by-evidence.md) | `plan_rename`, `planShallow_rename`, `planShallowStable_rename`, `WellTyped.rename` | `Selection` |
 | [31.1](theory/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
 | [31.2](theory/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
+| [31.4](theory/31-composing-uncertainty.md) | `audit_family_le` with `risk_le_charges` | `Calibration`, `Risk` |
 | [32.1](theory/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/32-trust.md) | `undetected_le_exp` | `Spot` |
 
@@ -1714,6 +1715,13 @@ route for an export, 0 for upcasts and requirements. With it the Pareto
 planner's error objective is the charge of §31.2 and `cheapest_within(δ)`
 plans by cost under a risk target, through packages, with the exactness of
 `NCA.planPareto_sound`, `planPareto_cover` and `planPareto_within`.
+
+`evidence.route_bound(plan, store, benches, issuers, beta, length)`
+implements §31.5: experts with an accepted `exact` attestation
+(`evidence.exact`) are charged 0, and `beta` is split among the others in
+proportion to their invocation counts in the route (computed with
+`route_risk` and an indicator rate), each bound coming from that expert's
+in-situ benchmark in `benches`.
 
 ## 32. Trust
 

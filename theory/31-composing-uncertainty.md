@@ -87,3 +87,28 @@ is left out, and the frontier is exact over the experts with rates. An
 export's rate per invocation is the charge of its own route, its
 requirements excluded since the slots that fill them are charged where
 the export is applied.
+
+## 31.5 Spending the confidence budget
+
+A route's bound combines `m` rate bounds, each holding with probability at
+least `1 − βₑ`. Any allocation with `Σₑ βₑ ≤ β` that is fixed before the
+audits are seen makes all of them hold together with probability at least
+`1 − β` (Theorem 30.1's union bound); one chosen after looking at the
+outcomes need not.
+
+**Theorem 31.4 (allocation).** For every allocation fixed in advance with
+`Σₑ βₑ ≤ β`, with probability at least `1 − β` the route's error is at most
+`Σₑ νₑ · uₑ(βₑ)`, where `uₑ(βₑ)` is the upper confidence bound on `εₑ` at
+level `βₑ` and `νₑ` bounds its invocations.
+
+The route's structure is known before the audits, so the allocation may
+depend on it. An expert invoked `νₑ` times enters the bound `νₑ` times, so
+an even split spends as much confidence on an expert invoked once as on
+one invoked once per element. Splitting in proportion to `νₑ` gives the
+frequently invoked experts the larger share; it is a rule of thumb, not an
+optimum.
+
+An expert whose exactness is established otherwise, by a proof or by
+construction, and attested by a trusted issuer, is charged rate `0` and
+needs no share: its premise is the attestation, as purity's is (§32.3),
+not an audit.
