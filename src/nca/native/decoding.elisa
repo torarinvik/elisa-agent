@@ -736,9 +736,9 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             if k + 2 <= m:
                 for state in bounds[2 * (k + 2)]..<(bounds[2 * (k + 2) + 1] + 1) |backward|:
                     backward[here + state] <- unreachable
-            for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |backward|:
+            for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |backward, result|:
                 continue if forward[k * states + state] == log(0.0)
-                for j in 0..<width |backward|:
+                for j in 0..<width |backward, result|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
@@ -749,27 +749,15 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     through: f64 = (reading + edge_weight) + suffix
                     return null if through == unreachable or through == -unreachable
                     backward[here + state] <- log_add(backward[here + state], through)
-            for j in 0..<width |result|:
-                marginal: f64 =
-                    for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |total: f64 = 0.0| -> total:
-                        continue if forward[k * states + state] == log(0.0)
-                        edge: i64 = state * width + j
-                        target: i64 = transitions[edge]
-                        continue if target < 0
-                        reading: f64 = log_probs[k * width + j]
-                        edge_weight: f64 = prior[edge]
-                        suffix: f64 = backward[next + target]
-                        continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
-                        first: f64 = forward[k * states + state] + reading
-                        return null if first == unreachable or first == -unreachable
-                        second: f64 = first + edge_weight
-                        return null if second == unreachable or second == -unreachable
-                        third: f64 = second + suffix
-                        return null if third == unreachable or third == -unreachable
-                        exponent: f64 = third - log_z
-                        return null if exponent == unreachable or exponent == -unreachable
-                        total += exp(exponent)
-                result[k][j] <- marginal
+                    first: f64 = forward[k * states + state] + reading
+                    return null if first == unreachable or first == -unreachable
+                    second: f64 = first + edge_weight
+                    return null if second == unreachable or second == -unreachable
+                    third: f64 = second + suffix
+                    return null if third == unreachable or third == -unreachable
+                    exponent: f64 = third - log_z
+                    return null if exponent == unreachable or exponent == -unreachable
+                    result[k][j] <- result[k][j] + exp(exponent)
     return PriorDecoded{log_z: log_z, arities: decoded, marginals: marginals}
 
 # The banded cursor of THEORY §23.4. The caller owns the tables, `width`

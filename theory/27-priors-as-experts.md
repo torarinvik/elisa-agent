@@ -291,6 +291,9 @@ when full decoding also retains forward sums for marginal calculation.
 During the reverse pass, each position's marginals use the stored forward row
 and the next backward row; after emitting them, the older backward row can be
 reused. This leaves traceback choices and forward sums as the retained tables.
+The backward recurrence and marginal contributions use the same supported
+transitions, so they can be accumulated in one traversal, retaining ascending
+state order within each marginal sum.
 
 **Risk-only refinement.** Once an answer is selected, its posterior risk
 needs its own weighted score and the current normalizer, not a new maximum
