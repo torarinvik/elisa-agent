@@ -872,9 +872,22 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
     if m == 0:
         return null if final[start] == unreachable
         return PriorDecoded{log_z: final[start], arities: [], marginals: []}
+    first_present: bool =
+        for j in 0..<width |found: bool = false| -> found:
+            if log_probs[j] != unreachable:
+                found <- true
+                break
+    return null if not first_present
     small: bool = prior_small_arithmetic(log_probs, prior, final, width)
     forward, best, choice, bounds =
-        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start if i < 2 else (states if i % 2 == 0 else -1) for i in 0..<(2 * (m + 1))]| -> (forward, best, choice, bounds):
+        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start if i < 2 else (states if i % 2 == 0 else -1) for i in 0..<(2 * (m + 1))], active: darray[i64] = [0 for _ in 0..<width]| -> (forward, best, choice, bounds):
+            return null if bounds[2 * k] > bounds[2 * k + 1]
+            active_count: i64 =
+                for j in 0..<width |count: i64 = 0, active| -> count:
+                    if log_probs[k * width + j] != unreachable:
+                        active[count] <- j
+                        count += 1
+            return null if active_count == 0
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
             # The destination row was last used at position k - 1.
@@ -883,14 +896,15 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     best[next + state] <- unreachable
             for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |forward, best, choice, bounds|:
                 continue if forward[k * states + state] == log(0.0)
-                for j in 0..<width |forward, best, choice, bounds|:
+                for position in 0..<active_count |forward, best, choice, bounds|:
+                    j: i64 = active[position]
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
                     cell: i64 = (k + 1) * states + target
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
-                    continue if reading == unreachable or edge_weight == unreachable
+                    continue if edge_weight == unreachable
                     weight: f64 = reading + edge_weight if small else partition_log_product(reading, edge_weight)
                     return null if weight != weight
                     through: f64 = forward[k * states + state] + weight if small else partition_log_product(forward[k * states + state], weight)
@@ -927,8 +941,13 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             decoded[m - step - 1] <- alphabet[edge % width]
             state <- edge / width
     marginals: darray[darray[f64]] =
-        for step in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m], backward: darray[f64] = [final[i % states] if i / states == m % 2 and forward[m * states + i % states] != unreachable else unreachable for i in 0..<(2 * states)]| -> result:
+        for step in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m], backward: darray[f64] = [final[i % states] if i / states == m % 2 and forward[m * states + i % states] != unreachable else unreachable for i in 0..<(2 * states)], active: darray[i64] = [0 for _ in 0..<width]| -> result:
             k: i64 = m - 1 - step
+            active_count: i64 =
+                for j in 0..<width |count: i64 = 0, active| -> count:
+                    if log_probs[k * width + j] != unreachable:
+                        active[count] <- j
+                        count += 1
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
             # The reused row contains only support from position k + 2.
@@ -937,14 +956,15 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     backward[here + state] <- unreachable
             for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |backward, result|:
                 continue if forward[k * states + state] == log(0.0)
-                for j in 0..<width |backward, result|:
+                for position in 0..<active_count |backward, result|:
+                    j: i64 = active[position]
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
                     suffix: f64 = backward[next + target]
-                    continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
+                    continue if edge_weight == unreachable or suffix == unreachable
                     weight: f64 = reading + edge_weight if small else partition_log_product(reading, edge_weight)
                     return null if weight != weight
                     through: f64 = weight + suffix if small else partition_log_product(weight, suffix)

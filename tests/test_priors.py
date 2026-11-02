@@ -1306,6 +1306,31 @@ def test_prior_best_matches_full_decoder_ties_and_zero_support(
         prior.best(np.ones((3, 2)))
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_decode_preserves_sparse_wide_marginals_and_ties(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    width = 64
+    prior = priors.ArityPrior(tuple(range(width)), np.zeros((1, width), dtype=np.int64),
+                              np.zeros((1, width)), np.zeros(1))
+    active = ((0, 4, 17), (1, 5, 18), (2, 6, 19), (3, 7, 20), (4, 8, 21))
+    rows = np.full((len(active), width), -np.inf)
+    expected = np.zeros_like(rows)
+    for k, columns in enumerate(active):
+        rows[k, list(columns)] = 0.0
+        expected[k, list(columns)] = 1 / 3
+    result = prior.decode(rows)
+    assert result is not None
+    assert result.log_z == pytest.approx(len(active) * math.log(3))
+    assert result.arities == tuple(columns[0] for columns in active)
+    np.testing.assert_allclose(result.marginals, expected, atol=1e-12)
+    rows[0] = -np.inf
+    assert prior.decode(rows) is None
+    rows[-1, 0] = np.nan
+    with pytest.raises(ValueError, match="finite or -inf"):
+        prior.decode(rows)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_best_preserves_sparse_wide_ties(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
