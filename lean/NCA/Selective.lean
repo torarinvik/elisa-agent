@@ -167,6 +167,11 @@ theorem ranked_tie_keeps_first {α : Type*} (first candidate : α) (a b : ℝ)
     (equal : a = b) : (if b > a then candidate else first) = first := by
   simp [equal]
 
+/-- Exact integer shifting preserves the strict ordering of logits. -/
+theorem integer_shift_preserves_order (a b offset : ℤ) :
+    a - offset < b - offset ↔ a < b := by
+  exact sub_lt_sub_iff_right offset
+
 /-- Gathering a restriction depends only on weights at its listed indices. -/
 theorem ranked_restriction_ext {ι α : Type*} (indices : List ι) (a b : ι → α)
     (same : ∀ i ∈ indices, a i = b i) : indices.map a = indices.map b := by

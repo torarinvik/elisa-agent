@@ -71,6 +71,11 @@ temperature: a negative value reverses logit order, zero is undefined, and
 an infinite value does not retain the finite-temperature ordering guarantee.
 In exact real arithmetic, dividing logits by a positive temperature preserves
 their order and dividing by a negative temperature reverses it.
+For integer logits, subtracting a common maximum preserves their order in
+exact integer arithmetic. The implementation shifts before conversion to
+floating point, avoiding fixed-width wraparound and retaining differences
+between adjacent large integers. Differences too large for exact binary64
+representation are still rounded.
 The scaled difference `(a - b) / T` equals `a / T - b / T` in real
 arithmetic. With finite floating-point logits of opposite sign, the
 subtraction can overflow even when the scaled difference is representable.

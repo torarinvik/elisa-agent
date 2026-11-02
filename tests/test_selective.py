@@ -166,6 +166,98 @@ def test_calibration_fits_temperature() -> None:
     assert rung.reading(rung.observe(0))[1].item() == pytest.approx(0.7, abs=0.02)
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64,
+                                  torch.int8, torch.int16, torch.int32, torch.int64])
+def test_integer_logit_calibration_preserves_order_and_group_probabilities(native, dtype, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    bounds = torch.iinfo(dtype)
+    logits = torch.tensor([bounds.max, bounds.max - 1, bounds.min], dtype=dtype)
+    scores = torch.tensor([0.0, -1.0, float(bounds.min - bounds.max)], dtype=torch.float64)
+    expected = torch.softmax(scores, dim=0)
+    rung = Rung(None)
+    decision = ((0,), (1,), (2,))
+    assert torch.allclose(rung.reading(logits).double(), expected, atol=1e-7)
+    assert torch.allclose(rung.distribution(logits, decision).double(), expected, atol=1e-7)
+    assert rung.distribution(logits, decision).is_floating_point()
+    assert torch.allclose(rung.log_distribution(logits, decision), scores.log_softmax(dim=0), atol=1e-7)
+    assert rung.risk(logits, decision) == pytest.approx(expected[1].item(), abs=1e-7)
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype", [torch.uint8, torch.uint64, torch.int8, torch.int64])
+def test_integer_logit_restriction_preserves_local_differences(native, dtype, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    bounds = torch.iinfo(dtype)
+    logits = torch.tensor([bounds.max, bounds.min, bounds.min + 1], dtype=dtype)
+    expected = torch.softmax(torch.tensor([-1.0, 0.0], dtype=torch.float64), dim=0)
+    rung = Rung(None)
+    decision = ((1,), (2,))
+    assert torch.allclose(rung.distribution(logits, decision).double(), expected, atol=1e-7)
+    assert torch.allclose(rung.log_distribution(logits, decision), expected.log(), atol=1e-7)
+    assert rung.risk(logits, decision) == pytest.approx(expected[1].item(), abs=1e-7)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_unsigned_integer_logits_across_signed_boundary(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "shifted_integer_logits_into", None) is None:
+        pytest.skip("native integer shift kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([2**63 - 1, 2**63], dtype=torch.uint64)
+    expected = torch.softmax(torch.tensor([-1.0, 0.0], dtype=torch.float64), dim=0)
+    rung = Rung(None)
+    assert torch.allclose(rung.reading(logits).double(), expected, atol=1e-7)
+    assert torch.allclose(rung.distribution(logits, ((0,), (1,))).double(), expected, atol=1e-7)
+    assert rung.risk(logits) == pytest.approx(expected[0].item(), abs=1e-7)
+
+
+@pytest.mark.parametrize("unsigned", [False, True])
+def test_native_integer_shift_matches_exact_integer_differences(unsigned) -> None:
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "shifted_integer_logits_into", None)
+    if kernel is None:
+        pytest.skip("native integer shift kernel is not built")
+    rng = np.random.default_rng(738)
+    for _ in range(100):
+        if unsigned:
+            values = rng.integers(0, 2**64, size=20, dtype=np.uint64)
+        else:
+            values = rng.integers(-(2**63), 2**63, size=20, dtype=np.int64)
+        integers = [int(value) for value in values]
+        expected = np.array([float(value - max(integers)) for value in integers])
+        actual = np.empty(len(values), dtype=np.float64)
+        assert kernel(values.view(np.int64), actual, unsigned) == 0
+        assert np.allclose(actual, expected, rtol=3e-16, atol=0.0)
+    assert kernel(np.array([1, 2], dtype=np.int64), np.empty(1), unsigned) == -1
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_integer_logit_reading_preserves_adjacent_values(device) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+    maximum = torch.iinfo(torch.int64).max
+    logits = torch.tensor([maximum, maximum - 1], dtype=torch.int64, device=device)
+    expected = torch.softmax(torch.tensor([0.0, -1.0], dtype=torch.float64), dim=0)
+    rung = Rung(None)
+    assert torch.allclose(rung.reading(logits).cpu().double(), expected, atol=1e-7)
+    assert torch.allclose(rung.distribution(logits, ((0,), (1,))).cpu().double(), expected, atol=1e-7)
+
+
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64])
 def test_calibration_accepts_unsigned_integer_labels(dtype) -> None:
     rung = Rung(constant("unsigned-labels", (0.4, 0.6), 1.0))

@@ -287,8 +287,34 @@ class RankedReading(Sequence[float]):
 
 
 def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
+    if not log.is_floating_point():
+        if log.is_complex() or log.is_quantized:
+            raise ValueError("log weights must be real numeric values")
+        native = getattr(_NATIVE, "shifted_integer_logits_into", None)
+        if native is not None and log.device.type == "cpu" and log.numel():
+            unsigned = log.dtype == torch.uint64
+            values = (log.contiguous().numpy().view(np.int64) if unsigned else
+                      log.to(torch.int64).contiguous().numpy())
+            shifted = np.empty(values.size, dtype=np.float64)
+            if native(values.reshape(-1), shifted, unsigned) == 0:
+                return torch.from_numpy(shifted).reshape(log.shape) / temperature
+        if log.dtype == torch.uint64:
+            values = log.detach().cpu().numpy()
+            offsets = np.max(values) - values
+            differences = torch.from_numpy(offsets.astype(np.float64)).to(
+                device=log.device, dtype=torch.float32 if log.device.type == "mps" else torch.float64)
+            return -differences / temperature
+        values = log.to(torch.int64)
+        maximum = values.max()
+        difference = values - maximum
+        floating = difference.to(torch.float64 if log.device.type != "mps" else torch.float32)
+        # A positive difference indicates signed subtraction wrapped below i64 minimum.
+        if bool((difference > 0).any()):
+            wide = values.to(floating.dtype) - maximum.to(floating.dtype)
+            floating = torch.where(difference > 0, wide, floating)
+        return floating / temperature
     # Keep a positive binary64 temperature representable for lower-precision inputs.
-    if (log.is_floating_point() and log.dtype != torch.float64
+    if (log.dtype != torch.float64
             and (0 < temperature < torch.finfo(log.dtype).tiny
                  or temperature > torch.finfo(log.dtype).max)):
         log = log.double()
@@ -307,6 +333,21 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
                            log / temperature - maximum / temperature,
                            difference / temperature)
     return difference / temperature
+
+
+def _selected_logits(log: torch.Tensor, indices: Sequence[int] | None) -> torch.Tensor:
+    """Select before shifting integers, retaining differences inside the decision."""
+    if log.is_floating_point():
+        return log if indices is None else log[indices]
+    if log.is_complex() or log.is_quantized:
+        raise ValueError("log weights must be real numeric values")
+    if indices is not None:
+        if log.dtype == torch.uint64:
+            values = log.detach().cpu().numpy()[list(indices)]
+            log = torch.from_numpy(np.ascontiguousarray(values)).to(log.device)
+        else:
+            log = log[list(indices)]
+    return _temperature_scores(log, 1.0)
 
 
 def _checked_calibrated_risk(value: float) -> float:
@@ -507,7 +548,7 @@ class Rung:
         if isinstance(log, RankedObservation):
             log = log.logits
         result = torch.softmax(_temperature_scores(log, temperature), dim=-1)
-        return result.to(log.dtype) if log.is_floating_point() else result
+        return result.to(log.dtype if log.is_floating_point() else torch.get_default_dtype())
 
     def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None, *,
              reading: torch.Tensor | None = None) -> float:
@@ -545,13 +586,16 @@ class Rung:
             groups = _group_ids(native_key)
             ordering = (np.asarray(ranked.weights, dtype=np.float64) if ranked is not None else
                         probabilities.double().numpy())
-            logits = log.double().numpy()
+            logits = (log.double().numpy() if log.is_floating_point() else
+                      _selected_logits(log, None if classes is None else union).double().numpy())
             if classes is None:
                 logits = np.ascontiguousarray(logits)
                 ordering = np.ascontiguousarray(ordering)
             else:
                 indices = _native_indices(key)
-                logits, ordering = logits[indices], ordering[indices]
+                if log.is_floating_point():
+                    logits = logits[indices]
+                ordering = ordering[indices]
             return _checked_calibrated_risk(float(native_reading(
                 logits, ordering, groups, len(positions), temperature)))
         if ranked is not None:
@@ -569,12 +613,13 @@ class Rung:
             union, positions = _layout(native_key)
             groups = _group_ids(native_key)
             return _checked_calibrated_risk(float(native(
-                log[union].double().numpy(), groups, len(positions), temperature, selected)))
+                _selected_logits(log, None if key is None else union).double().numpy(),
+                groups, len(positions), temperature, selected)))
         if classes is None:
-            values, positions = log, None
+            values, positions = _selected_logits(log, None), None
         else:
             union, positions = _layout(key)
-            values = log[union]
+            values = _selected_logits(log, union)
         result = _checked_calibrated_risk(risk(
             torch.softmax(_temperature_scores(values, temperature), dim=-1), positions, _top=selected))
         if result != 0.0:
@@ -608,19 +653,18 @@ class Rung:
             log = log.logits
         if classes is None:
             return self.reading(log)
+        output_dtype = log.dtype if log.is_floating_point() else torch.get_default_dtype()
         union, positions = _layout(decision_key(classes))
+        values = _selected_logits(log, union)
         native = getattr(_NATIVE, "calibrated_groups", None)
         groups = _group_ids(decision_key(classes))
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
-            values = native(log[union].double().numpy(), groups,
-                            len(positions), temperature)
-            if not values or not all(math.isfinite(value) for value in values):
+            grouped = native(values.double().numpy(), groups, len(positions), temperature)
+            if not grouped or not all(math.isfinite(value) for value in grouped):
                 raise ValueError("calibrated decision requires finite log weights with positive mass")
-            return torch.tensor(values, dtype=log.dtype)
-        values = log[union]
+            return torch.tensor(grouped, dtype=output_dtype)
         reading = torch.softmax(_temperature_scores(values, temperature), dim=-1)
-        if log.is_floating_point():
-            reading = reading.to(log.dtype)
+        reading = reading.to(output_dtype)
         return torch.stack([reading[part].sum() for part in positions])
 
     def log_distribution(self, log: torch.Tensor | RankedObservation,
@@ -633,17 +677,18 @@ class Rung:
         if isinstance(log, RankedObservation):
             log = log.logits
         if classes is None:
-            return torch.log_softmax(_temperature_scores(log.double(), temperature), dim=-1)
+            return torch.log_softmax(_temperature_scores(_selected_logits(log, None).double(), temperature), dim=-1)
         key = decision_key(classes)
         union, positions = _layout(key)
+        selected = _selected_logits(log, union)
         native = getattr(_NATIVE, "calibrated_log_groups", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
-            values = native(log[union].double().numpy(), _group_ids(key), len(positions), temperature)
+            values = native(selected.double().numpy(), _group_ids(key), len(positions), temperature)
             if (values and all(not math.isnan(value) and value != math.inf for value in values)
                     and any(math.isfinite(value) for value in values)):
                 return torch.tensor(values, dtype=torch.float64)
             raise ValueError("calibrated decision requires finite log weights with positive mass")
-        scores = _temperature_scores(log[union].double(), temperature)
+        scores = _temperature_scores(selected.double(), temperature)
         normalizer = torch.logsumexp(scores, dim=-1)
         return torch.stack([torch.logsumexp(scores[part], dim=-1) - normalizer
                             for part in positions])

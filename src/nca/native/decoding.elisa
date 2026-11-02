@@ -1683,6 +1683,27 @@ def calibrated_difference(value: f64, anchor: f64, temperature: f64) -> f64:
     difference: f64 = value - anchor
     return value / temperature - anchor / temperature if temperature > 1.0 and difference == log(0.0) and value != log(0.0) else difference / temperature
 
+# Shift integer logits by their maximum before converting to binary64.
+# Unsigned inputs are passed as their bitwise-identical signed representation.
+def shifted_integer_logits_into(values: view[i64], output: mutable view[f64], unsigned: bool) -> i64 can[Abort.Panic]:
+    return -1 if values.len.i64() == 0 or output.len.i64() != values.len.i64()
+    maximum: i64 =
+        for i in 1..<values.len.i64() |maximum: i64 = values[0]| -> maximum:
+            value: i64 = values[i]
+            larger: bool = (value < 0 and maximum >= 0) or ((value < 0) == (maximum < 0) and value > maximum) if unsigned else value > maximum
+            maximum <- value if larger else maximum
+    minimum: i64 = -9223372036854775807 - 1
+    for i in 0..<values.len.i64():
+        value: i64 = values[i]
+        if unsigned and maximum < 0 and value >= 0:
+            distance: f64 = (maximum - minimum).f64() + (9223372036854775807 - value).f64() + 1.0
+            output[i] <- 0.0 - distance
+        elif not unsigned and maximum > 0 and value < minimum + maximum:
+            output[i] <- value.f64() - maximum.f64()
+        else:
+            output[i] <- (value - maximum).f64()
+    return 0
+
 # Find the group of a label in a small validated class list.
 def calibration_small_group(label: i64, classes: view[i64], groups: view[i64]) -> i64 can[Abort.Panic]:
     return
@@ -1882,6 +1903,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn shifted_integer_logits_into
     fn calibration_subset
     fn calibration_loss_grid
     fn weighted_decision_risk
