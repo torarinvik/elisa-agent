@@ -1330,6 +1330,27 @@ def test_ragged_split_scores_with_holes_in_support(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("alphabet", [(0, 2), (2, 0)])
+def test_ragged_split_trace_preserves_junction_tie_order(
+        reference_only: bool, alphabet: tuple[int, ...], monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    m = 7
+    rows = np.zeros((m, len(alphabet)))
+    cursor = decoding.Split(rows, alphabet)
+    paths = [path for path in itertools.product(alphabet, repeat=m) if parse(path) is not None]
+    assert paths
+    for k in range(m):
+        def rank(path: tuple[int, ...]) -> tuple[int, int]:
+            state = 1 + sum(a - 1 for a in path[:k])
+            return alphabet.index(path[k]), state
+
+        weight, path = cursor.best(k)
+        assert weight == 0.0 and path in paths
+        assert rank(path) == min(map(rank, paths))
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_split_packs_rows_around_nonzero_states(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:

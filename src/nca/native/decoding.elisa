@@ -880,15 +880,23 @@ def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view
 def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     m: i64 = low.len.i64() - 1
+    left: (first: i64, last: i64) = support_envelope(forward_max, forward_max, offsets, low, high, k)
+    right: (first: i64, last: i64) = support_envelope(backward_max, backward_max, offsets, low, high, k + 1)
     log_x, state, choice =
         for j in 0..<arities |log_x: f64 = log(0.0), state: i64 = 0, choice: i64 = 0| -> (log_x, state, choice):
+            reading: f64 = log_probs[k * arities + j]
+            continue if reading == log(0.0)
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
-            for t in 0..<run.count |log_x, state, choice|:
-                n: i64 = run.first + t
+            first_left: i64 = run.first if run.first > left.first else left.first
+            first_right: i64 = right.first + 1 - alphabet[j]
+            first: i64 = first_left if first_left > first_right else first_right
+            end_left: i64 = (run.first + run.count) if run.first + run.count < left.last + 1 else left.last + 1
+            end_right: i64 = right.last + 2 - alphabet[j]
+            end: i64 = end_left if end_left < end_right else end_right
+            for n in first..<end |log_x, state, choice|:
                 prefix: f64 = forward_max[offsets[k] + n - low[k]]
                 suffix: f64 = backward_max[offsets[k + 1] + n - 1 + alphabet[j] - low[k + 1]]
-                reading: f64 = log_probs[k * arities + j]
-                continue if prefix == log(0.0) or suffix == log(0.0) or reading == log(0.0)
+                continue if prefix == log(0.0) or suffix == log(0.0)
                 partial: f64 = prefix + reading
                 return [log(-1.0)] if partial == log(0.0) or partial == -log(0.0) or partial != partial
                 candidate: f64 = partial + suffix

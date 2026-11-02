@@ -210,8 +210,8 @@ enclosing interval. States outside that interval contribute neither mass nor
 maximum weight, so each transition range may be intersected with it. The
 interval may include unreachable holes; it is a conservative envelope, not an
 assumption that reachable states are contiguous. Scoring a replacement row
-intersects the prefix envelope with the suffix envelope translated back through
-the transition for each arity.
+and locating the traceback junction intersect the prefix envelope with the
+suffix envelope translated back through the transition for each arity.
 
 After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
 stays valid. The next climb at `k` needs `F_k`, which costs recomputing the
