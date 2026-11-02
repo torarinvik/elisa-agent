@@ -308,9 +308,11 @@ by the same factor. Its selected-to-alternative risk is unchanged by Theorem
 sequence-risk calculation retries when the individual shifts are finite and
 their rounding residuals are small. The common offset need not be representable
 because it cancels from risk. Other operations may require its finite absolute
-value. These checks do not certify the subsequent calculation. Absolute partitions and
-incremental cursor outputs retain their original scale and still report the
-arithmetic failure.
+value. Evidence ratios likewise cancel the common prior scale without
+requiring its absolute log offset to be representable. These checks do not
+certify the subsequent calculation. Absolute partitions and incremental
+cursor outputs retain their original scale and still report the arithmetic
+failure.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

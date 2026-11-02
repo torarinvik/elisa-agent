@@ -214,7 +214,7 @@ def _evidence_prior(base_rows: np.ndarray, prior: ArityPrior) -> ArityPrior:
     if (math.isfinite(edge_offset) and math.isfinite(final_offset)
             and len(base_rows) * abs(edge_offset) + abs(final_offset) < 16777216.0):
         return prior
-    shifted = _center_prior(base_rows, prior)
+    shifted = _center_prior(base_rows, prior, require_common=False)
     if shifted is not None:
         return shifted[1]
     if prior.log_normalizer(base_rows) == -math.inf:

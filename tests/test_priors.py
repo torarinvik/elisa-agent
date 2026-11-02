@@ -347,6 +347,26 @@ def test_prior_risk_cancels_unrepresentable_common_offsets(reference, edge, fina
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_evidence_cancels_unrepresentable_prior_offset(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    transitions = np.array([[0, -1]])
+    ordinary = priors.ArityPrior((0, 1), transitions, np.zeros((1, 2)), np.zeros(1))
+    shifted = priors.ArityPrior((0, 1), transitions, np.array([[1e308, 0.0]]),
+                                 np.array([1e308]))
+    base = np.tile(np.log([0.5, 0.5]), (4, 1))
+    readings = np.tile(np.log([0.8, 0.2]), (4, 1))
+    expected = 4 * math.log(1.6)
+    assert shifted.log_evidence(readings, base) == pytest.approx(expected)
+    assert shifted.log_evidence(base, base) == pytest.approx(0.0)
+    result = priors.select_prior((lambda _: ordinary, lambda _: shifted), [readings],
+                                 base[0], alphabet=(0, 1))
+    assert result.scores == pytest.approx((expected, expected))
+    with pytest.raises(ValueError):
+        shifted.log_normalizer(base)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_risk_preserves_error_when_centering_is_unsafe(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
