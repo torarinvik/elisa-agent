@@ -2281,8 +2281,10 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.56) are described in the
+Regional acquisition and composition (§§36.26–36.55) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
+Interface alignment (§§36.56–36.57) continues in the
+[alignment acquisition chapter](theory/evidence/36-interface-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
 training successes, then minimizes summed declared cost, with deterministic
@@ -2460,3 +2462,10 @@ invocations, emitting completed routes and constructor declarations. It reuses
 `propose_adapter`; teacher implementations are absent from retained inference
 closures. `adapter_consumer_family_eq` proves conditional family agreement only,
 not learned alignment quality or end-to-end task correctness.
+
+`interface_learning.fit_interface_bridge` (§36.57) exposes alignment independently
+of a consumer. `propose_adapters(share_alignment=True)` shares one fitted bridge
+per compatible source/teacher pair while retaining completed-route budgets.
+Multi-root retention/installation preserves the shared artifact and optional
+public bridge root. `shared_alignment_observation_bound` proves only the external
+paired-observation count inequality, not speed or executable model equivalence.

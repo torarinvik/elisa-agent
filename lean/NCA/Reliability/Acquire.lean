@@ -421,4 +421,9 @@ theorem adapter_consumer_family_eq {X A B Y : Type*} (source : X → A)
       consumers.map (fun c => c (teacher x)) := by
   simp only [agree x]
 
+/-- One shared alignment uses no more paired observations than repeated fits. -/
+theorem shared_alignment_observation_bound (rows consumers : ℕ) (h : 0 < consumers) :
+    rows ≤ consumers * rows := by
+  simpa using Nat.mul_le_mul_right rows (show 1 ≤ consumers by omega)
+
 end NCA

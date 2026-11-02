@@ -18,6 +18,33 @@ class AdapterFitter(Protocol):
                  cost: float) -> Module: ...
 
 
+def fit_interface_bridge(source: Module, teacher: Module, rows: Sequence[tuple[Any, ...]], *,
+                         adapter_cost: float, fit: AdapterFitter = fit_decoder) -> Decoded:
+    """Fit a reusable source-to-teacher representation without a consumer (§36.57).
+
+    Source and teacher share external inputs, slots and relevance. The adapter
+    connects their declared output types using training pairs only. The result
+    retains source and fitted adapter, with no separate teacher dependency.
+    Stable data/models and faithful fitters are assumptions. Agreement on these
+    pairs does not establish extrapolation.
+    Retain the bridge as its own graph root when it should be reusable later.
+    """
+    if not math.isfinite(adapter_cost) or adapter_cost < 0:
+        raise ValueError("adapter cost must be finite and nonnegative")
+    contract = teacher.manifest.contract
+    if replace(source.manifest.contract, output=contract.output) != contract:
+        raise ValueError("paired experts must preserve external inputs, slots and relevance")
+    if not rows or any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
+        raise ValueError("training rows must supply slot fillings followed by inputs")
+    pairs = [(source.invoke(*row), teacher.invoke(*row)) for row in rows]
+    adapter_contract = Contract((source.manifest.contract.output,), contract.output)
+    adapter = fit(adapter_contract, tuple(a for a, _ in pairs), tuple(b for _, b in pairs),
+                  cost=adapter_cost)
+    if adapter.manifest.contract != adapter_contract:
+        raise ValueError("fitted adapter must preserve the requested interface contract")
+    return Decoded(source, adapter, contract)
+
+
 def propose_adapter(incumbent: Module, source: Module, teacher: Module, consumer: Module,
                     rows: Sequence[tuple[Any, ...]], *, decoder_cost: float,
                     fit: AdapterFitter = fit_decoder) -> Proposal:
@@ -41,32 +68,29 @@ def propose_adapter(incumbent: Module, source: Module, teacher: Module, consumer
     if (head.inputs != (teacher.manifest.contract.output,) or head.slots
             or head.output != contract.output):
         raise ValueError("consumer must accept the teacher interface and produce the task output")
-    if not rows or any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
-        raise ValueError("training rows must supply slot fillings followed by inputs")
-    pairs = [(source.invoke(*row), teacher.invoke(*row)) for row in rows]
-    adapter_contract = Contract((source.manifest.contract.output,), head.inputs[0])
-    adapter = fit(adapter_contract, tuple(a for a, _ in pairs), tuple(b for _, b in pairs),
-                  cost=decoder_cost)
-    if adapter.manifest.contract != adapter_contract:
-        raise ValueError("fitted adapter must preserve the requested interface contract")
-    bridge = Decoded(source, adapter, teacher.manifest.contract)
+    bridge = fit_interface_bridge(source, teacher, rows, adapter_cost=decoder_cost, fit=fit)
     return Proposal(Decoded(bridge, consumer, contract))
 
 
 def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: Sequence[Proposal],
         consumers: Sequence[Module], rows: Sequence[tuple[Any, ...]], *,
         max_candidates: int, decoder_cost: float,
-        fit: AdapterFitter = fit_decoder) -> list[Proposal]:
+        fit: AdapterFitter = fit_decoder, share_alignment: bool = False) -> list[Proposal]:
     """Acquire a bounded family of typed bridges into supplied consumers (§36.56).
 
     Use within independent discovery's training callback. Filter source/teacher
     external signatures and unary slot-free consumer contracts through metadata
-    only. Compatible triples spend one fit each in source/teacher/consumer order;
-    incompatible modules spend no fit budget. The bound does not limit library
-    scanning or fitter computation. Snapshot sequences, not mutable model bodies.
+    only. By default compatible triples spend one fit each, following supplied
+    source, teacher and consumer order. Incompatible modules spend no fit budget.
+    The bound covers completed candidates; library scanning and fitter computation
+    remain caller-controlled. Input sequences are shallow snapshots.
     Propagate source/teacher constructor declarations, but retain no teacher code
     in proposed inference graphs. Stable models/pairs and independent end-to-end
     selection are required; teacher agreement does not certify task correctness.
+    Opt-in share_alignment (§36.57) fits one reusable bridge per compatible
+    source/teacher pair and shares that model across completed consumer routes.
+    It changes the training family for stochastic fitters. Candidate limits still
+    count complete routes, and inference values are never cached by this option.
     """
     if type(max_candidates) is not int or max_candidates < 1:
         raise ValueError("adapter candidate budget must be a positive integer")
@@ -84,11 +108,18 @@ def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: S
             if replace(teacher.expert.manifest.contract, output=contract.output) != contract:
                 continue
             expected = Contract((teacher.expert.manifest.contract.output,), contract.output)
+            bridge: Decoded | None = None
             for consumer in consumers:
                 if consumer.manifest.contract != expected:
                     continue
-                proposal = propose_adapter(incumbent, source.expert, teacher.expert, consumer,
-                                            rows, decoder_cost=decoder_cost, fit=fit)
+                if share_alignment:
+                    if bridge is None:
+                        bridge = fit_interface_bridge(source.expert, teacher.expert, rows,
+                                                       adapter_cost=decoder_cost, fit=fit)
+                    proposal = Proposal(Decoded(bridge, consumer, contract))
+                else:
+                    proposal = propose_adapter(incumbent, source.expert, teacher.expert, consumer,
+                                                rows, decoder_cost=decoder_cost, fit=fit)
                 proposals.append(replace(proposal,
                     constructors=source.constructors + teacher.constructors))
                 if len(proposals) == max_candidates:
