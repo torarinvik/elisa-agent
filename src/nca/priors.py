@@ -880,9 +880,13 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                 raise ValueError("candidate evidence must be finite or negative infinity")
             if score_clip is not None:
                 evidence = max(-score_clip, min(score_clip, evidence))
-            scores[i] += evidence
-            if not math.isfinite(scores[i]) and math.isfinite(evidence):
-                raise ValueError("summed evidence overflow")
+            if evidence == -math.inf:
+                scores[i] = -math.inf
+            else:
+                try:
+                    scores[i] = _partition_log_product(scores[i], evidence, "summed evidence")
+                except _PartitionArithmeticError as exc:
+                    raise ValueError("summed evidence overflow or loses precision") from exc
         count += 1
     if not count or not any(math.isfinite(score) for score in scores):
         raise ValueError("requires observations and at least one finite-evidence candidate")

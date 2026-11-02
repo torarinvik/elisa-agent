@@ -237,6 +237,19 @@ def test_evidence_cancels_overflowed_base_normalizer(
         extreme.log_normalizer(rows)
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_selection_rejects_lost_evidence_contribution(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, -1]]), np.zeros((1, 2)), np.zeros(1))
+    base = np.array([-1e7, 0.0])
+    large = np.array([[0.0, -np.inf]])
+    small = np.array([[-1e7 + 1.5e-8, 0.0]])
+    assert prior.log_evidence(small, base[None, :]) > 1.01e-8
+    with pytest.raises(ValueError, match="summed evidence.*precision"):
+        priors.select_prior([lambda _: prior], [large] * 30 + [small], base, alphabet=(0, 1))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_selection_prefers_declared_priority_within_supplied_error(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
