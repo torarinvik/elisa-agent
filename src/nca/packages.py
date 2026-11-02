@@ -84,15 +84,25 @@ class Upcast:
         return value
 
 
-def _profile(node: Plan, length: int, unit: Callable[[Module], float]) -> float:
-    """Sum of ``unit`` over the invocations of ``node`` at sequence length ``length``."""
+def charge(node: Plan, length: int, unit: Callable[[Module], float], *,
+           strict: bool = False) -> float:
+    """Sum of ``unit`` over the invocations of ``node`` at sequence length
+    ``length``: map bodies once per element, slot fillings by their declared
+    calls (THEORY §28.3, §31.2). A slot of an expert that declares no calls
+    is counted once, or, with ``strict``, is an error."""
     if isinstance(node, Given):
         return 0.0
     if isinstance(node, Map):
-        return _profile(node.source, length, unit) + length * _profile(node.body, length, unit)
-    calls = slot_calls(node.module.manifest, length) or [1.0] * len(node.slots)
-    return (unit(node.module) + sum(_profile(arg, length, unit) for arg in node.args)
-            + sum(n * _profile(sub, length, unit) for n, sub in zip(calls, node.slots)))
+        return (charge(node.source, length, unit, strict=strict)
+                + length * charge(node.body, length, unit, strict=strict))
+    calls = slot_calls(node.module.manifest, length)
+    if not calls and node.slots:
+        if strict:
+            raise ValueError(f"{node.module.manifest.module_id} declares no slot calls")
+        calls = [1.0] * len(node.slots)
+    return (unit(node.module) + sum(charge(arg, length, unit, strict=strict) for arg in node.args)
+            + sum(n * charge(sub, length, unit, strict=strict)
+                  for n, sub in zip(calls, node.slots)))
 
 
 def _affine(count: Callable[[int], float]) -> Calls | None:
@@ -124,9 +134,9 @@ class Export:
         self.identity = f"{composite.ref}#{index}"
 
         def cost(at: int) -> float:
-            return _profile(route, at, lambda m: m.manifest.cost)
+            return charge(route, at, lambda m: m.manifest.cost)
 
-        counts = [_affine(lambda at, r=r: _profile(route, at, lambda m: float(m is r)))
+        counts = [_affine(lambda at, r=r: charge(route, at, lambda m: float(m is r)))
                   for r in self.requirements]
         self.manifest = Manifest(
             f"{composite.name}#{index}", composite.version,

@@ -9,6 +9,7 @@ import torch
 
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
+from nca.evidence import benchmark, error_bound, evaluation, route_risk
 from nca.ladder import CALIBRATION, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
 from nca.packages import GROUP, Export, discover, install
@@ -300,3 +301,34 @@ def test_installed_distributions_contribute_their_domain_packages() -> None:
     for ref in names.values():
         obj = store.get(ref)
         assert isinstance(obj, Composite) and obj.exports and obj.effects == frozenset()
+
+
+def test_route_risk_charges_invocations_through_maps_and_packages() -> None:
+    store = Store()
+    reader = store.put(primitive("count-letters", [WORD], INT))
+    split = store.put(primitive("split", [TEXT], seq_type(WORD)))
+    total = store.put(primitive("sum", [seq_type(INT)], INT))
+    rates = {"split": 0.0, "sum": 0.0, "count-letters": 0.01}
+
+    def rate(module: Any) -> float | None:
+        return rates.get(module.manifest.module_id)
+
+    flat = plan_stable(install(store, store.put(Composite("flat", "1", (split, reader, total)))),
+                       (TEXT,), INT)
+    assert route_risk(flat, rate, length=5) == pytest.approx(0.05)
+    world = install(store, store.put(Composite("world", "1", (reader, counting_package(store)))))
+    packaged = plan_stable(world, (TEXT,), INT)
+    assert isinstance(packaged.module, Export)
+    assert route_risk(packaged, rate, length=5) == pytest.approx(0.05)
+    del rates["sum"]
+    assert route_risk(packaged, rate, length=5) is None
+
+
+def test_error_bounds_come_from_trusted_evaluations() -> None:
+    store = Store()
+    (reader,) = install(store, store.put(primitive("count-letters", [WORD], INT)))
+    bench = benchmark(list(range(100)))
+    store.put(evaluation(reader.identity, bench, [i >= 3 for i in range(100)], "lab"))
+    bound = error_bound(store, reader.identity, bench, {"lab"}, 0.05)
+    assert 0.03 < bound < 0.1
+    assert error_bound(store, reader.identity, bench, {"other"}, 0.05) is None

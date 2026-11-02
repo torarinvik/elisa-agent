@@ -42,6 +42,7 @@ run the Python tests with `uv run pytest`.
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
 | [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
+| [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk` | `evidence.route_risk`, `evidence.error_bound`, `packages.charge` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -314,6 +315,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [29.3](theory/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
 | [30.1](theory/30-selection-by-evidence.md) | `audit_family_le` (the union bound; the sign test's validity is assumed) | `Calibration` |
 | [30.2](theory/30-selection-by-evidence.md) | `plan_rename`, `planShallow_rename`, `planShallowStable_rename`, `WellTyped.rename` | `Selection` |
+| [31.1](theory/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
+| [31.2](theory/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
 
 ## Native kernels
 
@@ -1680,3 +1683,22 @@ the challenger takes the incumbent's place in each route that used it, and
 nothing else changes. Promotion compares experts one contract at a time; a
 deployment promoting along several contracts at once divides `alpha` among
 them itself.
+
+## 31. Composing uncertainty
+
+`packages.charge(plan, length, unit)` sums `unit` over a route's
+invocations: map bodies once per element at `length`, slot fillings by
+their declared calls. Exports declare their cost with it; with
+`strict=True`, a slot whose expert declares no call counts is an error
+instead of being counted once. `evidence.route_risk(plan, rate, length)`
+is `charge` with each expert's failure rate as unit (§31.2): an export is
+charged its own route, its `Requirement`s nothing (their fillings are
+charged through the outer slots), and an `Upcast` nothing. It returns
+`None` when an invoked expert has no rate or a slot's call count is
+undeclared. `evidence.error_bound` gives a rate as the Clopper–Pearson
+upper bound of an evaluation's failures; dividing the confidence budget
+among the route's experts, as in the diary experiment, is the caller's
+choice. The result is a bound on an expected count and may exceed 1, in
+which case it says nothing; it is a probability bound only for in-situ
+rates and a `length` that bounds every mapped sequence (Theorems 31.1 and
+31.2, `risk_le_charges`).

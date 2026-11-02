@@ -10,19 +10,26 @@ with the smallest p-value among those accepted exchanges places with the
 incumbent. Planning commutes with that exchange (``NCA.planShallowStable_rename``),
 so every route through the incumbent then uses the challenger and no other
 route changes.
+
+``error_bound`` turns an evaluation into an upper confidence bound on an
+expert's failure rate, and ``route_risk`` charges each invocation of a route
+its expert's rate, through maps, slots and packages, which bounds the
+probability of a wrong answer (§31).
 """
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Module
 from nca.cache import value_digest
 from nca.objects import Attestation, Ref, Store
+from nca.packages import Export, Requirement, Upcast, charge
+from nca.planner import Plan
 from nca.router import sign_test
-from nca.stats import family_audit_alpha
+from nca.stats import clopper_pearson_upper, family_audit_alpha
 
 EVALUATION = "evaluation"
 
@@ -115,3 +122,46 @@ def _outcomes(module: Module, store: Store, bench: Ref,
               issuers: Collection[str]) -> tuple[bool, ...] | None:
     identity = getattr(module, "identity", None)
     return None if identity is None else outcomes(store, identity, bench, issuers)
+
+
+def error_bound(store: Store, identity: str, bench: Ref, issuers: Collection[str],
+                beta: float) -> float | None:
+    """An upper bound, holding with probability at least ``1 - beta``, on the
+    failure rate of ``identity`` on ``bench``'s distribution (Clopper–Pearson),
+    or ``None`` without a trusted evaluation. It is the in-situ rate of §31
+    only if ``bench`` samples the inputs the expert receives in the route."""
+    found = outcomes(store, identity, bench, issuers)
+    if found is None:
+        return None
+    return clopper_pearson_upper(found.count(False), len(found), beta)
+
+
+class _Unknown(Exception):
+    pass
+
+
+def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int = 1) -> float | None:
+    """The total charge of ``plan`` when each invocation of an expert costs its
+    failure rate ``rate(expert)`` (§31.2): an upper bound on the probability
+    of a wrong answer when the rates are in situ, ``length`` bounds every
+    mapped sequence and failures propagate (Theorems 31.1, 31.2).
+
+    An export is charged its own route, with its requirements charged
+    through the slots that fill them; an upcast returns its input and never
+    fails. ``None`` if some invoked expert has no rate, or an expert with
+    slots declares no call counts, since then nothing bounds the risk.
+    """
+    def unit(module: Module) -> float:
+        if isinstance(module, Export):
+            return charge(module.route, length, unit, strict=True)
+        if isinstance(module, (Upcast, Requirement)):
+            return 0.0
+        found = rate(module)
+        if found is None:
+            raise _Unknown
+        return found
+
+    try:
+        return charge(plan, length, unit, strict=True)
+    except (_Unknown, ValueError):
+        return None
