@@ -69,6 +69,18 @@ theorem completion_transition_bound (state arity remaining : ℤ) :
     state - 1 + arity ≤ remaining - 1 ↔ state ≤ remaining - arity := by
   omega
 
+/-- Matrix dimensions can be checked without multiplying bounded integers. -/
+theorem matrix_shape_division (size rows columns : ℕ) (positive : 0 < columns) :
+    (size / columns = rows ∧ size % columns = 0) ↔ size = rows * columns := by
+  constructor
+  · rintro ⟨quotient, remainder⟩
+    have balance := Nat.mod_add_div size columns
+    rw [quotient, remainder] at balance
+    simpa [Nat.mul_comm] using balance.symm
+  · intro h
+    subst size
+    simp [Nat.ne_of_gt positive]
+
 /-- A scored transition must lie in both the prefix and shifted suffix support. -/
 theorem split_support_intersection (n arity left_first left_last right_first right_last : ℤ) :
     (left_first ≤ n ∧ n ≤ left_last ∧

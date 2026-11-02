@@ -2032,6 +2032,23 @@ def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
                   np.full(size, 2, dtype=np.int64)) == []
 
 
+def test_native_decoding_kernels_reject_inconsistent_matrix_shapes() -> None:
+    native = formulas._NATIVE
+    if any(getattr(native, name, None) is None
+           for name in ("accepted_log_weight", "format_partition", "banded_format")):
+        pytest.skip("native decoding kernels are not built")
+    alphabet = np.arange(3, dtype=np.int64)
+    selected = np.array([2, 0, 0], dtype=np.int64)
+    low = np.array([1, 1, 1, 0], dtype=np.int64)
+    high = np.array([1, 2, 1, 0], dtype=np.int64)
+    for size in (0, 8, 9, 10, 12):
+        rows = np.zeros(size)
+        results = (native.accepted_log_weight(rows, alphabet, selected),
+                   native.format_partition(rows, alphabet, selected),
+                   native.banded_format(rows, alphabet, low, high))
+        assert all(bool(result) == (size == 9) for result in results)
+
+
 def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
     rows = np.array([[-1488.0, 0.0, -1151.0], [0.0, -1381.0, -1487.0],
                      [0.0, -1488.0, -1487.0]])

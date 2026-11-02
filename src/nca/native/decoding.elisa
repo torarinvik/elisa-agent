@@ -17,6 +17,11 @@ extern log1p(x: f64) -> f64
 extern lgamma(x: f64) -> f64
 extern nextafter(x: f64, y: f64) -> f64
 
+# Compare flat matrix dimensions without multiplying signed lengths.
+def matrix_shape(size: i64, rows: i64, columns: i64) -> bool:
+    return false if size < 0 or rows <= 0 or columns <= 0
+    return size / columns == rows and size % columns == 0
+
 # Validate nonnegative finite weights and produce their floored logarithms.
 # An empty result signals an invalid vector (including an all-zero vector).
 def observation_logs(values: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -459,7 +464,7 @@ def initial_band_changes_scaled(log_off: f64, log_factor: f64, log_slack: f64, l
 def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = selected.len.i64()
     count: i64 = alphabet.len.i64()
-    return [] if m == 0 or count == 0 or log_probs.len.i64() != m * count
+    return [] if not matrix_shape(log_probs.len.i64(), m, count)
     width: i64 = m + 2
     missing: f64 = log(0.0)
     for j in 0..<count:
@@ -1018,7 +1023,7 @@ def moves(i: i64, a: i64, low: view[i64], high: view[i64]) -> (first: i64, count
 def banded_format(log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     count: i64 = alphabet.len.i64()
     m: i64 = low.len.i64() - 1
-    return [] if count == 0 or m <= 0 or high.len.i64() != m + 1 or log_probs.len.i64() != m * count
+    return [] if high.len.i64() != m + 1 or not matrix_shape(log_probs.len.i64(), m, count)
     return [] if low[0] > 1 or high[0] < 1 or low[m] > 0 or high[m] < 0
     width: i64 = m + 2
     missing: f64 = log(0.0)
@@ -1532,7 +1537,7 @@ def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
 def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
     m: i64 = selected.len.i64()
-    return [] if width == 0 or m == 0 or log_probs.len.i64() != m * width
+    return [] if not matrix_shape(log_probs.len.i64(), m, width)
     pending, total, zero, failed =
         for k in 0..<m |pending: i64 = 1, total: f64 = 0.0, zero: bool = false, failed: bool = false| -> (pending, total, zero, failed):
             arity: i64 = selected[k]
