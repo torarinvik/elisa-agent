@@ -420,6 +420,20 @@ def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(referenc
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_format_partition_filters_sparse_wide_alphabet(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = tuple(range(64))
+    rows = np.full((5, len(alphabet)), -np.inf)
+    rows[:, :3] = 0.0
+    assert priors.format_sequence_risk(rows, alphabet, (1, 1, 1, 1, 0)) == pytest.approx(8 / 9)
+    rows[1] = -np.inf
+    rows[1, -1] = 0.0
+    with pytest.raises(ValueError, match="positive total mass"):
+        priors.format_sequence_risk(rows, alphabet, (1, 1, 1, 1, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_format_partition_handles_holes_in_state_support(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)

@@ -208,6 +208,9 @@ containing its nonzero states, plus the selected state when live. A state
 with no pending nodes cannot consume another word and is excluded from later
 transition scans; the interval may contain unreachable holes, which contribute
 nothing unless the selected path occupies that state.
+For each row, zero-weight symbols and arities larger than the remaining
+positions cannot contribute to a complete sequence; filtering them once per
+row retains the original transition order.
 Adding positive mass must increase the exact sum. The partition checks the
 difference between the intended log-sum correction and the correction retained
 after addition; distortion of at least `1.01 × 10⁻⁸` reports precision loss.

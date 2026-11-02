@@ -450,17 +450,18 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
     alternatives: darray[f64] = [missing for _ in 0..<(2 * width)]
     matched: darray[f64] = [0.0]
     state: darray[i64] = [1]
+    active: mutable darray[i64] = [0 for _ in 0..<count]
     bounds: darray[i64] = [width, -1, width, -1]
     for k in 0..<m:
         here_bound: i64 = (k % 2) * 2
         next_bound: i64 = ((k + 1) % 2) * 2
         return [missing, missing] if matched[0] == missing and bounds[here_bound] > bounds[here_bound + 1]
-        has_reading: bool =
-            for j in 0..<count |found: bool = false| -> found:
-                if log_probs[k * count + j] != missing:
-                    found <- true
-                    break
-        return [missing, missing] if not has_reading
+        active_count: i64 =
+            for j in 0..<count |found: i64 = 0, active| -> found:
+                if log_probs[k * count + j] != missing and alphabet[j] <= m - k - 1:
+                    active[found] <- j
+                    found += 1
+        return [missing, missing] if active_count == 0
         here: i64 = (k % 2) * width
         next: i64 = ((k + 1) % 2) * width
         for n in bounds[next_bound]..<(bounds[next_bound + 1] + 1):
@@ -476,13 +477,12 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
             source: f64 = alternatives[here + n]
             same: bool = n == matched_state
             continue if source == missing and not same
-            for j in 0..<count:
+            for position in 0..<active_count:
+                j: i64 = active[position]
                 arity: i64 = alphabet[j]
-                continue if arity > m - k - 1
                 target: i64 = n - 1 + arity
                 continue if target > m - k - 1
                 reading: f64 = log_probs[k * count + j]
-                continue if reading == missing
                 if source != missing:
                     through: f64 = partition_log_product(source, reading)
                     return [] if through == missing or through == -missing or through != through
