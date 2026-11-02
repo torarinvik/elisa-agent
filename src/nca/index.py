@@ -58,6 +58,7 @@ class ProducerIndex:
         self._seq_cache: dict[tuple[tuple[TypeId, ...], int], frozenset[TypeId] | None] = {}
         self._memos: dict[int, Memo] = {}
         self._total_cache: dict[tuple[tuple[TypeId, ...], int], bool] = {}
+        self._depth_cache: dict[tuple[tuple[TypeId, ...], int], dict[TypeId, int] | None] = {}
         self._in_progress: set[tuple[tuple[TypeId, ...], int]] = set()
         self.routes: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[int, Plan | None]] = {}
         """Stable routes found so far, each with the length of the shortest
@@ -138,7 +139,8 @@ class ProducerIndex:
                             (self._source_cache, index._source_cache),
                             (self._fired_cache, index._fired_cache),
                             (self._seq_cache, index._seq_cache),
-                            (self._total_cache, index._total_cache)):
+                            (self._total_cache, index._total_cache),
+                            (self._depth_cache, index._depth_cache)):
             kept.update((key, value) for key, value in cache.items() if key[1] <= first)
         index._memos = {limit: dict(memo) for limit, memo in self._memos.items()
                         if limit <= first}
@@ -362,6 +364,52 @@ class ProducerIndex:
         self._fired_cache[key] = frozenset(fired)
         self._total_cache[key] = total
         return result
+
+    def depths(self, available: Sequence[TypeId], limit: int) -> dict[TypeId, int] | None:
+        """For each type of the forward closure, the least ``d`` such that it
+        is in the depth-bounded closure ``NCA.Within`` at depth ``d + 1``,
+        under the first ``limit`` contracts; types absent are derivable at no
+        depth. Mirrors ``NCA.Within`` by rounds of the propagation of
+        ``reachable``: available types, outputs of contracts without
+        non-sequence inputs, and types a polymorphic producer has an instance
+        for, at 0. ``None`` when a contract's output is a bare
+        variable, whose contributions it does not bound.
+        """
+        key = (tuple(available), limit)
+        if key in self._depth_cache:
+            return self._depth_cache[key]
+        if any(p < limit for p in self.open_outputs):
+            self._depth_cache[key] = None
+            return None
+        level: dict[TypeId, int] = {}
+        current: list[TypeId] = []
+        seeds = list(available) + [self.outputs[p] for p in self.unconditional if p < limit]
+        if any(p < limit and self.head_of[p] is not None for p, _ in self.generic):
+            seeds += [t for t in self.consumers if self.covered(t, limit)]
+        for t in seeds:
+            if t not in level:
+                level[t] = 0
+                current.append(t)
+        produced: list[TypeId] = []
+        remaining: dict[int, int] = {}
+        depth = 0
+        while current or produced:
+            for t in current:
+                for position in self.consumers.get(t, ()):
+                    if position >= limit:
+                        continue
+                    remaining[position] = remaining.get(position, len(self.needs[position])) - 1
+                    if remaining[position] == 0:
+                        produced.append(self.outputs[position])
+            depth += 1
+            current = []
+            for t in produced:
+                if t not in level:
+                    level[t] = depth
+                    current.append(t)
+            produced = []
+        self._depth_cache[key] = level
+        return level
 
     def _open_contributions(self, current: tuple[tuple[TypeId, ...], int], reach: set[TypeId],
                             ) -> tuple[set[TypeId], bool]:

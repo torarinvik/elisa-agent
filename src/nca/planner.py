@@ -95,6 +95,9 @@ def assignments(required: frozenset[int], count: int) -> Iterator[tuple[frozense
     its arguments (THEORY §20.8, Theorem 20.10). Ways that spread the positions over more
     arguments come first, so that each argument has as little to use as
     possible."""
+    if not required:
+        yield (frozenset(),) * count
+        return
     ordered = sorted(required)
     choices = sorted(itertools.product(range(count), repeat=len(ordered)),
                      key=lambda choice: (max((choice.count(j) for j in range(count)), default=0),
@@ -183,6 +186,9 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
         return None
     reach = index.reachable(available, limit)
     total = index.total(available, limit)
+    # NCA.planDepth_eq: an input outside the depth-bounded closure at the
+    # remaining fuel has no plan, so its producer is a dead end.
+    depth = index.depths(available, limit)
     for position, module, binding in index.candidates(goal, limit):
         if binding:
             if not index.may_produce(available, position, goal, limit):
@@ -195,6 +201,9 @@ def _search(index: ProducerIndex, limit: int, available: Sequence[TypeId], goal:
         else:
             contract = module.manifest.contract
             if not (total or index.needs[position] <= reach):
+                continue
+            if depth is not None and any(depth.get(i, fuel) > fuel - 2
+                                         for i in index.needs[position]):
                 continue
         if contract.free:
             found = _apply_free(index, limit, available, module, binding, fuel, memo, required)

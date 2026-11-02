@@ -148,6 +148,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [12.18](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_append` | `Loading` |
 | [12.19](theory/12-lazy-loading-and-scalable-discovery.md) | `HTyped.eclosure`, `ECl.trans` | `Eliminators` |
 | [12.20](theory/12-lazy-loading-and-scalable-discovery.md) | `HTyped.seq_source` | `Eliminators` |
+| [12.21](theory/12-lazy-loading-and-scalable-discovery.md) | `planDepth_eq` | `DepthPruning` |
+| [12.22](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_within` | `DepthPruning` |
 | [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
 | [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
 | [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |
@@ -454,6 +456,14 @@ equations, with each node's variables renamed by its path, as
 `index.rename_apart` does with fresh tags. Each input pattern the search
 unifies with a candidate's output is one equation of `Skel.eqs`, solved in
 search order with the bindings found so far applied, as in `SeqMGU`.
+
+Ground producers are also pruned by depth (THEORY §12, Theorems
+12.21–12.22): `ProducerIndex.depths(available, limit)` gives each type's
+least level in `NCA.Within`, computed by rounds of the closure's
+propagation and cached per available types and library prefix, and a
+producer is skipped when a non-sequence input's level exceeds the fuel
+left for its arguments. It returns `None`, and nothing is pruned by depth,
+when a contract's output is a bare variable.
 
 `map` candidates are pruned by the same closure oracle
 (`ProducerIndex.may_derive`, THEORY §12): an element `a` is tried only if the

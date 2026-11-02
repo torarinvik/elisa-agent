@@ -554,3 +554,36 @@ def test_scaling_wrapper_preserves_runtime_rules() -> None:
     source = Fn(Manifest("source", "1", Contract((), "unused")),
                 lambda: pytest.fail("unused input was evaluated"))
     assert execute(Apply(wrapped, (Apply(source, ()),)), {}, Workspace(), 2).payload == "ok"
+
+
+def test_depths_mirror_the_depth_bounded_closure() -> None:
+    from nca.abi import elem_type
+    from nca.index import ProducerIndex
+
+    def within(modules: list[Fn], available: tuple[str, ...], n: int) -> set[str]:
+        """``NCA.Within lib avail n`` over the library's types, by its rules."""
+        if n == 0:
+            return set()
+        below = within(modules, available, n - 1)
+        found = set(available)
+        for module in modules:
+            contract = module.manifest.contract
+            if all(elem_type(i) is not None or i in below for i in contract.inputs):
+                found.add(contract.output)
+        return found
+
+    rng = random.Random(4)
+    types = [f"t{i}" for i in range(6)]
+    for _ in range(300):
+        modules = random_library(rng, rng.randint(0, 12), types)
+        available = tuple(rng.sample(types, rng.randint(1, 2)))
+        depths = ProducerIndex(modules).depths(available, len(modules))
+        assert depths is not None
+        for n in range(1, 8):
+            expected = {t for t in within(modules, available, n) if elem_type(t) is None}
+            assert {t for t, d in depths.items() if d < n and elem_type(t) is None} == expected
+        for fuel in range(1, 7):
+            goal = rng.choice(types + ["seq[t0]"])
+            assert plan(modules, available, goal, fuel) == next(
+                (route for depth in range(1, fuel + 1)
+                 if (route := reference_plan(modules, available, goal, depth)) is not None), None)

@@ -127,7 +127,26 @@ unsatisfied inputs, and each newly reachable type decrements the counts of its
 consumers. The work is proportional to the contracts consuming reachable
 types, independent of dormant modules elsewhere in the library.
 
-**Eviction.** The store holds a set `S` of experts
+**Depth pruning.** The closure says whether a type can be derived at all,
+not within the remaining fuel, so a search at fuel `n` still descends into
+producers whose inputs need more depth than is left, and fails there after
+exploring them. `Within lib avail n` is the least family containing `avail`
+and the sequence types at every positive depth and containing `c.output` at
+depth `n + 1` whenever it contains `c`'s non-sequence inputs at depth `n`.
+
+| Theorem | Statement |
+|---|---|
+| 12.21 | planning that skips producers with an input a depth oracle rejects at the remaining fuel computes exactly `plan`, if the oracle accepts every type derivable within that fuel |
+| 12.22 | a type derivable within depth `n` is in `Within lib avail n` |
+
+The proofs are those of Theorems 12.7 and 12.8 with the fuel carried along.
+`Within` is computed by the propagation of the closure run in rounds: a
+type's least depth is the round in which the last non-sequence input of
+one of its producers arrives, plus one. Types some polymorphic producer
+can produce enter at the first depth, which is never too deep; contracts
+whose output is a bare variable contribute types the rounds do not bound,
+and their presence disables depth pruning.
+
 within a byte budget; serving a route with working set `R` moves it to some
 `S' ⊇ R` at cost `bytes(S' \ S)`.
 
