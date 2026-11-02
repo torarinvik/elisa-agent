@@ -1950,3 +1950,7 @@ uncertified ledger), answering if it is at most `δ`.
 `verification.verifier_rates(accepted, correct, β)` gives Clopper–Pearson
 upper bounds on the miss and false-rejection rates at level `β / 2`
 each.
+The arithmetic domain's `components.ComponentSegmenter` segments by
+8-connected components of ink, merging components whose column spans
+mostly overlap and cropping each glyph by its own pixels; it has the
+segmenter's contract and serves routes meant to fail differently.

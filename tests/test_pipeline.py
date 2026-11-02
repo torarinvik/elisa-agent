@@ -410,3 +410,20 @@ def test_touching_glyphs_are_cut_by_pitch() -> None:
     candidates = list(segmentations(image))
     assert candidates[0] == pitched(image, runs) and candidates[1] == runs
     assert len(candidates) == len({tuple(c) for c in candidates})
+
+
+def test_component_segmenter_keeps_strokes_together_and_neighbours_apart() -> None:
+    from nca.domains.arithmetic.components import ComponentSegmenter, glyph_masks
+
+    image = np.zeros((28, 60), dtype=np.float32)
+    image[8:10, 4:20] = 1.0    # An "=" of two strokes, one glyph.
+    image[16:18, 4:20] = 1.0
+    image[4:24, 24:27] = 1.0   # A digit whose stroke breaks.
+    image[4:24, 30:33] = 1.0
+    image[2:6, 26:31] = 1.0
+    image[4:24, 45:48] = 1.0   # A separate glyph.
+    masks = glyph_masks(image)
+    assert len(masks) == 3
+    assert masks[0][8, 10] and masks[0][16, 10] and not masks[0][10, 25]
+    crops = ComponentSegmenter().invoke(torch.from_numpy(image))
+    assert len(crops) == 3 and all(c.shape == (28, 28) for c in crops)
