@@ -236,7 +236,7 @@ def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None, *,
 
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
                         selected: Sequence[int]) -> float:
-    """Log product of a selected sequence's position-wise weights (§21.5)."""
+    """Log product of selected weights; reject detected arithmetic loss (§21.5)."""
     if log_probs.shape != (len(selected), len(alphabet)):
         raise ValueError("weights must have one row per selected symbol and one column per class")
     if not _integer_symbols(alphabet) or not _integer_symbols(selected):
@@ -244,13 +244,29 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
     native_weight = getattr(_NATIVE, "sequence_log_weight", None)
     if native_weight is not None:
         symbols, encoded = _native_symbol_pair(tuple(alphabet), selected)
-        return float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
-                                   symbols, encoded))
+        result = float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
+                                     symbols, encoded))
+        if math.isnan(result) or result == math.inf:
+            raise ValueError("sequence log weight arithmetic is not finite or loses precision")
+        return result
     symbols = tuple(alphabet)
-    try:
-        return float(sum(log_probs[k, symbols.index(a)] for k, a in enumerate(selected)))
-    except ValueError:
-        return -math.inf
+    total, failed = 0.0, False
+    for k, symbol in enumerate(selected):
+        try:
+            column = symbols.index(symbol)
+        except ValueError:
+            return -math.inf
+        reading = float(log_probs[k, column])
+        if reading == -math.inf:
+            return -math.inf
+        if not failed:
+            try:
+                total = _partition_log_product(total, reading, "sequence log weight")
+            except _PartitionArithmeticError:
+                failed = True
+    if failed:
+        raise ValueError("sequence log weight arithmetic is not finite or loses precision")
+    return total
 
 @dataclass(frozen=True)
 class ArityPrior:

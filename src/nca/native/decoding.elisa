@@ -245,11 +245,15 @@ def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[
             return log(0.0) if target < 0
             return log(0.0) if weights[edge] == log(0.0)
             if not failed:
-                value: f64 = partition_log_product(total, weights[edge])
-                if value != value:
-                    failed <- true
-                else:
+                value: f64 = total + weights[edge]
+                if value > -67108864.0 and value < 67108864.0:
                     total <- value
+                else:
+                    checked: f64 = partition_log_product(total, weights[edge])
+                    if checked != checked:
+                        failed <- true
+                    else:
+                        total <- checked
             state <- target
     return log(0.0) if final[state] == log(0.0)
     return log(-1.0) if failed
@@ -1308,24 +1312,37 @@ def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.All
 # Log product of the selected sequence, preserving position order.
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
     width: i64 = alphabet.len.i64()
-    return
-        for k in 0..<selected.len.i64() |total: f64 = 0.0| -> total:
+    total, failed =
+        for k in 0..<selected.len.i64() |total: f64 = 0.0, failed: bool = false| -> (total, failed):
             column: i64 =
                 for c in 0..<width |found: i64 = -1| -> found:
                     if alphabet[c] == selected[k]:
                         found <- c
                         break
             return log(0.0) if column < 0
-            total += log_probs[k * width + column]
+            reading: f64 = log_probs[k * width + column]
+            return log(0.0) if reading == log(0.0)
+            if not failed:
+                value: f64 = total + reading
+                if value > -67108864.0 and value < 67108864.0:
+                    total <- value
+                else:
+                    checked: f64 = partition_log_product(total, reading)
+                    if checked != checked:
+                        failed <- true
+                    else:
+                        total <- checked
+    return log(-1.0) if failed
+    return total
 
 # Validate a complete prefix formula and sum its selected log weights.
-# Empty output denotes invalid shape or syntax; [-inf] is a valid zero-weight answer.
+# Empty output denotes invalid shape or syntax; [-inf] is zero mass and [nan] is arithmetic failure.
 def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
     m: i64 = selected.len.i64()
     return [] if width == 0 or m == 0 or log_probs.len.i64() != m * width
-    pending, total =
-        for k in 0..<m |pending: i64 = 1, total: f64 = 0.0| -> (pending, total):
+    pending, total, zero, failed =
+        for k in 0..<m |pending: i64 = 1, total: f64 = 0.0, zero: bool = false, failed: bool = false| -> (pending, total, zero, failed):
             arity: i64 = selected[k]
             return [] if pending == 0 or arity < 0 or arity > m - k - 1
             column: i64 =
@@ -1335,8 +1352,24 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
                         break
             return [] if column < 0
             pending <- pending - 1 + arity
-            total += log_probs[k * width + column]
-    return [total] if pending == 0 else []
+            reading: f64 = log_probs[k * width + column]
+            if reading == log(0.0):
+                zero <- true
+            else:
+                if not zero and not failed:
+                    value: f64 = total + reading
+                    if value > -67108864.0 and value < 67108864.0:
+                        total <- value
+                    else:
+                        checked: f64 = partition_log_product(total, reading)
+                        if checked != checked:
+                            failed <- true
+                        else:
+                            total <- checked
+    return [] if pending != 0
+    return [log(0.0)] if zero
+    return [log(-1.0)] if failed
+    return [total]
 
 # Stable temperature-scaled softmax, summed into caller-declared groups.
 def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:

@@ -198,6 +198,10 @@ For additions of finite log weights, TwoSum recovers the rounding residual
 under binary64 round-to-nearest arithmetic. A residual at least `1.01 × 10⁻⁸`
 also reports precision loss; smaller errors can accumulate, so this local
 check does not bound the error of the whole calculation.
+Selected reading-sequence scoring uses the same local check. An unsupported
+symbol or zero-weight reading still makes the sequence weight zero, including
+when a preceding finite sum could not be represented. The accepted-format
+scorer also finishes syntax validation before reporting an arithmetic failure.
 On a detected arithmetic failure, format risk can retry after subtracting a
 common log weight from each row. Every complete sequence uses one weight per
 row, so these shifts cancel from the risk. The retry proceeds only if the row

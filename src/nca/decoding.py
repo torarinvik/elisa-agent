@@ -806,6 +806,8 @@ class CertifiedSplit:
             if not accepted:
                 raise ValueError("sequence must be accepted by the arity alphabet")
             weight = float(accepted[0])
+            if math.isnan(weight) or weight == math.inf:
+                raise ValueError("sequence log weight arithmetic is not finite or loses precision")
         else:
             if parse(arities) is None or any(a not in self.alphabet for a in arities):
                 raise ValueError("sequence must be accepted by the arity alphabet")

@@ -1882,6 +1882,33 @@ def test_normalizer_only_updates_bound_risk_without_tracing(
     with pytest.raises(ValueError, match="successful result"):
         cursor.sequence_risk(selected)
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_certified_sequence_risk_reports_weight_precision_loss(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.array([[-np.inf, -np.inf, -float(2**54)], [-1.0, -np.inf, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    cursor = decoding.CertifiedSplit(rows)
+    assert cursor.result() is not None
+    with pytest.raises(ValueError, match="sequence log weight.*precision"):
+        cursor.sequence_risk((2, 0, 0))
+
+
+def test_native_accepted_log_weight_preserves_zero_and_invalid_after_loss() -> None:
+    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    if native is None:
+        pytest.skip("native accepted sequence scorer is not built")
+    alphabet = np.arange(3, dtype=np.int64)
+    rows = np.zeros((3, 3))
+    rows[0, 2] = float(2**54)
+    rows[1, 0] = 1.0
+    assert np.isnan(native(rows.ravel(), alphabet, np.array([2, 0, 0], dtype=np.int64))[0])
+    assert native(rows.ravel(), alphabet, np.array([2, 0, 2], dtype=np.int64)) == []
+    rows[2, 0] = -np.inf
+    assert native(rows.ravel(), alphabet, np.array([2, 0, 0], dtype=np.int64)) == [-np.inf]
+
+
 def test_native_accepted_log_weight_matches_prefix_parser() -> None:
     native = getattr(formulas._NATIVE, "accepted_log_weight", None)
     if native is None:

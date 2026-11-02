@@ -1033,6 +1033,8 @@ in `NCA.Decoding`).
 relabelling with a left inverse.
 Prior path-weight evaluation rejects detected finite-addition loss while
 preserving zero mass for forbidden or zero-weight paths.
+Reading-sequence and accepted-format scoring use the same local arithmetic
+check; invalid syntax and zero-weight sequences retain their distinct results.
 Selected symbols are checked as integers before native conversion. `decode`
 uses Elisa `decode_prior` for forward sums, maximum
 backtracking and backward marginals, with a NumPy reference fallback.

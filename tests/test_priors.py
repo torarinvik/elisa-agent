@@ -711,6 +711,20 @@ def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_sequence_log_weight_detects_loss_but_preserves_zero_mass(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    with pytest.raises(ValueError, match="sequence log weight.*precision"):
+        priors.sequence_log_weight(np.array([[float(2**54)], [1.0]]), (0,), (0, 0))
+    with pytest.raises(ValueError, match="sequence log weight.*finite"):
+        priors.sequence_log_weight(np.array([[1e308], [1e308]]), (0,), (0, 0))
+    assert priors.sequence_log_weight(np.array([[1e308], [1e308], [-np.inf]]),
+                                      (0,), (0, 0, 0)) == -np.inf
+    assert priors.sequence_log_weight(np.array([[1e308], [1e308], [0.0]]),
+                                      (0,), (0, 0, 1)) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(formulas, "_NATIVE", None)
