@@ -149,6 +149,20 @@ def _partition_log_product(left: float, right: float, context: str) -> float:
     return result
 
 
+def _add_evidence(total: float, correction: float, value: float) -> tuple[float, float]:
+    """Accumulate a TwoSum residual for later score recovery."""
+    result = total + value
+    if not math.isfinite(result):
+        raise ValueError("summed evidence overflow")
+    virtual = result - total
+    residual = (total - (result - virtual)) + (value - virtual)
+    try:
+        correction = _partition_log_product(correction, residual, "summed evidence")
+    except _PartitionArithmeticError as exc:
+        raise ValueError("summed evidence overflow or loses precision") from exc
+    return result, correction
+
+
 def _decoder_log_product(left: float, right: float, context: str = "prior normalizer") -> float:
     if not math.isfinite(left + right):
         raise ValueError(f"{context} arithmetic is not finite")
@@ -832,6 +846,7 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
             or not np.isclose(np.exp(base).sum(), 1.0, rtol=0, atol=1e-12)):
         raise ValueError("requires candidates and a normalized shared base vector")
     scores = [0.0] * len(candidates)
+    corrections = [0.0] * len(candidates)
     models: dict[tuple[int, int], tuple[ArityPrior, float] | None] = {}
     count = 0
     for observation in readings:
@@ -883,11 +898,14 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
             if evidence == -math.inf:
                 scores[i] = -math.inf
             else:
-                try:
-                    scores[i] = _partition_log_product(scores[i], evidence, "summed evidence")
-                except _PartitionArithmeticError as exc:
-                    raise ValueError("summed evidence overflow or loses precision") from exc
+                scores[i], corrections[i] = _add_evidence(scores[i], corrections[i], evidence)
         count += 1
+    for i, score in enumerate(scores):
+        if math.isfinite(score):
+            try:
+                scores[i] = _partition_log_product(score, corrections[i], "summed evidence")
+            except _PartitionArithmeticError as exc:
+                raise ValueError("summed evidence overflow or loses precision") from exc
     if not count or not any(math.isfinite(score) for score in scores):
         raise ValueError("requires observations and at least one finite-evidence candidate")
     if score_clip is not None:

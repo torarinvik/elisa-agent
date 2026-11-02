@@ -314,10 +314,11 @@ certify the subsequent calculation. Absolute partitions and incremental
 cursor outputs retain their original scale and still report the arithmetic
 failure.
 
-Accumulated evidence scores use checked finite additions. A locally lost
-contribution of at least `1.01 × 10⁻⁸` is reported rather than silently
-changing a comparison; smaller errors can still accumulate, so this is not
-an overall selection-accuracy bound.
+Evidence accumulation retains TwoSum residuals in a separate correction, so
+small contributions can accumulate until they are representable in the score.
+A final addition or correction update that loses at least `1.01 × 10⁻⁸` is
+reported; smaller errors can still accumulate, so this is not an overall
+selection-accuracy bound.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
