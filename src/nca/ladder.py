@@ -1288,6 +1288,68 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
             levels[i] += 1
             climb(i)
     fixed_account = certificate is None and all(map(_fixed_decision, decisions))
+    # Seed the default account in native batches when this preserves the exact
+    # per-item kernel and does not bypass lazy calibration or custom rungs.
+    if (fixed_account and len(values) >= 16
+            and getattr(_NATIVE, "calibrated_risk_rows_into", None) is not None
+            and getattr(_NATIVE, "calibrated_risk_for_reading_checked", None) is not None):
+        batches: dict[tuple[int, DecisionKey, int], list[int]] = {}
+        for i, decision in enumerate(decisions):
+            rung = ladders[i][levels[i]]
+            observation = logs[i]
+            if ranked != isinstance(observation, RankedObservation):
+                continue
+            log = observation.logits if isinstance(observation, RankedObservation) else observation
+            if (type(rung) is not Rung or type(rung.temperatures) is not dict
+                    or getattr(rung.risk, "__func__", None) is not Rung.risk
+                    or getattr(rung.risk_batch, "__func__", None) is not Rung.risk_batch
+                    or getattr(rung.temperature, "__func__", None) is not Rung.temperature
+                    or log.ndim != 1 or log.device.type != "cpu"
+                    or log.dtype != torch.float64 or log.requires_grad):
+                continue
+            if not ranked:
+                reading = readings[i]
+                if (not isinstance(reading, torch.Tensor) or reading.shape != log.shape
+                        or reading.device.type != "cpu" or reading.dtype != torch.float64
+                        or reading.requires_grad):
+                    continue
+            elif len(observation.weights) != log.numel():
+                continue
+            key = decision_key(decision)
+            if key not in rung.temperatures and key is not None and rung.held_out is not None:
+                continue
+            try:
+                union = None if key is None else _layout(key)[0]
+                if log.numel() == 0 or (union is not None and max(union) >= log.numel()):
+                    continue
+            except ValueError:
+                continue
+            batches.setdefault((id(rung), key, log.numel()), []).append(i)
+        for (_, key, width), indices in batches.items():
+            selected_width = width if key is None else len(_layout(key)[0])
+            chunk_size = 65536 // selected_width
+            if chunk_size < 16:
+                continue
+            for offset in range(0, len(indices), chunk_size):
+                chunk = indices[offset:offset + chunk_size]
+                if len(chunk) < 16:
+                    continue
+                rung = ladders[chunk[0]][levels[chunk[0]]]
+                try:
+                    if ranked:
+                        observations = [logs[i] for i in chunk]
+                        batch = torch.stack([o.logits for o in observations])
+                        ordering = torch.tensor([o.weights for o in observations], dtype=torch.float64)
+                        result = rung.risk_batch(batch, key, ordering=ordering)
+                    else:
+                        batch = torch.stack([logs[i] for i in chunk])
+                        reading = torch.stack([readings[i] for i in chunk])
+                        result = rung.risk_batch(batch, key, reading=reading)
+                except (ValueError, IndexError):
+                    # Preserve the ordinary path's error and calibration order.
+                    continue
+                for i, value in zip(chunk, result.tolist()):
+                    risks[i] = (key, value)
     default_account: dict[int, float] | None = None
     while True:
         unavailable: set[int] = set()

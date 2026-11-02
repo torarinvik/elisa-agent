@@ -3109,6 +3109,73 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
     assert [(r.risk_calls, r.distribution_calls) for r in (low, high)] == [(3, 3), (3, 3)]
 
 
+@pytest.mark.parametrize("ranked", [False, True])
+@pytest.mark.parametrize("decision", [None, ((0, 2), (1, 3))])
+def test_batched_default_account_matches_individual_refinement(monkeypatch, ranked, decision) -> None:
+    import nca.ladder as ladder_module
+
+    native = ladder_module._NATIVE
+    if (getattr(native, "calibrated_risk_rows_into", None) is None or
+            getattr(native, "calibrated_risk_for_reading_checked", None) is None):
+        pytest.skip("native risk kernels unavailable")
+
+    class NativeProxy:
+        def __init__(self, batch):
+            self.batch = batch
+            self.calls = 0
+
+        def __getattr__(self, name):
+            if name == "calibrated_risk_rows_into":
+                if not self.batch:
+                    raise AttributeError(name)
+                def measured(*args):
+                    self.calls += 1
+                    return native.calibrated_risk_rows_into(*args)
+                return measured
+            return getattr(native, name)
+
+    low = Rung(constant("batch-low", (0.3, 0.1, 0.4, 0.2), 1.0))
+    high = Rung(constant("batch-high", (0.97, 0.01, 0.01, 0.01), 2.0))
+    other = Rung(constant("batch-other", (0.2, 0.2, 0.1, 0.5), 1.0))
+    ladders = [[low if i % 2 else other, high] for i in range(40)]
+
+    def run(batch):
+        proxy = NativeProxy(batch)
+        monkeypatch.setattr(ladder_module, "_NATIVE", proxy)
+        trace, snapshots = [], []
+        result = refine(list(range(40)), ladders, 8.0, classes=[decision] * 40,
+                        ranked=ranked, trace=trace, observe=snapshots.append)
+        states = [(s.cost, s.bound, s.abstained, s.available,
+                   [r.tolist() for r in s.readings]) for s in snapshots]
+        return (result.cost, result.bound, result.abstained, result.available,
+                states, trace), proxy.calls
+
+    baseline, _ = run(False)
+    actual, calls = run(True)
+    assert calls == 2
+    assert actual == baseline
+
+
+def test_batched_default_account_preserves_custom_risk() -> None:
+    class CustomRung(Rung):
+        def risk(self, log, classes=None, *, reading=None):
+            return 0.125
+
+    rung = CustomRung(constant("custom-batch", (0.5, 0.5), 1.0))
+    result = refine(list(range(32)), [[rung]] * 32, math.inf)
+    assert result.bound == 4.0
+
+
+def test_batched_default_account_leaves_missing_calibration_unavailable() -> None:
+    low = Rung(constant("batch-uncalibrated-decision", (0.5, 0.3, 0.2), 1.0))
+    low.held_out = (torch.zeros((1, 3), dtype=torch.float64), torch.tensor([2]))
+    high = Rung(constant("batch-calibrated-decision", (0.9, 0.09, 0.01), 2.0))
+    result = refine(list(range(16)), [[low, high]] * 16, math.inf,
+                    classes=[(0, 1)] * 16)
+    assert result.available and not result.abstained
+    assert result.cost == 48.0
+
+
 def test_decision_tuple_with_mutable_groups_is_not_stale() -> None:
     from nca.ladder import decision_key
 
