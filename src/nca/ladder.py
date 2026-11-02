@@ -38,6 +38,10 @@ account, a sum of charges where fixed items' charges never change, the sum
 over fixed items is a floor (``additive_floor``). A *stopping rule* may
 abstain earlier still, from the state of refinement; it trades coverage for
 compute and never affects the answers given.
+
+A rung's temperatures are evidence about its expert, not part of it:
+``calibration`` states them as an attestation about the expert's reference,
+and ``attested`` reads one back into a rung (§28.4).
 """
 
 from __future__ import annotations
@@ -58,6 +62,7 @@ from torch import nn
 
 from nca.abi import Contract, Module
 from nca.native import load
+from nca.objects import Attestation, Ref, canonical
 
 _NATIVE = load("decoding")
 _FLOAT32_TINY = torch.finfo(torch.float32).tiny
@@ -1615,6 +1620,36 @@ def recalibrated(rungs: Sequence[Rung], values: Sequence[Any], labels: torch.Ten
     for rung in copies:
         rung.calibrate(values, labels)
     return copies
+
+
+CALIBRATION = "calibration"
+
+
+def calibration(rung: Rung, subject: Ref, decisions: Sequence[Decision] = (),
+                issuer: str = "") -> Attestation:
+    """The rung's temperatures, after fitting those of ``decisions``, as an
+    attestation about ``subject``, its expert's reference (§28.4). The
+    held-out data stay with the issuer."""
+    for decision in decisions:
+        rung.temperature(decision)
+    entries = [[None if key is None else [list(e) if isinstance(e, tuple) else e for e in key],
+                temperature] for key, temperature in rung.temperatures.items()]
+    entries.sort(key=lambda entry: canonical(entry[0]))
+    return Attestation(subject, CALIBRATION, {"temperatures": entries}, issuer)
+
+
+def attested(module: Module, attestation: Attestation) -> Rung:
+    """A rung for ``module`` reading the temperatures a calibration
+    attestation states; a decision it does not state has temperature 1."""
+    if attestation.kind != CALIBRATION:
+        raise ValueError(f"not a calibration attestation: {attestation.kind}")
+    identity = getattr(module, "identity", None)
+    if identity is not None and identity != attestation.subject:
+        raise ValueError("the attestation is about another expert")
+    temperatures = {
+        None if key is None else tuple(tuple(e) if isinstance(e, list) else e for e in key):
+        float(temperature) for key, temperature in attestation.claim["temperatures"]}
+    return Rung(module, temperatures)
 
 
 def certification_possible(budget: int, delta: float, alpha: float) -> bool:

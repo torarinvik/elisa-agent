@@ -14,11 +14,6 @@ in a plan by `impl` with its inputs instantiated by the application's
 arguments (`Plan.inline`) preserves typing (`WellTyped.inline`): a plan that
 uses a package as an expert is a plan over the package's members. Map bodies
 read only their element, so instantiation leaves them unchanged.
-
-A result cache for a function is sound when every entry is the function's
-value; reading through a sound cache returns the function's value, and
-storing a computed value keeps the cache sound (`cached_eq`,
-`CacheSound.store`).
 -/
 
 namespace NCA
@@ -177,29 +172,5 @@ theorem WellTypedArgs.inline [DecidableEq Ty] {c : Contract Ty} {impl : Plan Ty}
 end
 
 end
-
-/-- A cache for `f`: every entry it holds is `f`'s value. -/
-def CacheSound {α β : Type} (f : α → β) (cache : α → Option β) : Prop :=
-  ∀ a b, cache a = some b → f a = b
-
-/-- **Caching is invisible.** Reading through a sound cache, and computing on
-a miss, returns the function's value. -/
-theorem cached_eq {α β : Type} {f : α → β} {cache : α → Option β} (h : CacheSound f cache)
-    (a : α) : (cache a).getD (f a) = f a := by
-  cases hc : cache a with
-  | none => rfl
-  | some b => simp [h a b hc]
-
-/-- Storing a computed value keeps a cache sound. -/
-theorem CacheSound.store {α β : Type} [DecidableEq α] {f : α → β} {cache : α → Option β}
-    (h : CacheSound f cache) (a : α) :
-    CacheSound f (fun x => if x = a then some (f a) else cache x) := by
-  intro x b hx
-  by_cases hxa : x = a
-  · subst hxa
-    simp at hx
-    exact hx
-  · simp only [if_neg hxa] at hx
-    exact h x b hx
 
 end NCA

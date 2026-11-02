@@ -39,7 +39,7 @@ run the Python tests with `uv run pytest`.
 | [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
-| [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages` |
+| [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -306,7 +306,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [28.1](theory/28-packages-as-experts.md) | `Pkg.flattenList_append` | `Package` |
 | [28.2](theory/28-packages-as-experts.md) | `install_stable` | `Package` |
 | [28.3](theory/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
-| [28.4](theory/28-packages-as-experts.md) | `cached_eq`, `CacheSound.store` | `Package` |
+| [28.4](theory/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
 
 ## Native kernels
 
@@ -1578,6 +1578,22 @@ segmenter, symbol fuser, expression parser and evaluator as members, the
 digit and operator glyph readers as requirements, and one export from
 expression image to integer. The export shares its inner index with its
 kernel (`Kernel(..., index=...)`).
+
+`cache.ResultCache` implements the result cache of §28.5
+(`cache_lookup_correct`, `cache_store_sound`; least-recently-used eviction
+by `cache_evict_sound`). `execute(..., cache=...)` looks up an application by
+the module's `identity` and the `value_digest` of each input when the module
+declares empty effects and the application has no slots; inputs without a
+canonical encoding (NaN, objects, non-string keys) disable the lookup. A hit
+posts the stored value with producer `ref+cache` and charges neither budget.
+Only results returned directly are stored, not those obtained through
+requests. A sealed export with no requirements is cached as a whole; an
+export with requirements takes slots and is not.
+
+`ladder.calibration` states a rung's temperatures (after fitting any listed
+decisions) as a `calibration` attestation about the expert's reference, and
+`ladder.attested` reads one back into a rung, refusing an attestation about
+another identity. Held-out data are not part of the claim.
 
 Selective refinement (`selective`) still requires the producer–map–consumer
 route shape, so it does not see through exports; composing refinement across

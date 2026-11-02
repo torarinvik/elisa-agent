@@ -114,8 +114,8 @@ maps such pairs to outputs.
 
 **Theorem 28.4 (caching is invisible).** If every entry of a cache is the
 function's value, reading through the cache and computing on a miss returns
-the function's value, and storing a computed value keeps every entry the
-function's value.
+the function's value, and storing a computed value or evicting entries
+keeps every entry the function's value.
 
 Caches can therefore be shared between machines and runs without changing
 any answer, provided the declarations are true. A false purity declaration,

@@ -45,6 +45,14 @@ an expert ask its own question again (``Kernel(recursive=True)``),
 recursion terminates because the budget decreases. ``attempt`` reports a
 refusal for lack of budget as no answer instead of an exception
 (``NCA.serve_sound``: a refusal is never a wrong answer).
+
+With a ``ResultCache``, an application of an expert that declares itself
+pure, has a content identity and takes no slots is looked up by its identity
+and the digests of its inputs before it runs (THEORY §28.5,
+``NCA.cache_lookup_correct``). A hit is not an invocation and charges no budget: the
+result was paid for when it was computed. Only results the expert returned
+directly are stored; one that raised requests depends on how the kernel
+resolved them, not only on the inputs.
 """
 
 from __future__ import annotations
@@ -54,6 +62,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from nca.abi import NOTHING, Demand, Message, Request, SequenceDemand, TypeId
+from nca.cache import ResultCache, value_digest
 from nca.planner import Given, Map, Plan, output_type
 from nca.workspace import Workspace
 
@@ -101,6 +110,7 @@ def execute(
     budget: int,
     resolver: Resolver | None = None,
     cost_budget: float | None = None,
+    cache: ResultCache | None = None,
 ) -> Message:
     """Run ``plan``; each module invocation, including each element of a
     ``Map``, costs one budget unit, and with ``cost_budget`` also its
@@ -176,10 +186,18 @@ def execute(
                 args[index] = settle(arg.payload)
             else:
                 args[index] = force(arg)
-        if remaining == 0:
-            raise BudgetExceeded(f"budget of {budget} invocations exhausted")
         manifest = node.module.manifest
         contract = node.contract
+        parents = tuple(a.message_id for a in args)
+        key = cache_key(node, args)
+        if key is not None:
+            hit, payload = cache.lookup(key)
+            if hit:
+                result = Message(contract.output, payload, f"{manifest.ref}+cache", parents)
+                workspace.post(result)
+                return result
+        if remaining == 0:
+            raise BudgetExceeded(f"budget of {budget} invocations exhausted")
         if funds is not None:
             if manifest.cost > funds:
                 raise BudgetExceeded(f"cost budget of {cost_budget} exhausted")
@@ -189,7 +207,8 @@ def execute(
         fillings = [filling(sub, inputs, manifest.ref, chain, demand)
                     for sub, (inputs, _) in zip(node.slots, contract.slots, strict=True)]
         payload = node.module.invoke(*fillings, *(a.payload for a in args))
-        parents = tuple(a.message_id for a in args)
+        if key is not None and not isinstance(payload, (Generator, Request)):
+            cache.store(key, payload)
         if isinstance(payload, Generator):
             payload = resume(payload, manifest.module_id, manifest.ref, parents, chain)
         if isinstance(payload, Request):
@@ -202,6 +221,14 @@ def execute(
         result = Message(contract.output, payload, manifest.ref, parents)
         workspace.post(result)
         return result
+
+    def cache_key(node: Plan, args: Sequence[Message]) -> tuple[Any, ...] | None:
+        identity = getattr(node.module, "identity", None)
+        if (cache is None or identity is None or node.slots
+                or node.module.manifest.effects != frozenset()):
+            return None
+        digests = tuple(value_digest(a.payload) for a in args)
+        return None if None in digests else (identity, digests)
 
     def resume(program: Generator[Request, object, object], module_id: str, ref: str,
                parents: tuple[str, ...], chain: tuple[str, ...]) -> object:
@@ -264,9 +291,10 @@ def attempt(
     budget: int,
     resolver: Resolver | None = None,
     cost_budget: float | None = None,
+    cache: ResultCache | None = None,
 ) -> Message | None:
     """``execute``, with a refusal for lack of budget reported as no answer."""
     try:
-        return execute(plan, inputs, workspace, budget, resolver, cost_budget)
+        return execute(plan, inputs, workspace, budget, resolver, cost_budget, cache)
     except BudgetExceeded:
         return None

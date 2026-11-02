@@ -4,8 +4,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import torch
 
 from nca.abi import Calls, Contract, Manifest, Message, seq_type
+from nca.cache import ResultCache
+from nca.ladder import CALIBRATION, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
 from nca.packages import Export, install
 from nca.planner import Apply, plan_stable
@@ -34,6 +37,7 @@ BEHAVIOR = {
     "length": len,
     "sum": sum,
     "count-letters": lambda word: sum(c.isalpha() for c in word),
+    "over": lambda _: (0.01, 0.99),
 }
 
 
@@ -172,3 +176,37 @@ def test_declared_manifest_must_match_the_loaded_one() -> None:
                       {"name": "sum", "inputs": [seq_type(INT)], "output": INT, "cost": 5.0})
     with pytest.raises(ValueError, match="not the declared"):
         wrong.load()
+
+
+def test_sealed_exports_are_cached_as_one_pure_expert() -> None:
+    store = Store()
+    reader = store.put(primitive("count-letters", [WORD], INT))
+    sealed = store.put(Composite("sealed", "1", (reader, counting_package(store)),
+                                 exports=(Contract((TEXT,), INT),), effects=frozenset()))
+    (export,) = install(store, sealed)
+    route = plan_stable([export], (TEXT,), INT)
+    cache = ResultCache()
+    for _ in range(2):
+        assert execute(route, [Message(TEXT, "abc de", "input")], Workspace(), 10,
+                       cache=cache).payload == 5
+    assert cache.stats.hits == 1 and len(cache) == 1
+
+
+def test_calibration_is_an_attestation_beside_the_expert() -> None:
+    store = Store()
+    ref = store.put(Primitive(make("over", ["x"], "dist").manifest, ENTRY,
+                              {"name": "over", "inputs": ["x"], "output": "dist"}))
+    (expert,) = install(store, ref)
+    rung = Rung(expert)
+    rung.calibrate([0] * 10, torch.tensor([1] * 7 + [0] * 3))
+    claim = calibration(rung, ref, decisions=[(0, 1), ((0,), (1,))], issuer="tests")
+    note = store.put(claim)
+    (stored,) = store.attestations(ref, CALIBRATION)
+    assert stored.ref == note
+    read = attested(expert, stored)
+    assert read.temperatures == rung.temperatures and len(read.temperatures) == 3
+    assert read.held_out is None
+    other = store.put(primitive("sum", [seq_type(INT)], INT))
+    (wrong,) = install(store, other)
+    with pytest.raises(ValueError, match="another expert"):
+        attested(wrong, stored)
