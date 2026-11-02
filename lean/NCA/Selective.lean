@@ -2,6 +2,7 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.FieldSimp
 
 /-!
 # Selective answering and budgeted refinement
@@ -32,6 +33,11 @@ the decision never chooses.
 -/
 
 namespace NCA
+
+/-- A shared positive scaling leaves a ratio unchanged. -/
+theorem risk_scale_invariant (outside total scale : ℝ) (hscale : scale ≠ 0) :
+    (outside / scale) / (total / scale) = outside / total := by
+  field_simp
 
 /-- Scaling the operands separately has the same exact-real result. -/
 theorem calibrated_difference_rescale (a b temperature : ℝ) :

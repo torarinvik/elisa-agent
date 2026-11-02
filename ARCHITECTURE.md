@@ -155,7 +155,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
-| [16.4](theory/16-knowing-when-to-be-unsure.md) | `restricted_risk_le`, `zero_total_no_positive_entry` | `Selective` |
+| [16.4](theory/16-knowing-when-to-be-unsure.md) | `restricted_risk_le`, `zero_total_no_positive_entry`, `risk_scale_invariant` | `Selective` |
 | [16.5](theory/16-knowing-when-to-be-unsure.md) | `queued_value` | `Practice` |
 | [16.6](theory/16-knowing-when-to-be-unsure.md) | `unqueued_errors` | `Practice` |
 | [16.7](theory/16-knowing-when-to-be-unsure.md) | `queued_captures` | `Practice` |
@@ -873,6 +873,9 @@ and returns the original tensor dtype. Temperature fitting is unchanged.
 Reading, risk, and distribution paths require positive finite temperatures
 for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.
+Standalone decision risk accepts finite nonnegative unnormalized weights with
+positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
+when the total overflows; PyTorch supplies the fallback.
 For a large temperature, scaled differences that overflow before division
 are computed by scaling each finite operand first, in both Elisa and PyTorch.
 The PyTorch path promotes lower-precision logits when the temperature is

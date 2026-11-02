@@ -110,6 +110,11 @@ classes has no conditional distribution. Individual classes may have zero
 mass when the restriction as a whole has positive mass. The implementation
 rejects an undefined restriction and invalid log weights rather than returning
 NaNs; this is a representation check, not a calibration guarantee.
+For finite nonnegative weights, multiplying every weight by the same positive
+factor leaves the outside-mass ratio unchanged. If their sum overflows, the
+implementation uses this identity to rescale; when the outside sum remains
+finite it is accumulated before rescaling so individually tiny terms can
+still contribute. Floating-point rounding remains possible.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs

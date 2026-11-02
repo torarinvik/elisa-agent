@@ -609,18 +609,38 @@ def _lower_sum(values: Sequence[float]) -> float:
 def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = None) -> float:
     """Error probability of the decision over ``classes`` (all if ``None``):
     the share outside the entry holding the most probable class listed."""
-    if classes is None:
-        top = int(reading.argmax()) if _top is None else _top
-        outside = torch.cat((reading[:top], reading[top + 1:]))
-        return (outside.sum() / reading.sum()).item()
+    if reading.ndim != 1 or not len(reading):
+        raise ValueError("decision weights must be a nonempty vector")
     key = decision_key(classes)
-    union, positions = _layout(key)
-    mass = reading[union]
-    top = int(mass.argmax()) if _top is None else union.index(_top)
+    native_key = key if key is not None else tuple(range(len(reading)))
+    union, positions = _layout(native_key)
+    mass = reading if key is None else reading[union]
+    top = None if _top is None else union.index(_top)
+    native = getattr(_NATIVE, "weighted_decision_risk", None)
+    if native is not None and mass.device.type == "cpu" and not mass.requires_grad:
+        value = float(native(mass.double().contiguous().numpy(), _group_ids(native_key),
+                             len(positions), -1 if top is None else top))
+        if value < 0:
+            raise ValueError("decision weights must be finite, nonnegative and have positive mass")
+        return value
+    if not bool(torch.isfinite(mass).all()) or bool((mass < 0).any()):
+        raise ValueError("decision weights must be finite, nonnegative and have positive mass")
+    if not mass.is_floating_point():
+        mass = mass.to(torch.float32 if mass.device.type == "mps" else torch.float64)
+    largest = mass.max()
+    if not bool(largest > 0):
+        raise ValueError("decision weights must be finite, nonnegative and have positive mass")
+    top = int(mass.argmax()) if top is None else top
     chosen = next(part for part in positions if top in part)
     selected = set(chosen)
     outside = [i for i in range(len(union)) if i not in selected]
-    return (mass[outside].sum() / mass.sum()).item()
+    outside_mass, total = mass[outside].sum(), mass.sum()
+    if bool(torch.isfinite(total)):
+        return (outside_mass / total).item()
+    scaled = mass / largest
+    scaled_total = scaled.sum()
+    return ((outside_mass / largest) / scaled_total if bool(torch.isfinite(outside_mass))
+            else scaled[outside].sum() / scaled_total).item()
 
 
 @dataclass(frozen=True)

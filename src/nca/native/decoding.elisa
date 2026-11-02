@@ -1658,6 +1658,30 @@ def calibrated_difference(value: f64, anchor: f64, temperature: f64) -> f64:
     difference: f64 = value - anchor
     return value / temperature - anchor / temperature if temperature > 1.0 and difference == log(0.0) and value != log(0.0) else difference / temperature
 
+# Risk of a selected entry under nonnegative, not necessarily normalized weights.
+# A negative result signals invalid weights, group ids or a selected index.
+def weighted_decision_risk(weights: view[f64], groups: view[i64], entries: i64, selected: i64) -> f64 can[Abort.Panic]:
+    return -1.0 if weights.len.i64() == 0 or weights.len.i64() != groups.len.i64() or entries <= 0 or selected < -1 or selected >= weights.len.i64()
+    largest, top =
+        for i in 0..<weights.len.i64() |largest: f64 = 0.0, top: i64 = 0| -> (largest, top):
+            value: f64 = weights[i]
+            return -1.0 if value != value or value < 0.0 or value == -log(0.0) or groups[i] < 0 or groups[i] >= entries
+            top <- i if value > largest else top
+            largest <- value if value > largest else largest
+    return -1.0 if largest == 0.0
+    chosen: i64 = groups[top if selected == -1 else selected]
+    total, outside =
+        for i in 0..<weights.len.i64() |total: f64 = 0.0, outside: f64 = 0.0| -> (total, outside):
+            total += weights[i]
+            outside += weights[i] if groups[i] != chosen else 0.0
+    return outside / total if total != -log(0.0)
+    scaled_total, scaled_outside =
+        for i in 0..<weights.len.i64() |total: f64 = 0.0, outside: f64 = 0.0| -> (total, outside):
+            scaled: f64 = weights[i] / largest
+            total += scaled
+            outside += scaled if groups[i] != chosen else 0.0
+    return (outside / largest) / scaled_total if outside != -log(0.0) else scaled_outside / scaled_total
+
 # Stable temperature-scaled softmax, summed into caller-declared groups.
 def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     return [] if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64() or entries <= 0 or temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
@@ -1739,6 +1763,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn weighted_decision_risk
     fn changed_rows
     fn tilt_weights_checked
     fn nonnegative_arities
