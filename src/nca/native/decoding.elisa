@@ -702,6 +702,9 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
     states: i64 = final.len.i64()
     m: i64 = selected.len.i64()
     unreachable: f64 = log(0.0)
+    indexed: bool = m >= 16 and indexed_alphabet(alphabet)
+    ordered: bool = m >= 16 and width >= 16 and not indexed and ordered_alphabet(alphabet)
+    lookup: darray[i64] = alphabet_columns(alphabet, width) if m >= 16 and width >= 16 and not indexed and not ordered else []
     rows, bounds, matched_state, matched =
         for k in 0..<m |rows: darray[f64] = [unreachable for _ in 0..<(2 * states)], bounds: darray[i64] = [states, -1, states, -1], matched_state: i64 = start, matched: f64 = 0.0, active: darray[i64] = [0 for _ in 0..<width]| -> (rows, bounds, matched_state, matched):
             here: i64 = (k % 2) * states
@@ -752,10 +755,17 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
                         rows[next + target] <- combined
             if matched != unreachable:
                 chosen: i64 =
-                    for j in 0..<width |chosen: i64 = -1| -> chosen:
-                        if alphabet[j] == selected[k]:
-                            chosen <- j
-                            break
+                    if indexed:
+                        selected[k] if selected[k] >= 0 and selected[k] < width else -1
+                    elif lookup.count > 0 and selected[k] >= 0 and selected[k] < width:
+                        lookup[selected[k]]
+                    elif ordered:
+                        ordered_column(alphabet, selected[k], true)
+                    else:
+                        for j in 0..<width |chosen: i64 = -1| -> chosen:
+                            if alphabet[j] == selected[k]:
+                                chosen <- j
+                                break
                 if chosen < 0:
                     matched <- unreachable
                 else:

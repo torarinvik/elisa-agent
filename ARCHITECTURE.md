@@ -1079,6 +1079,8 @@ checks the mathematical first-occurrence criterion, not the native search.
 Rolling prior partitioning checks selected-symbol membership in Elisa using
 indexed lookup, binary search for sorted alphabets, or a generic fallback,
 retaining the full-normalizer fallback for unsupported symbols.
+The selected-path update uses the same lookup strategies, keeping first-column
+semantics and processing path weights in their original order.
 `sum_excluding_absent` proves the corresponding real-sum identity;
 `search_midpoint_bounds` and `ordered_search_excludes_lower`/`_upper` prove
 the search's interval and ordering principles, not the native implementation.

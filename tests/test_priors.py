@@ -247,6 +247,30 @@ def test_prior_partition_matches_exhaustive_paths(
             assert prior.sequence_risk(rows, chosen) == pytest.approx(expected, abs=1e-12)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("order", ["indexed", "reversed", "sorted_gapped"])
+def test_prior_partition_wide_alphabet_selected_path(reference, order, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    width, length = 32, 20
+    alphabet = tuple(range(width))
+    if order == "reversed":
+        alphabet = alphabet[::-1]
+    elif order == "sorted_gapped":
+        alphabet = tuple(1000 + 100 * k for k in alphabet)
+    prior = priors.ArityPrior(alphabet, np.zeros((1, width), dtype=np.int64),
+                              np.zeros((1, width)), np.zeros(1))
+    rows = np.full((length, width), -np.inf)
+    rows[:, 0], rows[:, -1] = -1.0, -2.0
+    selected = (alphabet[-1],) * length
+    chosen, alternative = prior.partition(rows, selected)
+    assert chosen == pytest.approx(-2.0 * length)
+    assert alternative > chosen
+    rows[7, -1] = -np.inf
+    chosen, alternative = prior.partition(rows, selected)
+    assert chosen == -np.inf and np.isfinite(alternative)
+
+
 def test_native_symbol_membership_preserves_arbitrary_integer_values() -> None:
     native = getattr(priors._NATIVE, "symbols_in_alphabet", None)
     if native is None:
