@@ -43,6 +43,7 @@ run the Python tests with `uv run pytest`.
 | [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 | [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `packages.charge`, `optimize.plan_pareto` |
+| [§32 Trust](theory/32-trust.md) | `Trust` | `trust`, `objects.Attestation.signature`, `evidence.Issuers` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -317,6 +318,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [30.2](theory/30-selection-by-evidence.md) | `plan_rename`, `planShallow_rename`, `planShallowStable_rename`, `WellTyped.rename` | `Selection` |
 | [31.1](theory/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
 | [31.2](theory/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
+| [32.1](theory/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 
 ## Native kernels
 
@@ -1711,3 +1713,19 @@ route for an export, 0 for upcasts and requirements. With it the Pareto
 planner's error objective is the charge of §31.2 and `cheapest_within(δ)`
 plans by cost under a risk target, through packages, with the exactness of
 `NCA.planPareto_sound`, `planPareto_cover` and `planPareto_within`.
+
+## 32. Trust
+
+`objects.Attestation` has an optional `signature` over `unsigned()`, its
+data without the signature; the signature is stored and is part of the
+reference. `trust` keeps a registry of verifiers by scheme (`register`),
+so the core depends on no scheme; `ed25519` is registered when the optional
+`cryptography` package is installed (the `trust` extra), and
+`Ed25519Signer` signs attestations as issuer `ed25519:<public key hex>`.
+`verified` checks an attestation's signature against its issuer;
+`Trust(keys).accepts` also requires the issuer to be trusted. Stores keep
+unverified attestations: storing a claim asserts nothing, and acceptance is
+decided where evidence is read. Every `issuers` parameter of `evidence`
+takes a `Trust` or, as before, a collection of plain issuer names, which
+nothing authenticates and which are meant for local tests and private
+deployments.

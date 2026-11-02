@@ -56,3 +56,4 @@ link for its definitions, arguments, and results.
 - [29. Types as objects](theory/29-types-as-objects.md)
 - [30. Selection by evidence](theory/30-selection-by-evidence.md)
 - [31. Composing uncertainty](theory/31-composing-uncertainty.md)
+- [32. Trust](theory/32-trust.md)

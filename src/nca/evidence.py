@@ -30,8 +30,19 @@ from nca.packages import Export, Requirement, Upcast, charge
 from nca.planner import Plan
 from nca.router import sign_test
 from nca.stats import clopper_pearson_upper, family_audit_alpha
+from nca.trust import Trust
 
 EVALUATION = "evaluation"
+
+Issuers = Collection[str] | Trust
+"""Whose evaluations to read: a ``Trust`` of keys whose signatures must
+verify (§32), or plain issuer names, which nothing authenticates."""
+
+
+def _trusted(attestation: Attestation, issuers: Issuers) -> bool:
+    if isinstance(issuers, Trust):
+        return issuers.accepts(attestation)
+    return attestation.issuer in issuers
 
 
 def benchmark(samples: Sequence[Any]) -> Ref:
@@ -54,11 +65,11 @@ def evaluation(identity: str, bench: Ref, outcomes: Sequence[bool],
 
 
 def outcomes(store: Store, identity: str, bench: Ref,
-             issuers: Collection[str]) -> tuple[bool, ...] | None:
+             issuers: Issuers) -> tuple[bool, ...] | None:
     """The outcomes of ``identity`` on ``bench`` that ``issuers`` attest, or
     ``None`` if none do; trusted evaluations that disagree are an error."""
     found = {a.claim["outcomes"] for a in store.attestations(identity.partition("#")[0], EVALUATION)
-             if a.issuer in issuers and a.claim.get("identity") == identity
+             if _trusted(a, issuers) and a.claim.get("identity") == identity
              and a.claim.get("benchmark") == bench}
     if len(found) > 1:
         raise ValueError(f"trusted evaluations of {identity} on {bench} disagree")
@@ -78,7 +89,7 @@ class Promotion:
     """The level the test was run at: ``α`` over the number of challengers."""
 
 
-def promote(modules: Sequence[Module], store: Store, bench: Ref, issuers: Collection[str],
+def promote(modules: Sequence[Module], store: Store, bench: Ref, issuers: Issuers,
             alpha: float = 0.05) -> tuple[list[Module], list[Promotion]]:
     """``modules`` with each contract's incumbent exchanged for the best
     challenger the evidence supports, and the promotions made. Experts
@@ -119,12 +130,12 @@ def promote(modules: Sequence[Module], store: Store, bench: Ref, issuers: Collec
 
 
 def _outcomes(module: Module, store: Store, bench: Ref,
-              issuers: Collection[str]) -> tuple[bool, ...] | None:
+              issuers: Issuers) -> tuple[bool, ...] | None:
     identity = getattr(module, "identity", None)
     return None if identity is None else outcomes(store, identity, bench, issuers)
 
 
-def error_bound(store: Store, identity: str, bench: Ref, issuers: Collection[str],
+def error_bound(store: Store, identity: str, bench: Ref, issuers: Issuers,
                 beta: float) -> float | None:
     """An upper bound, holding with probability at least ``1 - beta``, on the
     failure rate of ``identity`` on ``bench``'s distribution (Clopper–Pearson),

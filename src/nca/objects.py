@@ -193,16 +193,26 @@ class Composite:
 
 @dataclass(frozen=True)
 class Attestation:
-    """A claim of ``kind`` about the object ``subject`` (§28.4)."""
+    """A claim of ``kind`` about the object ``subject`` (§28.4), made by
+    ``issuer``. A signed attestation's issuer is a public key, written
+    ``scheme:key``, and ``signature`` signs its unsigned data (§32)."""
 
     subject: Ref
     kind: str
     claim: Mapping[str, Json]
     issuer: str = ""
+    signature: str | None = None
 
-    def data(self) -> dict[str, Json]:
+    def unsigned(self) -> dict[str, Json]:
+        """What a signature signs."""
         return {"kind": "attestation", "subject": self.subject, "claim_kind": self.kind,
                 "claim": dict(self.claim), "issuer": self.issuer}
+
+    def data(self) -> dict[str, Json]:
+        data = self.unsigned()
+        if self.signature is not None:
+            data["signature"] = self.signature
+        return data
 
     @property
     def ref(self) -> Ref:
@@ -253,7 +263,8 @@ def object_from(data: Mapping[str, Any]) -> Object:
                          None if exports is None else tuple(contract_from(c) for c in exports),
                          None if effects is None else frozenset(effects))
     if kind == "attestation":
-        return Attestation(data["subject"], data["claim_kind"], data["claim"], data["issuer"])
+        return Attestation(data["subject"], data["claim_kind"], data["claim"], data["issuer"],
+                           data.get("signature"))
     if kind == "constructor":
         return Constructor(data["name"], data["version"], data["arity"], data["meaning"],
                            tuple(data["refines"]))
