@@ -71,3 +71,26 @@ are unchanged. This follows pointwise by substitution. Content references alone
 do not establish the premise: entry points, external weights, runtime state and
 scoring behavior must also be preserved. Selection evidence is neither a
 calibration certificate nor a proof of representation semantics.
+
+## 36.4 Learning decoders for candidate representations
+
+Given training pairs `(x, y)` and a fixed feature expert `f`, let `n(z, y)`
+count training pairs with `f(x) = z` and target `y`. Construct a decoder `d`
+by choosing a label of maximal count at each observed key `z`. Break ties
+by first occurrence; at unseen keys use the global training mode. This defines
+a proposed decomposition `x → f(x) → d(f(x))`, with the decoder contract
+derived from the feature's output and the required target type. Keys and labels
+must have stable hash/equality semantics, and the feature must not change.
+
+**Theorem 36.4 (empirical decoder optimality).** For any decoder `g` on the
+same representation, the modal decoder has at least as many correct training
+predictions: `Σ_z n(z, g(z)) ≤ Σ_z n(z, d(z))`. Each summand is bounded by its
+chosen maximum; sum over the finitely many observed keys. This asserts nothing
+about unseen keys or held-out accuracy. Freezing several such decompositions
+on `T` and selecting on independent `E` uses Theorem 36.2.
+
+This learns the decoder and its interface contract without hand-writing one
+for each representation. The feature family and its type meanings are still
+supplied; this construction does not invent a feature space or new type meaning.
+An inadequate feature irreversibly loses information, while an overly specific
+one can memorize training pairs and generalize poorly.

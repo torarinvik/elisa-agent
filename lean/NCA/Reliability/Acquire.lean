@@ -49,4 +49,12 @@ theorem reloaded_outcomes_eq {X Y L : Type*} (before after : X → Y)
       samples.map (fun row => score (after row.1) row.2) := by
   simp_rw [same]
 
+/-- Empirical optimality of a modal decoder on a fixed finite representation.
+The hypothesis states that each chosen label has maximal training count. -/
+theorem modal_decoder_optimal {K L : Type*} (keys : Finset K)
+    (count : K → L → ℕ) (mode alternative : K → L)
+    (maximal : ∀ k ∈ keys, ∀ label, count k label ≤ count k (mode k)) :
+    ∑ k ∈ keys, count k (alternative k) ≤ ∑ k ∈ keys, count k (mode k) := by
+  exact Finset.sum_le_sum fun k hk => maximal k hk (alternative k)
+
 end NCA

@@ -1981,3 +1981,14 @@ and external weights remain the loader's responsibility. Selection evidence is
 not persisted by this API. `reloaded_outcomes_eq` in `Reliability/Acquire.lean`
 proves Proposition 36.3 conditional on executable equivalence; store/reload
 behavior for a trained two-stage package is regression-tested.
+
+`discovery.propose_decoders` (§36.4) learns a modal lookup decoder for each
+supplied feature expert and returns `Decoded` proposals. It derives decoder
+contracts from feature output and incumbent output types. Inputs, slots and
+relevance must match the incumbent; feature call counts and effects are
+preserved, with the explicitly supplied decoder cost added. Hashable keys and
+labels use Python equality; training-order ties and unseen-key fallback are
+deterministic. These proposals have no persistent object identity or risk
+certificate. `modal_decoder_optimal` proves empirical optimality conditional
+on per-key maximal counts. Tests exhaustively compare a small fitted table
+with all alternatives and exercise held-out selection, unseen keys and slots.

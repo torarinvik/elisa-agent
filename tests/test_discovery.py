@@ -1,13 +1,14 @@
 """Training-only search over proposed intermediate representations."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Hashable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.discovery import Proposal, discover, discover_packages
+from nca.discovery import Decoded, Proposal, discover, discover_packages, propose_decoders
 from nca.objects import Composite, Constructor, Primitive, Store
 from nca.packages import install
 
@@ -192,3 +193,65 @@ def test_package_discovery_requires_a_matching_export() -> None:
     with pytest.raises(ValueError, match="no export"):
         discover_packages(Constant(), store, lambda rows, labels: [constructor],
                            [(0.0,), (1.0,)], [0, 0], same)
+
+
+class Feature:
+    def __init__(self, contract: Contract, project: Callable[..., Hashable]) -> None:
+        self.manifest = Manifest("feature", "1", contract, effects=frozenset())
+        self.project = project
+
+    def invoke(self, *values: Any) -> Hashable:
+        return self.project(*values)
+
+
+def test_decoder_proposals_learn_compositions_and_generalize_to_unseen_rows() -> None:
+    rows = [(f"{i % 4}:{i}",) for i in range(160)]
+    labels = [f"target-{(i % 4 + 1) % 4}" for i in range(160)]
+    features = [Feature(Contract(("source",), "category"), lambda x: x.split(":")[0]),
+                Feature(Contract(("source",), "whole"), lambda x: x)]
+
+    def propose(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        return propose_decoders(Constant(), features, train, targets, decoder_cost=0.1)
+
+    result = discover(Constant(), propose, rows, labels, lambda a, b: a == b)
+    assert result.chosen is result.trials[0].proposal
+    assert sum(result.trials[0].outcomes) == 80
+    assert sum(result.trials[1].outcomes) == 20  # Memorization falls back on unseen keys.
+    expert = result.chosen.expert
+    assert isinstance(expert, Decoded)
+    assert expert.decoder.manifest.contract == Contract(("category",), "result")
+    assert expert.manifest.contract == Constant.manifest.contract
+    assert expert.manifest.cost == features[0].manifest.cost + 0.1
+    assert expert.manifest.effects == frozenset()
+
+
+def test_decoder_table_minimizes_training_error_and_has_deterministic_ties() -> None:
+    from itertools import product
+
+    rows = [(key,) for key in "aabbccc"]
+    labels = ["x", "y", "y", "y", "x", "x", "y"]
+    feature = Feature(Contract(("source",), "key"), lambda x: x)
+    proposal = propose_decoders(Constant(), [feature], rows, labels, decoder_cost=1)[0]
+    learned = [proposal.expert.invoke(*row) for row in rows]
+    successes = sum(a == b for a, b in zip(learned, labels))
+    for outputs in product(("x", "y"), repeat=3):
+        table = dict(zip("abc", outputs))
+        assert successes >= sum(table[row[0]] == label for row, label in zip(rows, labels))
+    assert learned[0] == "x"  # First encountered label breaks the tie at key a.
+    assert proposal.expert.invoke("unseen") == "y"  # Global training mode.
+
+
+def test_decoder_proposals_preserve_multi_input_slots_and_reject_bad_contracts() -> None:
+    contract = Contract(("source", "extra"), "result", ((("source",), "source"),))
+    feature = Feature(replace(contract, output="new-interface"), lambda f, x, y: f(x) + y)
+    incumbent = Feature(contract, lambda f, x, y: 0)
+    rows = [(lambda x: x, 1, 2), (lambda x: x, 2, 3)]
+    expert = propose_decoders(incumbent, [feature], rows, ["a", "b"], decoder_cost=1)[0].expert
+    assert expert.manifest.contract == contract
+    assert expert.invoke(*rows[1]) == "b"
+    with pytest.raises(ValueError, match="inputs, slots"):
+        propose_decoders(Constant(), [feature], [(1,)], ["a"], decoder_cost=1)
+    with pytest.raises(ValueError, match="nonempty"):
+        propose_decoders(Constant(), [], [], [], decoder_cost=1)
+    with pytest.raises(ValueError, match="slot fillings"):
+        propose_decoders(Constant(), [], [()], ["a"], decoder_cost=1)

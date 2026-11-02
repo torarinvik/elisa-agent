@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections import Counter
+from collections.abc import Callable, Hashable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Any
 
-from nca.abi import Module
+from nca.abi import Contract, Manifest, Module
 from nca.objects import Constructor, Ref, Store
 from nca.packages import install
 from nca.router import sign_test
@@ -40,6 +41,75 @@ class Discovery:
     baseline: tuple[bool, ...]
     trials: tuple[Trial, ...]
     chosen: Proposal | None
+
+
+class Decoder:
+    """An empirical decoder; unseen keys use the training set's modal label.
+
+    Keys and labels must be hashable with stable equality. Counts tied for the
+    mode are resolved by first occurrence in training order. No risk is claimed.
+    """
+
+    def __init__(self, contract: Contract, table: Mapping[Hashable, Hashable],
+                 fallback: Hashable, cost: float) -> None:
+        self.manifest = Manifest("learned-decoder", "1", contract, cost=cost,
+                                 effects=frozenset())
+        self._table = dict(table)
+        self.fallback = fallback
+
+    def invoke(self, key: Hashable) -> Hashable:
+        return self._table.get(key, self.fallback)
+
+
+class Decoded:
+    """A feature expert followed by a learned decoder, with its original slots."""
+
+    def __init__(self, feature: Module, decoder: Decoder, contract: Contract) -> None:
+        self.feature, self.decoder = feature, decoder
+        self.manifest = replace(feature.manifest,
+                                module_id=f"{feature.manifest.module_id}/decoded",
+                                contract=contract,
+                                cost=feature.manifest.cost + decoder.manifest.cost)
+
+    def invoke(self, *inputs: Any) -> Hashable:
+        return self.decoder.invoke(self.feature.invoke(*inputs))
+
+
+def propose_decoders(incumbent: Module, features: Sequence[Module],
+                     rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
+                     decoder_cost: float) -> list[Proposal]:
+    """Learn decompositions through supplied features from training data alone.
+
+    Derive each decoder's contract from its feature's output and the incumbent's
+    output. For every observed feature key, learn the modal target. This minimizes
+    empirical classification errors among tables on that representation (§36.4).
+    Feature inputs, slots and relevance must match the incumbent; their outputs
+    may differ. No feature or value type is predefined here. Use this as discover's
+    training callback: it performs no independent split or evidence selection.
+    Features must remain fixed after training; nothing is saved or calibrated.
+    """
+    if not math.isfinite(decoder_cost) or decoder_cost < 0:
+        raise ValueError("decoder cost must be finite and nonnegative")
+    if not rows or len(rows) != len(labels):
+        raise ValueError("decoder training needs nonempty aligned rows and labels")
+    contract = incumbent.manifest.contract
+    if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
+        raise ValueError("rows must supply slot fillings followed by inputs")
+    features = tuple(features)
+    if any(replace(feature.manifest.contract, output=contract.output) != contract
+           for feature in features):
+        raise ValueError("features must preserve inputs, slots and relevance")
+    fallback = Counter(labels).most_common(1)[0][0]
+    proposals = []
+    for feature in features:
+        counts: dict[Hashable, Counter[Hashable]] = {}
+        for row, label in zip(rows, labels, strict=True):
+            counts.setdefault(feature.invoke(*row), Counter())[label] += 1
+        table = {key: counter.most_common(1)[0][0] for key, counter in counts.items()}
+        decoder = Decoder(Contract((feature.manifest.contract.output,), contract.output),
+                          table, fallback, decoder_cost)
+        proposals.append(Proposal(Decoded(feature, decoder, contract)))
+    return proposals
 
 
 def discover(incumbent: Module,
