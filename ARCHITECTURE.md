@@ -2121,3 +2121,14 @@ incumbent, including unseen keys. Contracts, effects and conservative slot/cost
 bounds are composed generically. `residual_successes_le` proves training-count
 dominance; held-out improvement is evaluated by the existing discovery split.
 These are in-memory learned proposals, without persisted identity or calibration.
+
+`numeric_learning.propose_partition` (§36.13) learns an observed-value boundary
+and modal decoder from training data over a supplied finite-float measurement.
+`PartitionEncoder` generates a constructor describing the source type, boundary
+and code convention. A sorted sweep updates left/right label counts without
+splitting equal observations; modal scans depend on label cardinality. The
+result is an ordinary encoder/head proposal, with independent selection through
+`discover`. `threshold_score_le` proves finite-maximum dominance conditional on
+candidate membership; the Python sweep is checked against exhaustive boundaries.
+This is threshold-family representation learning, not arbitrary raw-feature
+invention. The learned encoder is currently an in-memory model.

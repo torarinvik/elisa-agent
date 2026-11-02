@@ -103,4 +103,10 @@ theorem residual_successes_le {K : Type*} (groups : Finset K)
     ∑ k ∈ groups, baseline k ≤ ∑ k ∈ groups, max (baseline k) (mode k) := by
   exact Finset.sum_le_sum fun k _ => Nat.le_max_left _ _
 
+/-- A complete finite threshold-score search dominates every candidate.
+Membership/completeness of the executable sweep remains a premise. -/
+theorem threshold_score_le (scores : Finset ℕ) (candidate : ℕ) (member : candidate ∈ scores) :
+    candidate ≤ scores.max' ⟨candidate, member⟩ := by
+  exact Finset.le_max' scores candidate member
+
 end NCA

@@ -264,3 +264,23 @@ inequalities. This gives no held-out guarantee; freeze every candidate using
 training data only, then apply the finite-family selection of §36.3. Declared
 costs and slot counts conservatively include both feature and incumbent, even
 though corrected invocations skip the incumbent.
+
+## 36.13 Learning a numeric partition interface
+
+Given a fixed scalar-valued feature and labeled training invocations, sort
+observations by feature value. Consider each boundary equal to an observed
+value strictly greater than the minimum. The encoder returns one code below
+the boundary and another at or above it. Fit the modal target in each region
+and choose the boundary with the greatest training successes, ties at the
+smallest boundary. Generate a constructor describing the source type, boundary
+and code convention; no domain vocabulary or manually chosen threshold enters
+this definition. Values must be finite floating-point observations.
+
+**Proposition 36.10 (finite boundary optimum).** Every nonempty two-region
+threshold partition of the observed values is induced by one considered
+boundary. Thus the selected candidate maximizes empirical successes among
+these thresholds with modal decoders. This is an empirical hypothesis-class
+result, not a generalization theorem. A finite maximum dominates every member;
+Lean proves that selection step conditional on membership. Completeness of the
+Python sweep and faithful float comparisons are regression-tested. Promotion
+still requires independent held-out evidence (§36.3).
