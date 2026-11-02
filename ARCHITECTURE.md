@@ -938,7 +938,10 @@ numeric readings may still tie, so the consumer must use the same ranked
 choice. `ranked_argmax_checked` validates selected weights in Elisa; older
 kernels use the validated Python fallback. For larger restrictions,
 `ranked_argmax_indices_checked` also validates indices and gathers weights in
-Elisa; sparse restrictions retain the existing path. The selective controller propagates it to consumers and fusers that
+Elisa; sparse restrictions retain the existing path. Immutable built-in integer
+tuples cache read-only index arrays by identity, with at most 128 entries
+(not a byte limit);
+mutable inputs are copied and validated on each call. The selective controller propagates it to consumers and fusers that
 explicitly support the handoff.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.

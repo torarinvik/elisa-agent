@@ -203,21 +203,42 @@ class RankedObservation:
         return _ranked_top(self.weights, classes)
 
 
+def _ranked_index_array(indices: tuple) -> np.ndarray | None:
+    if any(type(index) is not int for index in indices):
+        return None
+    try:
+        result = np.asarray(indices, dtype=np.int64)
+    except OverflowError as exc:
+        raise ValueError("classes must contain valid class indices") from exc
+    result.setflags(write=False)
+    return result
+
+
+@lru_cache(maxsize=128)
+def _immutable_ranked_indices(identity: int, indices: tuple) -> np.ndarray | None:
+    """Cache integer tuples without aliasing equal non-integer tuples."""
+    return _ranked_index_array(indices)
+
+
 def _ranked_top(weights: tuple[float, ...], classes: Sequence[int] | None) -> int:
     indices = None if classes is None else tuple(classes)
     indexed_native = getattr(_NATIVE, "ranked_argmax_indices_checked", None)
     if (indexed_native is not None and indices is not None and len(indices) >= 16
-            and len(indices) * 4 >= len(weights) and all(type(i) is int for i in indices)):
-        try:
-            native_indices = np.asarray(indices, dtype=np.int64)
-        except OverflowError as exc:
-            raise ValueError("classes must contain valid class indices") from exc
-        top = int(indexed_native(np.ascontiguousarray(weights, dtype=np.float64), native_indices))
-        if top == -1:
-            raise ValueError("classes must contain valid class indices")
-        if top == -2:
-            raise ValueError("ranked weights must be finite and nonnegative")
-        return top
+            and len(indices) * 4 >= len(weights)):
+        if type(classes) is tuple:
+            try:
+                native_indices = _immutable_ranked_indices(id(classes), classes)
+            except TypeError:
+                native_indices = None
+        else:
+            native_indices = _ranked_index_array(indices)
+        if native_indices is not None:
+            top = int(indexed_native(np.ascontiguousarray(weights, dtype=np.float64), native_indices))
+            if top == -1:
+                raise ValueError("classes must contain valid class indices")
+            if top == -2:
+                raise ValueError("ranked weights must be finite and nonnegative")
+            return top
     if (len(weights) == 0 or (indices is not None and
             (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
                                 or not 0 <= i < len(weights) for i in indices)))):

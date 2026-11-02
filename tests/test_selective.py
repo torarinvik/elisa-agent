@@ -295,6 +295,28 @@ def test_native_restricted_ranked_selection_matches_reference(monkeypatch) -> No
     assert actual == [ladder_module._ranked_top(weights, indices) for weights, indices in cases]
 
 
+def test_ranked_index_cache_respects_identity_and_mutable_lists() -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
+        pytest.skip("native indexed ranked selection kernel is not built")
+    weights = tuple(float(i) for i in range(32))
+    observation = ladder_module.RankedObservation(torch.zeros(32), weights)
+    indices = tuple(range(32))
+    assert observation.top(indices) == 31
+    native_indices = ladder_module._immutable_ranked_indices(id(indices), indices)
+    assert native_indices is not None and not native_indices.flags.writeable
+    assert ladder_module._immutable_ranked_indices(id(indices), indices) is native_indices
+    bool_indices = (False, True) + indices[2:]
+    assert bool_indices == indices
+    with pytest.raises(ValueError, match="class indices"):
+        observation.top(bool_indices)
+    mutable = list(indices)
+    assert observation.top(mutable) == 31
+    mutable[-1] = 0
+    assert observation.top(mutable) == 30
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
     from nca import ladder as ladder_module
