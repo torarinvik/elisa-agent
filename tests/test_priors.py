@@ -196,6 +196,13 @@ def test_decoded_risk_preserves_tiny_probabilities_and_rejects_nan(
     assert priors.risk_from_log_weight(-np.inf, 0.0) == 1.0
     with pytest.raises(ValueError, match="sequence risk"):
         priors.risk_from_log_weight(np.nan, 0.0)
+    assert priors.risk_from_log_weight(1e-10, 0.0) == 0.0
+    with pytest.raises(ValueError, match="exceeds the normalizer"):
+        priors.risk_from_log_weight(0.1, 0.0)
+    for weight, normalizer in ((0.0, np.inf), (-np.inf, np.inf),
+                               (-np.inf, -np.inf), (np.inf, 0.0)):
+        with pytest.raises(ValueError, match="sequence risk"):
+            priors.risk_from_log_weight(weight, normalizer)
 
 
 @pytest.mark.parametrize("reference", [False, True])

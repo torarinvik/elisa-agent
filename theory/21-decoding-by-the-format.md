@@ -198,6 +198,12 @@ For additions of finite log weights, TwoSum recovers the rounding residual
 under binary64 round-to-nearest arithmetic. A residual at least `1.01 × 10⁻⁸`
 also reports precision loss; smaller errors can accumulate, so this local
 check does not bound the error of the whole calculation.
+For nonnegative weights, a selected path cannot exceed the total mass. A
+selected log weight materially above its log normalizer therefore signals an
+inconsistent calculation, not zero risk. The risk calculation rejects a
+positive discrepancy of at least `1.01 × 10⁻⁸`; smaller discrepancies are
+clamped to zero to accommodate rounding. This tolerance is not a bound on
+accumulated numerical error.
 Selected reading-sequence scoring uses the same local check. An unsupported
 symbol or zero-weight reading still makes the sequence weight zero, including
 when a preceding finite sum could not be represented. The accepted-format

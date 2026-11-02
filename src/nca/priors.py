@@ -75,9 +75,11 @@ def _native_format_symbols(symbols: Sequence[int], length: int) -> np.ndarray:
 
 def risk_from_log_weight(weight: float, log_z: float) -> float:
     """Complement of a normalized log weight, stable near probability one."""
+    if math.isnan(weight) or weight == math.inf or not math.isfinite(log_z):
+        raise ValueError("sequence risk requires a finite normalizer and finite or zero weight")
     difference = weight - log_z
-    if math.isnan(difference) or difference == math.inf:
-        raise ValueError("sequence risk requires finite or negative-infinite log probability")
+    if difference >= 1.01e-8:
+        raise ValueError("sequence risk selected weight exceeds the normalizer")
     return -math.expm1(min(0.0, difference))
 
 

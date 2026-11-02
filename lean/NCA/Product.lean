@@ -481,4 +481,10 @@ theorem bounded_leaf_binary_posterior {τ : Type} (ε : τ → ℕ → τ)
     (fun l => likelihood l * prior ε (fun t a => v t a * (if a = 2 then factor else 1)) f state l)
     factor hf symbols
 
+/-- A selected mass bounded by the positive total has probability at most one. -/
+theorem selected_mass_probability_le_one (chosen total : ℝ)
+    (ht : 0 < total) (hc : chosen ≤ total) : chosen / total ≤ 1 := by
+  apply (div_le_iff₀ ht).2
+  simpa using hc
+
 end NCA
