@@ -471,9 +471,10 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
         last: i64 = state[0] if matched[0] != missing and state[0] >= 1 and state[0] <= m - k and state[0] > bounds[here_bound + 1] else bounds[here_bound + 1]
         low: i64 = 1 if first < 1 else first
         high: i64 = m - k if last > m - k else last
+        matched_state: i64 = state[0] if matched[0] != missing else -1
         for n in low..<(high + 1):
             source: f64 = alternatives[here + n]
-            same: bool = n == state[0] and matched[0] != missing
+            same: bool = n == matched_state
             continue if source == missing and not same
             for j in 0..<count:
                 arity: i64 = alphabet[j]
@@ -481,7 +482,8 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                 target: i64 = n - 1 + arity
                 continue if target > m - k - 1
                 reading: f64 = log_probs[k * count + j]
-                if source != missing and reading != missing:
+                continue if reading == missing
+                if source != missing:
                     through: f64 = partition_log_product(source, reading)
                     return [] if through == missing or through == -missing or through != through
                     combined: f64 = partition_log_add(alternatives[next + target], through)
@@ -489,7 +491,7 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                     alternatives[next + target] <- combined
                     bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
                     bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
-                if same and arity != selected[k] and reading != missing:
+                if same and arity != selected[k]:
                     through: f64 = partition_log_product(matched[0], reading)
                     return [] if through == missing or through == -missing or through != through
                     combined: f64 = partition_log_add(alternatives[next + target], through)
