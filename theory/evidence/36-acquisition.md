@@ -509,3 +509,24 @@ floating-point behavior and the store/FFI remain unproved implementation
 obligations. Admission and content identity check wiring and metadata, not
 semantic equivalence. Existing package composition can export a restored
 encoder plus a separately retained decoder; saved artifacts assert no calibration.
+
+## 36.26 Failure-directed regional expert acquisition
+
+Group training rows by a supplied routing feature's stable hashable keys. Rank
+regions by incumbent error count, with first-observed order breaking ties, and
+invoke a supplied expert proposer on at most the caller's region budget among
+regions with errors. Give each proposer all training rows/targets in its region,
+including successful controls. Its experts must preserve the external contract;
+constructor declarations are carried into the resulting proposals.
+
+A regional proposal evaluates the routing feature and invokes the acquired
+expert only on its selected key; elsewhere it invokes the incumbent. For pure
+stable mathematical functions the resulting output equals the incumbent outside
+the selected region. Lean proves this conditional noninterference statement.
+It does not prove effectful execution unchanged, proposer generalization, or
+optimal budget allocation. Targets need not be categorical/hashable: the caller
+supplies the correctness predicate and training family. Independent whole-task
+outcomes, including the unaffected regions, select the frozen candidates.
+Metadata conservatively includes both branches and the routing feature; no
+inference call-count or effect declaration is invented. Proposals are currently
+in-memory, without a new persistence or calibration claim.

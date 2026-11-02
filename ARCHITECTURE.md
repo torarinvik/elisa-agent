@@ -2237,3 +2237,12 @@ predecessor before rebinding the next stage without mutating trained objects.
 export the final encoder with a separately stored decoder. Installs remain lazy.
 `restored_chain_eq` proves conditional composition fidelity for endomorphism
 lists, not executable factories or heterogeneous typed serialization.
+
+`regional_learning.propose_regional_experts` (§36.26) spends an explicit region
+budget where incumbent training errors concentrate. A supplied proposer trains
+arbitrary contract-preserving experts on complete regional training subsets.
+`RegionalExpert` gates the specialist and delegates other inputs to the incumbent;
+constructor declarations propagate, while inference costs, slots and effects
+include all possible stages conservatively. These proposals remain in memory.
+`regional_preserves_complement` proves pure-function output preservation outside
+the selected region, not effectful-execution or generalization guarantees.

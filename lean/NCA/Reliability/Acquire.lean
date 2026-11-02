@@ -203,4 +203,12 @@ theorem restored_chain_eq {X : Type*} (before after : List (X → X))
     rw [same value]
     exact ih _
 
+/-- Pure regional replacement preserves every output outside the chosen region.
+This does not assert that effectful routing leaves executions unchanged. -/
+theorem regional_preserves_complement {X Y K : Type*} [DecidableEq K]
+    (incumbent specialist : X → Y) (feature : X → K) (key : K) (x : X)
+    (outside : feature x ≠ key) :
+    (if feature x = key then specialist x else incumbent x) = incumbent x := by
+  simp only [outside, if_false]
+
 end NCA
