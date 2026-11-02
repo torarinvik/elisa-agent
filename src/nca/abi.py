@@ -12,8 +12,9 @@ from typing import Any, NamedTuple, Protocol
 TypeId = str
 """A semantic type in its canonical text form (THEORY §1.1): a constructor
 name, optionally applied to argument types, as in ``"image.rgb.v1"``
-or ``"seq[image.rgb.v1]"``. Names carry their namespace and version.
-Variables (``"?a"``) stand for any type.
+or ``"seq[image.rgb.v1]"``. Names carry their namespace and version, or
+are the ``sha256:`` reference of a constructor object (§29.1). Variables
+(``"?a"``) stand for any type.
 
 Two values are compatible only if their type ids are equal; byte shape alone
 never implies compatibility. Conversions between types are modules.
@@ -47,7 +48,7 @@ class App:
 Term = Var | App
 """A type term (THEORY §1.1)."""
 
-_TOKEN = re.compile(r"\s*(\??[A-Za-z0-9_][A-Za-z0-9_./-]*|[\[\],])")
+_TOKEN = re.compile(r"\s*(\??[A-Za-z0-9_][A-Za-z0-9_./:-]*|[\[\],])")
 
 
 @functools.lru_cache(maxsize=65536)

@@ -40,6 +40,7 @@ run the Python tests with `uv run pytest`.
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
+| [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -307,6 +308,9 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [28.2](theory/28-packages-as-experts.md) | `install_stable` | `Package` |
 | [28.3](theory/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
 | [28.4](theory/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
+| [29.1](theory/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
+| [29.2](theory/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
+| [29.3](theory/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
 
 ## Native kernels
 
@@ -1613,3 +1617,32 @@ another identity. Held-out data are not part of the claim.
 Selective refinement (`selective`) still requires the producer–map–consumer
 route shape, so it does not see through exports; composing refinement across
 a composite boundary is the composition problem of §26.
+
+## 29. Types as objects
+
+`objects.Constructor` is a type constructor as a content-addressed object:
+name, version, arity, meaning and the references of the constructors it
+refines. Its reference is its name in type terms (`Constructor.type`), so
+type identifiers may contain `sha256:` constructor names, and the type
+grammar admits `:` in names. `Store.put` admits an object only once every
+reference it depends on is present (`_requires`): besides members and
+subjects, the constructors a constructor refines, which must have equal
+arity, and every constructor a primitive's contract or a composite's
+exports and requirements mention, applied to exactly its arity. Textual
+constructor names remain valid and are their own identity.
+
+`packages.install` turns a constructor into one `packages.Upcast` per
+refinement, with the polymorphic contract `S[?a0,…] ⇒ T[?a0,…]`, zero
+declared cost and empty effects; it returns its input. Constructors can
+therefore be composite members, so a package carries the types it
+defines. The planner has no subtyping rule: upcasts are planned like any
+adapter, which is Theorem 29.1. Each refinement step on a route uses one
+level of planning fuel, so the default `fuel=8` admits chains of about
+five steps between a producer and a consumer. Upcasts have no `identity`
+and are never cached, since looking up a value would cost more than
+returning it.
+
+The Lean evaluator of Theorem 29.2 (`Plan.eval`) is a model: modules are
+functions of their arguments' values and a map body reads only its element.
+The domains still name their types textually; moving them to constructor
+objects is a separate migration.

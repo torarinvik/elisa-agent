@@ -52,6 +52,10 @@ crosses it. Conversions are instead modules: an **adapter** with contract
 `A → B` is planned, accounted for and replaced by evidence (§8) like any other
 module. Values cross versions and namespaces only through adapters.
 
+Section 29 identifies constructors by content and admits one restricted
+claim, refinement by the owner of the refining constructor, realized by
+adapters; compatibility remains equality of terms.
+
 ## 1.2 Substitution
 
 A **substitution** `σ` maps type variables to terms. It acts on a term by

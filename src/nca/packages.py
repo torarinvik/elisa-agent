@@ -3,6 +3,7 @@
 ``install(store, ref)`` returns the experts a scope sees for an object:
 
 * a primitive is one lazy expert, loaded on first use;
+* a constructor is one ``Upcast`` per constructor it refines (§29.3);
 * a transparent composite (``exports=None``) is its members' experts in
   member order, each primitive once, at its first occurrence;
 * an exporting composite is one ``Export`` per exported contract, and
@@ -36,10 +37,11 @@ from collections.abc import Callable, Sequence
 from importlib import metadata
 from typing import Any
 
-from nca.abi import Calls, Contract, Manifest, Message, Module, Slot
+from nca.abi import (App, Calls, Contract, Manifest, Message, Module, Slot, format_type,
+                     parse_type)
 from nca.kernel import Kernel
 from nca.loader import ExpertStore, LazyExpert
-from nca.objects import Composite, Names, Primitive, Ref, Store
+from nca.objects import Composite, Constructor, Names, Primitive, Ref, Store
 from nca.optimize import slot_calls
 from nca.index import ProducerIndex
 from nca.planner import Given, Map, Plan, plan_stable_indexed
@@ -61,6 +63,25 @@ class Requirement:
         if not self._fillings:
             raise RuntimeError(f"{self.manifest.module_id} invoked outside its composite")
         return self._fillings[-1](*values)
+
+
+class Upcast:
+    """The adapter realizing a refinement: a value of ``S(α…)`` is returned
+    unchanged as a value of ``T(α…)`` (§29.3). It has no identity for the
+    result cache, since recomputing it is cheaper than looking it up."""
+
+    def __init__(self, constructor: Constructor, index: int) -> None:
+        arguments = tuple(f"?a{i}" for i in range(constructor.arity))
+        refined = constructor.refines[index]
+        self.constructor = constructor
+        self.manifest = Manifest(
+            f"{constructor.name}/refines/{index}", constructor.version,
+            Contract((constructor.type(*arguments),),
+                     format_type(App(refined, tuple(parse_type(a) for a in arguments)))),
+            cost=0.0, effects=frozenset())
+
+    def invoke(self, value: Any) -> Any:
+        return value
 
 
 def _profile(node: Plan, length: int, unit: Callable[[Module], float]) -> float:
@@ -151,6 +172,7 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
     """
     experts = experts if experts is not None else ExpertStore()
     made: dict[Ref, Module] = {}
+    made_upcasts: dict[Ref, list[Module]] = {}
 
     def module(node: Ref) -> Module:
         if node not in made:
@@ -176,8 +198,12 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
         obj = store.get(node)
         if isinstance(obj, Primitive):
             return [module(node)]
+        if isinstance(obj, Constructor):
+            if node not in made_upcasts:
+                made_upcasts[node] = [Upcast(obj, i) for i in range(len(obj.refines))]
+            return made_upcasts[node]
         if not isinstance(obj, Composite):
-            raise ValueError("only experts and composites can be installed")
+            raise ValueError("only experts, composites and constructors can be installed")
         if obj.exports is None:
             return members(obj)
         inner = members(obj)

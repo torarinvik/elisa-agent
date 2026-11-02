@@ -1,7 +1,8 @@
-"""Content-addressed objects: experts, composites and attestations (THEORY §28).
+"""Content-addressed objects: experts, composites, attestations and type
+constructors (THEORY §28, §29).
 
 Every object is immutable data identified by the SHA-256 digest of its
-canonical encoding, its *reference*. There are three kinds:
+canonical encoding, its *reference*. There are four kinds:
 
 * ``Primitive``: one expert, its manifest and how to load its implementation
   (an entry point, JSON arguments, and the digest of its weights);
@@ -11,7 +12,10 @@ canonical encoding, its *reference*. There are three kinds:
   composite);
 * ``Attestation``: a claim about another object, such as calibration
   temperatures, an audit or a signature, kept beside its subject rather than
-  inside it.
+  inside it;
+* ``Constructor``: a type constructor, its arity, meaning and the
+  constructors it refines. Its reference is its name in type terms, so a
+  contract that mentions it names exactly this constructor.
 
 A composite names its members by reference, so composites form a DAG with
 shared members, and since a reference is computed from contents that
@@ -31,7 +35,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Union
 
-from nca.abi import Calls, Contract, Manifest, Slot
+from nca.abi import App, Calls, Contract, Manifest, Slot, Term, Var, format_type, parse_type
 
 Ref = str
 """``"sha256:"`` followed by 64 hexadecimal digits."""
@@ -205,7 +209,35 @@ class Attestation:
         return digest(self.data())
 
 
-Object = Union[Primitive, Composite, Attestation]
+@dataclass(frozen=True)
+class Constructor:
+    """A type constructor (§29.1). ``meaning`` states what its values are and
+    how they are represented; ``refines`` lists constructors of the same
+    arity whose values include its own, with the same representation
+    (§29.2)."""
+
+    name: str
+    version: str
+    arity: int
+    meaning: str
+    refines: tuple[Ref, ...] = ()
+
+    def data(self) -> dict[str, Json]:
+        return {"kind": "constructor", "name": self.name, "version": self.version,
+                "arity": self.arity, "meaning": self.meaning, "refines": list(self.refines)}
+
+    @property
+    def ref(self) -> Ref:
+        return digest(self.data())
+
+    def type(self, *arguments: str) -> str:
+        """The type this constructor builds from ``arguments``."""
+        if len(arguments) != self.arity:
+            raise ValueError(f"{self.name} takes {self.arity} arguments, not {len(arguments)}")
+        return format_type(App(self.ref, tuple(parse_type(a) for a in arguments)))
+
+
+Object = Union[Primitive, Composite, Attestation, Constructor]
 
 
 def object_from(data: Mapping[str, Any]) -> Object:
@@ -222,7 +254,52 @@ def object_from(data: Mapping[str, Any]) -> Object:
                          None if effects is None else frozenset(effects))
     if kind == "attestation":
         return Attestation(data["subject"], data["claim_kind"], data["claim"], data["issuer"])
+    if kind == "constructor":
+        return Constructor(data["name"], data["version"], data["arity"], data["meaning"],
+                           tuple(data["refines"]))
     raise ValueError(f"unknown object kind {kind!r}")
+
+
+def _constructors(term: Term, found: dict[Ref, int]) -> None:
+    if isinstance(term, Var):
+        return
+    if term.name.startswith("sha256:"):
+        if found.setdefault(term.name, len(term.args)) != len(term.args):
+            raise ValueError(f"constructor {term.name} is applied to different numbers of arguments")
+    for argument in term.args:
+        _constructors(argument, found)
+
+
+def constructors(contracts: Sequence[Contract]) -> dict[Ref, int]:
+    """The constructor references ``contracts`` mention, with the number of
+    arguments each is applied to."""
+    found: dict[Ref, int] = {}
+    for contract in contracts:
+        for type_id in (*contract.inputs, contract.output,
+                        *(t for inputs, output in contract.slots for t in (*inputs, output))):
+            _constructors(parse_type(type_id), found)
+    return found
+
+
+def _contracts(obj: Object) -> list[Contract]:
+    if isinstance(obj, Primitive):
+        return [obj.manifest.contract]
+    if isinstance(obj, Composite):
+        return [*(obj.exports or ()), *(Contract(inputs, output) for inputs, output in obj.requires)]
+    return []
+
+
+def _requires(obj: Object) -> list[Ref]:
+    """The references ``obj`` cannot be admitted without."""
+    if isinstance(obj, Composite):
+        own = list(obj.members)
+    elif isinstance(obj, Attestation):
+        own = [obj.subject]
+    elif isinstance(obj, Constructor):
+        own = list(obj.refines)
+    else:
+        own = []
+    return [*own, *constructors(_contracts(obj))]
 
 
 def _effects_cover(declared: frozenset[str] | None, member: frozenset[str] | None) -> bool:
@@ -232,9 +309,12 @@ def _effects_cover(declared: frozenset[str] | None, member: frozenset[str] | Non
 class Store:
     """Objects by reference, and attestations by subject.
 
-    ``put`` admits a composite only once its members are present and its
-    declared effects cover theirs, so every stored composite is a well-formed
-    DAG node. ``save`` and ``open`` keep one canonical JSON file per object,
+    ``put`` admits an object only once every reference it depends on is
+    present: a composite's members (whose effects its declaration must
+    cover), an attestation's subject, a constructor's refined constructors
+    (of equal arity), and every constructor its contracts mention (applied
+    to as many arguments as its arity), so every stored object is a
+    well-formed DAG node. ``save`` and ``open`` keep one canonical JSON file per object,
     named by its digest.
     """
 
@@ -252,17 +332,26 @@ class Store:
         ref = obj.ref
         if ref in self._objects:
             return ref
+        for needed in _requires(obj):
+            if needed not in self._objects:
+                raise KeyError(f"{needed}, needed by {ref}, is not in the store")
+        for constructor, arity in constructors(_contracts(obj)).items():
+            found = self._objects[constructor]
+            if not isinstance(found, Constructor) or found.arity != arity:
+                raise ValueError(f"{constructor} is not a constructor of arity {arity}")
+        if isinstance(obj, Constructor):
+            for refined in obj.refines:
+                found = self._objects[refined]
+                if not isinstance(found, Constructor) or found.arity != obj.arity:
+                    raise ValueError(f"{obj.name} refines {refined}, "
+                                     f"which is not a constructor of arity {obj.arity}")
         if isinstance(obj, Composite):
             for member in obj.members:
-                if member not in self._objects:
-                    raise KeyError(f"composite member {member} is not in the store")
-                if not _effects_cover(obj.effects, self.effects(member)):
-                    raise ValueError(f"{obj.name} does not declare the effects of {member}")
                 if isinstance(self._objects[member], Attestation):
                     raise ValueError("an attestation cannot be a composite member")
+                if not _effects_cover(obj.effects, self.effects(member)):
+                    raise ValueError(f"{obj.name} does not declare the effects of {member}")
         if isinstance(obj, Attestation):
-            if obj.subject not in self._objects:
-                raise KeyError(f"attestation subject {obj.subject} is not in the store")
             self._about.setdefault(obj.subject, []).append(ref)
         self._objects[ref] = obj
         return ref
@@ -276,6 +365,8 @@ class Store:
             return obj.manifest.effects
         if isinstance(obj, Composite):
             return obj.effects
+        if isinstance(obj, Constructor):
+            return frozenset()  # Its upcasts return their input.
         raise ValueError("attestations have no effects")
 
     def attestations(self, subject: Ref, kind: str | None = None) -> list[Attestation]:
@@ -347,11 +438,7 @@ class Store:
 
 
 def _ready(store: Store, obj: Object) -> bool:
-    if isinstance(obj, Composite):
-        return all(member in store for member in obj.members)
-    if isinstance(obj, Attestation):
-        return obj.subject in store
-    return True
+    return all(needed in store for needed in _requires(obj))
 
 
 class Names:

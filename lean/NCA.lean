@@ -37,3 +37,4 @@ import NCA.Composition
 import NCA.Product
 import NCA.Edit
 import NCA.Package
+import NCA.Refinement
