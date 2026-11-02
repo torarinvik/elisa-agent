@@ -213,6 +213,49 @@ def test_ranked_observation_retains_original_restricted_order(native, monkeypatc
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf, -0.1])
+def test_ranked_selection_rejects_invalid_weights(native, bad, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "ranked_argmax_checked", None) is None:
+        pytest.skip("native ranked selection kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([0.0, 0.0, 0.0], dtype=torch.float64)
+    observation = ladder_module.RankedObservation(logits, (0.5, bad, 0.0))
+    reading = ladder_module.RankedReading((0.5, 0.3, 0.2), observation.weights)
+    for ranked in (observation, reading):
+        with pytest.raises(ValueError, match="finite and nonnegative"):
+            ranked.top()
+        assert ranked.top([2, 0]) == 0
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        Rung(None).risk(observation)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_ranked_selection_preserves_zero_weight_ties(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "ranked_argmax_checked", None) is None:
+        pytest.skip("native ranked selection kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    observation = ladder_module.RankedObservation(torch.zeros(3), (1.0, 0.0, 0.0))
+    assert observation.top([2, 1]) == 2
+    assert Rung(None).risk(observation, ((2,), (1,))) == pytest.approx(0.5)
+
+
+def test_ranked_selection_validates_with_legacy_kernel(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(row_argmax=lambda *args: [0]))
+    observation = ladder_module.RankedObservation(torch.zeros(2), (0.5, math.nan))
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        observation.top()
+
+
+@pytest.mark.parametrize("native", [False, True])
 def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
     from nca import ladder as ladder_module
 

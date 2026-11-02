@@ -204,15 +204,24 @@ class RankedObservation:
 
 
 def _ranked_top(weights: tuple[float, ...], classes: Sequence[int] | None) -> int:
-    indices = tuple(range(len(weights))) if classes is None else tuple(classes)
-    if (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
-                           or not 0 <= i < len(weights) for i in indices)):
+    indices = None if classes is None else tuple(classes)
+    if (len(weights) == 0 or (indices is not None and
+            (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
+                                or not 0 <= i < len(weights) for i in indices)))):
         raise ValueError("classes must contain valid class indices")
-    native = getattr(_NATIVE, "row_argmax", None)
+    native = getattr(_NATIVE, "ranked_argmax_checked", None)
     if native is not None:
-        values = np.fromiter((weights[i] for i in indices), dtype=np.float64,
-                             count=len(indices))
-        return int(indices[int(native(values, len(indices))[0])])
+        values = (np.ascontiguousarray(weights, dtype=np.float64) if indices is None else
+                  np.fromiter((weights[i] for i in indices), dtype=np.float64,
+                              count=len(indices)))
+        top = int(native(values))
+        if top < 0:
+            raise ValueError("ranked weights must be finite and nonnegative")
+        return top if indices is None else int(indices[top])
+    if indices is None:
+        indices = tuple(range(len(weights)))
+    if any(not math.isfinite(weights[i]) or weights[i] < 0 for i in indices):
+        raise ValueError("ranked weights must be finite and nonnegative")
     return int(max(indices, key=weights.__getitem__))
 
 

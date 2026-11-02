@@ -935,7 +935,8 @@ weights into a tie, so it does not always preserve the original weight order.
 `Rung.observe_ranked` retains a separate immutable weight snapshot for exact
 binary64 class ordering. `Rung.risk` can use that ordering to select its group;
 numeric readings may still tie, so the consumer must use the same ranked
-choice. The selective controller propagates it to consumers and fusers that
+choice. `ranked_argmax_checked` validates selected weights in Elisa; older
+kernels use the validated Python fallback. The selective controller propagates it to consumers and fusers that
 explicitly support the handoff.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.

@@ -91,6 +91,10 @@ must be finite and nonnegative; all-zero restricted entries are allowed and
 tie in class order. This representation check cannot establish that a cached
 reading came from the same observation and calibration, which remains a caller
 obligation.
+Ranked selection applies the same finite, nonnegative requirement to the
+original weights for the selected classes. Ties, including all-zero restricted
+weights, retain the first supplied class. Weights outside the restriction do
+not participate in that selection.
 The selective controller passes ranked observations to consumers or fusers
 that opt in to preserving this choice; other consumers use numerical readings.
 

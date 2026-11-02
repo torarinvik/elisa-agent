@@ -1437,6 +1437,15 @@ def partition_group_ids(lengths: view[i64], size: i64) -> darray[i64] can[Memory
         offset[0] <- offset[0] + length
     return result
 
+# First maximum among finite, nonnegative weights; -1 signals invalid input.
+def ranked_argmax_checked(weights: view[f64]) -> i64 can[Abort.Panic]:
+    return -1 if weights.len.i64() == 0
+    return
+        for i in 0..<weights.len.i64() |top: i64 = 0| -> top:
+            value: f64 = weights[i]
+            return -1 if value != value or value < 0.0 or value == -log(0.0)
+            top <- i if value > weights[top] else top
+
 # First maximum in each row, matching NumPy's first-NaN behavior as well.
 def row_argmax(scores: view[f64], width: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     return [] if width <= 0 or scores.len.i64() % width != 0
@@ -1813,6 +1822,7 @@ export pymodule decoding:
     fn valid_prefix
     fn certificate_words
     fn row_argmax
+    fn ranked_argmax_checked
     fn partition_group_ids
     fn grouped_argmax
     fn grouped_masses
