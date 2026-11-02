@@ -11,7 +11,8 @@ from itertools import combinations
 from typing import Any
 
 from nca.abi import Calls, Contract, Manifest, Module
-from nca.objects import Constructor, Ref, Store, canonical
+from nca.objects import (Constructor, Json, Primitive, Ref, Store, canonical,
+                         contract_data, contract_from)
 from nca.packages import install
 from nca.router import sign_test
 
@@ -61,6 +62,34 @@ class Decoder:
 
     def invoke(self, key: Hashable) -> Hashable:
         return self._table.get(key, self.fallback)
+
+
+def _load_decoder(contract: Mapping[str, Any], table: list[list[Json]],
+                  fallback: Json, cost: float) -> Decoder:
+    """Interpret a stored finite head, preserving scalar values and equality."""
+    parsed = contract_from(contract)
+    if len(parsed.inputs) != 1 or parsed.slots:
+        raise ValueError("a stored decoder needs one input and no slots")
+    values = [fallback, *(value for pair in table for value in pair)]
+    if any(type(value) not in (str, int, float, bool, type(None)) for value in values):
+        raise TypeError("stored decoders require JSON scalar keys and labels")
+    canonical(values)
+    return Decoder(parsed, dict(table), fallback, cost)
+
+
+def decoder_object(decoder: Decoder, *, size: int) -> Primitive:
+    """Snapshot a learned scalar head as data for the generic decoder runtime.
+
+    Its constructors must be stored before admission. Size is declared resident
+    bytes, excluding dependencies. This does not install or calibrate the head.
+    """
+    table = [[key, value] for key, value in decoder._table.items()]
+    _load_decoder(contract_data(decoder.manifest.contract), table,
+                  decoder.fallback, decoder.manifest.cost)
+    table.sort(key=lambda pair: canonical(pair[0]))
+    arguments = {"contract": contract_data(decoder.manifest.contract), "table": table,
+                 "fallback": decoder.fallback, "cost": decoder.manifest.cost}
+    return Primitive(decoder.manifest, "nca.discovery:_load_decoder", arguments, size=size)
 
 
 class Decoded:

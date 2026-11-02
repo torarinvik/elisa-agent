@@ -495,3 +495,28 @@ def test_tree_state_scalar_labels_keep_their_values_and_types(label: Any) -> Non
     recorded = json.loads(proposal.constructors[0].meaning)["states"][0]["chosen"]
     assert output == label and type(output) is type(label)
     assert recorded == label and type(recorded) is type(label)
+
+
+def test_learned_head_persists_values_fallback_and_canonical_identity(tmp_path: Path) -> None:
+    from nca.discovery import Decoder, decoder_object
+    from nca.loader import ExpertStore
+
+    contract = Contract(("state",), "target")
+    head = Decoder(contract, {"b": False, "a": 1.5, "c": None}, "é", 1)
+    obj = decoder_object(head, size=32)
+    reordered = Decoder(contract, {"c": None, "a": 1.5, "b": False}, "é", 1)
+    assert obj.ref == decoder_object(reordered, size=32).ref
+    store = Store()
+    reference = store.put(obj)
+    store.save(tmp_path)
+    resident = ExpertStore(32)
+    restored = install(Store.open(tmp_path), reference, experts=resident)[0]
+    assert resident.stats.loads == 0
+    for key in ("a", "b", "c", "unseen"):
+        expected, actual = head.invoke(key), restored.invoke(key)
+        assert actual == expected and type(actual) is type(expected)
+    assert resident.stats.loads == 1
+    head._table["a"] = 99
+    assert restored.invoke("a") == 1.5  # Stored data is a snapshot.
+    with pytest.raises(TypeError, match="JSON scalar"):
+        decoder_object(Decoder(contract, {(1, 2): "x"}, "x", 1), size=0)

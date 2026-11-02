@@ -201,3 +201,18 @@ implementation supports JSON scalar labels explicitly; richer labels need a
 faithful codec, rather than conversion through display strings. The type
 object can be stored independently; persisting the executable encoder and
 training evidence requires additional integration.
+
+## 36.9 Persisting a learned decoder head
+
+A finite decoder is determined by its typed contract, key/label table, unseen-key
+fallback and declared cost. Storing these as canonical data and reconstructing
+the same table preserves every prediction, including unseen keys. The first
+codec accepts JSON scalar keys and labels only, rejecting unsupported values
+rather than coercing them. Its entry point is a generic table interpreter,
+not a task-specific implementation. Constructor objects named by the contract
+must already be present in the object store.
+
+The prediction-preservation argument is Proposition 36.8 with a fixed key as
+the stopping state. It assumes faithful key/value encoding and unchanged
+interpreter behavior; neither the digest nor the Lean theorem proves the
+Python codec correct. Round-trip and value-type preservation are tested.

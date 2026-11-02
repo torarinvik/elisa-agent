@@ -2086,3 +2086,12 @@ unchanged. `dependency_rank_acyclic` proves acyclicity from strictly decreasing
 admission ranks; Python admission, shared loads, effect checks and byte budgets
 are regression-tested. Store reload also checks that decoded contents retain
 the digest of the saved object, including optional-field canonicalization.
+
+`discovery.decoder_object` (§36.9) snapshots a learned finite head's contract,
+scalar table, fallback and cost into a `Primitive` interpreted by `_load_decoder`.
+Canonical key ordering makes identity independent of table insertion order.
+Unsupported key/label values fail explicitly. Constructor dependencies are
+admitted by the ordinary store, and loading uses the ordinary lazy lifecycle.
+`state_factorization_eq` supplies the conditional prediction-preservation
+argument; scalar codec fidelity, snapshot behavior and reload are tested.
+This persists model data for a generic runtime, not a built-in expert catalog.
