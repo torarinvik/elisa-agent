@@ -82,7 +82,8 @@ def _fit_projections(measurement: Module, rows: Sequence[tuple[Any, ...]],
 
 def _centroid_training(measurement: Module, rows: Sequence[tuple[Any, ...]],
                        labels: Sequence[Hashable], reuse_observations: bool,
-                       max_groups: int | None = None
+                       max_groups: int | None = None, centers_per_group: int = 1,
+                       refinement_steps: int = 0
                        ) -> tuple[tuple[tuple[float, ...], ...], list[tuple[tuple[float, ...], Hashable]]]:
     if len(rows) < 2 or len(rows) != len(labels):
         raise ValueError("centroid fitting needs aligned observations")
@@ -102,9 +103,49 @@ def _centroid_training(measurement: Module, rows: Sequence[tuple[Any, ...]],
         if label not in groups and max_groups is not None and len(groups) >= max_groups:
             raise ValueError("centroid group budget exceeded")
         groups.setdefault(label, []).append(value)
-    centroids = [tuple(math.fsum(x[i] / len(group) for x in group)
-                       for i in range(dimension or 0)) for group in groups.values()]
+    centroids = []
+    for group in groups.values():
+        fitted = _group_centers(group, centers_per_group, refinement_steps)
+        if max_groups is not None and len(centroids) + len(fitted) > max_groups:
+            raise ValueError("total centroid budget exceeded")
+        centroids.extend(fitted)
     return tuple(centroids), observations
+
+
+def _prototype_distances(value: tuple[float, ...],
+                         centers: Sequence[tuple[float, ...]]) -> tuple[float, ...]:
+    distances = tuple(math.dist(value, center) for center in centers)
+    if any(not math.isfinite(distance) for distance in distances):
+        raise ValueError("prototype distances exceed finite range")
+    return distances
+
+
+def _group_centers(group: Sequence[tuple[float, ...]], limit: int,
+                   steps: int) -> tuple[tuple[float, ...], ...]:
+    def mean(points: Sequence[tuple[float, ...]]) -> tuple[float, ...]:
+        return _vector(tuple(math.fsum(x[i] / len(points) for x in points)
+                             for i in range(len(points[0]))))
+
+    if limit == 1:
+        return (mean(group),)
+    centers = [group[0]]
+    while len(centers) < limit:
+        distances = [min(_prototype_distances(value, centers)) for value in group]
+        index = max(range(len(group)), key=lambda i: distances[i])
+        if distances[index] == 0:
+            break
+        centers.append(group[index])
+    for _ in range(steps):
+        assigned: list[list[tuple[float, ...]]] = [[] for _ in centers]
+        for value in group:
+            distances = _prototype_distances(value, centers)
+            assigned[min(range(len(centers)), key=lambda i: distances[i])].append(value)
+        updated = [mean(points) if points else center
+                   for points, center in zip(assigned, centers, strict=True)]
+        if updated == centers:
+            break
+        centers = updated
+    return tuple(centers)
 
 
 class PrototypeEncoder:
@@ -130,27 +171,35 @@ class PrototypeEncoder:
         value = _vector(self.measurement.invoke(*inputs))
         if len(value) != len(self.centers[0]):
             raise ValueError("prototype input dimension differs from training")
-        distances = tuple(math.dist(value, center) for center in self.centers)
-        if any(not math.isfinite(distance) for distance in distances):
-            raise ValueError("prototype distances exceed finite range")
+        distances = _prototype_distances(value, self.centers)
         return min(range(len(distances)), key=lambda i: distances[i])
 
 
 def fit_prototype_encoder(measurement: Module, rows: Sequence[tuple[Any, ...]],
                           labels: Sequence[Hashable], *, max_centroids: int,
-                          encoding_cost: float) -> PrototypeEncoder:
+                          encoding_cost: float, centers_per_category: int = 1,
+                          refinement_steps: int = 3) -> PrototypeEncoder:
     """Learn a reusable vector partition from opaque categories (§36.49).
 
     Group order follows category occurrence; labels are not retained. Equal
     centroids share a code. A group budget fails explicitly instead of dropping
     categories. Stable observations and independent whole-task selection are
     required; centroid geometry need not separate arbitrary categories.
+    Opt-in multiple centers (§36.50) use first-observation/farthest-first seeds
+    and bounded within-category Lloyd steps, keeping empty-cluster centers.
+    The total budget rejects overflow rather than dropping fitted modes.
+    Initialization and ties follow observation order; no global optimum is claimed.
     """
-    if type(max_centroids) is not int or max_centroids < 1:
-        raise ValueError("centroid budget must be a positive integer")
+    if any(type(n) is not int or n < 1 for n in (max_centroids, centers_per_category)):
+        raise ValueError("centroid budgets must be positive integers")
+    if type(refinement_steps) is not int or refinement_steps < 0:
+        raise ValueError("refinement steps must be a nonnegative integer")
+    if centers_per_category > max_centroids:
+        raise ValueError("per-category budget exceeds total centroid budget")
     if not math.isfinite(encoding_cost) or encoding_cost < 0:
         raise ValueError("prototype cost must be finite and nonnegative")
-    centers, _ = _centroid_training(measurement, rows, labels, False, max_centroids)
+    centers, _ = _centroid_training(measurement, rows, labels, False, max_centroids,
+                                     centers_per_category, refinement_steps)
     return PrototypeEncoder(measurement, tuple(dict.fromkeys(centers)), encoding_cost)
 
 

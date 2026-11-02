@@ -435,3 +435,21 @@ centroid quality or generalization. Finite range and consistent dimensions are
 required; unrepresentable distances fail explicitly. Independent whole-task
 selection and faithful serialization remain assumptions. Sources, categories
 and the prototype family are supplied; useful geometry is not guaranteed.
+
+
+## 36.50 Multiple prototypes within a category
+
+A category may have several separated observation modes whose single mean is
+unrepresentative. Optionally initialize multiple centers within each category:
+start with its first observation, then repeatedly choose the first farthest
+observation by distance to its nearest existing center, stopping at zero distance
+or a supplied per-category bound. Perform a bounded number of nearest-center
+assignments and mean updates within that category. Keep empty-cluster centers;
+stop early if centers are unchanged. Reject total prototype-budget overflow.
+
+For two scalar observations, their mean minimizes the sum of squared distances;
+Lean proves this special case. It does not prove global clustering optimality,
+floating-point descent or category separation. Initialization and stable ties
+depend on observation order. The fitted runtime still stores only centers, so
+existing type generation and artifact factories apply unchanged. Independent
+whole-task selection remains necessary, and larger prototype families can overfit.

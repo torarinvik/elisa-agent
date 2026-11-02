@@ -489,3 +489,29 @@ def test_prototype_encoder_generates_vector_groups_with_stable_ties() -> None:
     huge = PrototypeEncoder(Measurement(), ((-1.7e308,),), 0)
     with pytest.raises(ValueError, match="finite range"):
         huge.invoke((1.7e308,))
+
+
+def test_multiple_prototypes_resolve_separated_modes_with_shared_category_means() -> None:
+    from nca.projection_learning import fit_prototype_encoder
+
+    rows = [((-2.0, -2.0),), ((2.0, 2.0),), ((-2.0, 2.0),), ((2.0, -2.0),)] * 5
+    labels = ["a", "a", "b", "b"] * 5
+    single = fit_prototype_encoder(Measurement(), rows, labels, max_centroids=4, encoding_cost=0)
+    multi = fit_prototype_encoder(Measurement(), rows, labels, max_centroids=4, encoding_cost=0,
+                                  centers_per_category=2, refinement_steps=3)
+    assert single.centers == ((0.0, 0.0),)
+    assert multi.centers == ((-2.0, -2.0), (2.0, 2.0), (-2.0, 2.0), (2.0, -2.0))
+    assert [multi.invoke(*row) for row in rows[:4]] == [0, 1, 2, 3]
+    assert multi.invoke((0.0, 0.0)) == 0
+    duplicate = fit_prototype_encoder(Measurement(), [((1.0,),)] * 4, ["a"] * 4,
+                    max_centroids=4, encoding_cost=0, centers_per_category=4)
+    assert duplicate.centers == ((1.0,),)
+    with pytest.raises(ValueError, match="total centroid budget"):
+        fit_prototype_encoder(Measurement(), rows, labels, max_centroids=3, encoding_cost=0,
+                              centers_per_category=2)
+    with pytest.raises(ValueError, match="refinement steps"):
+        fit_prototype_encoder(Measurement(), rows, labels, max_centroids=4, encoding_cost=0,
+                              centers_per_category=2, refinement_steps=-1)
+    with pytest.raises(ValueError, match="per-category budget"):
+        fit_prototype_encoder(Measurement(), rows, labels, max_centroids=1, encoding_cost=0,
+                              centers_per_category=2)

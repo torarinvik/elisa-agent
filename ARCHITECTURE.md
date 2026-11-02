@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.49) are described in the
+Regional acquisition and composition (§§36.26–36.50) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2412,3 +2412,8 @@ generated vector partition. `PrototypeEncoder` uses finite Euclidean distances
 and stable first-center ties, without retaining categories. The numeric encoder
 factories and acquired-model graph visitor retain its parameters and constructor.
 `prototype_left_of_midpoint` proves only the one-dimensional two-center case.
+
+`fit_prototype_encoder` (§36.50) optionally fits bounded per-category multiple
+centers through deterministic farthest-first seeds and Lloyd updates. Total
+center budgets fail explicitly; `PrototypeEncoder` and its factory format remain
+unchanged. `two_point_mean_minimizes` proves only the two-scalar update case.

@@ -371,4 +371,9 @@ theorem prototype_left_of_midpoint (a b x : ℝ) (hab : a < b)
     mul_pos (sub_pos.mpr hab) (by linarith)
   nlinarith
 
+/-- A two-observation scalar centroid minimizes its within-group squared loss. -/
+theorem two_point_mean_minimizes (a b c : ℝ) :
+    (a - (a+b)/2)^2 + (b - (a+b)/2)^2 ≤ (a-c)^2 + (b-c)^2 := by
+  nlinarith [sq_nonneg (c - (a+b)/2)]
+
 end NCA
