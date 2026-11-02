@@ -46,6 +46,7 @@ run the Python tests with `uv run pytest`.
 | [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
 | [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
 | [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
+| [§35 Calibration audits](theory/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -330,6 +331,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [34.2](theory/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
 | [34.3](theory/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
 | [34.4](theory/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
+| [35.1](theory/35-calibration-audits.md) | `count_tail_le`, `audit_tail_le` | `Audit` |
 
 ## Native kernels
 
@@ -1825,3 +1827,18 @@ the undecided rows together with fresh ledgers, answers or abstains on
 each, and climbs the riskiest climbable entry of every row over `δ`,
 making a climb that several rows share once per round. A `cache` serves
 the pure invocations a climb did not change.
+
+## 35. Calibration audits
+
+`evidence.audit(reports, failures, independent)` compares an expert's
+reports on labeled invocations with its failures and returns an `Audit`
+whose `p_value` bounds the chance of that many failures under calibrated
+reports: `stats.poisson_binomial_upper_bound` when failures are
+independent (Theorem 35.2), otherwise the total report over the failures
+(Theorem 35.1). `Audit.refutes(alpha)` tests at level `alpha`.
+`evidence.recalibrate(rung, values, labels, subject, issuer, alpha)` fits
+a fresh `ladder.Rung` for the rung's expert on the first half of the
+labeled values, audits its `Calibrated` reports on the second half, and
+returns a calibration attestation about `subject` (read back with
+`ladder.attested`) unless that audit refutes the refit. Which invocations
+to audit, and how they are labeled, is the caller's choice.

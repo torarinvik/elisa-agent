@@ -59,3 +59,4 @@ link for its definitions, arguments, and results.
 - [32. Trust](theory/32-trust.md)
 - [33. Per-input risk on any route](theory/33-per-input-risk.md)
 - [34. Compiled routes](theory/34-compiled-routes.md)
+- [35. Calibration audits](theory/35-calibration-audits.md)

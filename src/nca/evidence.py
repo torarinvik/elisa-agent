@@ -32,7 +32,7 @@ from nca.optimize import slot_calls
 from nca.planner import Apply, Given, Map, Plan
 from nca.router import sign_test
 from nca.runtime import Resolver, RiskLedger, execute
-from nca.stats import clopper_pearson_upper, family_audit_alpha
+from nca.stats import clopper_pearson_upper, family_audit_alpha, poisson_binomial_upper_bound
 from nca.trust import Trust
 from nca.workspace import Workspace
 
@@ -391,3 +391,60 @@ def refine_batch(plan: Plan, available: Sequence[TypeId], rows: Sequence[tuple[A
                     break
         pending = undecided
     return answers, ledgers, rounds
+
+
+@dataclass(frozen=True)
+class Audit:
+    """Reports compared with failures on audited invocations of one expert (§35.1)."""
+
+    invocations: int
+    reported: float
+    failures: int
+    p_value: float
+    """A bound on the probability of at least ``failures`` failures if the
+    reports are calibrated."""
+
+    def refutes(self, alpha: float) -> bool:
+        """Whether the audit refutes calibration at level ``alpha``."""
+        return self.p_value <= alpha
+
+
+def audit(reports: Sequence[float], failures: Sequence[bool], independent: bool = True) -> Audit:
+    """Audit reports against failures (Theorems 35.1–35.2). With
+    ``independent`` the failures must be conditionally independent given
+    the observations; otherwise the weaker bound ``R / F`` is used."""
+    if len(reports) != len(failures):
+        raise ValueError("an audit needs one failure flag per report")
+    if any(not 0.0 <= r <= 1.0 for r in reports):
+        raise ValueError("reports must be probabilities")
+    failed = sum(bool(f) for f in failures)
+    reported = float(sum(reports))
+    if independent:
+        p_value = poisson_binomial_upper_bound(failed, list(reports))
+    else:
+        p_value = 1.0 if failed == 0 else min(1.0, reported / failed)
+    return Audit(len(reports), reported, failed, p_value)
+
+
+def recalibrate(rung: Any, values: Sequence[Any], labels: Sequence[int], subject: Ref,
+                issuer: str, alpha: float, independent: bool = True
+                ) -> tuple[Attestation | None, Audit]:
+    """Refit ``rung``'s expert on the first half of an audit's labeled values
+    and audit the refit on the second half (§35.2). Returns a calibration
+    attestation about ``subject`` if that audit does not refute the refit at
+    ``alpha``, and the audit."""
+    import torch
+
+    from nca.ladder import Calibrated, Rung, calibration
+
+    half = len(values) // 2
+    if half == 0 or len(labels) != len(values):
+        raise ValueError("recalibration needs at least two labeled values")
+    refit = Rung(rung.module)
+    refit.calibrate(list(values[:half]), torch.tensor(list(labels[:half])))
+    reader = Calibrated(refit)
+    outputs = [reader.invoke(value) for value in values[half:]]
+    result = audit([reader.risk(output) for output in outputs],
+                   [max(range(len(o)), key=o.__getitem__) != label
+                    for o, label in zip(outputs, labels[half:], strict=True)], independent)
+    return (None if result.refutes(alpha) else calibration(refit, subject, issuer=issuer)), result
