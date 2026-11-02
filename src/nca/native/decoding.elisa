@@ -153,13 +153,14 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
         for k in 0..<m |forward: darray[f64] = [1.0 if i == offsets[0] + 1 else 0.0 for i in 0..<offsets[m + 1]], best: darray[f64] = [0.0 if i == 1 else FLOOR for i in 0..<(2 * row_size)], choice: darray[i64] = [0 for _ in 0..<offsets[m + 1]], totals: darray[f64] = [1.0 for _ in 0..<(m + 1)], log_z: f64 = 0.0| -> (forward, best, choice, totals, log_z):
             best_here: i64 = (k % 2) * row_size
             best_next: i64 = ((k + 1) % 2) * row_size
-            for n in 0..<(live(k + 1, m, max_arity) + 1) |best|:
-                best[best_next + n] <- FLOOR
+            best[best_here] <- FLOOR
             total: f64 = |forward, best, choice|
                 next_row: i64 = offsets[k + 1]
                 next_top: i64 = live(k + 1, m, max_arity)
                 for n in 1..<(live(k, m, max_arity) + 1) |forward, best, choice|:
                     here_best: f64 = best[best_here + n]
+                    # The consumed row becomes the empty destination two steps later.
+                    best[best_here + n] <- FLOOR
                     continue if here_best <= FLOOR
                     here: f64 = forward[offsets[k] + n] / totals[k]
                     for j in 0..<width |forward, best, choice|:
