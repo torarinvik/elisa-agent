@@ -1,9 +1,9 @@
 """Acquire arbitrary local experts where incumbent training failures concentrate."""
 
 import math
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
 from dataclasses import replace
-from itertools import islice, product
+from heapq import heappop, heappush
 from typing import Any
 
 from nca.abi import Module
@@ -52,6 +52,35 @@ class RegionalExpert(RegionalPolicy):
             module_id=f"{incumbent.manifest.module_id}/regional/{specialist.manifest.module_id}")
 
 
+def _ranked_combinations(families: Sequence[Sequence[tuple[int, Proposal]]],
+                         limit: int) -> Iterator[tuple[Proposal, ...]]:
+    """Best-first product of families ordered by successes, cost, then input order."""
+    if not families or any(not family for family in families):
+        return
+
+    def priority(indices: tuple[int, ...]) -> tuple[int, float, tuple[int, ...]]:
+        chosen = [family[index] for family, index in zip(families, indices, strict=True)]
+        return (-sum(score for score, _ in chosen),
+                sum(candidate.expert.manifest.cost for _, candidate in chosen), indices)
+
+    initial = (0,) * len(families)
+    pending, seen = [priority(initial)], {initial}
+    for step in range(limit):
+        if not pending:
+            break
+        _, _, indices = heappop(pending)
+        yield tuple(family[index][1] for family, index in zip(families, indices, strict=True))
+        if step + 1 == limit:
+            return
+        for axis, family in enumerate(families):
+            if indices[axis] + 1 >= len(family):
+                continue
+            neighbor = indices[:axis] + (indices[axis] + 1,) + indices[axis + 1:]
+            if neighbor not in seen:
+                seen.add(neighbor)
+                heappush(pending, priority(neighbor))
+
+
 def propose_regional_experts(incumbent: Module, feature: Module,
         propose: Callable[[Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Proposal]],
         rows: Sequence[tuple[Any, ...]], labels: Sequence[Any],
@@ -65,8 +94,10 @@ def propose_regional_experts(incumbent: Module, feature: Module,
     becomes a separate whole-task candidate for discover's independent selection.
     Models, row payloads and feature keys must remain stable. No active library,
     saved package or risk certificate is changed by this in-memory proposal step.
-    max_combinations optionally adds a bounded Cartesian prefix over all trainable
-    selected regions (§36.30); this is not exhaustive region-subset search.
+    max_combinations optionally adds a training-ranked Cartesian prefix over all
+    trainable selected regions (§36.31), not exhaustive region-subset search.
+    Scoring uses original regional training targets only; ties prefer lower
+    declared cost then stable family order. Held-out selection remains separate.
     """
     if type(max_combinations) is not int or max_combinations < 0:
         raise ValueError("combination budget must be a nonnegative integer")
@@ -100,7 +131,13 @@ def propose_regional_experts(incumbent: Module, feature: Module,
             proposals.append(Proposal(expert, candidate.constructors))
     if len(alternatives) > 1 and max_combinations:
         keys = tuple(key for key, _ in alternatives)
-        for choice in islice(product(*(family for _, family in alternatives)), max_combinations):
+        ranked = []
+        for key, family in alternatives:
+            scores = [(sum(bool(correct(candidate.expert.invoke(*rows[i]), labels[i]))
+                           for i in groups[key]), candidate) for candidate in family]
+            scores.sort(key=lambda item: (-item[0], item[1].expert.manifest.cost))
+            ranked.append(scores)
+        for choice in _ranked_combinations(ranked, max_combinations):
             policy = RegionalPolicy(incumbent, feature,
                                      dict(zip(keys, (c.expert for c in choice), strict=True)),
                                      overhead_cost)

@@ -1,0 +1,110 @@
+# 36. Regional expert acquisition
+
+Continuation of [Acquiring experts](36-acquisition.md); section numbers remain stable.
+
+## 36.26 Failure-directed regional expert acquisition
+
+Group training rows by a supplied routing feature's stable hashable keys. Rank
+regions by incumbent error count, with first-observed order breaking ties, and
+invoke a supplied expert proposer on at most the caller's region budget among
+regions with errors. Give each proposer all training rows/targets in its region,
+including successful controls. Its experts must preserve the external contract;
+constructor declarations are carried into the resulting proposals.
+
+A regional proposal evaluates the routing feature and invokes the acquired
+expert only on its selected key; elsewhere it invokes the incumbent. For pure
+stable mathematical functions the resulting output equals the incumbent outside
+the selected region. Lean proves this conditional noninterference statement.
+It does not prove effectful execution unchanged, proposer generalization, or
+optimal budget allocation. Targets need not be categorical/hashable: the caller
+supplies the correctness predicate and training family. Independent whole-task
+outcomes, including the unaffected regions, select the frozen candidates.
+Metadata conservatively includes both branches and the routing feature; no
+inference call-count or effect declaration is invented. Proposals are currently
+in-memory, without a new persistence or calibration claim.
+
+## 36.27 Acquiring routing boundaries from training failures
+
+From training rows and a caller-supplied correctness predicate, form incumbent
+failure indicators. Fit a scalar measurement partition to those indicators
+using the existing empirical threshold objective; its generated interface
+becomes the routing feature for §36.26. Then train regional specialists using
+the original task targets, never the auxiliary failure indicators. Targets
+need not be categorical. Measurement and region budgets remain explicit.
+
+Constant failure indicators supply no error contrast, so this proposal family
+returns nothing; constant measurements also yield no split. This is a limited
+scalar routing family, not evidence that no decomposition exists. If a learned
+router perfectly matches failure indicators on the training list, it covers
+every failed training row; Lean proves this conditional finite-data statement.
+No held-out coverage, actual perfect alignment, arbitrary feature discovery or
+optimal allocation is implied. A generated partition may be imperfect, so
+whole-task independent selection remains essential. The routing type and the
+specialist's new constructors travel together in each in-memory proposal.
+
+## 36.28 Multi-interval failure routing and refinement ties
+
+A routing-region budget allows the same greedy interval refinement as §36.14
+to fit incumbent failure indicators, followed by §36.26 regional task training.
+A narrow internal error region can require two cuts although no single cut
+improves modal accuracy. Choosing the first tied boundary may waste the budget.
+An optional label-agnostic secondary score can choose among equally accurate
+cuts; weighted purity is `Σ labels left_count²/left_size + right_count²/right_size`.
+This is a supplied modeling preference, not domain knowledge or a global optimum.
+
+The primary score remains modal successes. For binary counts a,b in one child
+and c,d in another, `max(a+c,b+d) ≤ max(a,b)+max(c,d)`; Lean proves this integer
+refinement bound without a premise about chosen modal labels. It does not prove
+that executable histograms are correct, that greedy ties find the best future
+cuts, or that held-out errors decrease. Empty/pure intervals and explicit region
+budgets retain their existing behavior. The original first-boundary tie rule
+remains the default. Independent whole-task outcomes must compare routing policies.
+
+## 36.29 Retaining regional wiring
+
+A regional model stores its selected structural key, dispatch overhead, and
+three explicit content references/export positions: incumbent, routing feature,
+and specialist. Verify each original binding before snapshotting; reconstruct
+the runtime from lazy dependency scopes, with metadata recomputed from those
+components. Model identity includes the key and dependency references so distinct
+regional wirings do not share an artifact identity. Key encoding uses the
+existing finite scalar/tuple codec; unsupported keys fail explicitly.
+
+If restored routing and both restored branches agree with their original
+functions, the restored regional function agrees everywhere. Lean proves this
+conditional branch-composition statement with an unchanged key. It does not
+verify key codecs, Python factories, effectful execution, or content-addressed
+code fidelity. No training rows, external implementations, calibration claims,
+or independent-selection evidence are silently embedded in this parameter record.
+
+## 36.30 Combining disjoint regional specialists
+
+A regional policy maps stable routing keys to contract-preserving experts,
+evaluates the feature once, and delegates missing keys to the incumbent.
+An explicit combination budget enumerates a bounded prefix of the Cartesian
+product of trained alternatives across trainable selected regions, alongside
+single-region candidates; it does not search all region subsets. Whole-task
+independent selection remains required. Costs/calls conservatively cover all
+branches. Lean proves pure output preservation for missing keys, not gains,
+optimal enumeration, or executable fidelity. Parameter artifacts retain the
+ordered keys and verified dependencies; unsupported structural keys fail.
+
+## 36.31 Training-ranked composition budgets
+
+For each trainable region, score every frozen alternative on that region's
+training rows and original targets. Sort by descending successes, ascending
+declared cost, then original order. Since regions are disjoint and incumbent
+behavior outside them is fixed, the composition's training successes are a
+constant plus the sum of regional successes. Thus choosing each regional
+maximum maximizes that sum; Lean proves this conditional finite-sum bound.
+It does not prove the executable scorer, heap enumeration, or generalization.
+
+A best-first Cartesian frontier starts at the regional maxima and advances one
+choice index at a time. Monotone local ordering allows enumeration by total
+successes, then total cost, then choice positions, without materializing the
+whole product. Retain at most the explicit composition budget; each popped
+state generates at most the number of trainable regions in neighbors, with
+visited states deduplicated. Initial scoring still costs all alternatives on
+their regional training rows. Only subsequent independent outcomes justify
+promotion; training maxima and a limited frontier do not imply best held-out
+performance or exhaustive subset/representation search.

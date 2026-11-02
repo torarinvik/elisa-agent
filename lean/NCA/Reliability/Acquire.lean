@@ -244,4 +244,11 @@ theorem regional_policy_missing {X Y K : Type*} (incumbent : X → Y) (feature :
     (match experts (feature x) with | none => incumbent x | some f => f x) = incumbent x := by
   rw [missing]
 
+/-- Independent regional training maxima maximize their summed training score.
+Scoring, heap enumeration and held-out generalization remain unproved. -/
+theorem regional_training_maxima {I : Type*} (regions : Finset I) (best other : I → ℕ)
+    (maximal : ∀ i ∈ regions, other i ≤ best i) :
+    ∑ i ∈ regions, other i ≤ ∑ i ∈ regions, best i := by
+  exact Finset.sum_le_sum maximal
+
 end NCA

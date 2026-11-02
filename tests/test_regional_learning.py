@@ -224,3 +224,43 @@ def test_combination_budget_limits_cartesian_prefix() -> None:
     assert len(proposals) == 6  # Four singles plus two of four possible combinations.
     assert [proposals[-2].expert.invoke(x) for x in (-1, 1)] == [1, 2]
     assert [proposals[-1].expert.invoke(x) for x in (-1, 1)] == [1, 3]
+
+
+def test_ranked_product_matches_exhaustive_small_family_order() -> None:
+    from itertools import product
+
+    from nca.regional_learning import _ranked_combinations
+
+    families = []
+    for axis, values in enumerate([[(8, 1.0), (5, 0.5)],
+                                   [(7, 2.0), (7, 3.0), (2, 0.0)],
+                                   [(4, 0.0), (1, 2.0)]]):
+        families.append([(score, Proposal(Expert(Manifest(f"{axis}-{i}", "1", CONTRACT, cost=cost),
+                                                 lambda x: x)))
+                         for i, (score, cost) in enumerate(values)])
+    positions = list(product(*(range(len(family)) for family in families)))
+    positions.sort(key=lambda indices: (
+        -sum(families[i][j][0] for i, j in enumerate(indices)),
+        sum(families[i][j][1].expert.manifest.cost for i, j in enumerate(indices)), indices))
+    expected = [tuple(families[i][j][1] for i, j in enumerate(indices)) for indices in positions]
+    assert list(_ranked_combinations(families, 100)) == expected
+    assert list(_ranked_combinations(families, 3)) == expected[:3]
+    assert list(_ranked_combinations([], 3)) == []
+
+
+def test_combination_budget_prefers_training_supported_choices_over_trainer_order() -> None:
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    feature = Expert(Manifest("feature", "1", replace(CONTRACT, output="key")), lambda x: x >= 0)
+    seen = []
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        seen.append(tuple(targets))
+        good = Expert(Manifest("good", "1", CONTRACT), lambda x, value=targets[0]: value)
+        return [Proposal(incumbent), Proposal(good)]
+
+    proposals = propose_regional_experts(incumbent, feature, acquire,
+                [(-2,), (-1,), (1,), (2,)], [1, 1, 2, 2], lambda a, b: a == b,
+                max_regions=2, overhead_cost=0, max_combinations=1)
+    assert seen == [(1, 1), (2, 2)]
+    assert len(proposals) == 5
+    assert [proposals[-1].expert.invoke(x) for x in (-3, 3)] == [1, 2]
