@@ -721,9 +721,13 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             edge: i64 = choice[(m - step) * states + state]
             decoded[m - step - 1] <- alphabet[edge % width]
             state <- edge / width
-    backward: darray[f64] =
-        for step in 0..<m |backward: darray[f64] = [final[i - m * states] if i >= m * states else log(0.0) for i in 0..<((m + 1) * states)]| -> backward:
+    marginals: darray[darray[f64]] =
+        for step in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m], backward: darray[f64] = [final[i - (m % 2) * states] if i / states == m % 2 else unreachable for i in 0..<(2 * states)]| -> result:
             k: i64 = m - 1 - step
+            here: i64 = (k % 2) * states
+            next: i64 = ((k + 1) % 2) * states
+            for state in 0..<states |backward|:
+                backward[here + state] <- unreachable
             for state in 0..<states |backward|:
                 continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |backward|:
@@ -732,13 +736,11 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     continue if target < 0
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
-                    suffix: f64 = backward[(k + 1) * states + target]
+                    suffix: f64 = backward[next + target]
                     continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
                     through: f64 = (reading + edge_weight) + suffix
                     return null if through == unreachable or through == -unreachable
-                    backward[k * states + state] <- log_add(backward[k * states + state], through)
-    marginals: darray[darray[f64]] =
-        for k in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m]| -> result:
+                    backward[here + state] <- log_add(backward[here + state], through)
             for j in 0..<width |result|:
                 marginal: f64 =
                     for state in 0..<states |total: f64 = 0.0| -> total:
@@ -748,7 +750,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                         continue if target < 0
                         reading: f64 = log_probs[k * width + j]
                         edge_weight: f64 = prior[edge]
-                        suffix: f64 = backward[(k + 1) * states + target]
+                        suffix: f64 = backward[next + target]
                         continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
                         first: f64 = forward[k * states + state] + reading
                         return null if first == unreachable or first == -unreachable
