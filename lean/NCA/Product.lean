@@ -233,6 +233,11 @@ theorem prior_selection_regret {best chosen reportedBest reportedChosen ε : ℝ
   have hc := (abs_le.mp hchosen).1
   linarith
 
+/-- The half-scaled priority test is equivalent over exact real arithmetic. -/
+theorem prior_selection_half_gap (best score error : ℝ) :
+    best - score ≤ 2 * error ↔ best / 2 - score / 2 ≤ error := by
+  constructor <;> intro h <;> linarith
+
 /-- Clipping a real evidence score supplies the deterministic bounded range. -/
 theorem clipped_evidence_bounds {x B : ℝ} (hB : 0 ≤ B) :
     -B ≤ max (-B) (min B x) ∧ max (-B) (min B x) ≤ B := by
