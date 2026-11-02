@@ -55,15 +55,27 @@ samples for a purity check is invoked and charged as usual, and its fresh
 output is used (§32.3). Only results the expert returned directly are
 stored; one that raised requests depends on how the kernel resolved them,
 not only on the inputs.
+
+With a ``RiskLedger`` (§33), every relevant invocation's reported risk is
+added to the ledger. Relevance follows the decision demand, propagated from
+the answer through each expert's ``decides`` rule (or its ``demand`` rule)
+alongside the read demand: an invocation no decision depends on adds
+nothing (§31.6). An expert reports through ``risk(output)`` (``None`` for
+no report), one the ledger's ``exact`` predicate accepts adds nothing, and
+any other is recorded as uncertified. An expert with ``accounts_inside`` (a package's export) runs
+its own route on the same ledger, which ``execute`` makes the current one
+for nested executions, so it adds nothing itself and is never served from
+the cache while a ledger is kept.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Generator, Sequence
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol
 
-from nca.abi import NOTHING, Demand, Message, Request, SequenceDemand, TypeId
+from nca.abi import NOTHING, Demand, Message, Module, Request, SequenceDemand, TypeId
 from nca.cache import ResultCache, value_digest
 from nca.planner import Given, Map, Plan, output_type
 from nca.workspace import Workspace
@@ -93,6 +105,28 @@ class Pending:
     chain: tuple[str, ...]
 
 
+def _never(module: Module) -> bool:
+    return False
+
+
+@dataclass
+class RiskLedger:
+    """The per-input charge of one execution (§33.2)."""
+
+    exact: Callable[[Module], bool] = _never
+    """Experts charged nothing without reporting, such as attested exact ones."""
+    charge: float = 0.0
+    uncertified: list[str] = field(default_factory=list)
+    """Experts invoked without a reported risk, by module id."""
+
+    @property
+    def certified(self) -> bool:
+        return not self.uncertified
+
+
+_LEDGER: ContextVar[RiskLedger | None] = ContextVar("nca_risk_ledger", default=None)
+
+
 class Filling:
     """A slot's plan as a function of the slot's inputs, run by the kernel."""
 
@@ -113,6 +147,7 @@ def execute(
     resolver: Resolver | None = None,
     cost_budget: float | None = None,
     cache: ResultCache | None = None,
+    ledger: RiskLedger | None = None,
 ) -> Message:
     """Run ``plan``; each module invocation, including each element of a
     ``Map``, costs one budget unit, and with ``cost_budget`` also its
@@ -122,6 +157,7 @@ def execute(
     On failure the workspace is rolled back to its state before execution.
     """
     snapshot = workspace.snapshot()
+    ledger = ledger if ledger is not None else _LEDGER.get()
     remaining = budget
     funds = cost_budget
 
@@ -144,7 +180,7 @@ def execute(
         return Filling(call, outer)
 
     def run(node: Plan, env: Sequence[Message], chain: tuple[str, ...],
-            demand: Demand = None) -> Message:
+            demand: Demand = None, decision: Demand = None) -> Message:
         nonlocal remaining, funds
         if isinstance(node, Given):
             if (node.position is not None and node.position < len(env)
@@ -160,10 +196,13 @@ def execute(
                 workspace.post(element)
                 element_demand = (demand.element(i, length)
                                   if isinstance(demand, SequenceDemand) else demand)
+                element_decision = (decision.element(i, length)
+                                    if isinstance(decision, SequenceDemand) else decision)
                 if element_demand == NOTHING:
                     results.append(unread(node.body))
                 else:
-                    results.append(force(run(node.body, (element,), chain, element_demand)))
+                    results.append(force(run(node.body, (element,), chain, element_demand,
+                                             element_decision)))
             result = Message(
                 type_id=output_type(node),
                 payload=[r.payload for r in results],
@@ -173,10 +212,13 @@ def execute(
             workspace.post(result)
             return result
         declare = getattr(node.module, "demand", None)
+        decides = getattr(node.module, "decides", None) or declare
         args = []
         for i, arg in enumerate(node.args):
             arg_demand = declare(i, demand) if declare is not None else None
-            args.append(unread(arg) if arg_demand == NOTHING else run(arg, env, chain, arg_demand))
+            arg_decision = decides(i, decision) if decides is not None else None
+            args.append(unread(arg) if arg_demand == NOTHING
+                        else run(arg, env, chain, arg_demand, arg_decision))
         relevant = getattr(node.module, "relevant", None)
         provisional = [a.payload.request.provisional if isinstance(a.payload, Pending)
                        else a.payload for a in args]
@@ -196,6 +238,7 @@ def execute(
         if key is not None:
             hit, stored = cache.lookup(key)
             if hit and not cache.sample():
+                account(node.module, stored, decision)
                 result = Message(contract.output, stored, f"{manifest.ref}+cache", parents)
                 workspace.post(result)
                 return result
@@ -225,12 +268,26 @@ def execute(
                     f"{manifest.ref} requested {payload.type_id}, not its output {output}")
             pending = Pending(payload, manifest.module_id, manifest.ref, output, parents, chain)
             return Message(output, pending, manifest.ref, parents)
+        account(node.module, payload, decision)
         result = Message(contract.output, payload, manifest.ref, parents)
         workspace.post(result)
         return result
 
+    def account(module: Module, payload: Any, decision: Demand) -> None:
+        if (ledger is None or decision == NOTHING
+                or getattr(module, "accounts_inside", False)):
+            return
+        report = getattr(module, "risk", None)
+        reported = None if report is None else report(payload)
+        if reported is not None:
+            ledger.charge += reported
+        elif not ledger.exact(module):
+            ledger.uncertified.append(module.manifest.module_id)
+
     def cache_key(node: Plan, args: Sequence[Message]) -> tuple[Any, ...] | None:
         identity = getattr(node.module, "identity", None)
+        if ledger is not None and getattr(node.module, "accounts_inside", False):
+            return None
         if (cache is None or identity is None or node.slots
                 or node.module.manifest.effects != frozenset()):
             return None
@@ -281,6 +338,7 @@ def execute(
         return result
 
     given = tuple(inputs.values()) if isinstance(inputs, Mapping) else tuple(inputs)
+    token = _LEDGER.set(ledger)
     try:
         for message in given:
             if message.message_id not in workspace:
@@ -289,6 +347,8 @@ def execute(
     except Exception:
         workspace.rollback(snapshot)
         raise
+    finally:
+        _LEDGER.reset(token)
 
 
 def attempt(

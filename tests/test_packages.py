@@ -10,13 +10,13 @@ import torch
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
 from nca.evidence import (benchmark, error_bound, evaluation, exact, rates, route_bound,
-                          route_risk)
+                          route_risk, answer_within)
 from nca.optimize import cheapest_within, plan_pareto
-from nca.ladder import CALIBRATION, Rung, attested, calibration
+from nca.ladder import CALIBRATION, Calibrated, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
 from nca.packages import GROUP, Export, discover, install
 from nca.planner import Apply, plan_stable
-from nca.runtime import execute
+from nca.runtime import RiskLedger, execute
 from nca.workspace import Workspace
 
 TEXT = "text.v1"
@@ -376,3 +376,52 @@ def test_route_bounds_spend_confidence_by_invocations_and_skip_exact_experts() -
     assert tighter == pytest.approx(reader_alone) and tighter < audited
     del benches[world[0].identity]
     assert route_bound(route, store, benches, {"lab"}, 0.05, length=5) is None
+
+
+class Reporting(Expert):
+    """Counts letters and reports a risk that grows with the word's length."""
+
+    def risk(self, output: int) -> float:
+        return 0.01 * output
+
+
+def reporting() -> Reporting:
+    return Reporting("count-letters", [WORD], INT, [])
+
+
+def test_the_ledger_charges_reported_risks_through_packages() -> None:
+    store = Store()
+    reader = store.put(Primitive(reporting().manifest, f"{__name__}:reporting"))
+    world = install(store, store.put(Composite("world", "1", (reader, counting_package(store)))))
+    route = plan_stable(world, (TEXT,), INT)
+    inner = route.module.library
+    exact_ids = {m.manifest.module_id for m in inner} - {"count-letters"}
+
+    def exact_module(module: Any) -> bool:
+        return module.manifest.module_id in exact_ids
+
+    text = [Message(TEXT, "ab cde f", "input")]
+    answer, ledger = answer_within(route, text, 0.1, exact_module)
+    assert answer == 6 and ledger.charge == pytest.approx(0.06) and ledger.certified
+    assert answer_within(route, text, 0.05, exact_module)[0] is None
+    abstained, unaccounted = answer_within(route, text, 1.0)
+    assert abstained is None and set(unaccounted.uncertified) == {"split", "sum"}
+    # A cached export is not served while a ledger is kept: its route must charge.
+    cache = ResultCache()
+    execute(route, text, Workspace(), 10, cache=cache)
+    kept = RiskLedger(exact_module)
+    execute(route, text, Workspace(), 10, cache=cache, ledger=kept)
+    assert kept.charge == pytest.approx(0.06)
+
+
+def test_calibrated_experts_report_their_calibrated_risk() -> None:
+    store = Store()
+    (expert,) = install(store, store.put(Primitive(make("over", ["x"], "dist").manifest, ENTRY,
+                                                   {"name": "over", "inputs": ["x"],
+                                                    "output": "dist"})))
+    rung = Rung(expert)
+    rung.calibrate([0] * 10, torch.tensor([1] * 7 + [0] * 3))
+    calibrated = Calibrated(rung)
+    reading = calibrated.invoke(0)
+    assert reading[1] == pytest.approx(0.7, abs=0.02)
+    assert calibrated.risk(reading) == pytest.approx(1 - reading[1])

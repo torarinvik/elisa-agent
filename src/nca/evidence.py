@@ -23,15 +23,17 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from nca.abi import NOTHING, Demand, Module, SequenceDemand
+from nca.abi import NOTHING, Demand, Message, Module, SequenceDemand
 from nca.cache import Checks, value_digest
 from nca.objects import Attestation, Ref, Store
 from nca.packages import Export, Requirement, Upcast, charge
 from nca.optimize import slot_calls
 from nca.planner import Apply, Given, Map, Plan
 from nca.router import sign_test
+from nca.runtime import Resolver, RiskLedger, execute
 from nca.stats import clopper_pearson_upper, family_audit_alpha
 from nca.trust import Trust
+from nca.workspace import Workspace
 
 EVALUATION = "evaluation"
 
@@ -304,3 +306,24 @@ def route_bound(plan: Plan, store: Store, benches: Mapping[str, Ref], issuers: I
             return None
         bounds[identity] = bound
     return route_risk(plan, rates(bounds, length), length)
+
+
+def exact_by(store: Store, issuers: Issuers) -> Callable[[Module], bool]:
+    """Whether a module has an accepted ``exact`` attestation, for a
+    ``RiskLedger``."""
+    def exact_module(module: Module) -> bool:
+        identity = getattr(module, "identity", None)
+        return identity is not None and _attested_exact(store, identity, issuers)
+
+    return exact_module
+
+
+def answer_within(plan: Plan, inputs: Sequence[Message], delta: float,
+                  exact: Callable[[Module], bool] | None = None, budget: int = 10_000,
+                  resolver: Resolver | None = None) -> tuple[Any, RiskLedger]:
+    """Execute ``plan`` on a risk ledger and give its answer only if every
+    invoked expert reported its risk (or is ``exact``) and the total is at
+    most ``delta``; otherwise ``None``, an abstention (Theorem 33.2)."""
+    ledger = RiskLedger() if exact is None else RiskLedger(exact)
+    answer = execute(plan, inputs, Workspace(), budget, resolver, ledger=ledger).payload
+    return (answer if ledger.certified and ledger.charge <= delta else None), ledger

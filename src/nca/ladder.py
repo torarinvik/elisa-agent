@@ -39,6 +39,10 @@ over fixed items is a floor (``additive_floor``). A *stopping rule* may
 abstain earlier still, from the state of refinement; it trades coverage for
 compute and never affects the answers given.
 
+``Calibrated`` installs a rung as an expert that outputs its calibrated
+distribution and reports the risk of deciding by it, so any route can
+charge it per input (§33).
+
 A rung's temperatures are evidence about its expert, not part of it:
 ``calibration`` states them as an attestation about the expert's reference,
 and ``attested`` reads one back into a rung (§28.4).
@@ -1620,6 +1624,22 @@ def recalibrated(rungs: Sequence[Rung], values: Sequence[Any], labels: torch.Ten
     for rung in copies:
         rung.calibrate(values, labels)
     return copies
+
+
+class Calibrated:
+    """An expert read through its rung (§33.1): it outputs the calibrated
+    distribution and reports ``1 - max p``, the risk of deciding by it,
+    which bounds the risk of every restricted decision (Theorem 16.4)."""
+
+    def __init__(self, rung: Rung) -> None:
+        self.rung = rung
+        self.manifest = rung.module.manifest
+
+    def invoke(self, value: Any) -> tuple[float, ...]:
+        return tuple(self.rung.reading(self.rung.observe(value)).tolist())
+
+    def risk(self, output: Sequence[float]) -> float:
+        return risk(torch.tensor(output, dtype=torch.float64))
 
 
 CALIBRATION = "calibration"

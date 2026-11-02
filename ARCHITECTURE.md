@@ -44,6 +44,7 @@ run the Python tests with `uv run pytest`.
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 | [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
 | [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
+| [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -322,6 +323,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [31.5](theory/31-composing-uncertainty.md) | `risk_le_charges` on relevant counts, with `DemandSound.exact` | `Risk`, `Demand` |
 | [32.1](theory/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/32-trust.md) | `undetected_le_exp` | `Spot` |
+| [33.1](theory/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
+| [33.2](theory/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
 
 ## Native kernels
 
@@ -1758,3 +1761,20 @@ each expert's checks and mismatches, skipping outputs without a canonical
 encoding. `evidence.purity` states those counts as a `purity` attestation,
 and `evidence.refuted` reports whether an accepted one shows a mismatch, so
 a deployment can start a cache with `refuted` filled from others' evidence.
+
+## 33. Per-input risk on any route
+
+`execute(..., ledger=RiskLedger(exact))` keeps the per-input charge of
+§33. Alongside the read demand the runtime propagates a decision demand
+from the answer through each expert's `decides` rule, or its `demand`
+rule; each invocation whose decision demand is not empty adds its
+`risk(output)` report, adds nothing if `exact(module)` holds, and is
+otherwise recorded in `uncertified`. The ledger is also the current one in
+a context variable, so an `Export` (`accounts_inside`) runs its route on
+it and is not served from the result cache while a ledger is kept; its
+`Requirement`s and `Upcast`s report 0, and installed experts forward their
+implementation's `risk`. `ladder.Calibrated(rung)` is an expert that
+outputs a rung's calibrated distribution and reports `1 − max p`.
+`evidence.answer_within(plan, inputs, δ, exact)` answers only when the
+ledger is certified and at most `δ`, and `evidence.exact_by(store,
+issuers)` is an `exact` predicate from accepted exactness attestations.

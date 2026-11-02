@@ -59,6 +59,10 @@ class Requirement:
                                  cost=0.0)
         self._fillings: list[Callable[..., Any]] = []
 
+    def risk(self, output: Any) -> float:
+        """Its filling's invocations are charged where they run (§33)."""
+        return 0.0
+
     def invoke(self, *values: Any) -> Any:
         if not self._fillings:
             raise RuntimeError(f"{self.manifest.module_id} invoked outside its composite")
@@ -79,6 +83,9 @@ class Upcast:
             Contract((constructor.type(*arguments),),
                      format_type(App(refined, tuple(parse_type(a) for a in arguments)))),
             cost=0.0, effects=frozenset())
+
+    def risk(self, output: Any) -> float:
+        return 0.0
 
     def invoke(self, value: Any) -> Any:
         return value
@@ -112,6 +119,9 @@ def _affine(count: Callable[[int], float]) -> Calls | None:
 
 class Export:
     """One exported contract of a composite, as an expert of the outer scope."""
+
+    accounts_inside = True
+    """Its route runs on the caller's risk ledger (§33)."""
 
     def __init__(self, composite: Composite, index: int, members: Sequence[Module], *,
                  budget: int = 10_000, length: int = 1) -> None:
@@ -174,9 +184,10 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
 
     Primitives become lazy experts in ``experts`` (a fresh unbounded store by
     default), each with its reference as identity, so a primitive shared by
-    several composites is one expert. Their demand and relevance rules are
-    the implementation's, read when the planner first asks (loading it);
-    without one, everything is demanded and relevant. ``budget`` bounds the
+    several composites is one expert. Their demand and relevance rules and
+    risk reports are the implementation's, read when first asked (loading
+    it); without a rule, everything is demanded and relevant, and without a
+    report the risk is unreported. ``budget`` bounds the
     invocations of one call of an export, and ``length`` is the sequence
     length at which exports declare their cost.
     """
@@ -191,6 +202,7 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
             expert = LazyExpert(obj.manifest, obj.load, obj.size, experts, identity=node)
             expert.demand = _forward(expert, "demand", None)
             expert.relevant = _forward(expert, "relevant", True)
+            expert.risk = _forward(expert, "risk", None)
             made[node] = expert
         return made[node]
 
