@@ -748,6 +748,31 @@ def test_partition_cursor_matches_full_sparse_automata() -> None:
                                        prior.partition(rows, selected), atol=1e-12)
 
 
+@pytest.mark.parametrize("width", [3, 16, 64])
+@pytest.mark.parametrize("pattern", ["sparse", "sparse_sampled", "dense"])
+def test_partition_cursor_sparse_reading_columns_match_full_partition(width, pattern) -> None:
+    from nca.partition import PartitionCursor
+
+    rng = np.random.default_rng(213 + width)
+    states, length = 8, 12
+    transitions = rng.integers(0, states, size=(states, width), dtype=np.int64)
+    prior = priors.ArityPrior(tuple(range(width)), transitions,
+                              rng.normal(size=(states, width)), np.zeros(states))
+    rows = rng.normal(size=(length, width))
+    if pattern != "dense":
+        rows[rng.random(rows.shape) < 0.9] = -np.inf
+        rows[:, 0] = -1.0
+        if pattern == "sparse_sampled":
+            rows[:, width // 2] = -1.0
+            rows[:, -1] = -1.0
+    selected = (0,) * length
+    cursor = PartitionCursor(prior)
+    for k in (0, 7, 3, 11):
+        rows[k, 0] -= 0.1
+        np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected),
+                                   rtol=1e-12, atol=1e-12)
+
+
 def test_partition_cursor_clears_old_gapped_envelopes() -> None:
     from nca.partition import PartitionCursor
 

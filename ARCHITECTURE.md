@@ -1269,7 +1269,11 @@ Restricted-risk cache entries are also cleared when the risk callback source
 changes; adapters preserve that callback's source identity across calls.
 For changed readings, `PartitionCursor` retains prefix summaries and recomputes
 from the first changed row or selected arity. The Elisa kernel performs the
-numeric update; without it, or when the estimated cache exceeds 64 MiB by
+numeric update. For sufficiently wide rows that appear sparse, it gathers
+finite reading columns once per row and reuses them across source states;
+their original order is retained. `sum_filter_zero_readings` proves the
+corresponding real-arithmetic sum identity, not the floating-point code.
+Without the kernel, or when the estimated cache exceeds 64 MiB by
 default, the cursor uses the rolling full partition. The limit is configurable;
 the estimate includes the immutable alphabet-membership set used by the cache.
 Selected symbols use the same exact native encoding as the full partition;

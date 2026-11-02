@@ -41,6 +41,7 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
     states: i64 = final.len.i64()
     m: i64 = selected.len.i64()
     unreachable: f64 = log(0.0)
+    active: mutable darray[i64] = [0 for _ in 0..<width]
     for k in start..<m:
         here: i64 = k * states
         next: i64 = (k + 1) * states
@@ -53,11 +54,22 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
         high: i64 = match_state if match_weight != unreachable and match_state > bounds[k * 2 + 1] else bounds[k * 2 + 1]
         bounds[(k + 1) * 2] <- states
         bounds[(k + 1) * 2 + 1] <- -1
+        # Sampling selects an optimization only; every column remains eligible.
+        filtered: bool = width >= 16 and high > low and (log_probs[k * width + width / 2] == unreachable or log_probs[k * width + width - 1] == unreachable)
+        active_count: i64 =
+            if filtered:
+                for j in 0..<width |count: i64 = 0, active| -> count:
+                    if log_probs[k * width + j] != unreachable:
+                        active[count] <- j
+                        count += 1
+            else:
+                width
         for state in low..<(high + 1):
             source: f64 = alternatives[here + state]
             same: bool = state == match_state and match_weight != unreachable
             continue if source == unreachable and not same
-            for j in 0..<width:
+            for index in 0..<active_count:
+                j: i64 = active[index] if filtered else index
                 edge: i64 = state * width + j
                 target: i64 = transitions[edge]
                 continue if target < 0

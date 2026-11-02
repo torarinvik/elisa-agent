@@ -20,6 +20,17 @@ the one-state prior of weight 1 it is the format-only program (`pdpSum_unit`).
 
 namespace NCA
 
+/-- Dropping zero reading weights preserves an ordered weighted sum. -/
+theorem sum_filter_zero_readings {α : Type} (symbols : List α) (reading factor : α → ℝ) :
+    ((symbols.filter fun a => reading a ≠ 0).map fun a => reading a * factor a).sum =
+      (symbols.map fun a => reading a * factor a).sum := by
+  classical
+  induction symbols with
+  | nil => simp
+  | cons a rest ih =>
+    simp only [ne_eq, decide_not] at ih
+    by_cases h : reading a = 0 <;> simp [h, ih]
+
 section Product
 
 variable {σ τ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)

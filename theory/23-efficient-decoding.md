@@ -413,6 +413,8 @@ In the log semiring, an unreachable state or zero-weight transition has
 weight `−∞` and contributes nothing to a sum or maximum. The cursor may
 skip those contributions, and may insert the first finite contribution
 directly, without changing the real-arithmetic recurrence.
+Filtering zero-reading symbols once per row also preserves an ordered sum over
+symbols, so the same nonzero column list can be reused across source states.
 The cursor also intersects each row's band with the format decoder's
 arity-dependent prefix reachability bound from §21.4. Later row updates
 cannot make a state beyond that bound reachable.
