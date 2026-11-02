@@ -158,4 +158,22 @@ theorem symmetric_interaction_gap (a b : ℝ) (ha : 0 < a) (hb : 0 < b) :
   have h := mul_pos ha hb
   constructor <;> nlinarith
 
+/-- Moving a threshold inside an empty observed gap preserves outside comparisons. -/
+theorem gap_boundary_preserves (lower upper threshold x : ℝ)
+    (admitted : lower < threshold ∧ threshold ≤ upper)
+    (outside : x ≤ lower ∨ upper ≤ x) :
+    (threshold ≤ x) ↔ (upper ≤ x) := by
+  constructor
+  · intro h
+    rcases outside with left | right
+    · exfalso
+      linarith [admitted.1]
+    · exact right
+  · exact fun h => le_trans admitted.2 h
+
+/-- The exact real midpoint is admissible; this does not verify float rounding. -/
+theorem midpoint_inside_gap (lower upper : ℝ) (gap : lower < upper) :
+    lower < lower / 2 + upper / 2 ∧ lower / 2 + upper / 2 ≤ upper := by
+  constructor <;> linarith
+
 end NCA

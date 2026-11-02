@@ -439,3 +439,19 @@ region (§36.13). Even an exact learned interaction can therefore misclassify
 fresh points in that gap. Neither the expressivity witness nor training success
 establishes that this edge is the true boundary; boundary placement needs its
 own justified modeling choice or further observations.
+
+## 36.22 Boundary placement within an observed gap
+
+For adjacent distinct observations l<u, any threshold t with l<t≤u preserves
+all observed comparisons: if x≤l or u≤x then `(t≤x) ↔ (u≤x)`. Lean proves
+this gap-invariance statement over the reals. It does not identify the true
+boundary inside the gap. Threshold fitting may accept a supplied placement
+policy, checked to remain in that interval; the default remains the upper
+observed edge. Only the fitted threshold, not the callback, is retained.
+
+A midpoint policy chooses l/2+u/2 to avoid intermediate overflow, falling back
+to u when rounding fails to produce an interior float. Lean proves the exact
+real midpoint lies inside the gap, not floating-point midpoint accuracy.
+Midpoint placement expresses a modeling preference, not universally better
+extrapolation. Independent outcomes compare policies as distinct candidates;
+no held-out labels enter policy fitting or threshold placement.

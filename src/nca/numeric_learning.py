@@ -3,7 +3,7 @@
 import math
 from bisect import bisect_left, bisect_right
 from collections import Counter
-from collections.abc import Hashable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -16,6 +16,23 @@ def _observation(value: Any) -> float:
     if type(value) is not float or not math.isfinite(value):
         raise ValueError("numeric observations must be finite floats")
     return value
+
+
+def midpoint_boundary(lower: float, upper: float) -> float:
+    """Finite gap midpoint, falling back to the upper edge if rounding closes it."""
+    lower, upper = _observation(lower), _observation(upper)
+    if not lower < upper:
+        raise ValueError("boundary placement requires an increasing observed gap")
+    midpoint = lower / 2 + upper / 2
+    return midpoint if lower < midpoint <= upper else upper
+
+
+def _placed_boundary(lower: float, upper: float,
+                     policy: Callable[[float, float], float] | None) -> float:
+    boundary = upper if policy is None else _observation(policy(lower, upper))
+    if not lower < boundary <= upper:
+        raise ValueError("placed boundary must stay inside the observed gap (lower, upper]")
+    return boundary
 
 
 class PartitionEncoder:
@@ -38,13 +55,16 @@ class PartitionEncoder:
 
 def propose_partition(incumbent: Module, measurement: Module,
                       rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
-                      encoding_cost: float, decoder_cost: float) -> list[Proposal]:
+                      encoding_cost: float, decoder_cost: float,
+                      place_boundary: Callable[[float, float], float] | None = None) -> list[Proposal]:
     """Fit the empirical best observed threshold and two modal output labels.
 
     Use only training rows, e.g. inside discover's proposer. Labels are opaque
     hashable values; measurements are finite floats. Modal ties follow sorted
     observation order; boundary ties prefer the smallest value. Equal-valued
     observations are never split. A constant measurement yields no proposal.
+    An optional placement policy chooses within the selected empty gap (§36.22),
+    preserving training outcomes; the default is the upper observed edge.
     Sorting costs O(n log n); modal-count scans also depend on label cardinality.
     No persistence, calibration or unrestricted feature discovery is claimed.
     """
@@ -53,6 +73,9 @@ def propose_partition(incumbent: Module, measurement: Module,
     if best is None:
         return []
     boundary, lower_label, upper_label = best
+    if place_boundary is not None:
+        lower = next(value for value, _ in reversed(ordered) if value < boundary)
+        boundary = _placed_boundary(lower, boundary, place_boundary)
     encoder = PartitionEncoder(measurement, boundary, encoding_cost)
     decoder = Decoder(Contract((encoder.constructor.type(),), incumbent.manifest.contract.output),
                       {0: lower_label, 1: upper_label}, lower_label, decoder_cost)
@@ -116,12 +139,14 @@ class RegionsEncoder:
 
 def propose_regions(incumbent: Module, measurement: Module,
                     rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
-                    max_regions: int, encoding_cost: float, decoder_cost: float) -> list[Proposal]:
+                    max_regions: int, encoding_cost: float, decoder_cost: float,
+                    place_boundary: Callable[[float, float], float] | None = None) -> list[Proposal]:
     """Greedily refine numeric intervals using training data alone (§36.14).
 
     Pure intervals are not split. Zero-gain refinements remain eligible, up to
     the explicit region budget. This is not a globally optimal segmentation.
     Features remain fixed; modal scan costs depend on label cardinality.
+    Optional placement changes only thresholds inside empty observed gaps.
     """
     if type(max_regions) is not int or max_regions < 1:
         raise ValueError("maximum regions must be a positive integer")
@@ -146,7 +171,8 @@ def propose_regions(incumbent: Module, measurement: Module,
         index, middle = chosen
         start, end = regions[index]
         regions[index:index + 1] = [(start, middle), (middle, end)]
-    boundaries = tuple(values[start] for start, _ in regions[1:])
+    boundaries = tuple(_placed_boundary(values[start - 1], values[start], place_boundary)
+                       for start, _ in regions[1:])
     encoder = RegionsEncoder(measurement, boundaries, encoding_cost)
     table = {index: Counter(label for _, label in ordered[start:end]).most_common(1)[0][0]
              for index, (start, end) in enumerate(regions)}

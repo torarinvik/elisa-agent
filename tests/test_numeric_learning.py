@@ -80,3 +80,45 @@ def test_refinement_keeps_equal_measurements_together() -> None:
                                 encoding_cost=0, decoder_cost=0)[0]
     assert proposal.expert.invoke(1.0) == "a"
     assert proposal.expert.feature.boundaries == ()
+
+
+def test_gap_policy_preserves_training_predictions_and_changes_unseen_gap() -> None:
+    from nca.numeric_learning import midpoint_boundary, propose_regions
+
+    rows = [(-2.0,), (-2.0,), (-1.0,), (3.0,), (4.0,), (10.0,), (11.0,)]
+    labels = ["a", "a", "a", "b", "b", "c", "c"]
+    for regions in (False, True):
+        fit = propose_regions if regions else propose_partition
+        options = {"max_regions": 3} if regions else {}
+        edge = fit(Incumbent(), Measurement(), rows, labels,
+                   encoding_cost=0, decoder_cost=0, **options)[0]
+        midpoint = fit(Incumbent(), Measurement(), rows, labels,
+                       encoding_cost=0, decoder_cost=0, place_boundary=midpoint_boundary,
+                       **options)[0]
+        assert [edge.expert.invoke(*row) for row in rows] == [
+            midpoint.expert.invoke(*row) for row in rows]
+        assert edge.constructors != midpoint.constructors
+        assert edge.expert.invoke(2.0) != midpoint.expert.invoke(2.0)
+
+
+def test_gap_policy_rejects_training_changes_and_nonfinite_boundaries() -> None:
+    for boundary in (-1.0, 3.1, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            propose_partition(Incumbent(), Measurement(), [(-1.0,), (3.0,)], ["a", "b"],
+                              encoding_cost=0, decoder_cost=0,
+                              place_boundary=lambda lower, upper: boundary)
+
+
+def test_midpoint_float_extremes_and_adjacent_values() -> None:
+    import math
+    import sys
+
+    from nca.numeric_learning import midpoint_boundary
+
+    assert midpoint_boundary(-sys.float_info.max, sys.float_info.max) == 0.0
+    for lower, upper in [(1.0, math.nextafter(1.0, math.inf)),
+                         (0.0, math.ulp(0.0)), (-math.ulp(0.0), 0.0),
+                         (sys.float_info.max / 2, sys.float_info.max)]:
+        assert lower < midpoint_boundary(lower, upper) <= upper
+    with pytest.raises(ValueError):
+        midpoint_boundary(1.0, 1.0)

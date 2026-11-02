@@ -103,3 +103,24 @@ def test_nonlinear_decomposition_overcomes_equal_centroids() -> None:
     assert proposal.expert.invoke((0.3, -0.7)) is False
     assert proposal.expert.invoke((-0.8, -0.2)) is True
     assert proposal.expert.invoke((-0.8, 0.2)) is False
+
+
+def test_gap_policy_reaches_nonlinear_partition_without_runtime_callback() -> None:
+    from nca.numeric_learning import midpoint_boundary
+    from nca.projection_learning import propose_polynomial_partitions
+
+    calls = []
+
+    def placement(lower: float, upper: float) -> float:
+        calls.append((lower, upper))
+        return midpoint_boundary(lower, upper)
+
+    rows = [((s * 1.0, t * 1.0),) for s, t in ((1, 1), (-1, -1), (1, -1), (-1, 1))]
+    proposal = propose_polynomial_partitions(Baseline(), Measurement(), rows,
+                [True, True, False, False], degrees=(2,), max_terms=5, limit=1,
+                lifting_cost=0, projection_cost=0, encoding_cost=0, decoder_cost=0,
+                place_boundary=placement)[0]
+    assert len(calls) == 1
+    assert proposal.expert.invoke((0.2, -0.3)) is False
+    assert proposal.expert.invoke((0.2, 0.3)) is True
+    assert len(calls) == 1

@@ -2206,3 +2206,10 @@ basis enumeration; each lift has a generated constructor and delegates learning
 to the same projection/partition mechanism. The current artifacts are in-memory.
 `symmetric_interaction_gap` is an expressivity witness for a nonlinear coordinate
 with coincident original centroids, not an accuracy or extrapolation guarantee.
+
+Numeric partition/region fitting and projection acquisition accept an optional
+`place_boundary(lower, upper)` policy (§36.22). The result must remain within
+`(lower, upper]`, preserving training splits; only the fitted float is retained
+by existing encoder artifacts. `midpoint_boundary` is an opt-in policy with an
+upper-edge fallback for float rounding. `gap_boundary_preserves` proves the real
+comparison invariant and `midpoint_inside_gap` the exact real midpoint bound.

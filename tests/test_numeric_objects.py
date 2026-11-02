@@ -9,7 +9,7 @@ import pytest
 from nca.abi import Module
 from nca.discovery import train_tree
 from nca.loader import ExpertStore
-from nca.numeric_learning import propose_partition, propose_regions
+from nca.numeric_learning import midpoint_boundary, propose_partition, propose_regions
 from nca.numeric_objects import encoder_object, store_numeric_tree
 from nca.objects import Primitive, Store
 from nca.packages import install
@@ -27,7 +27,9 @@ def bind(module: Module) -> tuple[str, int]:
 
 
 @pytest.mark.parametrize("regions", [False, True])
-def test_encoder_artifacts_preserve_codes_and_types(tmp_path: Path, regions: bool) -> None:
+@pytest.mark.parametrize("midpoint", [False, True])
+def test_encoder_artifacts_preserve_codes_and_types(tmp_path: Path, regions: bool,
+                                                   midpoint: bool) -> None:
     store = Store()
     source = measurements(store)[0]
     rows = [((i / 40, 0.0),) for i in range(40)]
@@ -35,7 +37,8 @@ def test_encoder_artifacts_preserve_codes_and_types(tmp_path: Path, regions: boo
     propose = propose_regions if regions else propose_partition
     kwargs = {"max_regions": 3} if regions else {}
     encoder = propose(Baseline(), source, rows, labels, encoding_cost=0.125,
-                       decoder_cost=1, **kwargs)[0].expert.feature
+                       decoder_cost=1, place_boundary=midpoint_boundary if midpoint else None,
+                       **kwargs)[0].expert.feature
     store.put(encoder.constructor)
     obj = encoder_object(store, encoder, bind(source), size=32)
     assert obj.ref == encoder_object(store, encoder, bind(source), size=32).ref

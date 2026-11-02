@@ -1,7 +1,7 @@
 """Supervised oblique intermediate interfaces from vector observations (§36.20)."""
 
 import math
-from collections.abc import Hashable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
 from itertools import combinations
 from typing import Any
@@ -41,7 +41,8 @@ class ProjectionEncoder:
 def propose_projections(incumbent: Module, measurement: Module,
                         rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
                         limit: int, projection_cost: float, encoding_cost: float,
-                        decoder_cost: float) -> list[Proposal]:
+                        decoder_cost: float,
+                        place_boundary: Callable[[float, float], float] | None = None) -> list[Proposal]:
     """Fit centroid-difference projections and threshold heads on training rows only.
 
     Target order determines budgeted pair order. No direction is proposed for
@@ -79,7 +80,8 @@ def propose_projections(incumbent: Module, measurement: Module,
             continue
         projection = ProjectionEncoder(measurement, direction, projection_cost)
         for proposal in propose_partition(incumbent, projection, rows, labels,
-                                         encoding_cost=encoding_cost, decoder_cost=decoder_cost):
+                                         encoding_cost=encoding_cost, decoder_cost=decoder_cost,
+                                         place_boundary=place_boundary):
             proposals.append(replace(proposal,
                                     constructors=(projection.constructor,) + proposal.constructors))
     return proposals
@@ -122,7 +124,9 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
                                   rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
                                   degrees: Sequence[int], max_terms: int, limit: int,
                                   lifting_cost: float, projection_cost: float,
-                                  encoding_cost: float, decoder_cost: float) -> list[Proposal]:
+                                  encoding_cost: float, decoder_cost: float,
+                                  place_boundary: Callable[[float, float], float] | None = None
+                                  ) -> list[Proposal]:
     """Propose polynomial decompositions using training observations only (§36.21).
 
     Caller-selected degrees define the search family; each degree gets at most
@@ -143,7 +147,7 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
                                  max_terms=max_terms, cost=lifting_cost)
         for proposal in propose_projections(incumbent, lift, rows, labels, limit=limit,
                 projection_cost=projection_cost, encoding_cost=encoding_cost,
-                decoder_cost=decoder_cost):
+                decoder_cost=decoder_cost, place_boundary=place_boundary):
             proposals.append(replace(proposal,
                                     constructors=(lift.constructor,) + proposal.constructors))
     return proposals
