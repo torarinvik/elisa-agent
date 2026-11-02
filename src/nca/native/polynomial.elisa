@@ -1,0 +1,20 @@
+# Ordered monomial products over caller-supplied coordinate-index terms.
+# Validate every packed range before accessing the coordinate buffer.
+def monomials(values: view[f64], offsets: view[i64], indices: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return [] if offsets.len.i64() == 0
+    count: i64 = offsets.len.i64() - 1
+    return [] if offsets[0] != 0 or offsets[count] != indices.len.i64()
+    for term in 0..<count:
+        return [] if offsets[term] < 0 or offsets[term] > offsets[term + 1]
+    for j in 0..<indices.len.i64():
+        return [] if indices[j] < 0 or indices[j] >= values.len.i64()
+    result: darray[f64] = [0.0 for _ in 0..<count]
+    for term in 0..<count:
+        product: f64 =
+            for j in offsets[term]..<offsets[term + 1] |product: f64 = 1.0| -> product:
+                product *= values[indices[j]]
+        result[term] <- product
+    return result
+
+export pymodule polynomial:
+    fn monomials

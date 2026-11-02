@@ -183,4 +183,12 @@ theorem training_projection_fusion {X V Y : Type*} (rows : List X)
     (rows.map measure).map project = rows.map (fun x => project (measure x)) := by
   simp only [List.map_map, Function.comp_def]
 
+/-- An ordered real multiplication loop evaluates the product. This does not
+verify packed offsets, IEEE behavior, compiler output, or the Python FFI. -/
+theorem ordered_product_fold (values : List ℝ) (acc : ℝ) :
+    values.foldl (fun a x => a * x) acc = acc * values.prod := by
+  induction values generalizing acc with
+  | nil => simp
+  | cons x xs ih => simp [List.foldl_cons, List.prod_cons, ih, mul_assoc]
+
 end NCA

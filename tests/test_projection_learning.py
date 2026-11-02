@@ -195,3 +195,45 @@ def test_reuse_rejects_slots_even_with_empty_declared_effects() -> None:
         propose_projections(baseline, source, [(None, (0.0,)), (None, (1.0,))],
                             [True, False], limit=1, projection_cost=0, encoding_cost=0,
                             decoder_cost=0, reuse_observations=True)
+
+
+def test_native_polynomials_match_reference_bits_and_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    from array import array
+
+    import nca.projection_learning as learning
+
+    native = learning._NATIVE
+    if native is None:
+        pytest.skip("polynomial kernel not built or disabled")
+    rng = random.Random(3628)
+    cases = [(tuple(rng.uniform(-2, 2) for _ in range(6)), 3) for _ in range(100)]
+    cases += [((1e-300, -1e-300), 3), ((0.0, -0.0), 3),
+              ((1e308, -1e308), 3), ((5e-324, -5e-324), 3), ((), 3)]
+    for value, degree in cases:
+        model = learning.PolynomialEncoder(Measurement(), len(value), degree,
+                                           max_terms=100, cost=0)
+        results = []
+        for backend in (None, native):
+            monkeypatch.setattr(learning, "_NATIVE", backend)
+            try:
+                results.append(array("d", model.invoke(value)).tobytes())
+            except ValueError as error:
+                results.append(str(error))
+        assert results[0] == results[1]
+
+
+def test_native_polynomials_validate_packed_indices() -> None:
+    from array import array
+
+    import nca.projection_learning as learning
+
+    native = learning._NATIVE
+    if native is None:
+        pytest.skip("polynomial kernel not built or disabled")
+    for offsets, indices in [([], []), ([1], []), ([0, 2], [0]),
+                              ([0, -1, 1], [0]), ([0, 1], [-1]),
+                              ([0, 1], [1]), ([0, 2, 1], [0])]:
+        assert native.monomials(array("d", [2.0]), array("q", offsets),
+                                array("q", indices)) == []
+    assert native.monomials(array("d", [2.0]), array("q", [0, 0, 2]),
+                            array("q", [0, 0])) == [1.0, 4.0]

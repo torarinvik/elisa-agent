@@ -473,3 +473,20 @@ per training row per projection-search call, then all centroid directions and
 threshold fits consume those values. Inference still invokes the original
 measurement. Contracts, declared inference costs and effect metadata are unchanged.
 The scalar threshold learner is shared between both paths, not reimplemented.
+
+## 36.24 Native monomial evaluation
+
+The polynomial lift has an ordered list of coordinate-index terms. Pack these
+as flattened indices and cumulative term offsets; evaluate each term by a
+left-to-right product starting at one. The native evaluator checks offset and
+index ranges before accessing values. It changes no basis ordering, type,
+parameter, contract, or inference metadata. A reference interpreter remains
+available when native kernels are unavailable or disabled.
+
+Lean proves that an ordered real multiplication fold equals the initial
+accumulator times the list product. It does not verify the Elisa compiler,
+packed-buffer FFI, IEEE rounding, or the Python/native correspondence. Regression
+experiments must compare both implementations, including finite extremes,
+underflow, overflow rejection and empty bases. Wrapper validation of finite
+Python-float tuples and finite output monomials remains identical on both paths.
+No reassociation or exponentiation substitution is allowed by this design.

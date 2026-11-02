@@ -2220,3 +2220,11 @@ across candidate directions. Reuse requires known empty effects, no slots and
 caller-assumed determinism/stability. Proposed routes retain original measurement
 modules and inference metadata; no training cache enters runtime or artifacts.
 `training_projection_fusion` proves the pure list identity, not executable purity.
+
+`native/polynomial.elisa` (§36.24) evaluates the lift's packed coordinate-index
+terms in multiplication order. `PolynomialEncoder` keeps the Python interpreter
+as its fallback and shares input/output validation across paths. Offsets and
+indices are checked before native buffer access. `ordered_product_fold` proves
+the real fold/product identity; bitwise float, FFI and failure correspondence
+are regression-tested rather than formally verified. Build with the ordinary
+native builder; `NCA_NATIVE=0` selects the reference path.

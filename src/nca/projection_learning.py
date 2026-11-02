@@ -1,6 +1,7 @@
 """Supervised oblique intermediate interfaces from vector observations (§36.20)."""
 
 import math
+from array import array
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
 from itertools import combinations
@@ -8,9 +9,18 @@ from typing import Any
 
 from nca.abi import Module
 from nca.discovery import Proposal
+from nca.native import load
 from nca.numeric_learning import _partition_from_ordered, propose_partition
 from nca.objects import Constructor, canonical
 from nca.vector_learning import _vector
+
+
+_NATIVE = load("polynomial")
+
+
+def _polynomial_reference(value: tuple[float, ...],
+                          terms: tuple[tuple[int, ...], ...]) -> tuple[float, ...]:
+    return tuple(math.prod(value[i] for i in term) for term in terms)
 
 
 class ProjectionEncoder:
@@ -124,6 +134,10 @@ class PolynomialEncoder:
         self.measurement, self.dimension, self.degree = measurement, dimension, degree
         self.terms = tuple(term for power in (range(1, degree + 1) if dimension else ())
                            for term in combinations_with_replacement(range(dimension), power))
+        self._offsets, self._indices = array("q", [0]), array("q")
+        for term in self.terms:
+            self._indices.extend(term)
+            self._offsets.append(len(self._indices))
         self.constructor = Constructor("polynomial-lift", "1", 0,
             canonical({"source": measurement.manifest.contract.output,
                        "dimension": dimension, "degree": degree,
@@ -137,7 +151,13 @@ class PolynomialEncoder:
         value = _vector(self.measurement.invoke(*inputs))
         if len(value) != self.dimension:
             raise ValueError("polynomial input dimension differs from training")
-        return _vector(tuple(math.prod(value[i] for i in term) for term in self.terms))
+        if _NATIVE is None:
+            result = _polynomial_reference(value, self.terms)
+        else:
+            result = tuple(_NATIVE.monomials(array("d", value), self._offsets, self._indices))
+            if len(result) != len(self.terms):
+                raise RuntimeError("native polynomial evaluator returned an invalid term count")
+        return _vector(result)
 
 
 def propose_polynomial_partitions(incumbent: Module, measurement: Module,
