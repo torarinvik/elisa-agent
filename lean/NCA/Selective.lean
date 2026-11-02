@@ -126,6 +126,18 @@ theorem positive_alternative_risk {chosen outside : ℝ} (hc : 0 < chosen)
     (ho : 0 < outside) : 0 < outside / (chosen + outside) := by
   exact div_pos ho (add_pos hc ho)
 
+/-- Each row's nonnegative outside mass gives a risk between zero and one. -/
+theorem batched_group_risk_bounds {ρ : Type*} (chosen outside : ρ → ℝ)
+    (hc : ∀ row, 0 ≤ chosen row) (ho : ∀ row, 0 ≤ outside row)
+    (ht : ∀ row, 0 < chosen row + outside row) :
+    ∀ row, 0 ≤ outside row / (chosen row + outside row) ∧
+      outside row / (chosen row + outside row) ≤ 1 := by
+  intro row
+  constructor
+  · exact div_nonneg (ho row) (le_of_lt (ht row))
+  · apply (div_le_one (ht row)).2
+    linarith [hc row]
+
 /-- A positive observation floor leaves every represented input positive. -/
 theorem positive_observation_floor {p ε : ℝ} (hε : 0 < ε) : 0 < max p ε := by
   exact lt_of_lt_of_le hε (le_max_right p ε)

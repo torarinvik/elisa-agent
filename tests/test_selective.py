@@ -295,6 +295,199 @@ def test_decision_risk_rejects_batched_logits(native: bool, monkeypatch: pytest.
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.float64, torch.int64, torch.uint64])
+def test_batched_risk_matches_individual_calls(native: bool, dtype: torch.dtype,
+                                               monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    maximum = torch.iinfo(dtype).max if not dtype.is_floating_point else 10
+    logits = torch.tensor([[[maximum, maximum - 1, 0, 1], [0, 1, 2, maximum]],
+                           [[1, 0, 4, 3], [3, 4, 5, 0]]], dtype=dtype)
+    rung = Rung(None)
+    for decision in (None, ((0, 2), (1,))):
+        actual = rung.risk_batch(logits, decision)
+        expected = torch.tensor([[rung.risk(row, decision) for row in batch] for batch in logits],
+                                dtype=torch.float64)
+        assert actual.shape == (2, 2) and actual.dtype == torch.float64
+        tolerance = 1e-3 if dtype == torch.float16 else 1e-7 if dtype == torch.float32 else 1e-12
+        assert torch.allclose(actual, expected, atol=tolerance, rtol=tolerance)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_risk_preserves_ties_underflow_and_zero_mass(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(None)
+    decision = ((1,), (2,))
+    logits = torch.tensor([[0.0, -1000.0, -1001.0], [0.0, 0.0, -math.inf]], dtype=torch.float64)
+    reading = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=torch.float64)
+    actual = rung.risk_batch(logits, decision, reading=reading)
+    assert actual.tolist() == pytest.approx([1 / (1 + math.e), 0.0])
+    tails = torch.tensor([[0.0, -1000.0], [0.0, -math.inf]], dtype=torch.float64)
+    assert rung.risk_batch(tails).tolist() == [math.nextafter(0.0, 1.0), 0.0]
+    assert rung.risk_batch(torch.empty((0, 2), dtype=torch.float64)).shape == (0,)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_risk_uses_reading_ties_with_restricted_temperature(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[100.0, 0.0, 1.0], [100.0, 1.0, 0.0]], dtype=torch.float64)
+    decision = ((1,), (2,))
+    rung = Rung(None)
+    rung.temperatures[None] = 0.01
+    rung.temperatures[decision] = 10.0
+    actual = rung.risk_batch(logits, decision)
+    expected = torch.tensor([rung.risk(row, decision) for row in logits], dtype=torch.float64)
+    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+    assert actual[0] > 0.5 and actual[1] < 0.5
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_risk_rejects_invalid_inputs(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(None)
+    with pytest.raises(ValueError, match="batch"):
+        rung.risk_batch(torch.zeros(2))
+    logits = torch.zeros((2, 2), dtype=torch.float64)
+    with pytest.raises(ValueError, match="shape"):
+        rung.risk_batch(logits, reading=torch.zeros(2))
+    for bad in (math.nan, math.inf, -0.1):
+        reading = torch.tensor([[0.5, 0.5], [0.5, bad]])
+        with pytest.raises(ValueError, match="finite.*nonnegative"):
+            rung.risk_batch(logits, reading=reading)
+    with pytest.raises(ValueError, match="positive mass"):
+        rung.risk_batch(torch.tensor([[0.0, 1.0], [-math.inf, -math.inf]]))
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_risk_ignores_unselected_reused_reading_values(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]], dtype=torch.float64)
+    reading = torch.tensor([[0.5, 0.5, math.nan], [0.5, 0.5, math.inf]], dtype=torch.float64)
+    decision = ((0,), (1,))
+    rung = Rung(None)
+    actual = rung.risk_batch(logits, decision, reading=reading)
+    expected = torch.tensor([rung.risk(row, decision, reading=read) for row, read in zip(logits, reading)],
+                            dtype=torch.float64)
+    assert torch.allclose(actual, expected)
+
+
+def test_batched_risk_preserves_gradients() -> None:
+    logits = torch.tensor([[0.1, -0.2, 0.3], [1.0, -1.0, 0.0]],
+                          dtype=torch.float64, requires_grad=True)
+    decision = ((0, 2), (1,))
+    Rung(None).risk_batch(logits, decision).sum().backward()
+    expected = logits.detach().clone().requires_grad_()
+    expected.softmax(dim=-1)[:, 1].sum().backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad, expected.grad)
+
+
+def test_batched_zero_risk_has_finite_gradients() -> None:
+    logits = torch.tensor([[0.0, -math.inf], [1.0, -math.inf]], dtype=torch.float64, requires_grad=True)
+    risk = Rung(None).risk_batch(logits)
+    assert risk.tolist() == [0.0, 0.0]
+    risk.sum().backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all() and torch.count_nonzero(logits.grad) == 0
+
+
+def test_native_batched_risk_kernel_validates_shape_and_metadata() -> None:
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None)
+    if kernel is None:
+        pytest.skip("native risk row kernel is not built")
+    logits = np.array([0.0, 1.0, 2.0, 3.0], dtype=np.float64)
+    reading = np.array([0.2, 0.8, 0.2, 0.8], dtype=np.float64)
+    groups = np.array([0, 1], dtype=np.int64)
+    output = np.empty(2, dtype=np.float64)
+    assert kernel(logits, reading, groups, output, 2, 2, 1.0) == 0
+    assert kernel(logits, reading, groups, np.empty(1), 2, 2, 1.0) == -1
+    assert kernel(logits, reading, np.array([0, 2], dtype=np.int64), output, 2, 2, 1.0) == -1
+    assert kernel(logits, reading, groups, output, 2, 2, math.nan) == -1
+    empty_groups = np.empty(0, dtype=np.int64)
+    assert kernel(logits, reading, empty_groups, output, 2, 2, 1.0) == 0
+    assert kernel(logits, reading, empty_groups, output, 2, 1, 1.0) == -1
+
+
+def test_batched_risk_routes_large_cpu_inputs_to_tensor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None)
+    if kernel is None:
+        pytest.skip("native risk row kernel is not built")
+    calls = []
+    def measured(*args: Any) -> int:
+        calls.append(True)
+        return kernel(*args)
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(calibrated_risk_rows_into=measured))
+    rung = Rung(None)
+    assert rung.risk_batch(torch.zeros((2, 8), dtype=torch.float64)).shape == (2,)
+    assert rung.risk_batch(torch.zeros((8193, 8), dtype=torch.float64)).shape == (8193,)
+    assert calls == [True]
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_batched_risk_matches_individual_calls(device: str) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+    logits = torch.tensor([[0.1, -0.2, 0.3], [1.0, -1.0, 0.0]], dtype=torch.float32, device=device)
+    rung = Rung(None)
+    decision = ((0, 2), (1,))
+    actual = rung.risk_batch(logits, decision)
+    expected = torch.tensor([rung.risk(row, decision) for row in logits], dtype=torch.float64)
+    if device == "mps":
+        assert actual.device.type == "cpu"
+    assert torch.allclose(actual.cpu(), expected, atol=1e-7)
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_batched_risk_preserves_gradients(device: str) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+    logits = torch.tensor([[0.1, -0.2, 0.3], [1.0, -1.0, 0.0]],
+                          dtype=torch.float32, device=device, requires_grad=True)
+    decision = ((0, 2), (1,))
+    Rung(None).risk_batch(logits, decision).sum().backward()
+    expected = logits.detach().cpu().double().requires_grad_()
+    expected.softmax(dim=-1)[:, 1].sum().backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad.cpu().double(), expected.grad, atol=1e-7)
+    zero = torch.tensor([[0.0, -math.inf], [1.0, -math.inf]], device=device, requires_grad=True)
+    Rung(None).risk_batch(zero).sum().backward()
+    assert zero.grad is not None and bool(torch.isfinite(zero.grad).all())
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.float64, torch.int64, torch.uint64])
 def test_batched_grouped_distributions_match_individual_rows(
         native: bool, dtype: torch.dtype, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module

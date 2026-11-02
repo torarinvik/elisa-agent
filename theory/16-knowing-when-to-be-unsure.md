@@ -174,6 +174,10 @@ For a batch, each row has its own total mass. A grouped probability is the
 sum of that row's class weights in the group divided by that row's total;
 equivalently, it is the sum of the individually normalized weights. No mass
 or normalization is shared between rows.
+The corresponding numerical-reading risk is computed independently for each
+row, charging the mass outside the group containing that row's selected
+class. With nonnegative weights and positive total mass, each exact risk lies
+between zero and one; this does not establish an error-calibration guarantee.
 
 **Practice queue.** Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with

@@ -701,6 +701,83 @@ class Rung:
         recovered = math.exp(float(log_outside - torch.logsumexp(scores, dim=0)))
         return math.nextafter(0.0, 1.0) if recovered == 0.0 else recovered
 
+    def risk_batch(self, log: torch.Tensor, classes: Decision = None, *,
+                   reading: torch.Tensor | None = None) -> torch.Tensor:
+        """Calibrated decision risks for logits with leading batch dimensions.
+
+        Selection follows the numerical reading, including its tie behavior.
+        A supplied reading must belong to the same observation and calibration.
+        MPS inputs return binary64 risks on CPU.
+        """
+        if not isinstance(log, torch.Tensor) or log.ndim < 2 or log.shape[-1] == 0:
+            raise ValueError("batched risk requires logits with a nonempty final dimension")
+        if reading is not None and (not isinstance(reading, torch.Tensor) or reading.shape != log.shape):
+            raise ValueError("reused reading must match the observation's shape")
+        if reading is not None and (reading.is_complex() or reading.is_quantized):
+            raise ValueError("reused reading must be finite and nonnegative")
+        key = decision_key(classes)
+        temperature = self.temperature(key)
+        if not math.isfinite(temperature) or temperature <= 0:
+            raise ValueError("batched risk requires a positive finite temperature")
+        probabilities = self.reading(log) if reading is None else reading
+        if key is None:
+            union = None
+            group_count = log.shape[-1]
+            group_ids = np.empty(0, dtype=np.int64)
+        else:
+            union, positions = _layout(key)
+            group_count = len(positions)
+            group_ids = _group_ids(key)
+        if key is None:
+            order = probabilities
+        elif probabilities.dtype == torch.uint64:
+            order_values = probabilities.detach().cpu().numpy()[..., union]
+            order = torch.from_numpy(np.ascontiguousarray(order_values))
+        else:
+            order = probabilities[..., union]
+        if log.device.type == "mps":
+            raw = log if key is None else log[..., union]
+            selected = _selected_logits(raw.cpu(), None)
+        else:
+            selected = _selected_logits(log, None if key is None else union)
+        if order.device.type == "mps" and selected.device.type == "cpu":
+            order = order.cpu()
+        order = order.to(device=selected.device, dtype=torch.float64)
+        shape = log.shape[:-1]
+        native = getattr(_NATIVE, "calibrated_risk_rows_into", None)
+        if (native is not None and selected.device.type == "cpu"
+                and not selected.requires_grad and not order.requires_grad
+                and selected.numel() <= 65536):
+            values = selected.double().contiguous().numpy()
+            orders = order.contiguous().numpy()
+            output = np.empty(math.prod(shape), dtype=np.float64)
+            status = native(values.reshape(-1), orders.reshape(-1), group_ids,
+                            output, selected.shape[-1], group_count, temperature)
+            if status != 0:
+                raise ValueError("calibrated decision requires finite log weights with positive mass "
+                                 "and a finite nonnegative reading")
+            return torch.from_numpy(output.reshape(shape))
+        if not bool(torch.isfinite(order).all()) or bool((order < 0).any()):
+            raise ValueError("reused reading must be finite and nonnegative")
+        scores = _temperature_scores(_binary64_logits(selected), temperature)
+        groups = (torch.arange(scores.shape[-1], device=scores.device) if key is None else
+                  torch.as_tensor(group_ids.copy(), device=scores.device))
+        chosen = groups[order.to(scores.device).argmax(dim=-1)]
+        outside = groups != chosen.unsqueeze(-1)
+        weights = scores.exp()
+        total = weights.sum(dim=-1)
+        result = torch.where(outside, weights, 0.0).sum(dim=-1) / total
+        if bool((result == 0).any()):
+            outside_scores = scores.masked_fill(~outside, -math.inf)
+            finite_scores = torch.isfinite(outside_scores).any(dim=-1)
+            safe_scores = torch.where(finite_scores.unsqueeze(-1), outside_scores, 0.0)
+            recovered = (torch.logsumexp(safe_scores, dim=-1) - torch.logsumexp(scores, dim=-1)).exp()
+            finite_alternative = (torch.isfinite(selected.to(scores.device)) & outside).any(dim=-1)
+            recovered = torch.where(finite_scores, recovered, 0.0)
+            recovered = torch.where((recovered == 0) & finite_alternative, math.nextafter(0.0, 1.0), recovered)
+            result = torch.where(result == 0, recovered, result)
+        return result
+
     def distribution(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> torch.Tensor:
         """Calibrated probabilities of the decision's entries: each entry's
         share of the classes it ranges over, under the decision's temperature.
