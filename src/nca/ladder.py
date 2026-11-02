@@ -425,11 +425,13 @@ class Rung:
 
     def calibrate(self, values: Sequence[Any], labels: torch.Tensor) -> None:
         """Replace held-out observations and temperature only after fitting succeeds."""
-        integer_types = (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64)
-        if (not isinstance(labels, torch.Tensor) or labels.ndim != 1
-                or labels.dtype not in integer_types or len(values) == 0
-                or labels.numel() != len(values)):
+        if (not isinstance(labels, torch.Tensor) or labels.ndim != 1 or labels.is_quantized
+                or len(values) == 0 or labels.numel() != len(values)):
             raise ValueError("calibration needs nonempty values and one integer label per value")
+        try:
+            torch.iinfo(labels.dtype)
+        except TypeError as exc:
+            raise ValueError("calibration needs nonempty values and one integer label per value") from exc
         value_snapshot = tuple(values)
         label_snapshot = labels.detach().clone()
         observations = torch.stack([self.observe(v) for v in value_snapshot])

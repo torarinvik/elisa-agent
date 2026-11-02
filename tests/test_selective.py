@@ -166,6 +166,26 @@ def test_calibration_fits_temperature() -> None:
     assert rung.reading(rung.observe(0))[1].item() == pytest.approx(0.7, abs=0.02)
 
 
+@pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64])
+def test_calibration_accepts_unsigned_integer_labels(dtype) -> None:
+    rung = Rung(constant("unsigned-labels", (0.4, 0.6), 1.0))
+    rung.calibrate([0, 1, 2, 3], torch.tensor([0, 1, 0, 1], dtype=dtype))
+    assert rung.held_out is not None
+    assert rung.held_out[1].dtype == torch.int64
+    assert rung.held_out[1].tolist() == [0, 1, 0, 1]
+
+
+def test_calibration_rejects_unsigned_labels_outside_signed_range_atomically() -> None:
+    rung = Rung(constant("large-unsigned-label", (0.4, 0.6), 1.0))
+    rung.calibrate([0], torch.tensor([1], dtype=torch.uint64))
+    previous = rung.held_out
+    temperatures = dict(rung.temperatures)
+    with pytest.raises(ValueError, match="valid class indices"):
+        rung.calibrate([0], torch.tensor([2**64 - 1], dtype=torch.uint64))
+    assert rung.held_out is previous
+    assert rung.temperatures == temperatures
+
+
 def test_native_calibration_subset_matches_label_mapping() -> None:
     from nca import ladder as ladder_module
 

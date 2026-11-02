@@ -872,6 +872,8 @@ largest logit before exponentiation, sums probabilities by supplied group,
 and returns the original tensor dtype.
 CPU temperature fitting can use Elisa `calibration_loss_grid`, which evaluates
 the same 120 candidate temperatures and supports arbitrary grouped labels.
+Calibration accepts signed and unsigned integer label tensors; labels are
+converted to signed 64-bit indices and checked against the observation width.
 For CPU held-out data, `calibration_subset` finds included rows and their
 group labels in input order; unsupported metadata uses the PyTorch reference.
 Rungs cache at most 128 absent restricted-calibration results, invalidating
