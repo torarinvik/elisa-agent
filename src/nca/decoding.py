@@ -19,6 +19,12 @@ _NATIVE = load("decoding")
 
 
 def _valid_arities(arities: Sequence[int]) -> bool:
+    native = getattr(_NATIVE, "nonnegative_arities", None)
+    if native is not None and isinstance(arities, np.ndarray) and arities.ndim == 1:
+        if arities.dtype.kind == "u":
+            return True
+        if arities.dtype.kind == "i":
+            return bool(native(np.ascontiguousarray(arities, dtype=np.int64)))
     return all(isinstance(a, (int, np.integer)) and a >= 0 for a in arities)
 
 

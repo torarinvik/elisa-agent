@@ -17,6 +17,19 @@ from nca.formulas import (Decoded, decode,
 from nca.modules.words import (ARITY_ORDER)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_arity_validation_accepts_integer_arrays_without_changing_semantics(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    for values in (np.array([0, 1, 2], dtype=np.int32),
+                   np.array([0, 2**64 - 1], dtype=np.uint64),
+                   np.arange(12, dtype=np.int64)[::2], (True, 1)):
+        assert decoding._valid_arities(values)
+    for values in (np.array([0, -1], dtype=np.int64), np.array([0.0, 1.0]),
+                   np.array([True, False]), (np.bool_(True), 1)):
+        assert not decoding._valid_arities(values)
+
+
 def parseable(m: int) -> list[tuple[int, ...]]:
     return [a for a in itertools.product(ARITY_ORDER, repeat=m) if parse(list(a)) is not None]
 

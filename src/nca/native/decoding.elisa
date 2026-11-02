@@ -110,6 +110,12 @@ def clamp_unsigned_format_symbols(symbols: mutable view[i64], length: i64) -> i6
             symbols[i] <- length
     return 0
 
+# Validate the signed integer representation of a nonnegative arity sequence.
+def nonnegative_arities(symbols: view[i64]) -> bool can[Abort.Panic]:
+    for i in 0..<symbols.len.i64():
+        return false if symbols[i] < 0
+    return true
+
 # Log weights may contain negative infinity but not NaN or positive infinity.
 def valid_log_weights(rows: view[f64]) -> bool can[Abort.Panic]:
     for i in 0..<rows.len.i64():
@@ -1483,6 +1489,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn nonnegative_arities
     fn clamp_format_symbols
     fn clamp_unsigned_format_symbols
     fn observation_logs
