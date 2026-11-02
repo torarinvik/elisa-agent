@@ -260,3 +260,27 @@ def test_joint_head_graph_retains_opaque_features(tmp_path: Path) -> None:
     restored = install(Store.open(tmp_path), reference)[index]
     assert [restored.invoke(v) for v in [(0, 0), (0, 1), (1, 0), (1, 1), (2, 2)]] == (
         [model.invoke(v) for v in [(0, 0), (0, 1), (1, 0), (1, 1), (2, 2)]])
+
+
+def test_learned_categorical_partition_and_head_can_be_retained(tmp_path: Path) -> None:
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import fit_categorical_partition, propose_heads
+
+    store = Store()
+    ref = store.put(Primitive(CoordinateFeature(0).manifest,
+                    f"{__name__}:CoordinateFeature", {"index": 0}, size=8))
+    source = install(store, ref)[0]
+    rows = [((i,),) for i in range(8)] * 4
+    labels = [f"label-{value[0] % 2}" for value, in rows]
+    feature = fit_categorical_partition(source, rows, labels, encoding_cost=1)
+    incumbent = Identity()
+    model = propose_heads(incumbent, [feature],
+                lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                rows, labels, max_features=1, max_heads=1)[0]
+    for constructor in model.constructors:
+        store.put(constructor)
+    reference, index = store_acquired_model(store, model.expert,
+                                           lambda m: (m.identity, 0), size=lambda m: 16)
+    store.save(tmp_path)
+    restored = install(Store.open(tmp_path), reference)[index]
+    assert [restored.invoke((i,)) for i in range(12)] == [model.expert.invoke((i,)) for i in range(12)]

@@ -356,4 +356,12 @@ theorem modal_refinement_dominates {G L : Type*} [Fintype G]
     (∑ g, counts g label) ≤ ∑ g, modal g := by
   exact Finset.sum_le_sum (fun g _ => dominates g)
 
+/-- Keys with a common modal label retain that mode when grouped together. -/
+theorem grouped_modal_dominates {K L : Type*} [Fintype K]
+    (counts : K → L → ℕ) (label : L)
+    (modal : ∀ k l, counts k l ≤ counts k label) :
+    ∀ l, (∑ k, counts k l) ≤ ∑ k, counts k label := by
+  intro l
+  exact Finset.sum_le_sum (fun k _ => modal k l)
+
 end NCA

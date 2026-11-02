@@ -8,7 +8,9 @@ from itertools import chain, combinations, islice
 from typing import Any, Protocol
 
 from nca.abi import Contract, Module
-from nca.discovery import Decoded, JointFeature, Proposal, fit_decoder
+from nca.discovery import Decoded, Decoder, JointFeature, Proposal, fit_decoder
+from nca.objects import Constructor, canonical, digest
+from nca.value_codec import encode_value
 
 
 class AdapterFitter(Protocol):
@@ -197,3 +199,47 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
             ranked.append((successes, Proposal(joined, constructors)))
     ranked.sort(key=lambda item: -item[0])
     return [proposal for _, proposal in ranked[:limit]]
+
+
+def fit_categorical_partition(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                               labels: Sequence[Hashable], *, encoding_cost: float) -> Proposal:
+    """Learn a typed quotient of observed keys by modal target category (§36.48).
+
+    Keys must be stable hashable JSON scalars/tuples; category names need only
+    stable hashing/equality. Codes follow canonical key order, making the learned
+    partition invariant to a bijective category renaming with unchanged modal
+    choices. Modal ties retain training occurrence order. Unseen keys use a code
+    for the global modal category, possibly absent among observed key modes.
+    Category labels and training rows are not retained, only key-to-code wiring.
+    Training modal accuracy is preserved by a categorical head, not necessarily
+    other head families or tasks. Select composed candidates independently.
+    Store returned constructor declarations before retaining the composed graph.
+    """
+    if not math.isfinite(encoding_cost) or encoding_cost < 0:
+        raise ValueError("encoding cost must be finite and nonnegative")
+    if not rows or len(rows) != len(labels):
+        raise ValueError("categorical partition needs nonempty aligned rows and labels")
+    contract = measurement.manifest.contract
+    if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("rows must supply slot fillings followed by inputs")
+    counts: dict[Hashable, Counter[Hashable]] = {}
+    for row, label in zip(rows, labels, strict=True):
+        counts.setdefault(measurement.invoke(*row), Counter())[label] += 1
+    ordered = sorted(counts, key=lambda key: canonical(encode_value(key)))
+    codes: dict[Hashable, int] = {}
+
+    def code(label: Hashable) -> int:
+        if label not in codes:
+            codes[label] = len(codes)
+        return codes[label]
+
+    table = {key: code(counts[key].most_common(1)[0][0]) for key in ordered}
+    fallback = code(Counter(labels).most_common(1)[0][0])
+    definition = {"table": [[encode_value(key), table[key]] for key in ordered],
+                  "fallback": fallback}
+    constructor = Constructor("learned-categorical-partition", "1", 0,
+        canonical({"source": contract.output, "partition": digest(definition),
+                   "meaning": "empirical key partition with an unseen-key fallback"}).decode())
+    head = Decoder(Contract((contract.output,), constructor.type()), table, fallback, encoding_cost)
+    return Proposal(Decoded(measurement, head, replace(contract, output=constructor.type())),
+                    (constructor,))

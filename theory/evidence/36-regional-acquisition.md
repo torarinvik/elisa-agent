@@ -397,3 +397,23 @@ Lean proves this finite-sum comparison for arbitrary child groups, not executabl
 ranking, search completeness or held-out gains. Source snapshots are local to
 training and assume stable observations. Search remains combinatorial; bounded
 lookahead can miss deeper interactions, and observed gains can reflect noise.
+
+
+## 36.48 Learned categorical quotient interfaces
+
+Observe source keys and category targets on training data. Assign each key its
+empirical modal category, then group keys sharing that category into an opaque
+code. Code numbering follows canonical source-key order; modal ties retain
+training occurrence order. Add a fallback code for the global modal category,
+even if no observed key has that mode. A generated constructor identifies the
+source type and digest of the key-to-code partition. Inference retains only
+keys, codes and fallback, not category names or training samples.
+
+For keys grouped under category a, each key's count for a dominates its count
+for every category b; summing preserves that dominance. Lean proves this finite
+sum statement. Thus a categorical head can preserve empirical modal accuracy
+under grouping, but arbitrary head families and downstream tasks may lose useful
+information. Bijective category renaming preserving modal choices leaves the
+partition unchanged. Stable keys/categories, faithful value encoding and
+independent whole-task selection remain assumptions. Smaller downstream tables
+do not imply a smaller whole model: the encoder itself retains a key table.

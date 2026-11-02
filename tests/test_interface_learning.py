@@ -380,3 +380,68 @@ def test_joint_lookahead_crosses_non_improving_pairings() -> None:
     assert [sum(t.outcomes) for t in result.trials] == [200, 400]
     with pytest.raises(ValueError, match="budgets"):
         propose_joint_refinements(seed, companions, rows, labels, **kwargs, max_companions=0)
+
+
+def test_categorical_partition_generates_label_agnostic_codes_and_compact_heads() -> None:
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import fit_categorical_partition, propose_heads
+
+    source = Source()
+    rows = [(i,) for i in range(4)] * 20
+    labels = ["a" if i % 2 == 0 else "b" for i, in rows]
+    feature = fit_categorical_partition(source, rows, labels, encoding_cost=1)
+    renamed = fit_categorical_partition(source, rows,
+        [frozenset({17}) if label == "a" else frozenset({93}) for label in labels], encoding_cost=1)
+    assert feature.constructors == renamed.constructors
+    assert [feature.expert.invoke(*r) for r in rows] == [renamed.expert.invoke(*r) for r in rows]
+    assert set(feature.expert.decoder._table.values()) == {0, 1}
+    assert feature.expert.manifest.contract.output == feature.constructors[0].type()
+    assert feature.expert.feature is source
+    heads = propose_heads(Baseline(), [feature],
+                lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                rows, labels, max_features=1, max_heads=1)
+    assert len(heads[0].expert.decoder._table) == 2
+    assert [heads[0].expert.invoke(*r) for r in rows] == labels
+    assert heads[0].constructors == feature.constructors
+
+
+def test_categorical_partition_preserves_conflicted_modal_fit_and_global_fallback() -> None:
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import fit_categorical_partition
+
+    rows, labels = [], []
+    for key, category in enumerate(["a", "b", "c"]):
+        rows.extend([(key,)] * 5)
+        labels.extend([category] * 3 + ["global"] * 2)
+    source = Source()
+    feature = fit_categorical_partition(source, rows, labels, encoding_cost=0)
+    codes = [feature.expert.invoke(*r) for r in rows]
+    head = fit_decoder(Contract((feature.constructors[0].type(),), "output"), codes, labels, cost=0)
+    raw = fit_decoder(Contract((source.manifest.contract.output,), "output"),
+                      [source.invoke(*r) for r in rows], labels, cost=0)
+    assert sum(head.invoke(code) == label for code, label in zip(codes, labels)) == (
+        sum(raw.invoke(source.invoke(*r)) == label for r, label in zip(rows, labels))) == 9
+    assert feature.expert.invoke(3) not in codes
+    assert head.invoke(feature.expert.invoke(3)) == raw.invoke(source.invoke(3)) == "global"
+    with pytest.raises(ValueError, match="aligned"):
+        fit_categorical_partition(source, [], [], encoding_cost=0)
+    with pytest.raises(ValueError, match="cost"):
+        fit_categorical_partition(source, rows, labels, encoding_cost=-1)
+
+
+def test_categorical_partition_matches_raw_modal_predictions_on_noisy_samples() -> None:
+    import random
+
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import fit_categorical_partition
+
+    rng = random.Random(3651)
+    rows = [(rng.randrange(4),) for _ in range(200)]
+    labels = [rng.choice(("a", "b", "c")) for _ in rows]
+    source = Source()
+    feature = fit_categorical_partition(source, rows, labels, encoding_cost=0)
+    codes = [feature.expert.invoke(*r) for r in rows]
+    head = fit_decoder(Contract((feature.constructors[0].type(),), "output"), codes, labels, cost=0)
+    raw = fit_decoder(Contract((source.manifest.contract.output,), "output"),
+                      [source.invoke(*r) for r in rows], labels, cost=0)
+    assert [head.invoke(code) for code in codes] == [raw.invoke(source.invoke(*r)) for r in rows]
