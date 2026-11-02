@@ -199,6 +199,14 @@ theorem integer_shift_preserves_order (a b offset : ℤ) :
     a - offset < b - offset ↔ a < b := by
   exact sub_lt_sub_iff_right offset
 
+/-- Comparing signed bit patterns by sign and then value gives unsigned order. -/
+theorem unsigned_bitpattern_order (a b limit : ℤ)
+    (ha : -limit ≤ a ∧ a < limit) (hb : -limit ≤ b ∧ b < limit) :
+    (if a < 0 then a + 2 * limit else a) <
+        (if b < 0 then b + 2 * limit else b) ↔
+      (0 ≤ a ∧ b < 0) ∨ ((a < 0 ↔ b < 0) ∧ a < b) := by
+  by_cases h₁ : a < 0 <;> by_cases h₂ : b < 0 <;> simp [h₁, h₂] <;> omega
+
 /-- Gathering a restriction depends only on weights at its listed indices. -/
 theorem ranked_restriction_ext {ι α : Type*} (indices : List ι) (a b : ι → α)
     (same : ∀ i ∈ indices, a i = b i) : indices.map a = indices.map b := by

@@ -76,6 +76,12 @@ exact integer arithmetic. The implementation shifts before conversion to
 floating point, avoiding fixed-width wraparound and retaining differences
 between adjacent large integers. Differences too large for exact binary64
 representation are still rounded.
+For unsigned 64-bit weights carried as signed bit patterns, let `M = 2^63`.
+The unsigned value of a signed pattern `x ∈ [−M, M)` is `x` when `x ≥ 0`
+and `x + 2M` otherwise. Hence a negative signed pattern is larger as an
+unsigned value than a nonnegative one, while patterns of the same sign retain
+their signed order. The integer batch kernel uses this comparison before any
+floating-point conversion.
 For a batch, each row can use its own common shift: within that row the
 ordering and ratios of exponentiated scores are unchanged. A shift shared
 across rows is unnecessary and can erase an entire row numerically.

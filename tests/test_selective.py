@@ -548,9 +548,11 @@ def test_native_batched_integer_risk_preserves_order_and_validates(unsigned) -> 
     kernel = getattr(ladder_module._NATIVE, "calibrated_integer_risk_rows_into", None)
     if kernel is None:
         pytest.skip("native integer risk row kernel is not built")
-    large = 2**63 if unsigned else 2**60
-    dtype = np.uint64 if unsigned else np.int64
-    reading = np.array([large, large + 1, large // 2, large + 1, large, large // 2], dtype=dtype)
+    if unsigned:
+        reading = np.array([2**63 - 1, 2**63, 2**62, 2**64 - 1, 2**63, 2**62], dtype=np.uint64)
+    else:
+        large = 2**60
+        reading = np.array([large, large + 1, large // 2, large + 1, large, large // 2], dtype=np.int64)
     raw = reading.view(np.int64)
     logits = np.zeros(6, dtype=np.float64)
     groups = np.array([0, 1, 0], dtype=np.int64)

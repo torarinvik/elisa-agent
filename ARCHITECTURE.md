@@ -153,6 +153,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `batched_monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `rowwise_shift_order`, `exp_shift_ratio`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `grouped_normalization`, `batched_group_mass_ext`, `batched_group_risk_bounds`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `grouped_selection_risk_difference` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `unsigned_bitpattern_order` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
