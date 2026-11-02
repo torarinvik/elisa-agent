@@ -43,7 +43,8 @@ def parse(arities: Sequence[int]) -> list[list[int]] | None:
     if not _valid_arities(arities):
         return None
     generic = getattr(_NATIVE, "parse_tree_generic", None)
-    if generic is not None and isinstance(arities, np.ndarray) and arities.ndim == 1:
+    if generic is not None and (len(arities) >= 32
+                                or isinstance(arities, np.ndarray) and arities.ndim == 1):
         result = generic(_native_format_symbols(arities, len(arities)))
         if not result:
             return None

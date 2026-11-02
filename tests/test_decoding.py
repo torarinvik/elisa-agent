@@ -1703,6 +1703,17 @@ def test_array_parser_matches_reference_for_generic_and_invalid_sequences(dtype)
     assert parse(too_large) is None
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_long_tuple_parser_preserves_general_and_large_arities(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    unary = (1,) * 40 + (0,)
+    branching = (3,) + (1,) * 37 + (0, 0, 0)
+    for arities in (unary, branching, (10**100,) + (0,) * 40,
+                    (1,) * 40 + (2,), (1,) * 40 + (-1,)):
+        assert parse(arities) == decoding.parse_reference(arities)
+
+
 def test_native_parser_matches_reference() -> None:
     if getattr(formulas._NATIVE, "parse_tree", None) is None:
         pytest.skip("native parser is not built")
