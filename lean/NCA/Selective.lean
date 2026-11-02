@@ -1,6 +1,7 @@
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Real.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.FieldSimp
 
@@ -178,6 +179,13 @@ theorem ranked_restriction_ext {ι α : Type*} (indices : List ι) (a b : ι →
       · apply ih
         intro j hj
         exact same j (List.mem_cons_of_mem _ hj)
+
+/-- The negative log likelihood of a group is the difference of log masses. -/
+theorem grouped_negative_log_likelihood {total group : ℝ}
+    (htotal : 0 < total) (hgroup : 0 < group) :
+    -Real.log (group / total) = Real.log total - Real.log group := by
+  rw [Real.log_div (ne_of_gt hgroup) (ne_of_gt htotal)]
+  ring
 
 /-- Positive temperature preserves logit order; negative temperature reverses it. -/
 theorem temperature_rank (a b temperature : ℝ) :

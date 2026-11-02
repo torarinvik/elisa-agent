@@ -598,9 +598,32 @@ class Rung:
     @staticmethod
     def _fit(log: torch.Tensor, labels: torch.Tensor,
              entries: Sequence[Sequence[int]] | None = None) -> float:
-        """The temperature minimizing negative log-likelihood of the labels,
-        each label naming an entry (a group of columns) when ``entries`` is given."""
+        """Minimize label negative log-likelihood over a fixed temperature grid.
+
+        Each label names an entry (a group of columns) when ``entries`` is given.
+        """
         grouped = entries is not None and any(len(e) > 1 for e in entries)
+        temperatures = np.geomspace(0.1, 8.0, 120)
+        native = getattr(_NATIVE, "calibration_loss_grid", None)
+        if (native is not None and log.device.type == "cpu" and labels.device.type == "cpu"
+                and log.dtype == torch.float64 and labels.dtype == torch.int64
+                and log.ndim == 2 and labels.ndim == 1 and not log.requires_grad
+                and log.numel() <= (16384 if grouped else 2048)):
+            width = log.shape[1]
+            groups = np.arange(width, dtype=np.int64)
+            if grouped:
+                columns = [column for entry in entries for column in entry]
+                if (all(type(column) is int for column in columns)
+                        and sorted(columns) == list(range(width))):
+                    for index, entry in enumerate(entries):
+                        groups[list(entry)] = index
+                else:
+                    native = None
+            if native is not None:
+                losses = native(log.contiguous().numpy().reshape(-1), labels.contiguous().numpy(),
+                                groups, len(entries) if grouped else width, temperatures)
+                if len(losses) == len(temperatures) and not any(math.isnan(loss) for loss in losses):
+                    return float(temperatures[min(range(len(losses)), key=losses.__getitem__)])
 
         def nll(t: float) -> float:
             scaled = torch.log_softmax(log / t, dim=-1)
@@ -609,7 +632,7 @@ class Rung:
                                      dim=-1)
             return nn.functional.nll_loss(scaled, labels).item()
 
-        return float(min(np.geomspace(0.1, 8.0, 120), key=nll))
+        return float(min(temperatures, key=nll))
 
 
 def ladder(modules: Sequence[Module], contract: Contract) -> list[Rung]:

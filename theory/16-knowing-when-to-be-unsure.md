@@ -134,7 +134,12 @@ still contribute. Floating-point rounding remains possible.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs
-whose label is among its classes. If a calibrated rung has no matching labels,
+whose label is among its classes. For positive total mass `Z` and labeled
+group mass `G`, each observation's negative log-likelihood is
+`−log(G/Z) = log Z − log G`. The implementation factors out a separate
+maximum from each sum before evaluating this difference and selects the best
+of 120 temperatures between 0.1 and 8.0; it does not claim a continuous
+global optimum. If a calibrated rung has no matching labels,
 a decision with multiple entries has no fitted restricted temperature. Direct
 queries report the missing calibration; refinement treats the account as
 unavailable, can try higher rungs, and abstains if no usable account is found.

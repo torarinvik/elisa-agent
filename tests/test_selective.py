@@ -166,6 +166,80 @@ def test_calibration_fits_temperature() -> None:
     assert rung.reading(rung.observe(0))[1].item() == pytest.approx(0.7, abs=0.02)
 
 
+@pytest.mark.parametrize("grouped", [False, True])
+def test_native_temperature_fit_matches_reference(grouped, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
+        pytest.skip("native calibration kernel is not built")
+    rng = np.random.default_rng(522)
+    entries = ((0, 2), (1, 3, 4), (5, 6, 7)) if grouped else None
+    cases = []
+    for _ in range(8):
+        logits = torch.tensor(rng.normal(0, 3, size=(37, 8)), dtype=torch.float64)
+        labels = torch.tensor(rng.integers(0, 3 if grouped else 8, size=37), dtype=torch.int64)
+        cases.append((logits, labels))
+    for temperature in (0.4, 1.0, 2.5):
+        raw = rng.normal(0, 2, size=(200, 8))
+        scaled = raw / temperature
+        probabilities = np.exp(scaled - scaled.max(axis=1, keepdims=True))
+        probabilities /= probabilities.sum(axis=1, keepdims=True)
+        if grouped:
+            probabilities = np.stack([probabilities[:, list(entry)].sum(axis=1)
+                                      for entry in entries], axis=1)
+        draws = rng.random((200, 1))
+        targets = (draws > probabilities.cumsum(axis=1)).sum(axis=1)
+        cases.append((torch.tensor(raw, dtype=torch.float64),
+                      torch.tensor(targets, dtype=torch.int64)))
+    native = [Rung._fit(logits, labels, entries) for logits, labels in cases]
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    assert native == [Rung._fit(logits, labels, entries) for logits, labels in cases]
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_loss_grid", None)
+    if native is None:
+        pytest.skip("native calibration kernel is not built")
+    rng = np.random.default_rng(71)
+    logits = torch.tensor(rng.normal(0, 7, size=(29, 8)), dtype=torch.float64)
+    groups = np.array([0, 1, 0, 1, 1, 2, 2, 2] if grouped else range(8), dtype=np.int64)
+    labels = torch.tensor(rng.integers(0, 3 if grouped else 8, size=29), dtype=torch.int64)
+    temperatures = np.geomspace(0.1, 8.0, 120)
+    actual = native(logits.numpy().reshape(-1), labels.numpy(), groups,
+                    3 if grouped else 8, temperatures)
+    expected = []
+    for temperature in temperatures:
+        scaled = torch.log_softmax(logits / temperature, dim=-1)
+        if grouped:
+            scaled = torch.stack([scaled[:, groups == group].logsumexp(dim=-1)
+                                  for group in range(3)], dim=-1)
+        expected.append(nn.functional.nll_loss(scaled, labels).item())
+    assert np.allclose(actual, expected, rtol=1e-13, atol=1e-13)
+
+
+@pytest.mark.parametrize("grouped,small_rows,large_rows", [(False, 100, 300), (True, 100, 2100)])
+def test_temperature_fit_routes_large_cpu_batches_to_reference(grouped, small_rows, large_rows, monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibration_loss_grid", None)
+    if kernel is None:
+        pytest.skip("native calibration kernel is not built")
+    calls = []
+    def measured(*args):
+        calls.append(True)
+        return kernel(*args)
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(calibration_loss_grid=measured))
+    entries = ((0, 1), (2, 3, 4, 5, 6, 7)) if grouped else None
+    for rows in (small_rows, large_rows):
+        Rung._fit(torch.zeros((rows, 8), dtype=torch.float64),
+                  torch.zeros(rows, dtype=torch.int64), entries)
+    assert calls == [True]
+
+
 def test_observation_preserves_small_positive_probabilities() -> None:
     for probability in (1e-18, 1e-100, 1e-300):
         rung = Rung(constant("small", (1.0, probability), 1.0))

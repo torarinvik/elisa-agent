@@ -1683,6 +1683,41 @@ def calibrated_difference(value: f64, anchor: f64, temperature: f64) -> f64:
     difference: f64 = value - anchor
     return value / temperature - anchor / temperature if temperature > 1.0 and difference == log(0.0) and value != log(0.0) else difference / temperature
 
+# Mean grouped negative log-likelihood for each supplied temperature.
+# An empty result asks the caller to use its reference implementation.
+def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64], entries: i64, temperatures: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    rows: i64 = labels.len.i64()
+    width: i64 = groups.len.i64()
+    return [] if entries <= 0 or temperatures.len.i64() == 0 or not matrix_shape(logits.len.i64(), rows, width)
+    for j in 0..<width:
+        return [] if groups[j] < 0 or groups[j] >= entries
+    maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
+    target_maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
+    for row in 0..<rows:
+        return [] if labels[row] < 0 or labels[row] >= entries
+        for j in 0..<width:
+            value: f64 = logits[row * width + j]
+            return [] if value != value or value == log(0.0) or value == -log(0.0)
+            maxima[row] <- value if value > maxima[row] else maxima[row]
+            target_maxima[row] <- value if groups[j] == labels[row] and value > target_maxima[row] else target_maxima[row]
+        return [] if target_maxima[row] == log(0.0)
+    result: darray[f64] = [0.0 for _ in 0..<temperatures.len.i64()]
+    for t in 0..<temperatures.len.i64():
+        temperature: f64 = temperatures[t]
+        return [] if temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
+        loss: f64 =
+            for row in 0..<rows |loss: f64 = 0.0| -> loss:
+                maximum: f64 = maxima[row]
+                target_max: f64 = target_maxima[row]
+                total, target_total =
+                    for j in 0..<width |total: f64 = 0.0, target_total: f64 = 0.0| -> (total, target_total):
+                        value: f64 = logits[row * width + j]
+                        total += exp(calibrated_difference(value, maximum, temperature))
+                        target_total += exp(calibrated_difference(value, target_max, temperature)) if groups[j] == labels[row] else 0.0
+                loss += calibrated_difference(target_max, maximum, temperature) * -1.0 + log(total) - log(target_total)
+        result[t] <- loss / rows.f64()
+    return result
+
 # Risk of a selected entry under nonnegative, not necessarily normalized weights.
 # A negative result signals invalid weights, group ids or a selected index.
 def weighted_decision_risk(weights: view[f64], groups: view[i64], entries: i64, selected: i64) -> f64 can[Abort.Panic]:
@@ -1797,6 +1832,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn calibration_loss_grid
     fn weighted_decision_risk
     fn changed_rows
     fn tilt_weights_checked
