@@ -675,12 +675,18 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
     m: i64 = selected.len.i64()
     unreachable: f64 = log(0.0)
     rows, bounds, matched_state, matched =
-        for k in 0..<m |rows: darray[f64] = [unreachable for _ in 0..<(2 * states)], bounds: darray[i64] = [states, -1, states, -1], matched_state: i64 = start, matched: f64 = 0.0| -> (rows, bounds, matched_state, matched):
+        for k in 0..<m |rows: darray[f64] = [unreachable for _ in 0..<(2 * states)], bounds: darray[i64] = [states, -1, states, -1], matched_state: i64 = start, matched: f64 = 0.0, active: darray[i64] = [0 for _ in 0..<width]| -> (rows, bounds, matched_state, matched):
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
             here_bound: i64 = (k % 2) * 2
             next_bound: i64 = ((k + 1) % 2) * 2
             return [unreachable, unreachable] if matched == unreachable and bounds[here_bound] > bounds[here_bound + 1]
+            active_count: i64 =
+                for j in 0..<width |count: i64 = 0, active| -> count:
+                    if log_probs[k * width + j] != unreachable:
+                        active[count] <- j
+                        count += 1
+            return [unreachable, unreachable] if active_count == 0
             for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:
                 rows[next + state] <- unreachable
             bounds[next_bound] <- states
@@ -691,13 +697,14 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
                 source: f64 = rows[here + state]
                 same: bool = state == matched_state and matched != unreachable
                 continue if source == unreachable and not same
-                for j in 0..<width |rows, bounds|:
+                for position in 0..<active_count |rows, bounds|:
+                    j: i64 = active[position]
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
-                    continue if reading == unreachable or edge_weight == unreachable
+                    continue if edge_weight == unreachable
                     weight: f64 = partition_log_product(reading, edge_weight)
                     continue if source == unreachable and (not same or alphabet[j] == selected[k])
                     return [] if weight != weight

@@ -1355,6 +1355,23 @@ def test_normalizer_handles_changing_sparse_symbol_support(reference, monkeypatc
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_partition_handles_sparse_wide_symbol_rows(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    width = 64
+    prior = priors.ArityPrior(tuple(range(width)), np.zeros((1, width), dtype=np.int64),
+                              np.zeros((1, width)), np.zeros(1))
+    rows = np.full((5, width), -np.inf)
+    rows[:, :3] = 0.0
+    chosen, other = prior.partition(rows, (0, 0, 0, 0, 0))
+    assert chosen == 0.0 and other == pytest.approx(math.log(3**5 - 1))
+    chosen, other = prior.partition(rows, (63, 0, 0, 0, 0))
+    assert chosen == -np.inf and other == pytest.approx(math.log(3**5))
+    rows[2] = -np.inf
+    assert prior.partition(rows, (0, 0, 0, 0, 0)) == (-np.inf, -np.inf)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_partition_stops_only_when_both_parts_are_absent(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)

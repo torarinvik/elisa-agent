@@ -324,7 +324,8 @@ selection-accuracy bound.
 
 For each reading row, symbols with zero weight contribute zero to every
 transition sum. The normalizer can enumerate only the nonzero symbols in
-their original order without changing that recurrence. If a reading row has
+their original order without changing that recurrence. The same filtering
+applies to both selected and alternative partition updates. If a reading row has
 no nonzero symbols, or no states remain reachable, all complete paths have
 zero weight and the normalizer can stop. The separate selected/alternative
 partition can likewise stop when both parts have zero mass; either part alone
