@@ -2086,6 +2086,22 @@ def test_native_decode_ties_match_reference_across_alphabet_orders(alphabet) -> 
                 assert actual.arities == expected.arities
 
 
+@pytest.mark.parametrize("extreme", [-1000.0, 1000.0])
+def test_native_decode_ignores_extreme_weights_for_impossible_arities(extreme) -> None:
+    native = getattr(decoding._NATIVE, "decode", None)
+    if native is None:
+        pytest.skip("native decoder is not built")
+    alphabet = (0, 1, 3)
+    rows = np.array([[-0.5, -0.8, extreme], [-0.3, -0.2, extreme],
+                     [-0.1, extreme, extreme]])
+    actual = np.asarray(native(rows.ravel(), np.array(alphabet, dtype=np.int64)))
+    expected = decode_reference(rows, alphabet)
+    assert expected is not None and len(actual) == 1 + rows.size + len(rows)
+    assert actual[0] == pytest.approx(expected.log_z)
+    np.testing.assert_array_equal(actual[1:4], expected.arities)
+    np.testing.assert_allclose(actual[4:].reshape(rows.shape), expected.marginals)
+
+
 def test_native_decode_retries_when_normal_weights_have_underflowing_product() -> None:
     native = getattr(decoding._NATIVE, "decode", None)
     if native is None:

@@ -95,6 +95,9 @@ With `r = m − k` words remaining, the successor is completable only when
 `n − 1 + a ≤ r − 1`, equivalently `n ≤ r − a`. Thus an arity of at least
 `r` admits no positive source state, and otherwise the decoder can iterate
 directly over `1 ≤ n ≤ r − a` without testing larger states.
+Weights for arities with `a ≥ r` at that position have zero contribution to
+every complete sequence and need not be exponentiated by the normal-space
+decoder.
 If every arity is at most `A`, a reachable counter after `k` words is at most
 `1 + k · max(A − 1, 0)`. Intersecting this reachability bound with the
 completion bound `m − k` gives the state range needed by the exact decoder;

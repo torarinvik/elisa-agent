@@ -143,12 +143,17 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
     offsets: darray[i64] =
         for k in 0..<(m + 1) |offsets: darray[i64] = [0 for _ in 0..<(m + 2)]| -> offsets:
             offsets[k + 1] <- offsets[k] + live(k, m, max_arity) + 1
-    weights: darray[f64] = [exp(log_probs[i]) for i in 0..<(m * width)]
     # Subnormal weights lose relative precision, and finite weights may vanish.
     # Signal the caller to rerun the whole calculation in log space.
-    for i in 0..<(m * width):
-        return [FLOOR] if log_probs[i] != log(0.0) and weights[i] < 2.2250738585072014e-308
-        return [FLOOR] if weights[i] == -log(0.0)
+    weights: darray[f64] = [0.0 for _ in 0..<(m * width)]
+    for k in 0..<m:
+        for j in 0..<width:
+            continue if alphabet[j] >= m - k
+            i: i64 = k * width + j
+            weight: f64 = exp(log_probs[i])
+            return [FLOOR] if log_probs[i] != log(0.0) and weight < 2.2250738585072014e-308
+            return [FLOOR] if weight == -log(0.0)
+            weights[i] <- weight
     forward, best, choice, totals, log_z =
         for k in 0..<m |forward: darray[f64] = [1.0 if i == offsets[0] + 1 else 0.0 for i in 0..<offsets[m + 1]], best: darray[f64] = [0.0 if i == 1 else FLOOR for i in 0..<(2 * row_size)], choice: darray[i64] = [0 for _ in 0..<offsets[m + 1]], totals: darray[f64] = [1.0 for _ in 0..<(m + 1)], log_z: f64 = 0.0| -> (forward, best, choice, totals, log_z):
             best_here: i64 = (k % 2) * row_size
