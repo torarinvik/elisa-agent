@@ -108,7 +108,7 @@ TYPICAL_LENGTH = 4
 
 class Tokenizer:
     manifest = Manifest("nca.logic.tokenizer", "1.0.0",
-                        Contract((FORMULA_TEXT,), seq_type(NOISY_WORD)))
+                        Contract((FORMULA_TEXT,), seq_type(NOISY_WORD)), effects=frozenset())
 
     def invoke(self, text: str) -> list[str]:
         return text.split(" ")
@@ -194,7 +194,8 @@ class FormulaEvaluator(PrefixEvaluator):
                  prior: Callable[[int], ArityPrior | None] | None = None) -> None:
         super().__init__(FORMULA, apply,
                          Manifest("nca.logic.formula-evaluator", "1.0.0",
-                                  Contract((seq_type(WORD_DISTRIBUTION),), BOOLEAN)),
+                                  Contract((seq_type(WORD_DISTRIBUTION),), BOOLEAN),
+                                  effects=frozenset()),
                          evaluates=FormulaEvaluator.evaluated, short_circuit=short_circuit,
                          detection=detection, decode=decode, band_slack=band_slack, prior=prior)
 

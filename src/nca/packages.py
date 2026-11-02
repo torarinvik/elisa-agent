@@ -22,17 +22,24 @@ declared cost, map bodies once per element and internal slot fillings by
 their declared calls, all at sequence length ``length``; and how often each
 requirement is called, as fixed and per-element counts when that count is
 affine in the length (no requirement inside nested maps).
+
+``discover(store)`` finds packages contributed by any installed distribution
+under the ``nca.packages`` entry-point group, puts them into the store and
+binds their names (§28.6). A distribution contributes a package by naming a
+callable that takes the store and returns the reference of what it put
+there, so domains need no registration in the core and can ship separately.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from importlib import metadata
 from typing import Any
 
 from nca.abi import Calls, Contract, Manifest, Message, Module, Slot
 from nca.kernel import Kernel
 from nca.loader import ExpertStore, LazyExpert
-from nca.objects import Composite, Primitive, Ref, Store
+from nca.objects import Composite, Names, Primitive, Ref, Store
 from nca.optimize import slot_calls
 from nca.index import ProducerIndex
 from nca.planner import Given, Map, Plan, plan_stable_indexed
@@ -178,3 +185,35 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
                 for i in range(len(obj.exports))]
 
     return scope(ref)
+
+
+GROUP = "nca.packages"
+
+
+def discover(store: Store, names: Names | None = None, group: str = GROUP) -> Names:
+    """Put every package contributed under the entry-point ``group`` into
+    ``store``, in name order, and bind each entry point's name to its
+    reference in ``names`` (fresh by default).
+
+    A name contributed twice, a name already bound to another reference, a
+    contribution that fails and a reference missing from the store are
+    errors naming the contribution; nothing is guessed.
+    """
+    names = names if names is not None else Names()
+    found = sorted(metadata.entry_points(group=group), key=lambda entry: entry.name)
+    for previous, entry in zip(found, found[1:]):
+        if previous.name == entry.name:
+            raise ValueError(f"package {entry.name} is contributed twice: "
+                             f"{previous.value} and {entry.value}")
+    for entry in found:
+        try:
+            ref = entry.load()(store)
+        except Exception as error:
+            raise RuntimeError(f"package {entry.name} ({entry.value}) failed") from error
+        if ref not in store:
+            raise ValueError(f"package {entry.name} returned {ref}, which is not in the store")
+        previous = names.bind(entry.name, ref)
+        if previous not in (None, ref):
+            names.bind(entry.name, previous)
+            raise ValueError(f"package {entry.name} is already bound to {previous}")
+    return names

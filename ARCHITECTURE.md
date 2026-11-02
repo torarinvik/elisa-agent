@@ -1590,6 +1590,21 @@ Only results returned directly are stored, not those obtained through
 requests. A sealed export with no requirements is cached as a whole; an
 export with requirements takes slots and is not.
 
+`packages.discover(store)` implements §28.6. It reads the `nca.packages`
+entry-point group of every installed distribution, sorted by name; each
+entry point names a callable that puts a package into the store and returns
+its reference, which is bound to the entry point's name in a `Names`. A
+name offered twice, a failing contribution, a reference missing from the
+store and a name already bound elsewhere are errors. This project's
+`pyproject.toml` contributes `nca.arithmetic`
+(`domains.arithmetic.package.arithmetic`) and `nca.formulas`
+(`domains.boolean.package.formulas`: tokenizer and formula evaluator, with
+the word reader as requirement); a domain shipped as its own distribution
+declares the same entry point and needs no change to the core.
+Installed primitives keep their implementation's `demand` and `relevant`
+rules: the lazy expert reads them from the implementation, loading it, the
+first time the runtime asks.
+
 `ladder.calibration` states a rung's temperatures (after fitting any listed
 decisions) as a `calibration` attestation about the expert's reference, and
 `ladder.attested` reads one back into a rung, refusing an attestation about

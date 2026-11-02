@@ -1051,3 +1051,26 @@ def test_log_distribution_revision_refresh_matches_fresh_correction(mode: str) -
     assert cached is not None and fresh is not None
     assert sum(cached.values()) > sum(initial.values())
     assert sum(cached.values()) == pytest.approx(sum(fresh.values()), rel=1e-12, abs=0)
+
+
+def test_formula_package_answers_like_the_flat_pipeline() -> None:
+    """§28.3: the package is an expert whose word-reader requirement the
+    planner fills with whatever reader is installed."""
+    from nca.abi import Message
+    from nca.domains.boolean.package import formulas
+    from nca.objects import Store
+    from nca.packages import Export, install
+    from nca.planner import Apply
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    reader = EditReader()
+    flat = plan_stable([Tokenizer(), reader, FormulaEvaluator()], (FORMULA_TEXT,), BOOLEAN)
+    store = Store()
+    route = plan_stable([reader, *install(store, formulas(store))], (FORMULA_TEXT,), BOOLEAN)
+    assert isinstance(route, Apply) and isinstance(route.module, Export)
+    assert [s.module for s in route.slots] == [reader]
+    for text in ("and flse or xro true true tru", "and true false", "not tru", "or"):
+        answers = [execute(r, [Message(FORMULA_TEXT, text, "input")], Workspace(), 1000).payload
+                   for r in (flat, route)]
+        assert answers[0] == answers[1]

@@ -121,3 +121,21 @@ Caches can therefore be shared between machines and runs without changing
 any answer, provided the declarations are true. A false purity declaration,
 or a digest collision, breaks the premise, not the theorem; attestations
 (§28.4) are where evidence of either is recorded.
+
+## 28.6 Names and discovery
+
+References identify contents; *names* are a separate, mutable map from
+human-readable strings to references, so a name can move to a new version
+while every reference stays valid. Contributions are found by name: each
+installed distribution may offer packages under names of its choosing, and
+discovery puts every offered package into the store and binds its name.
+
+Discovered packages are installed after the library already present, in
+name order, as the members of one transparent composite. By Theorem 28.2,
+discovery never changes a route the library already had, whatever is
+discovered. Among the discovered packages, name order is the planner's
+priority: deterministic, so every installation of the same contributions
+yields the same library, but a policy and not a measure of quality.
+Selecting by evidence instead reads attestations (§28.4). A name offered
+twice is ambiguous and is refused rather than resolved by an arbitrary
+rule.

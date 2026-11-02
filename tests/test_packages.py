@@ -1,5 +1,6 @@
 """Content-addressed experts and composites planned in their own scope (§28)."""
 
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
 from nca.ladder import CALIBRATION, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
-from nca.packages import Export, install
+from nca.packages import GROUP, Export, discover, install
 from nca.planner import Apply, plan_stable
 from nca.runtime import execute
 from nca.workspace import Workspace
@@ -234,3 +235,68 @@ def test_calibration_is_an_attestation_beside_the_expert() -> None:
     (wrong,) = install(store, other)
     with pytest.raises(ValueError, match="another expert"):
         attested(wrong, stored)
+
+
+def contribute_counting(store: Store) -> str:
+    return counting_package(store)
+
+
+def contribute_reader(store: Store) -> str:
+    return store.put(primitive("count-letters", [WORD], INT))
+
+
+def contribute_nothing(store: Store) -> str:
+    return primitive("length", [TEXT], INT).ref
+
+
+def contribute_failure(store: Store) -> str:
+    raise RuntimeError("broken")
+
+
+def contributions(monkeypatch: pytest.MonkeyPatch, **entries: str) -> None:
+    found = [metadata.EntryPoint(name.replace("_", "."), f"{__name__}:{value}", GROUP)
+             for name, value in entries.items()]
+    monkeypatch.setattr(metadata, "entry_points",
+                        lambda group: [e for e in found if e.group == group])
+
+
+def test_discovered_packages_install_in_name_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    contributions(monkeypatch, z_counting="contribute_counting", a_reader="contribute_reader")
+    store = Store()
+    names = discover(store)
+    assert [name for name, _ in names.items()] == ["a.reader", "z.counting"]
+    world = store.put(Composite("world", "1", tuple(ref for _, ref in names.items())))
+    route = plan_stable(install(store, world), (TEXT,), INT)
+    assert execute(route, [Message(TEXT, "ab, c!", "input")], Workspace(), 10).payload == 3
+
+
+@pytest.mark.parametrize(("entries", "error"), [
+    ({"one": "contribute_reader", "one_": "contribute_counting"}, "contributed twice"),
+    ({"broken": "contribute_failure"}, "failed"),
+    ({"absent": "contribute_nothing"}, "not in the store"),
+])
+def test_discovery_refuses_ambiguous_or_broken_contributions(
+        monkeypatch: pytest.MonkeyPatch, entries: dict[str, str], error: str) -> None:
+    found = [metadata.EntryPoint(name.rstrip("_"), f"{__name__}:{value}", GROUP)
+             for name, value in entries.items()]
+    monkeypatch.setattr(metadata, "entry_points", lambda group: found)
+    with pytest.raises((ValueError, RuntimeError), match=error):
+        discover(Store())
+
+
+def test_discovery_keeps_existing_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    contributions(monkeypatch, reader="contribute_reader")
+    names = Names()
+    names.bind("reader", "sha256:" + "2" * 64)
+    with pytest.raises(ValueError, match="already bound"):
+        discover(Store(), names)
+    assert names.resolve("reader") == "sha256:" + "2" * 64
+
+
+def test_installed_distributions_contribute_their_domain_packages() -> None:
+    store = Store()
+    names = dict(discover(store).items())
+    assert {"nca.arithmetic", "nca.formulas"} <= set(names)
+    for ref in names.values():
+        obj = store.get(ref)
+        assert isinstance(obj, Composite) and obj.exports and obj.effects == frozenset()

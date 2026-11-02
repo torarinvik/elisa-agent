@@ -8,6 +8,10 @@ dependencies = []
 [project.optional-dependencies]
 vision = ["torch>=2.4", "torchvision>=0.19"]
 
+[project.entry-points."nca.packages"]
+"nca.arithmetic" = "nca.domains.arithmetic.package:arithmetic"
+"nca.formulas" = "nca.domains.boolean.package:formulas"
+
 [dependency-groups]
 dev = ["pytest>=8"]
 

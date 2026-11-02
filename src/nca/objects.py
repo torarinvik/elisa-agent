@@ -355,7 +355,7 @@ def _ready(store: Store, obj: Object) -> bool:
 
 
 class Names:
-    """Mutable names for immutable references (§28.3)."""
+    """Mutable names for immutable references (§28.6)."""
 
     def __init__(self) -> None:
         self._names: dict[str, Ref] = {}
