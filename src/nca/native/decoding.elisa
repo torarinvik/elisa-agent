@@ -388,38 +388,51 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
     return [] if alphabet_size == 0 or log_probs.len.i64() % alphabet_size != 0
     m: i64 = log_probs.len.i64() / alphabet_size
     return [] if m == 0
+    max_arity: i64 =
+        for j in 0..<alphabet_size |largest: i64 = 0| -> largest:
+            return [] if alphabet[j] < 0
+            largest <- alphabet[j] if alphabet[j] > largest else largest
+    offsets: darray[i64] =
+        for k in 0..<(m + 1) |offsets: darray[i64] = [0 for _ in 0..<(m + 2)]| -> offsets:
+            offsets[k + 1] <- offsets[k] + live(k, m, max_arity) + 1
     width: i64 = m + 2
     unreachable: f64 = log(0.0)
-    completable: darray[bool] = [i == m * width for i in 0..<((m + 1) * width)]
+    completable: darray[bool] = [i == offsets[m] for i in 0..<offsets[m + 1]]
     for step in 0..<m:
         k: i64 = m - 1 - step
+        here_top: i64 = live(k, m, max_arity)
+        next_top: i64 = live(k + 1, m, max_arity)
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
-            return [] if arity < 0
-            continue if arity >= m - k or log_probs[k * alphabet_size + j] == unreachable
-            for state in 1..<(m - k - arity + 1):
+            continue if arity > next_top or log_probs[k * alphabet_size + j] == unreachable
+            limit: i64 = next_top + 1 - arity
+            top: i64 = limit if limit < here_top else here_top
+            for state in 1..<(top + 1):
                 target: i64 = state - 1 + arity
-                if completable[(k + 1) * width + target]:
-                    completable[k * width + state] <- true
+                if completable[offsets[k + 1] + target]:
+                    completable[offsets[k] + state] <- true
     return [] if not completable[1]
-    forward: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
+    forward: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<offsets[m + 1]]
     best: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<(2 * width)]
-    choice: darray[i64] = [0 for _ in 0..<((m + 1) * width)]
+    choice: darray[i64] = [0 for _ in 0..<offsets[m + 1]]
     for k in 0..<m:
+        here_top: i64 = live(k, m, max_arity)
+        next_top: i64 = live(k + 1, m, max_arity)
         best_source: i64 = (k % 2) * width
         best_target: i64 = ((k + 1) % 2) * width
-        for state in 0..<width:
+        for state in 0..<(next_top + 1):
             best[best_target + state] <- unreachable
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
-            return [] if arity < 0
-            continue if arity >= m - k
+            continue if arity > next_top
             step: f64 = log_probs[k * alphabet_size + j]
-            for state in 1..<(m - k - arity + 1):
+            limit: i64 = next_top + 1 - arity
+            top: i64 = limit if limit < here_top else here_top
+            for state in 1..<(top + 1):
                 target: i64 = state - 1 + arity
-                continue if not completable[(k + 1) * width + target]
-                cell: i64 = (k + 1) * width + target
-                source: f64 = forward[k * width + state]
+                continue if not completable[offsets[k + 1] + target]
+                cell: i64 = offsets[k + 1] + target
+                source: f64 = forward[offsets[k] + state]
                 through: f64 = source + step
                 return [log(-1.0)] if source != unreachable and step != unreachable and (through == unreachable or through == -unreachable or through != through)
                 forward[cell] <- log_add(forward[cell], through)
@@ -428,31 +441,35 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
                 if candidate > best[best_target + target]:
                     best[best_target + target] <- candidate
                     choice[cell] <- j
-    log_z: f64 = forward[m * width]
+    log_z: f64 = forward[offsets[m]]
     return [] if log_z == unreachable
     result: darray[f64] = [0.0 for _ in 0..<(1 + m + m * alphabet_size)]
     result[0] <- log_z
     trace: darray[i64] = [0]
     for step in 0..<m:
         k: i64 = m - step
-        arity: i64 = alphabet[choice[k * width + trace[0]]]
+        arity: i64 = alphabet[choice[offsets[k] + trace[0]]]
         result[k] <- arity.f64()
         trace[0] <- trace[0] + 1 - arity
     backward: mutable darray[f64] = [0.0 if i == (m % 2) * width else unreachable for i in 0..<(2 * width)]
     for step in 0..<m:
         k: i64 = m - 1 - step
+        here_top: i64 = live(k, m, max_arity)
+        next_top: i64 = live(k + 1, m, max_arity)
         backward_here: i64 = (k % 2) * width
         backward_next: i64 = ((k + 1) % 2) * width
-        for state in 0..<width:
+        for state in 0..<(here_top + 1):
             backward[backward_here + state] <- unreachable
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
-            continue if arity >= m - k
+            continue if arity > next_top
             reading: f64 = log_probs[k * alphabet_size + j]
+            limit: i64 = next_top + 1 - arity
+            top: i64 = limit if limit < here_top else here_top
             marginal: f64 =
-                for state in 1..<(m - k - arity + 1) |backward, total: f64 = unreachable| -> total:
+                for state in 1..<(top + 1) |backward, total: f64 = unreachable| -> total:
                     target: i64 = state - 1 + arity
-                    source: f64 = forward[k * width + state]
+                    source: f64 = forward[offsets[k] + state]
                     continue if source == unreachable
                     suffix: f64 = backward[backward_next + target]
                     through: f64 = reading + suffix
