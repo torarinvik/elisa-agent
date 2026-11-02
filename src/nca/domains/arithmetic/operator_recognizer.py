@@ -13,6 +13,7 @@ trained on, and consumes, normalized glyphs (``nca.domains.arithmetic.normalizer
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from torch import nn
 from nca.abi import Contract, Manifest, TypeId
 from nca.domains.arithmetic import types
 from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, render_operator
-from nca.domains.arithmetic.digit_recognizer import GLYPH, build_network as _digit_network
+from nca.domains.arithmetic.digit_recognizer import GLYPH, build_network as _digit_network, fine_tuned
 
 OPERATOR_DISTRIBUTION = types.OPERATOR_DISTRIBUTION.type()
 RELATION_DISTRIBUTION = types.RELATION_DISTRIBUTION.type()
@@ -63,6 +64,12 @@ class SymbolRecognizer:
                                           symbol_set.output))
         self.network = network.eval()
         self.normalized = normalized
+
+    def fine_tuned(self, glyphs: Sequence[torch.Tensor], labels: Sequence[int],
+                   epochs: int = 20, seed: int = 0) -> SymbolRecognizer:
+        """This recognizer trained further on labeled glyphs, a challenger for its contract."""
+        return SymbolRecognizer(fine_tuned(self.network, glyphs, labels, epochs, seed),
+                                self.symbol_set, self.manifest.version, self.normalized)
 
     @classmethod
     def load(cls, path: Path, symbol_set: SymbolSet = OPERATOR_SET,

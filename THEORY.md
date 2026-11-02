@@ -60,3 +60,4 @@ link for its definitions, arguments, and results.
 - [33. Per-input risk on any route](theory/33-per-input-risk.md)
 - [34. Compiled routes](theory/34-compiled-routes.md)
 - [35. Calibration audits](theory/35-calibration-audits.md)
+- [36. Acquiring experts](theory/36-acquisition.md)

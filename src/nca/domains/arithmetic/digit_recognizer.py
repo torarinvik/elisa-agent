@@ -17,6 +17,8 @@ the recognizer is trained on, and consumes, normalized glyphs
 from __future__ import annotations
 
 import argparse
+import copy
+from collections.abc import Sequence
 from pathlib import Path
 
 import torch
@@ -83,6 +85,24 @@ class DigitRecognizer:
         """``invoke`` on each glyph, in one forward pass."""
         logits = self.network(torch.stack([g.reshape(1, 28, 28) for g in glyphs]))
         return [tuple(row) for row in torch.softmax(logits, dim=1).tolist()]
+
+
+def fine_tuned(network: nn.Module, glyphs: Sequence[torch.Tensor], labels: Sequence[int],
+               epochs: int = 20, seed: int = 0) -> nn.Module:
+    """A copy of ``network`` trained further on labeled glyphs."""
+    torch.manual_seed(seed)
+    tuned = copy.deepcopy(network)
+    images = torch.stack([g.reshape(1, 28, 28) for g in glyphs])
+    targets = torch.tensor(list(labels))
+    optimizer = torch.optim.Adam(tuned.parameters(), lr=1e-3)
+    loss_fn = nn.CrossEntropyLoss()
+    tuned.train()
+    for _ in range(epochs):
+        for batch in torch.randperm(len(targets)).split(64):
+            optimizer.zero_grad()
+            loss_fn(tuned(images[batch]), targets[batch]).backward()
+            optimizer.step()
+    return tuned.eval()
 
 
 def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",

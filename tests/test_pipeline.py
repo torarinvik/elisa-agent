@@ -383,3 +383,14 @@ def test_compiled_pipeline_equals_the_runtime() -> None:
     expected = [execute(graph, [Message(EXPRESSION_IMAGE, image, "input")], Workspace(),
                         1000).payload for image in images]
     assert compile_route(graph, (EXPRESSION_IMAGE,))([(image,) for image in images]) == expected
+
+
+def test_fine_tuned_recognizer_is_a_new_expert_with_the_same_contract() -> None:
+    torch.manual_seed(0)
+    incumbent = SymbolRecognizer(op_net())
+    rng = np.random.default_rng(0)
+    glyphs = [torch.from_numpy(render_operator(op, rng).astype(np.float32)) for op in "+-*" * 4]
+    challenger = incumbent.fine_tuned(glyphs, [0, 1, 2] * 4, epochs=1)
+    assert challenger.manifest.contract == incumbent.manifest.contract
+    assert challenger.network is not incumbent.network
+    assert not torch.equal(challenger.network[-1].weight, incumbent.network[-1].weight)

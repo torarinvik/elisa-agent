@@ -57,3 +57,61 @@ def test_recalibration_refits_and_attests_an_overconfident_expert() -> None:
     refit = attested(expert, attestation)
     assert refit.temperature() > 1.0  # Softened.
     assert torch.is_tensor(refit.observe(values[0]))
+
+
+class Guesser:
+    """Right on a value when its noise is below ``skill`` percent."""
+
+    def __init__(self, skill: int, name: str = "guesser") -> None:
+        self.manifest = Manifest("reader", "1", Contract(("glyph.v1",), "label.v1"))
+        self.skill, self.name = skill, name
+
+    def invoke(self, value: tuple[int, int]) -> int:
+        label, noise = value
+        return label if noise < self.skill else label + 1
+
+
+def labeled(n: int) -> tuple[list[tuple[int, int]], list[int]]:
+    rng = random.Random(2)
+    values = [(rng.randrange(3), rng.randrange(100)) for _ in range(n)]
+    return values, [label for label, _ in values]
+
+
+def test_acquisition_promotes_only_a_better_trained_challenger() -> None:
+    from nca.evidence import acquire
+
+    values, labels = labeled(400)
+    seen: list[int] = []
+
+    def trainer(skill: int) -> Any:
+        def train(train_values: list, train_labels: list) -> Guesser:
+            seen.append(len(train_values))
+            return Guesser(skill, "challenger")
+        return train
+
+    def correct(output: int, label: int) -> bool:
+        return output == label
+
+    incumbent = Guesser(60)
+    better = acquire(incumbent, trainer(95), values, labels, correct)
+    assert seen == [200]  # Trained on the first half only.
+    assert better.promotion is not None and better.promotion.challenger is better.challenger
+    assert better.promotion.losses == 0 and better.promotion.wins > 50
+    assert sum(better.challenger_outcomes) > sum(better.incumbent_outcomes)
+    same = acquire(incumbent, trainer(60), values, labels, correct)
+    assert same.promotion is None
+    other = Guesser(90)
+    other.manifest = Manifest("reader", "1", Contract(("glyph.v1",), "other.v1"))
+    with pytest.raises(ValueError, match="contract"):
+        acquire(incumbent, lambda v, y: other, values, labels, correct)
+
+
+def test_hotspots_rank_experts_by_charged_risk() -> None:
+    from nca.evidence import hotspots
+    from nca.runtime import RiskLedger
+
+    a, b = Guesser(10, "a"), Guesser(20, "b")
+    first, second = RiskLedger(), RiskLedger()
+    first.entries += [(a, (1,), 0.1), (b, (1,), 0.3)]
+    second.entries += [(a, (2,), 0.4)]
+    assert [(m, pytest.approx(t)) for m, t in hotspots([first, second])] == [(a, 0.5), (b, 0.3)]

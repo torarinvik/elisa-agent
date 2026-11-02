@@ -126,11 +126,15 @@ def promote(modules: Sequence[Module], store: Store, bench: Ref, issuers: Issuer
         if best is None:
             continue
         p_value, j, found = best
-        promotions.append(Promotion(
-            incumbent, library[j], sum(c and not o for o, c in zip(base, found)),
-            sum(o and not c for o, c in zip(base, found)), p_value, level))
+        promotions.append(_promotion(incumbent, library[j], base, found, p_value, level))
         library[i], library[j] = library[j], library[i]
     return library, promotions
+
+
+def _promotion(incumbent: Module, challenger: Module, base: Sequence[bool],
+               found: Sequence[bool], p_value: float, level: float) -> Promotion:
+    return Promotion(incumbent, challenger, sum(c and not o for o, c in zip(base, found)),
+                     sum(o and not c for o, c in zip(base, found)), p_value, level)
 
 
 def _outcomes(module: Module, store: Store, bench: Ref,
@@ -448,3 +452,45 @@ def recalibrate(rung: Any, values: Sequence[Any], labels: Sequence[int], subject
                    [max(range(len(o)), key=o.__getitem__) != label
                     for o, label in zip(outputs, labels[half:], strict=True)], independent)
     return (None if result.refutes(alpha) else calibration(refit, subject, issuer=issuer)), result
+
+
+def hotspots(ledgers: Sequence[RiskLedger]) -> list[tuple[Module, float]]:
+    """Each charged expert with its total report over ``ledgers``, largest
+    first: where a better expert lowers the route's risk most (§36.1)."""
+    totals: dict[int, list[Any]] = {}
+    for ledger in ledgers:
+        for module, _, report in ledger.entries:
+            totals.setdefault(id(module), [module, 0.0])[1] += report
+    return sorted(((m, t) for m, t in totals.values()), key=lambda entry: -entry[1])
+
+
+@dataclass(frozen=True)
+class Acquisition:
+    challenger: Module
+    incumbent_outcomes: tuple[bool, ...]
+    challenger_outcomes: tuple[bool, ...]
+    """Each expert's correctness on the evaluation part, in order, which a
+    caller may attest with ``evaluation`` for experts that are stored objects."""
+    promotion: Promotion | None
+    """The promotion made, or ``None`` if the evidence did not support one."""
+
+
+def acquire(incumbent: Module, train: Callable[[Sequence[Any], Sequence[Any]], Module],
+            values: Sequence[Any], labels: Sequence[Any],
+            correct: Callable[[Any, Any], bool], alpha: float = 0.05) -> Acquisition:
+    """Train a challenger for ``incumbent``'s contract on the first half of
+    the labeled ``values`` and promote it if the paired sign test of
+    ``promote`` on the second half supports it at ``alpha`` (Theorem 36.1).
+    ``correct(output, label)`` scores an output."""
+    half = len(values) // 2
+    if half == 0 or len(labels) != len(values):
+        raise ValueError("acquisition needs at least two labeled values")
+    challenger = train(values[:half], labels[:half])
+    if challenger.manifest.contract != incumbent.manifest.contract:
+        raise ValueError("the challenger must have the incumbent's contract")
+    held = list(zip(values[half:], labels[half:], strict=True))
+    base = tuple(correct(incumbent.invoke(v), y) for v, y in held)
+    found = tuple(correct(challenger.invoke(v), y) for v, y in held)
+    accepted, p_value = sign_test(base, found, alpha)
+    promotion = _promotion(incumbent, challenger, base, found, p_value, alpha) if accepted else None
+    return Acquisition(challenger, base, found, promotion)

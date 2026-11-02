@@ -47,6 +47,7 @@ run the Python tests with `uv run pytest`.
 | [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
 | [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
 | [§35 Calibration audits](theory/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
+| [§36 Acquiring experts](theory/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -332,6 +333,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [34.3](theory/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
 | [34.4](theory/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
 | [35.1](theory/35-calibration-audits.md) | `count_tail_le`, `audit_tail_le` | `Audit` |
+| [36.1](theory/36-acquisition.md) | `split_test_le` | `Acquire` |
 
 ## Native kernels
 
@@ -1842,3 +1844,18 @@ labeled values, audits its `Calibrated` reports on the second half, and
 returns a calibration attestation about `subject` (read back with
 `ladder.attested`) unless that audit refutes the refit. Which invocations
 to audit, and how they are labeled, is the caller's choice.
+
+## 36. Acquiring experts
+
+`evidence.hotspots(ledgers)` sums each charged expert's reports over a
+batch of ledgers, largest first. `evidence.acquire(incumbent, train,
+values, labels, correct, alpha)` calls the domain's `train` on the first
+half of the labeled values, requires the challenger to have the
+incumbent's contract, scores both on the second half with `correct`, and
+runs `promote`'s paired sign test on those outcomes. The `Acquisition`
+holds the challenger, both outcome sequences (to attest with `evaluation`
+when the experts are stored objects) and the `Promotion`, if any. The
+challenger is installed by the caller, after calibrating it with
+`recalibrate` on the evaluation half. In the arithmetic domain,
+`digit_recognizer.fine_tuned` trains a copy of a network further on
+labeled glyphs, and `SymbolRecognizer.fine_tuned` wraps it as a trainer.
