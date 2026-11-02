@@ -55,7 +55,7 @@ theorem singleton_target_normalizer (logit temperature : ℝ) :
     Real.exp ((logit - logit) / temperature) = 1 := by
   simp
 
-/-- Every class tied at the target maximum contributes unit shifted mass. -/
+/-- Every class tied at a row or group maximum contributes unit shifted mass. -/
 theorem target_maximum_unit_weight (value maximum temperature : ℝ) (same : value = maximum) :
     Real.exp ((value - maximum) / temperature) = 1 := by
   rw [same]

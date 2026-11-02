@@ -175,7 +175,8 @@ maximum from each sum before evaluating this difference. If the target group
 contains one class, its shifted normalizer is exactly `exp((x − x) / T) = 1`,
 even when other groups contain multiple classes. More generally, every class
 equal to the target group's maximum contributes exactly one to its shifted
-normalizer, including ties. The fit selects the best
+normalizer, including ties. The same identity applies to every class tied at
+the row maximum in the full normalizer. The fit selects the best
 of 120 temperatures between 0.1 and 8.0; it does not claim a continuous
 global optimum. For `n` observations, the mean maximum gap can equivalently
 be accumulated as `(row maximum − target-group maximum) / (temperature · n)`

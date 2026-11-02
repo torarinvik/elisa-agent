@@ -1458,6 +1458,32 @@ def test_native_grouped_calibration_preserves_tied_target_maxima() -> None:
     assert result == pytest.approx([1e308, 2.5e307], rel=1e-14)
 
 
+def test_native_calibration_preserves_tied_row_maxima() -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
+    if native is None:
+        pytest.skip("stable native calibration kernel is not built")
+    logits = torch.tensor([[2, 2, 2, -1, 0, -1], [3, -1, 3, 3, 0, -1],
+                           [-1, -1, 2, 2, 2, -1]], dtype=torch.float64)
+    temperatures = np.array([0.1, 1.0, 8.0])
+    for groups in (np.array([0, 0, 1, 1, 2, 2], dtype=np.int64), np.arange(6, dtype=np.int64)):
+        entries = int(groups.max()) + 1
+        labels = torch.tensor([0, 1, 2], dtype=torch.int64)
+        actual = native(logits.numpy().reshape(-1), labels.numpy(), groups, entries, temperatures)
+        expected = []
+        for temperature in temperatures:
+            scores = torch.log_softmax(logits / temperature, dim=-1)
+            grouped = torch.stack([scores[:, groups == group].logsumexp(dim=-1)
+                                   for group in range(entries)], dim=-1)
+            expected.append(nn.functional.nll_loss(grouped, labels).item())
+        assert actual == pytest.approx(expected, rel=1e-13, abs=1e-13)
+    extreme = np.tile(np.array([1e308, 1e308, -1e308, -1e308, -1e308, -1e308]), 8)
+    result = native(extreme, np.ones(8, dtype=np.int64), np.array([0, 0, 1, 1, 2, 2]),
+                    3, np.array([2.0, 8.0]))
+    assert result == pytest.approx([1e308, 2.5e307], rel=1e-14)
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
     from nca import ladder as ladder_module
