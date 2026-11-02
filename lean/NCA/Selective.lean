@@ -222,6 +222,29 @@ theorem calibration_matrix_restriction_ext {ι κ α : Type*} (rows : List ι)
         intro r hr column hc
         exact same r (List.mem_cons_of_mem _ hr) column hc
 
+/-- Summing normalized class weights equals normalizing their group mass. -/
+theorem grouped_normalization {ι : Type*} (group : Finset ι) (weight : ι → ℝ) (total : ℝ) :
+    (∑ i ∈ group, weight i / total) = (∑ i ∈ group, weight i) / total := by
+  simp only [div_eq_mul_inv, Finset.sum_mul]
+
+/-- Grouped masses in a batch depend only on the corresponding row and group. -/
+theorem batched_group_mass_ext {ρ ι : Type*} (rows : List ρ) (group : Finset ι)
+    (a b : ρ → ι → ℝ)
+    (same : ∀ row ∈ rows, ∀ i ∈ group, a row i = b row i) :
+    rows.map (fun row => ∑ i ∈ group, a row i) =
+      rows.map (fun row => ∑ i ∈ group, b row i) := by
+  induction rows with
+  | nil => rfl
+  | cons row rest ih =>
+      simp only [List.map_cons, List.cons.injEq]
+      constructor
+      · apply Finset.sum_congr rfl
+        intro i hi
+        exact same row (List.mem_cons_self ..) i hi
+      · apply ih
+        intro r hr i hi
+        exact same r (List.mem_cons_of_mem _ hr) i hi
+
 /-- The negative log likelihood of a group is the difference of log masses. -/
 theorem grouped_negative_log_likelihood {total group : ℝ}
     (htotal : 0 < total) (hgroup : 0 < group) :

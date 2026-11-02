@@ -170,6 +170,11 @@ value references are snapshotted before expert invocation; individual values
 are not deep-copied. The observations and label snapshot replace the previous
 calibration only after fitting succeeds.
 
+For a batch, each row has its own total mass. A grouped probability is the
+sum of that row's class weights in the group divided by that row's total;
+equivalently, it is the sum of the individually normalized weights. No mass
+or normalization is shared between rows.
+
 **Practice queue.** Abstentions
 and doubtful glyphs show where the library is weakest. In use, glyphs with
 calibrated risk `r ≥ θ` are queued for a teacher's label.

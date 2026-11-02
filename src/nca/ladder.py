@@ -365,20 +365,46 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
 def _selected_logits(log: torch.Tensor, indices: Sequence[int] | None) -> torch.Tensor:
     """Select before shifting integers, retaining differences inside the decision."""
     if log.is_floating_point():
-        return log if indices is None else log[indices]
+        return log if indices is None else log[..., list(indices)]
     if log.is_complex() or log.is_quantized:
         raise ValueError("log weights must be real numeric values")
     if indices is not None:
         if log.dtype == torch.uint64:
-            values = log.detach().cpu().numpy()[list(indices)]
+            values = log.detach().cpu().numpy()[..., list(indices)]
             log = torch.from_numpy(np.ascontiguousarray(values)).to(log.device)
         else:
-            log = log[list(indices)]
+            log = log[..., list(indices)]
     return _temperature_scores(log, 1.0)
 
 
 def _binary64_logits(log: torch.Tensor) -> torch.Tensor:
     return log.cpu().double() if log.device.type == "mps" else log.double()
+
+
+def _grouped_batch(log: torch.Tensor, key: DecisionKey, temperature: float, *, logarithmic: bool) -> torch.Tensor:
+    union, positions = _layout(key)
+    selected = (_selected_logits(log[..., union].cpu(), None)
+                if logarithmic and log.device.type == "mps" else _selected_logits(log, union))
+    output_dtype = torch.float64 if logarithmic else (
+        log.dtype if log.is_floating_point() else torch.get_default_dtype())
+    shape = (*log.shape[:-1], len(positions))
+    native = getattr(_NATIVE, "calibrated_group_rows_into", None)
+    if (native is not None and selected.device.type == "cpu" and not selected.requires_grad
+            and selected.numel() <= (16384 if logarithmic else 8192)):
+        values = selected.double().contiguous().numpy()
+        output = np.empty(math.prod(shape), dtype=np.float64)
+        status = native(values.reshape(-1), _group_ids(key), output,
+                        len(positions), temperature, logarithmic)
+        if status != 0:
+            raise ValueError("calibrated decision requires finite log weights with positive mass")
+        return torch.from_numpy(output.reshape(shape)).to(output_dtype)
+    if logarithmic:
+        scores = _temperature_scores(_binary64_logits(selected), temperature)
+        normalizer = torch.logsumexp(scores, dim=-1)
+        return torch.stack([torch.logsumexp(scores[..., part], dim=-1) - normalizer
+                            for part in positions], dim=-1)
+    reading = torch.softmax(_temperature_scores(selected, temperature), dim=-1).to(output_dtype)
+    return torch.stack([reading[..., part].sum(dim=-1) for part in positions], dim=-1)
 
 
 def _checked_calibrated_risk(value: float) -> float:
@@ -678,7 +704,7 @@ class Rung:
     def distribution(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> torch.Tensor:
         """Calibrated probabilities of the decision's entries: each entry's
         share of the classes it ranges over, under the decision's temperature.
-        Grouped decisions accept one vector; unrestricted readings can be batched.
+        Leading batch dimensions are preserved.
         """
         temperature = self.temperature(classes)
         if not math.isfinite(temperature) or temperature <= 0:
@@ -688,8 +714,10 @@ class Rung:
             log = log.logits
         if classes is None:
             return self.reading(log)
-        if log.ndim != 1:
+        if log.ndim == 0:
             raise ValueError("grouped distribution requires a one-dimensional logit vector")
+        if log.ndim > 1:
+            return _grouped_batch(log, decision_key(classes), temperature, logarithmic=False)
         output_dtype = log.dtype if log.is_floating_point() else torch.get_default_dtype()
         union, positions = _layout(decision_key(classes))
         values = _selected_logits(log, union)
@@ -706,7 +734,7 @@ class Rung:
 
     def log_distribution(self, log: torch.Tensor | RankedObservation,
                          classes: Decision = None) -> torch.Tensor:
-        """Log probabilities retaining underflowed mass; unrestricted inputs can be batched."""
+        """Log probabilities retaining underflowed mass, with optional batch dimensions."""
         temperature = self.temperature(classes)
         if not math.isfinite(temperature) or temperature <= 0:
             name = "ranked distribution" if isinstance(log, RankedObservation) else "distribution"
@@ -718,8 +746,10 @@ class Rung:
                 # MPS lacks binary64, which this interface uses for log probabilities.
                 log = log.cpu()
             return torch.log_softmax(_temperature_scores(_binary64_logits(_selected_logits(log, None)), temperature), dim=-1)
-        if log.ndim != 1:
+        if log.ndim == 0:
             raise ValueError("grouped log distribution requires a one-dimensional logit vector")
+        if log.ndim > 1:
+            return _grouped_batch(log, decision_key(classes), temperature, logarithmic=True)
         key = decision_key(classes)
         union, positions = _layout(key)
         if log.device.type == "mps":

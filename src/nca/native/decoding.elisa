@@ -1837,6 +1837,49 @@ def weighted_decision_risk(weights: view[f64], groups: view[i64], entries: i64, 
     value: f64 = (outside / largest) / scaled_total if outside != -log(0.0) else scaled_outside / scaled_total
     return nextafter(0.0, 1.0) if value == 0.0 and outside > 0.0 else value
 
+# Batched grouped probabilities or log probabilities in caller-owned storage.
+def calibrated_group_rows_into(logits: view[f64], groups: view[i64], output: mutable view[f64], entries: i64, temperature: f64, logarithmic: bool) -> i64 can[Memory.Allocate, Abort.Panic]:
+    width: i64 = groups.len.i64()
+    return -1 if width <= 0 or entries <= 0 or logits.len.i64() % width != 0 or output.len.i64() % entries != 0
+    return -1 if logits.len.i64() / width != output.len.i64() / entries
+    return -1 if temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
+    for j in 0..<width:
+        return -1 if groups[j] < 0 or groups[j] >= entries
+    maxima: darray[f64] = [log(0.0) for _ in 0..<entries]
+    totals: darray[f64] = [0.0 for _ in 0..<entries]
+    state: darray[f64] = [log(0.0)]
+    for row in 0..<(logits.len.i64() / width):
+        base: i64 = row * width
+        out: i64 = row * entries
+        for g in 0..<entries:
+            maxima[g] <- log(0.0)
+            totals[g] <- 0.0
+            output[out + g] <- 0.0
+        state[0] <- log(0.0)
+        for j in 0..<width:
+            value: f64 = logits[base + j]
+            return -1 if value != value or value == -log(0.0)
+            group: i64 = groups[j]
+            maxima[group] <- value if value > maxima[group] else maxima[group]
+            state[0] <- value if value > state[0] else state[0]
+        largest: f64 = state[0]
+        return -1 if largest == log(0.0)
+        total: f64 =
+            for j in 0..<width |total: f64 = 0.0| -> total:
+                total += exp(calibrated_difference(logits[base + j], largest, temperature))
+        for j in 0..<width:
+            group: i64 = groups[j]
+            value: f64 = logits[base + j]
+            if logarithmic:
+                totals[group] <- totals[group] + exp(calibrated_difference(value, maxima[group], temperature)) if maxima[group] != log(0.0) else totals[group]
+            else:
+                output[out + group] <- output[out + group] + exp(calibrated_difference(value, largest, temperature)) / total
+        if logarithmic:
+            normalizer: f64 = log(total)
+            for g in 0..<entries:
+                output[out + g] <- calibrated_difference(maxima[g], largest, temperature) + log(totals[g]) - normalizer if maxima[g] != log(0.0) else log(0.0)
+    return 0
+
 # Stable temperature-scaled softmax, summed into caller-declared groups.
 def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     return [] if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64() or entries <= 0 or temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
@@ -1924,6 +1967,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn calibrated_group_rows_into
     fn scaled_logit_rows_into
     fn shifted_integer_logits_into
     fn shifted_integer_rows_into

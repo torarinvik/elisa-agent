@@ -277,7 +277,7 @@ def test_batched_readings_preserve_gradients() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_grouped_decisions_and_risk_reject_batched_logits(native, monkeypatch) -> None:
+def test_decision_risk_rejects_batched_logits(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and ladder_module._NATIVE is None:
@@ -289,11 +289,202 @@ def test_grouped_decisions_and_risk_reject_batched_logits(native, monkeypatch) -
     assert rung.reading(logits).shape == (2, 2)
     assert rung.distribution(logits).shape == (2, 2)
     assert rung.log_distribution(logits).shape == (2, 2)
-    for call in (lambda: rung.risk(logits),
-                 lambda: rung.distribution(logits, ((0,), (1,))),
-                 lambda: rung.log_distribution(logits, ((0,), (1,)))):
-        with pytest.raises(ValueError, match="one-dimensional"):
-            call()
+    with pytest.raises(ValueError, match="one-dimensional"):
+        rung.risk(logits)
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.float64, torch.int64, torch.uint64])
+def test_batched_grouped_distributions_match_individual_rows(
+        native: bool, dtype: torch.dtype, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None) is None:
+        pytest.skip("native grouped row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    maximum = torch.iinfo(dtype).max if not dtype.is_floating_point else 10
+    logits = torch.tensor([[[maximum, maximum - 1, 0, 1, 2, 3], [0, 1, 2, 3, 4, maximum]],
+                           [[1, 0, 4, 3, 2, 5], [3, 4, 5, 0, 1, 2]]], dtype=dtype)
+    decision = ((0, 2), (1,), (3, 4))
+    rung = Rung(None)
+    actual = rung.distribution(logits, decision)
+    actual_logs = rung.log_distribution(logits, decision)
+    expected = torch.stack([torch.stack([rung.distribution(row, decision) for row in batch])
+                            for batch in logits])
+    expected_logs = torch.stack([torch.stack([rung.log_distribution(row, decision) for row in batch])
+                                 for batch in logits])
+    assert actual.shape == (2, 2, 3) and actual.dtype == expected.dtype
+    assert actual_logs.shape == (2, 2, 3) and actual_logs.dtype == torch.float64
+    tolerance = 1e-3 if dtype == torch.float16 else 1e-7
+    assert torch.allclose(actual, expected, atol=tolerance, rtol=tolerance)
+    assert torch.allclose(actual_logs, expected_logs, atol=1e-12, rtol=1e-12)
+
+
+def test_batched_grouped_distributions_preserve_gradients() -> None:
+    logits = torch.tensor([[0.1, -0.2, 0.3], [1.0, -1.0, 0.0]],
+                          dtype=torch.float64, requires_grad=True)
+    decision = ((0, 2), (1,))
+    rung = Rung(None)
+    result = rung.distribution(logits, decision)[:, 0].sum()
+    result.backward()
+    expected = logits.detach().clone().requires_grad_()
+    (expected.softmax(dim=-1)[:, [0, 2]].sum()).backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad, expected.grad)
+    logits = logits.detach().clone().requires_grad_()
+    rung.log_distribution(logits, decision)[:, 0].sum().backward()
+    expected = logits.detach().clone().requires_grad_()
+    torch.logsumexp(expected.log_softmax(dim=-1)[:, [0, 2]], dim=-1).sum().backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad, expected.grad)
+
+
+@pytest.mark.parametrize("logarithmic,large_rows", [(False, 1025), (True, 2049)])
+def test_batched_grouped_cpu_routes_large_inputs_to_tensor(
+        logarithmic: bool, large_rows: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None)
+    if kernel is None:
+        pytest.skip("native grouped row kernel is not built")
+    calls = []
+    def measured(*args: Any) -> int:
+        calls.append(True)
+        return kernel(*args)
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(calibrated_group_rows_into=measured))
+    decision = ((0, 2, 4, 6), (1, 3, 5, 7))
+    rung = Rung(None)
+    method = rung.log_distribution if logarithmic else rung.distribution
+    assert method(torch.zeros((2, 8), dtype=torch.float64), decision).shape == (2, 2)
+    assert method(torch.zeros((large_rows, 8), dtype=torch.float64), decision).shape == (large_rows, 2)
+    assert calls == [True]
+
+
+def test_native_grouped_row_kernel_validates_shapes_and_groups() -> None:
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None)
+    if kernel is None:
+        pytest.skip("native grouped row kernel is not built")
+    logits = np.array([0.0, 1.0, 2.0, 3.0], dtype=np.float64)
+    groups = np.array([0, 1], dtype=np.int64)
+    output = np.empty(4, dtype=np.float64)
+    assert kernel(logits, groups, output, 2, 1.0, False) == 0
+    assert kernel(logits, groups, np.empty(3), 2, 1.0, False) == -1
+    assert kernel(logits, np.array([0, 2], dtype=np.int64), output, 2, 1.0, False) == -1
+    assert kernel(logits, groups, output, 2, math.nan, False) == -1
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_grouped_distributions_reject_invalid_rows(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None) is None:
+        pytest.skip("native grouped row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    decision = ((0,), (1,))
+    rung = Rung(None)
+    for bad in (math.nan, math.inf):
+        logits = torch.tensor([[0.0, 1.0], [0.0, bad]], dtype=torch.float64)
+        for call in (rung.distribution, rung.log_distribution):
+            with pytest.raises(ValueError, match="positive mass"):
+                call(logits, decision)
+    logits = torch.tensor([[0.0, 1.0], [-math.inf, -math.inf]], dtype=torch.float64)
+    for call in (rung.distribution, rung.log_distribution):
+        with pytest.raises(ValueError, match="positive mass"):
+            call(logits, decision)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_grouped_distributions_ignore_unselected_logits(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None) is None:
+        pytest.skip("native grouped row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[0.0, 1.0, math.nan], [1.0, 0.0, math.inf]], dtype=torch.float64)
+    expected = torch.softmax(torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=torch.float64), dim=-1)
+    rung = Rung(None)
+    decision = ((0,), (1,))
+    assert torch.allclose(rung.distribution(logits, decision), expected)
+    assert torch.allclose(rung.log_distribution(logits, decision), expected.log())
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_grouped_distributions_support_zero_mass_entries_and_empty_batches(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None) is None:
+        pytest.skip("native grouped row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    decision = ((0,), (1,), (2,))
+    rung = Rung(None)
+    logits = torch.tensor([[0.0, -math.inf, -1000.0], [-1.0, -math.inf, 0.0]], dtype=torch.float64)
+    result = rung.distribution(logits, decision)
+    logs = rung.log_distribution(logits, decision)
+    assert result[:, 1].tolist() == [0.0, 0.0]
+    assert logs[:, 1].tolist() == [-math.inf, -math.inf]
+    assert logs[0, 2].item() == pytest.approx(-1000.0)
+    assert rung.distribution(torch.empty((0, 3), dtype=torch.float64), decision).shape == (0, 3)
+    assert rung.log_distribution(torch.empty((0, 3), dtype=torch.float64), decision).shape == (0, 3)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_grouped_distributions_handle_extreme_temperature(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_group_rows_into", None) is None:
+        pytest.skip("native grouped row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    decision = ((0, 2), (1,))
+    rung = Rung(None)
+    rung.temperatures[decision] = 1e308
+    logits = torch.tensor([[1e308, -1e308, 0.0], [-1e308, 1e308, 0.0]], dtype=torch.float64)
+    probabilities = torch.tensor([[1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]], dtype=torch.float64).softmax(dim=-1)
+    expected = torch.stack((probabilities[:, [0, 2]].sum(dim=-1), probabilities[:, 1]), dim=-1)
+    assert torch.allclose(rung.distribution(logits, decision), expected)
+    assert torch.allclose(rung.log_distribution(logits, decision), expected.log())
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_batched_grouped_distributions_and_gradients(device: str) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+    logits = torch.tensor([[0.1, -0.2, 0.3], [1.0, -1.0, 0.0]],
+                          dtype=torch.float32, device=device, requires_grad=True)
+    decision = ((0, 2), (1,))
+    rung = Rung(None)
+    actual = rung.distribution(logits, decision)
+    logs = rung.log_distribution(logits, decision)
+    expected = logits.detach().cpu().double().softmax(dim=-1)
+    expected = torch.stack((expected[:, [0, 2]].sum(dim=-1), expected[:, 1]), dim=-1)
+    assert torch.allclose(actual.cpu().double(), expected, atol=1e-7)
+    assert torch.allclose(logs.cpu(), expected.log(), atol=1e-7)
+    logs[:, 0].sum().backward()
+    assert logits.grad is not None and bool(torch.isfinite(logits.grad).all())
+
+
+def test_mps_batched_grouped_unsigned_logits_keep_local_order() -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    maximum = torch.iinfo(torch.uint64).max
+    logits = torch.tensor([[maximum, maximum - 1, 0], [0, maximum - 1, maximum]],
+                          dtype=torch.uint64, device="mps")
+    decision = ((1,), (2,))
+    scores = torch.tensor([[0.0, -float(maximum - 1)], [-1.0, 0.0]], dtype=torch.float64)
+    rung = Rung(None)
+    assert torch.allclose(rung.distribution(logits, decision).cpu().double(), scores.softmax(dim=-1), atol=1e-7)
+    assert torch.allclose(rung.log_distribution(logits, decision), scores.log_softmax(dim=-1), atol=1e-7)
 
 
 @pytest.mark.parametrize("device", ["mps", "cuda"])
