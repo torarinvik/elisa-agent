@@ -324,7 +324,9 @@ selection-accuracy bound.
 
 For each reading row, symbols with zero weight contribute zero to every
 transition sum. The normalizer can enumerate only the nonzero symbols in
-their original order without changing that recurrence.
+their original order without changing that recurrence. If a reading row has
+no nonzero symbols, or no states remain reachable, all complete paths have
+zero weight and the normalizer can stop.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

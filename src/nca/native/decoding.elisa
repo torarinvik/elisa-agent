@@ -600,14 +600,16 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
     return final[start] if m == 0
     rows, bounds =
         for k in 0..<m |rows: darray[f64] = [0.0 if i == start else unreachable for i in 0..<(2 * states)], bounds: darray[i64] = [start, start, 0, -1], active: darray[i64] = [0 for _ in 0..<width]| -> (rows, bounds):
+            here_bound: i64 = (k % 2) * 2
+            return unreachable if bounds[here_bound] > bounds[here_bound + 1]
             count: i64 =
                 for j in 0..<width |count: i64 = 0, active| -> count:
                     if log_probs[k * width + j] != unreachable:
                         active[count] <- j
                         count += 1
+            return unreachable if count == 0
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            here_bound: i64 = (k % 2) * 2
             next_bound: i64 = ((k + 1) % 2) * 2
             # Every cell outside the old destination envelope is already unreachable.
             for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:

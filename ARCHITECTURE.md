@@ -260,7 +260,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.3](theory/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
 | [27.4](theory/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
 | [27.5](theory/27-priors-as-experts.md) | `complete_shape_length` | `Decoding` |
-| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum`, `prior_support_max`, `prior_step_zero_outside`, `prior_prune_zero_readings` | `Product` |
+| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum`, `prior_support_max`, `prior_step_zero_outside`, `prior_prune_zero_readings`, `pdpSum_zero_row` | `Product` |
 | [27.7](theory/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
 | [27.8](theory/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
 | [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret`, `prior_selection_half_gap` | `Product` |

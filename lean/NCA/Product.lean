@@ -56,6 +56,13 @@ def pdpSum : List (α → ℝ) → σ → τ → ℝ
   | [], s, t => if F s then f t else 0
   | w :: ws, s, t => (as.map fun a => w a * v t a * pdpSum ws (δ s a) (ε t a)).sum
 
+/-- A zero reading row makes every complete product-automaton path weight zero. -/
+theorem pdpSum_zero_row (front suffix : List (α → ℝ)) (s : σ) (t : τ) :
+    pdpSum δ F as ε v f (front ++ (fun _ => 0) :: suffix) s t = 0 := by
+  induction front generalizing s t with
+  | nil => simp [pdpSum]
+  | cons w rest ih => simp [pdpSum, ih]
+
 /-- Max-product dynamic program on the product automaton. -/
 def pdpMax : List (α → ℝ) → σ → τ → ℝ
   | [], s, t => if F s then f t else 0
