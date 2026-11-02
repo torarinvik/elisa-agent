@@ -1994,6 +1994,24 @@ def test_decode_rejects_invalid_arity_alphabet(decoder, alphabet) -> None:
         decoder(np.zeros((2, len(alphabet))), alphabet)
 
 
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_skips_overflow_in_unreachable_suffix(decoder) -> None:
+    rows = np.array([[-np.inf, 0.0], [-1e308, 0.0], [-1e308, -np.inf]])
+    result = decoder(rows, (0, 1))
+    assert result is not None
+    assert result.arities == (1, 1, 0)
+    assert result.log_z == -1e308
+    np.testing.assert_array_equal(result.marginals, [[0, 1], [0, 1], [1, 0]])
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_rejects_overflow_on_reachable_path(decoder) -> None:
+    rows = np.array([[-np.inf, 0.0, 0.0], [-1e308, 0.0, -np.inf],
+                     [-1e308, -np.inf, -np.inf]])
+    with pytest.raises(ValueError, match="arithmetic is not finite"):
+        decoder(rows, (0, 1, 2))
+
+
 @pytest.mark.parametrize("decoder", [decode, decode_reference, decode_banded])
 @pytest.mark.parametrize("rows", [np.zeros(3), np.zeros((2, 2)), np.full((2, 3), np.nan),
                                   np.full((2, 3), np.inf)])

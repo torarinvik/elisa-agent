@@ -159,7 +159,10 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
             span = min(a + width - 1, width) - a
             if span <= 0:
                 continue
-            through = _checked_log_sum(log_probs[k, j], backward[k + 1, a:a + span])
+            # Unreachable prefix states cannot contribute to any complete path.
+            suffix = np.where(forward[k, 1:1 + span] != -np.inf,
+                              backward[k + 1, a:a + span], -np.inf)
+            through = _checked_log_sum(log_probs[k, j], suffix)
             backward[k, 1:1 + span] = np.logaddexp(backward[k, 1:1 + span], through)
             marginals[k, j] = np.exp(np.logaddexp.reduce(_checked_log_sum(forward[k, 1:1 + span], through))
                                      - log_z)

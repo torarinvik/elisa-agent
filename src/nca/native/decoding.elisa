@@ -425,11 +425,12 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
             for state in 1..<width:
                 target: i64 = state - 1 + arity
                 continue if target >= width
+                source: f64 = forward[k * width + state]
+                continue if source == unreachable
                 suffix: f64 = backward[(k + 1) * width + target]
                 through: f64 = reading + suffix
                 return [log(-1.0)] if reading != unreachable and suffix != unreachable and (through == unreachable or through == -unreachable or through != through)
                 backward[k * width + state] <- log_add(backward[k * width + state], through)
-                source: f64 = forward[k * width + state]
                 weighted: f64 = source + through
                 return [log(-1.0)] if source != unreachable and through != unreachable and (weighted == unreachable or weighted == -unreachable or weighted != weighted)
                 marginal[k * alphabet_size + j] <- log_add(marginal[k * alphabet_size + j], weighted)
