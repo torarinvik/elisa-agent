@@ -1349,6 +1349,40 @@ def test_extreme_grouped_fit_allows_zero_mass_in_other_groups(monkeypatch) -> No
     assert Rung._fit(logits, torch.tensor([1, 1]), ((0, 2), (1,))) == 8.0
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_grouped_fit_handles_unused_empty_entry(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
+        pytest.skip("native calibration kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[1e308, -1e308]], dtype=torch.float64)
+    assert Rung._fit(logits, torch.tensor([0]), ((1,), ())) == 8.0
+    with pytest.raises(ValueError, match="target entry"):
+        Rung._fit(logits, torch.tensor([1]), ((1,), ()))
+
+
+def test_extreme_grouped_fit_preserves_overlapping_entries(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[1e308, -1e308, -1e308, -1e308]] * 8, dtype=torch.float64)
+    assert Rung._fit(logits, torch.ones(8, dtype=torch.int64), ((0, 1), (1, 2), (3,))) == 8.0
+
+
+@pytest.mark.parametrize("bad", [-100, -1, 2])
+def test_grouped_fit_rejects_invalid_labels(bad, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[1e308, -1e308, -1e308]] * 2, dtype=torch.float64)
+    with pytest.raises(ValueError, match="labels must name"):
+        Rung._fit(logits, torch.tensor([bad, 1]), ((0, 2), (1,)))
+    with pytest.raises(ValueError, match="labels must name"):
+        Rung._fit(torch.zeros((2, 3)), torch.tensor([bad, 1]), ((0, 2), (1,)))
+
+
 def test_native_calibration_grid_stabilizes_overflowing_means(monkeypatch) -> None:
     from nca import ladder as ladder_module
 

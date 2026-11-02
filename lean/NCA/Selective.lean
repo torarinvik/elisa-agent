@@ -68,6 +68,13 @@ theorem calibration_relabel_normalization {ι : Type*} [Fintype ι]
       mass target / ∑ i, mass i := by
   rw [relabel.symm_apply_apply, relabel.symm.sum_comp mass]
 
+/-- Positive target mass requires at least one class in the target group. -/
+theorem positive_target_group_nonempty {ι : Type*} (group : Finset ι) (weight : ι → ℝ)
+    (positive : 0 < ∑ i ∈ group, weight i) : group.Nonempty := by
+  by_contra empty
+  have eq_empty : group = ∅ := Finset.not_nonempty_iff_eq_empty.mp empty
+  simp [eq_empty] at positive
+
 /-- A nonnegative finite family with zero total has no positive entry. -/
 theorem zero_total_no_positive_entry {ι : Type*} [Fintype ι]
     (mass : ι → ℝ) (nonneg : ∀ x, 0 ≤ mass x)

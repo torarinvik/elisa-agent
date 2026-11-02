@@ -158,6 +158,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `singleton_target_normalizer` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `target_maximum_unit_weight` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `calibration_relabel_normalization` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_target_group_nonempty` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
@@ -904,7 +905,8 @@ kernels also use PyTorch. These are routing thresholds, not model-size limits;
 floating-point rounding can change a near-tied winner.
 The reference fit reuses row shifts across temperatures. If native grid
 losses are unusable or an ordinary reference mean overflows, it computes the
-mean from individually scaled row gaps and target-group normalizers.
+mean from individually scaled row gaps and normalizers of observed target
+groups. Unused empty entries do not participate; targeting one is rejected.
 Reading, risk, and distribution paths require positive finite temperatures
 for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.

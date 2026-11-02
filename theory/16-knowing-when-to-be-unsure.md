@@ -172,8 +172,12 @@ when every group is a singleton. Consistently relabeling the groups and their
 targets preserves each target's normalized mass. For
 positive total mass `Z` and labeled
 group mass `G`, each observation's negative log-likelihood is
-`−log(G/Z) = log Z − log G`. The implementation factors out a separate
-maximum from each sum before evaluating this difference. If the target group
+`−log(G/Z) = log Z − log G`. An empty target group has zero mass and cannot
+give a finite likelihood; fitting rejects observations that target one. An
+empty group that no observation targets does not enter the target loss.
+Restricted decision groups themselves remain nonempty. The implementation
+factors out a separate maximum from each sum before evaluating this
+difference. If the target group
 contains one class, its shifted normalizer is exactly `exp((x − x) / T) = 1`,
 even when other groups contain multiple classes. More generally, every class
 equal to the target group's maximum contributes exactly one to its shifted

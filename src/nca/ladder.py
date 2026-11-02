@@ -910,7 +910,16 @@ class Rung:
         """Minimize label negative log-likelihood over a fixed temperature grid.
 
         Each label names an entry (a group of columns) when ``entries`` is given.
+        An entry may be empty only when no label names it.
         """
+        target_count = len(entries) if entries is not None else log.shape[-1]
+        target_indices = labels.to(torch.int64)
+        if bool(((target_indices < 0) | (target_indices >= target_count)).any()):
+            raise ValueError("calibration labels must name target entries")
+        if entries is not None:
+            for index, entry in enumerate(entries):
+                if len(entry) == 0 and bool((labels == index).any()):
+                    raise ValueError("calibration target entry must contain at least one column")
         grouped = (entries is not None and
                    (len(entries) != log.shape[-1] or
                     any(len(entry) != 1 or entry[0] != index
@@ -958,15 +967,16 @@ class Rung:
             # Compute the average without first forming an overflowing row loss
             # or sum. Normalize each target group relative to its own maximum.
             if grouped:
-                maxima = torch.stack([log[:, list(e)].amax(dim=-1) for e in entries], dim=-1)
-                target_max = maxima.gather(1, labels[:, None]).squeeze(1)
-                if not bool(torch.isfinite(target_max).all()):
-                    return math.inf
+                target_max = torch.empty_like(log[:, 0])
                 target_norm = torch.empty_like(scores[:, 0])
                 for index, entry in enumerate(entries):
                     selected_rows = labels == index
                     if bool(selected_rows.any()):
                         target_log = log[selected_rows][:, list(entry)]
+                        selected_max = target_log.amax(dim=-1)
+                        if not bool(torch.isfinite(selected_max).all()):
+                            return math.inf
+                        target_max[selected_rows] = selected_max
                         target_norm[selected_rows] = torch.logsumexp(
                             _temperature_scores(target_log, t), dim=-1)
             else:
