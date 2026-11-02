@@ -1848,7 +1848,7 @@ def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64
                         for j in 0..<width |total: f64 = 0.0, target_total: f64 = 0.0| -> (total, target_total):
                             value: f64 = logits[row * width + j]
                             total += exp(calibrated_difference(value, maximum, temperature))
-                            target_total += exp(calibrated_difference(value, target_max, temperature)) if groups[j] == labels[row] else 0.0
+                            target_total += (1.0 if value == target_max else exp(calibrated_difference(value, target_max, temperature))) if groups[j] == labels[row] else 0.0
                     loss += calibrated_difference(target_max, maximum, temperature) * -1.0 + log(total) - log(target_total)
         result[t] <- loss / rows.f64()
     return result
@@ -1881,7 +1881,7 @@ def calibration_loss_grid_stable(logits: view[f64], labels: view[i64], groups: v
                     for j in 0..<width |total: f64 = 0.0, target_total: f64 = 0.0| -> (total, target_total):
                         value: f64 = logits[row * width + j]
                         total += exp(calibrated_difference(value, maximum, temperature))
-                        target_total += exp(calibrated_difference(value, target_max, temperature)) if groups[j] == labels[row] else 0.0
+                        target_total += (1.0 if value == target_max else exp(calibrated_difference(value, target_max, temperature))) if groups[j] == labels[row] else 0.0
                 gap: f64 = -calibrated_difference(target_max, maximum, temperature * rows.f64())
                 mean += gap + (log(total) - log(target_total)) / rows.f64()
         result[t] <- mean

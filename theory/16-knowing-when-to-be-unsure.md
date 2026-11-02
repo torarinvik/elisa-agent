@@ -173,7 +173,9 @@ group mass `G`, each observation's negative log-likelihood is
 `−log(G/Z) = log Z − log G`. The implementation factors out a separate
 maximum from each sum before evaluating this difference. If the target group
 contains one class, its shifted normalizer is exactly `exp((x − x) / T) = 1`,
-even when other groups contain multiple classes. The fit selects the best
+even when other groups contain multiple classes. More generally, every class
+equal to the target group's maximum contributes exactly one to its shifted
+normalizer, including ties. The fit selects the best
 of 120 temperatures between 0.1 and 8.0; it does not claim a continuous
 global optimum. For `n` observations, the mean maximum gap can equivalently
 be accumulated as `(row maximum − target-group maximum) / (temperature · n)`
