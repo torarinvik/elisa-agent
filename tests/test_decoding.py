@@ -2072,6 +2072,7 @@ def test_format_risk_cancels_row_offsets_without_summing_them(reference, offsets
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.repeat(np.array(offsets)[:, None], 3, axis=1)
     assert priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(0.8)
+    assert priors.format_sequence_risk(rows, (0, 1, 2), (1, 1, 1, 1, 0)) == pytest.approx(8 / 9)
     unique = np.array([[-np.inf, 1e308, -np.inf], [1e308, -np.inf, -np.inf]])
     assert priors.format_sequence_risk(unique, (0, 1, 3), (1, 0)) == 0.0
 

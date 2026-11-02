@@ -305,9 +305,10 @@ Subtracting one common log weight per reading row, one from every supported
 edge, and one from every supported final state scales every fixed-length path
 by the same factor. Its selected-to-alternative risk is unchanged by Theorem
 27.16 and `prior_common_factors`. On a detected partition arithmetic failure,
-sequence-risk calculation retries these shifts when they and their common
-offset are finite and their individual rounding residuals are small. These
-checks do not certify the subsequent calculation. Absolute partitions and
+sequence-risk calculation retries when the individual shifts are finite and
+their rounding residuals are small. The common offset need not be representable
+because it cancels from risk. Other operations may require its finite absolute
+value. These checks do not certify the subsequent calculation. Absolute partitions and
 incremental cursor outputs retain their original scale and still report the
 arithmetic failure.
 

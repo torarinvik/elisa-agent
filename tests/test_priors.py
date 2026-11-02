@@ -330,6 +330,23 @@ def test_prior_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch)
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("edge,final,offsets", [
+    (0.0, 0.0, [1e308, 1e308, -1e308, -1e308]),
+    (0.0, 0.0, [1e308] * 4),
+    (1e308, 1e308, [0.0] * 4),
+])
+def test_prior_risk_cancels_unrepresentable_common_offsets(reference, edge, final, offsets, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
+                              np.full((1, 2), edge), np.array([final]))
+    rows = np.repeat(np.array(offsets)[:, None], 2, axis=1)
+    assert prior.sequence_risk(rows, (0, 0, 0, 0)) == pytest.approx(15 / 16)
+    with pytest.raises(ValueError):
+        prior.partition(rows, (0, 0, 0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_risk_preserves_error_when_centering_is_unsafe(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)

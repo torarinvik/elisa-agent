@@ -181,7 +181,8 @@ def _center_log_rows(rows: np.ndarray) -> np.ndarray | None:
     return centered
 
 
-def _center_prior(rows: np.ndarray, prior: ArityPrior) -> tuple[np.ndarray, ArityPrior, float, float] | None:
+def _center_prior(rows: np.ndarray, prior: ArityPrior, *,
+                  require_common: bool = True) -> tuple[np.ndarray, ArityPrior, float, float] | None:
     """Remove common row, edge and final weights when their shifts are representable."""
     centered_rows = _center_log_rows(rows)
     edges = np.where(prior.transitions >= 0, prior.log_weights, -math.inf)
@@ -190,13 +191,14 @@ def _center_prior(rows: np.ndarray, prior: ArityPrior) -> tuple[np.ndarray, Arit
     if centered_rows is None or centered_edges is None or centered_final is None:
         return None
     edge_offset, final_offset = float(np.max(edges)), float(np.max(prior.log_final))
-    try:
-        common = math.fsum(chain((float(x) for x in np.max(rows, axis=1)),
-                                 repeat(edge_offset, len(rows)), (final_offset,)))
-    except OverflowError:
-        return None
-    if not math.isfinite(common):
-        return None
+    if require_common:
+        try:
+            common = math.fsum(chain((float(x) for x in np.max(rows, axis=1)),
+                                     repeat(edge_offset, len(rows)), (final_offset,)))
+        except OverflowError:
+            return None
+        if not math.isfinite(common):
+            return None
     centered_prior = ArityPrior(prior.alphabet, prior.transitions, centered_edges.reshape(edges.shape),
                                 centered_final.ravel(), prior.start)
     return centered_rows, centered_prior, edge_offset, final_offset
@@ -494,7 +496,7 @@ class ArityPrior:
         try:
             return risk_from_partition(*self.partition(log_probs, selected))
         except _PartitionArithmeticError as failure:
-            shifted = _center_prior(self._rows(log_probs), self)
+            shifted = _center_prior(self._rows(log_probs), self, require_common=False)
             if shifted is None:
                 raise
             centered, centered_prior, _, _ = shifted
