@@ -547,3 +547,22 @@ in a residency pool. Independent installations retain their collision checks.
 Exposing an intermediate representation does not establish that it preserves information
 needed by another task. Stable functional models, faithful factories and explicit
 selection remain assumptions; writes are not transactional or state snapshots.
+
+
+## 36.56 Searching compatible adapter/consumer families
+
+Freeze supplied source, teacher and consumer families. For each compatible triple,
+fit a bridge from source observations to paired teacher observations, then compose
+with a unary slot-free consumer whose input is the teacher's interface and whose
+output is the external task type. External source/teacher signatures must match
+the task inputs, slots and relevance. Skip incompatible metadata; bound fitted
+triples explicitly. Retain source/teacher type declarations, but no teacher
+implementation in the completed inference graph. Types remain distinct.
+
+If a bridge agrees pointwise with its teacher, every consumer in a finite family
+agrees after composition; Lean proves the resulting ordered map equality. This
+is conditional, not a guarantee from training pairs. Consumers can still be
+wrong for the task, so freeze complete candidates before independent end-to-end
+selection under §36.3. The fit limit does not bound library scanning or fitter
+computation. Stable models/data, faithful factories and useful teacher coverage
+remain assumptions. No consumer implementation or task catalog enters the core.

@@ -53,6 +53,49 @@ def propose_adapter(incumbent: Module, source: Module, teacher: Module, consumer
     return Proposal(Decoded(bridge, consumer, contract))
 
 
+def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: Sequence[Proposal],
+        consumers: Sequence[Module], rows: Sequence[tuple[Any, ...]], *,
+        max_candidates: int, decoder_cost: float,
+        fit: AdapterFitter = fit_decoder) -> list[Proposal]:
+    """Acquire a bounded family of typed bridges into supplied consumers (§36.56).
+
+    Use within independent discovery's training callback. Filter source/teacher
+    external signatures and unary slot-free consumer contracts through metadata
+    only. Compatible triples spend one fit each in source/teacher/consumer order;
+    incompatible modules spend no fit budget. The bound does not limit library
+    scanning or fitter computation. Snapshot sequences, not mutable model bodies.
+    Propagate source/teacher constructor declarations, but retain no teacher code
+    in proposed inference graphs. Stable models/pairs and independent end-to-end
+    selection are required; teacher agreement does not certify task correctness.
+    """
+    if type(max_candidates) is not int or max_candidates < 1:
+        raise ValueError("adapter candidate budget must be a positive integer")
+    if not math.isfinite(decoder_cost) or decoder_cost < 0:
+        raise ValueError("decoder cost must be finite and nonnegative")
+    contract = incumbent.manifest.contract
+    if not rows or any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("training rows must supply slot fillings followed by inputs")
+    sources, teachers, consumers = tuple(sources), tuple(teachers), tuple(consumers)
+    proposals = []
+    for source in sources:
+        if replace(source.expert.manifest.contract, output=contract.output) != contract:
+            continue
+        for teacher in teachers:
+            if replace(teacher.expert.manifest.contract, output=contract.output) != contract:
+                continue
+            expected = Contract((teacher.expert.manifest.contract.output,), contract.output)
+            for consumer in consumers:
+                if consumer.manifest.contract != expected:
+                    continue
+                proposal = propose_adapter(incumbent, source.expert, teacher.expert, consumer,
+                                            rows, decoder_cost=decoder_cost, fit=fit)
+                proposals.append(replace(proposal,
+                    constructors=source.constructors + teacher.constructors))
+                if len(proposals) == max_candidates:
+                    return proposals
+    return proposals
+
+
 class HeadProposer(Protocol):
     def __call__(self, contract: Contract, observations: Sequence[Any], targets: Sequence[Any],
                  budget: int) -> Sequence[Proposal]: ...

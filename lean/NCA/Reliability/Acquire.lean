@@ -413,4 +413,12 @@ theorem retained_root_outputs_eq {X Y : Type*} (roots : List (X → Y))
   intro f hf
   exact same f hf x
 
+/-- Pointwise bridge agreement preserves every consumer in a supplied family. -/
+theorem adapter_consumer_family_eq {X A B Y : Type*} (source : X → A)
+    (teacher : X → B) (adapter : A → B) (consumers : List (B → Y))
+    (agree : ∀ x, adapter (source x) = teacher x) (x : X) :
+    consumers.map (fun c => c (adapter (source x))) =
+      consumers.map (fun c => c (teacher x)) := by
+  simp only [agree x]
+
 end NCA

@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.55) are described in the
+Regional acquisition and composition (§§36.26–36.56) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2453,3 +2453,10 @@ conflicting wrappers in one residency pool without weakening collision checks.
 Reinstalled representations can feed new head
 acquisition through ordinary contracts/invocations, preserving expert opacity.
 `retained_root_outputs_eq` proves only conditional ordered output equality.
+
+`interface_learning.propose_adapters` (§36.56) searches a bounded compatible
+source/teacher/consumer family through public contracts and paired training
+invocations, emitting completed routes and constructor declarations. It reuses
+`propose_adapter`; teacher implementations are absent from retained inference
+closures. `adapter_consumer_family_eq` proves conditional family agreement only,
+not learned alignment quality or end-to-end task correctness.
