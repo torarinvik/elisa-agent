@@ -1067,7 +1067,9 @@ in `NCA.Decoding`).
 `prior_relabel` in `NCA.Product` proves path-weight preservation for a
 relabelling with a left inverse.
 Prior path-weight evaluation rejects detected finite-addition loss while
-preserving zero mass for forbidden or zero-weight paths.
+preserving zero mass for forbidden or zero-weight paths. For wide alphabets
+and longer paths, it uses sorted search or a compact first-column index when
+applicable; short paths avoid building the index.
 Reading-sequence and accepted-format scoring use the same local arithmetic
 check; invalid syntax and zero-weight sequences retain their distinct results.
 For wide alphabets, reading-sequence scoring uses lower-bound search when the

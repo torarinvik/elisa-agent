@@ -533,8 +533,9 @@ the guarantee holds.
 
 For an alphabet `(0, ..., A − 1)`, a selected symbol is its own transition
 column. Once this ordering is checked, a length-`m` prior path needs `O(A + m)`
-work for column lookup instead of `O(mA)`; other alphabet orderings use the
-general search. This does not change the automaton or its path weights.
+work for column lookup instead of `O(mA)`. Sorted alphabets can use binary
+search; unordered alphabets can index symbols in a compact range and search
+other values directly. These choices do not change path weights.
 If any selected symbol is absent from the alphabet, the selected path has
 zero mass and the alternative partition is the full normalizer. Checking
 membership before partitioning therefore preserves the same result.

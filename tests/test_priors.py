@@ -1102,6 +1102,35 @@ def test_prior_log_weight_supports_dense_and_reordered_alphabets(reference, monk
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_prior_log_weight_wide_gapped_alphabet(reference, reverse, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = tuple(1000 + k * 100 for k in range(32))
+    if reverse:
+        alphabet = alphabet[::-1]
+    weights = np.arange(len(alphabet), dtype=float).reshape(1, -1) / 8
+    prior = priors.ArityPrior(alphabet, np.zeros((1, len(alphabet)), dtype=np.int64),
+                              weights, np.array([0.5]))
+    selected = (1000, 2000, 4100, 2000) * 8
+    expected = sum(weights[0, alphabet.index(symbol)] for symbol in selected) + 0.5
+    assert prior.log_weight(selected) == expected
+    assert prior.log_weight((*selected[:-1], 4101)) == -np.inf
+    assert prior.log_weight((4100,)) == weights[0, alphabet.index(4100)] + 0.5
+
+
+def test_native_prior_log_weight_sorted_duplicates_use_first_column() -> None:
+    native = getattr(priors._NATIVE, "prior_log_weight", None)
+    if native is None:
+        pytest.skip("native prior path scorer is not built")
+    alphabet = np.array([*range(16), 15, 100], dtype=np.int64)
+    weights = np.arange(len(alphabet), dtype=float)
+    transitions = np.zeros(len(alphabet), dtype=np.int64)
+    selected = np.full(20, 15, dtype=np.int64)
+    assert native(alphabet, transitions, weights, np.zeros(1), 0, selected) == 300.0
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)

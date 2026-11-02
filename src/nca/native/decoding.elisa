@@ -274,19 +274,25 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
     return result
 
 # Product of prior edge and final weights, in log space (NCA.prior, §27).
-def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[f64], final: view[f64], start: i64, selected: view[i64]) -> f64 can[Abort.Panic]:
+def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[f64], final: view[f64], start: i64, selected: view[i64]) -> f64 can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
     indexed: bool =
         for j in 0..<width |valid: bool = true| -> valid:
             if alphabet[j] != j:
                 valid <- false
                 break
+    ordered: bool = selected.len.i64() >= 16 and width >= 16 and not indexed and ordered_alphabet(alphabet)
+    lookup: darray[i64] = alphabet_columns(alphabet, width) if selected.len.i64() >= 16 and width >= 16 and not indexed and not ordered else []
     state, total, failed =
         for k in 0..<selected.len.i64() |state: i64 = start, total: f64 = 0.0, failed: bool = false| -> (state, total, failed):
             symbol: i64 = selected[k]
             column: i64 =
                 if indexed:
                     symbol if symbol >= 0 and symbol < width else -1
+                elif lookup.count > 0 and symbol >= 0 and symbol < width:
+                    lookup[symbol]
+                elif ordered:
+                    ordered_column(alphabet, symbol, true)
                 else:
                     for j in 0..<width |found: i64 = -1| -> found:
                         if alphabet[j] == symbol:
