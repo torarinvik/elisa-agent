@@ -65,3 +65,4 @@ link for its definitions, arguments, and results.
 - [38. In-situ audits](theory/reliability/38-in-situ-audits.md)
 - [39. Answering over alternatives](theory/reliability/39-alternatives.md)
 - [40. Audits by agreement](theory/reliability/40-agreement-audits.md)
+- [41. Verification](theory/reliability/41-verification.md)

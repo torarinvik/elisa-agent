@@ -52,6 +52,7 @@ run the Python tests with `uv run pytest`.
 | [§38 In-situ audits](theory/reliability/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
 | [§39 Answering over alternatives](theory/reliability/39-alternatives.md) | `Alternatives` | `alternatives.answer_over_alternatives`, `alternatives.Choice`, `alternatives.Tabled`, `alternatives.fit_table` |
 | [§40 Audits by agreement](theory/reliability/40-agreement-audits.md) | `Agreement` | `evidence.cross_audit` |
+| [§41 Verification](theory/reliability/41-verification.md) | `Verification` | `verification.answer_verified`, `verification.verified_bound`, `verification.verifier_rates` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -344,6 +345,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [38.1](theory/reliability/38-in-situ-audits.md) | `sampled_calibrated` | `Sampling` |
 | [39.1](theory/reliability/39-alternatives.md) | `alternatives_le`, `alternatives_lower` | `Alternatives` |
 | [40.1](theory/reliability/40-agreement-audits.md) | `disagreement_le` with `audit_tail_le` | `Agreement`, `Audit` |
+| [41.1](theory/reliability/41-verification.md) | `verified_le` | `Verification` |
 
 ## Native kernels
 
@@ -1935,3 +1937,16 @@ invocation's inputs, counts a failure where `same(output, reference
 output)` is false, and runs `audit` with reports `min(1, report +
 reference report)`. A refutation means the expert, the reference, or
 both are miscalibrated on the sampled inputs.
+
+## 41. Verification
+
+A verifier is any callable `verify(*inputs, answer) -> bool`.
+`verification.answer_verified(plan, available, rows, δ, verify, miss,
+false_reject, exact, cache)` runs the compiled route with one ledger per
+row, answers nothing for a rejected answer, and otherwise returns a
+`Choice` with `verification.verified_bound(charge, miss, false_reject)`,
+the bound of Theorem 41.1 (0 for `miss == 0`, 1 for a charge of 1 or an
+uncertified ledger), answering if it is at most `δ`.
+`verification.verifier_rates(accepted, correct, β)` gives Clopper–Pearson
+upper bounds on the miss and false-rejection rates at level `β / 2`
+each.
