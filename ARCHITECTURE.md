@@ -1573,6 +1573,12 @@ implementation executes the inner route instead of rewriting the outer plan,
 which gives the same values because both evaluate the same expert
 applications on the same inputs.
 
+`domains.arithmetic.package.arithmetic` is the first real package: the
+segmenter, symbol fuser, expression parser and evaluator as members, the
+digit and operator glyph readers as requirements, and one export from
+expression image to integer. The export shares its inner index with its
+kernel (`Kernel(..., index=...)`).
+
 Selective refinement (`selective`) still requires the producer–map–consumer
 route shape, so it does not see through exports; composing refinement across
 a composite boundary is the composition problem of §26.

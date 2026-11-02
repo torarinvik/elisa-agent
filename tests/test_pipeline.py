@@ -307,3 +307,36 @@ def test_batched_ranked_symbol_choices_reject_short_weight_vectors(monkeypatch) 
     monkeypatch.setattr(symbols, "_NATIVE", None)
     with pytest.raises(ValueError, match="valid class indices"):
         ExpressionParser().invoke(values)
+
+
+def test_arithmetic_package_answers_like_the_flat_pipeline() -> None:
+    """§28.3: the package is an expert whose requirements the planner fills
+    with whatever glyph readers are installed."""
+    from nca.abi import Message
+    from nca.domains.arithmetic.package import arithmetic
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.domains.arithmetic.symbols import INTEGER
+    from nca.objects import Store
+    from nca.packages import Export, install
+    from nca.planner import plan_stable
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    torch.manual_seed(0)
+    digit, operator = DigitRecognizer(digit_net()), SymbolRecognizer(op_net())
+    flat = compose_plan(build_registry(digit, operator))
+    store = Store()
+    modules = [digit, operator, *install(store, arithmetic(store))]
+    route = plan_stable(modules, (EXPRESSION_IMAGE,), INTEGER)
+    assert isinstance(route, Apply) and isinstance(route.module, Export)
+    assert [s.module for s in route.slots] == [digit, operator]
+    rng = np.random.default_rng(3)
+    for operands in (2, 3, 5):
+        tokens = tuple(str(rng.integers(10)) if i % 2 == 0 else "+-*"[rng.integers(3)]
+                       for i in range(2 * operands - 1))
+        glyphs = [(rng.random((GLYPH, GLYPH)) < 0.3).astype(np.float32) if t.isdigit()
+                  else render_operator(t, rng) for t in tokens]
+        image = torch.from_numpy(compose(glyphs, tokens, rng, width=40 * len(glyphs)).image)
+        answers = [execute(r, {EXPRESSION_IMAGE: Message(EXPRESSION_IMAGE, image, "input")},
+                           Workspace(), 1000).payload for r in (flat, route)]
+        assert answers[0] == answers[1]

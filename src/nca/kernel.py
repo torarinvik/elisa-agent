@@ -27,11 +27,14 @@ from nca.planner import Plan, plan_stable_indexed
 
 
 class Kernel:
-    def __init__(self, modules: Sequence[Module], recursive: bool = False) -> None:
+    def __init__(self, modules: Sequence[Module], recursive: bool = False,
+                 index: ProducerIndex | None = None) -> None:
+        """``index``, if given, must index exactly ``modules``; it is shared."""
         self.modules = tuple(modules)
         self.recursive = recursive
         self.requests = 0
-        self._indexes: dict[frozenset[str], ProducerIndex] = {}
+        self._indexes: dict[frozenset[str], ProducerIndex] = (
+            {} if index is None else {frozenset(): index})
 
     def resolve(self, request: Request, chain: tuple[str, ...]) -> Plan | None:
         self.requests += 1

@@ -83,7 +83,7 @@ class SymbolFuser:
             f"{vocabulary.prefix}.symbol-fuser", "1.0.0",
             Contract((DIGIT_DISTRIBUTION, vocabulary.operator_distribution),
                      vocabulary.symbol_distribution),
-        )
+            effects=frozenset())
 
     def ranked_readings_for(self, consumer: object) -> bool:
         """Use source order only when the next module preserves its decisions."""
@@ -160,7 +160,7 @@ class ExpressionParser:
         self.manifest = Manifest(
             f"{vocabulary.prefix}.expression-parser", "1.0.0",
             Contract((seq_type(vocabulary.symbol_distribution),), vocabulary.expression),
-        )
+            effects=frozenset())
 
     def demand(self, index: int, demand: Demand) -> Demand:
         """Digit entries are read at even positions, operator entries at odd ones;
@@ -214,7 +214,8 @@ class ExpressionParser:
 class Evaluator:
     """Evaluate an infix expression; ``*`` binds tighter than ``+`` and ``-``."""
 
-    manifest = Manifest("nca.evaluator", "1.0.0", Contract((EXPRESSION,), INTEGER))
+    manifest = Manifest("nca.evaluator", "1.0.0", Contract((EXPRESSION,), INTEGER),
+                        effects=frozenset())
 
     def invoke(self, tokens: tuple[str, ...] | None) -> int | None:
         if tokens is None:

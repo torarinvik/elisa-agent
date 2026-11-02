@@ -58,8 +58,8 @@ ALTERNATIVES = 3
 
 class Segmenter:
     manifest = Manifest(
-        "nca.segmenter", "1.0.0", Contract((EXPRESSION_IMAGE,), seq_type(GLYPH))
-    )
+        "nca.segmenter", "1.0.0", Contract((EXPRESSION_IMAGE,), seq_type(GLYPH)),
+        effects=frozenset())
 
     def invoke(self, image: torch.Tensor) -> list[torch.Tensor]:
         return next(self.alternatives(image))

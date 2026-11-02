@@ -34,7 +34,8 @@ from nca.kernel import Kernel
 from nca.loader import ExpertStore, LazyExpert
 from nca.objects import Composite, Primitive, Ref, Store
 from nca.optimize import slot_calls
-from nca.planner import Given, Map, Plan, plan_stable
+from nca.index import ProducerIndex
+from nca.planner import Given, Map, Plan, plan_stable_indexed
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -85,12 +86,13 @@ class Export:
         self.requirements = [Requirement(composite.name, composite.version, i, slot)
                              for i, slot in enumerate(composite.requires)]
         self.library: list[Module] = [*members, *self.requirements]
-        route = plan_stable(self.library, exported.inputs, exported.output)
+        index = ProducerIndex(self.library)
+        route = plan_stable_indexed(index, exported.inputs, exported.output)
         if route is None:
             raise ValueError(f"{composite.name} cannot implement its export "
                              f"{exported.inputs} ⇒ {exported.output}")
         self.route = route
-        self.kernel = Kernel(self.library)
+        self.kernel = Kernel(self.library, index=index)
         self.identity = f"{composite.ref}#{index}"
 
         def cost(at: int) -> float:
