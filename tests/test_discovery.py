@@ -381,3 +381,46 @@ def test_tree_keeps_slot_contract_and_conservative_call_declarations() -> None:
     assert tree.invoke(*rows[1]) == "b"
     leaf = train_tree(incumbent, [feature], rows, ["a"] * 4, max_nodes=1, overhead_cost=0)
     assert leaf.manifest.calls == (Calls(),) and leaf.manifest.effects == frozenset()
+
+
+def test_tree_lookahead_discovers_selector_route_and_reduces_actual_calls() -> None:
+    rows = [((i % 2, (i // 2) % 2, (i // 4) % 2),) for i in range(128)]
+    labels = [f"target-{row[0][1 + row[0][0]]}" for row in rows]
+    calls = []
+
+    def read(index: int, value: tuple[int, ...]) -> int:
+        calls.append(index)
+        return value[index]
+
+    features = [Feature(Contract(("source",), f"part{i}"),
+                        lambda value, index=i: read(index, value)) for i in range(3)]
+    greedy = train_tree(Constant(), features, rows, labels, max_nodes=127, overhead_cost=0)
+    assert greedy.root.feature != 0
+    for depth in (2, 4):
+        tree = train_tree(Constant(), features, rows, labels, max_nodes=127,
+                          overhead_cost=0, lookahead=depth, lookahead_budget=2000)
+        assert tree.root.feature == 0
+        assert 0 < tree.projection_states <= 2000 and not tree.projection_exhausted
+        calls.clear()
+        assert [tree.invoke(*row) for row in rows] == labels
+        assert len(calls) == 2 * len(rows)
+
+
+def test_tree_projection_budget_and_cost_ties_are_explicit_and_deterministic() -> None:
+    rows = [((i % 2, (i // 2) % 2),) for i in range(32)]
+    labels = ["same" if row[0][0] == row[0][1] else "other" for row in rows]
+    features = [Feature(Contract(("source",), f"part{i}"),
+                        lambda value, index=i: value[index]) for i in range(2)]
+    tree = train_tree(Constant(), features, rows, labels, max_nodes=15, overhead_cost=0,
+                      lookahead=3, lookahead_budget=1)
+    assert tree.projection_states == 1 and tree.projection_exhausted
+    with pytest.raises(ValueError, match="explicit work budget"):
+        train_tree(Constant(), features, rows, labels, max_nodes=15, overhead_cost=0, lookahead=2)
+    with pytest.raises(ValueError, match="positive"):
+        train_tree(Constant(), features, rows, labels, max_nodes=15, overhead_cost=0, lookahead=0)
+    expensive = Feature(Contract(("source",), "part"), lambda value: value[0])
+    cheap = Feature(expensive.manifest.contract, lambda value: value[0])
+    expensive.manifest = replace(expensive.manifest, cost=9)
+    labels = [row[0][0] for row in rows]
+    tree = train_tree(Constant(), [expensive, cheap], rows, labels, max_nodes=3, overhead_cost=0)
+    assert tree.root.feature == 1 and tree.manifest.cost == cheap.manifest.cost

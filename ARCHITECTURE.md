@@ -2016,3 +2016,16 @@ in-memory proposal, without a persisted identity or risk certificate.
 `modal_refinement_le` proves the finite modal-refinement inequality conditional
 on per-child maximal counts. Tests cover conditional calls, interactions,
 node limits, unseen keys, higher-order contracts and conservative metadata.
+
+`train_tree(lookahead=..., lookahead_budget=...)` (§36.7) ranks splits by
+projected modal successes, then projected declared feature cost, then feature
+order. The default one-step horizon now also prefers lower feature cost in
+accuracy ties. Deeper horizons require an explicit state-expansion budget.
+Projection memoizes subset/remaining-feature/horizon states, stops at a modal
+leaf when work is exhausted, and reports `projection_states` and
+`projection_exhausted` on the returned tree. These are search diagnostics, not
+risk claims. Projection does not solve global allocation of the final node
+budget. `lookahead_score_mono` proves only complete attainable-score set
+inclusion; Python search correctness, exhaustion, costs and actual conditional
+calls are regression-tested. Accuracy-only `discover` does not promote an
+equally accurate candidate solely for saving execution cost.

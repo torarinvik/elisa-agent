@@ -185,8 +185,11 @@ class _Decision:
 class FeatureTree:
     """A learned conditional decomposition with modal fallback on unseen keys."""
 
-    def __init__(self, features: Sequence[Module], root: _Decision, manifest: Manifest) -> None:
+    def __init__(self, features: Sequence[Module], root: _Decision, manifest: Manifest, *,
+                 projection_states: int = 0, projection_exhausted: bool = False) -> None:
         self.features, self.root, self.manifest = tuple(features), root, manifest
+        self.projection_states = projection_states
+        self.projection_exhausted = projection_exhausted
 
     def invoke(self, *inputs: Any) -> Hashable:
         node = self.root
@@ -201,21 +204,30 @@ class FeatureTree:
 
 def train_tree(incumbent: Module, features: Sequence[Module],
                rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
-               max_nodes: int, overhead_cost: float) -> FeatureTree:
+               max_nodes: int, overhead_cost: float, lookahead: int = 1,
+               lookahead_budget: int | None = None) -> FeatureTree:
     """Fit a breadth-first categorical feature tree on training data only (§36.6).
 
-    Splits maximize modal training successes, ties in feature order. No gain is
-    required, allowing interactions. Each feature is used at most once per path.
+    Splits maximize projected modal successes, then minimize projected declared
+    feature cost, then use feature order. No gain is required, allowing
+    interactions. Each feature is used at most once per path.
     The node budget includes leaves; a split is admitted only if all its children
     fit. No global optimality, generalization, persistence or calibration is
     claimed. Fixed features and stable, hashable keys/labels are assumptions.
     Declared cost and slot calls conservatively sum all features used anywhere
-    in the tree, plus the caller's whole-tree overhead bound.
+    in the tree, plus the caller's whole-tree overhead bound. Horizons above one
+    require an explicit projection-state budget (§36.7). Exhaustion falls back
+    to modal leaves during projection and is reported on the returned tree.
+    Projection does not optimize allocation of the global final-node budget.
     """
     if max_nodes < 1 or not rows or len(rows) != len(labels):
         raise ValueError("tree training needs a positive node budget and aligned nonempty data")
     if not math.isfinite(overhead_cost) or overhead_cost < 0:
         raise ValueError("tree overhead must be finite and nonnegative")
+    if lookahead < 1 or (lookahead_budget is not None and lookahead_budget < 1):
+        raise ValueError("lookahead and its work budget must be positive")
+    if lookahead > 1 and lookahead_budget is None:
+        raise ValueError("lookahead above one needs an explicit work budget")
     contract = incumbent.manifest.contract
     features, rows, labels = tuple(features), tuple(rows), tuple(labels)
     if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
@@ -229,6 +241,43 @@ def train_tree(incumbent: Module, features: Sequence[Module],
                 or c.fixed < 0 or c.per_element < 0 for c in manifest.calls):
             raise ValueError("feature costs and slot counts must be finite and nonnegative")
     values = [tuple(feature.invoke(*row) for row in rows) for feature in features]
+
+    def groups_for(indices: tuple[int, ...], feature: int) -> dict[Hashable, list[int]]:
+        groups: dict[Hashable, list[int]] = {}
+        for i in indices:
+            groups.setdefault(values[feature][i], []).append(i)
+        return groups
+
+    expanded, exhausted = 0, False
+    projections: dict[tuple[tuple[int, ...], tuple[int, ...], int], tuple[int, float]] = {}
+
+    def project(indices: tuple[int, ...], available: tuple[int, ...],
+                depth: int) -> tuple[int, float]:
+        nonlocal expanded, exhausted
+        key = indices, available, depth
+        if key in projections:
+            return projections[key]
+        modal = Counter(labels[i] for i in indices).most_common(1)[0][1]
+        best = modal, 0.0
+        if depth == 0 or modal == len(indices) or not available:
+            return best
+        if expanded >= (lookahead_budget or 0):
+            exhausted = True
+            return best
+        expanded += 1
+        for feature in available:
+            groups = groups_for(indices, feature)
+            if len(groups) < 2:
+                continue
+            others = tuple(f for f in available if f != feature)
+            children = [project(tuple(group), others, depth - 1) for group in groups.values()]
+            score = sum(child[0] for child in children)
+            effort = features[feature].manifest.cost * len(indices) + sum(c[1] for c in children)
+            if (score, -effort) > (best[0], -best[1]):
+                best = score, effort
+        projections[key] = best
+        return best
+
     root = _Decision(Counter(labels).most_common(1)[0][0])
     pending = deque([(root, tuple(range(len(rows))), tuple(range(len(features))))])
     remaining, used = max_nodes - 1, set()
@@ -237,17 +286,18 @@ def train_tree(incumbent: Module, features: Sequence[Module],
         if len({labels[i] for i in indices}) == 1:
             continue
         best: tuple[int, dict[Hashable, list[int]]] | None = None
-        best_score = -1
+        best_rank: tuple[int, float] = (-1, 0)
         for feature in available:
-            groups: dict[Hashable, list[int]] = {}
-            for i in indices:
-                groups.setdefault(values[feature][i], []).append(i)
+            groups = groups_for(indices, feature)
             if not 1 < len(groups) <= remaining:
                 continue
-            score = sum(Counter(labels[i] for i in group).most_common(1)[0][1]
-                        for group in groups.values())
-            if score > best_score:
-                best, best_score = (feature, groups), score
+            others = tuple(f for f in available if f != feature)
+            children = [project(tuple(group), others, lookahead - 1) for group in groups.values()]
+            score = sum(child[0] for child in children)
+            effort = features[feature].manifest.cost * len(indices) + sum(c[1] for c in children)
+            rank = score, -effort
+            if rank > best_rank:
+                best, best_rank = (feature, groups), rank
         if best is None:
             continue
         feature, groups = best
@@ -265,7 +315,8 @@ def train_tree(incumbent: Module, features: Sequence[Module],
                         cost=overhead_cost + sum(m.cost for m in manifests),
                         calls=(_total_calls(manifests) if manifests else
                                tuple(Calls() for _ in contract.slots)), effects=effects)
-    return FeatureTree(features, root, manifest)
+    return FeatureTree(features, root, manifest, projection_states=expanded,
+                       projection_exhausted=exhausted)
 
 
 def discover(incumbent: Module,

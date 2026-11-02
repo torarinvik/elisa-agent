@@ -1,6 +1,7 @@
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Real.Basic
+import Mathlib.Data.Finset.Max
 
 /-!
 # Promoting a trained challenger
@@ -71,5 +72,11 @@ theorem modal_refinement_le {K L : Type*} (children : Finset K)
     (maximal : ∀ k ∈ children, count k parent ≤ count k (mode k)) :
     ∑ k ∈ children, count k parent ≤ ∑ k ∈ children, count k (mode k) := by
   exact Finset.sum_le_sum maximal
+
+/-- Complete policy-set inclusion orders attainable training-score maxima.
+This premise need not hold when a projection work budget is exhausted. -/
+theorem lookahead_score_mono (shallow deep : Finset ℕ) (included : shallow ⊆ deep) :
+    shallow.max ≤ deep.max := by
+  exact Finset.max_mono included
 
 end NCA

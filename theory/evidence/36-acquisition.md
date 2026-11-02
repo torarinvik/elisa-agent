@@ -124,7 +124,8 @@ a feature's behavior across separate training and evaluation invocations.
 A finite decision tree may choose a different feature expert at each node.
 On a node's training subset, group examples by each unused feature's key and
 score a split by the sum of its child groups' modal-label counts. Choose the
-highest score, breaking ties in supplied feature order. A pure node, a node
+highest score, breaking ties by lower immediate declared cost and then
+supplied feature order. A pure node, a node
 without a separating feature, or a node whose split exceeds the remaining
 node budget becomes a modal-label leaf. Process nodes breadth first; a feature
 is used at most once along a path. Zero-improvement splits remain eligible,
@@ -147,3 +148,27 @@ of all features used anywhere in the tree: each appears at most once on a path.
 The supplied tree overhead bound is added to cost; expected calls are not
 estimated from the training frequencies. Node limits are explicit resource
 bounds, not fixed limits on task complexity.
+
+## 36.7 Bounded lookahead for conditional structure
+
+At a candidate split, project the best training success count of its children
+for a finite remaining horizon. A projected leaf is always available; among
+projections with equal success count, prefer lower summed declared feature
+cost over training examples. A split's projected effort is its feature cost
+times the subset size, plus its children's projected effort. Features already
+used on a path are excluded. At horizon zero, return the modal leaf's count
+and zero effort. Ties that remain use supplied feature order.
+
+**Proposition 36.7 (complete-search inclusion).** If one complete projection
+search includes every policy of another, its best training success count
+cannot be smaller. Their finite attainable-score sets are included, so their
+maxima are ordered. This establishes neither held-out accuracy nor optimality
+of the final tree. In particular, a bounded search can stop early, and a
+projection does not allocate the final tree's global node budget optimally.
+
+A projection-work budget limits expanded states. Once exhausted, further
+projections return modal-leaf scores. This is deterministic but order-dependent;
+search exhaustion invalidates a claim of complete horizon search. Predictions
+and measured feature calls must distinguish this search heuristic from a
+proof of globally minimal execution cost. Declared tree costs remain the
+conservative bounds of §36.6, not projected training averages.
