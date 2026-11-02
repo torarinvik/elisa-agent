@@ -14,10 +14,10 @@ import numpy as np
 import torch
 
 from nca.abi import Contract, Manifest
+from nca.domains.arithmetic import types
 from nca.domains.arithmetic.digit_recognizer import GLYPH
 
-NORMALIZED_GLYPH = "image.glyph.normalized28.v1"
-"""``torch.Tensor`` of shape (28, 28) in [0, 1]: a glyph after ``normalize``."""
+NORMALIZED_GLYPH = types.NORMALIZED_GLYPH.type()
 
 SIZE = 28
 BOX = 20

@@ -9,6 +9,7 @@ exact, and the planner fills the requirement with it.
 from __future__ import annotations
 
 from nca.abi import Contract
+from nca.domains.boolean import types
 from nca.domains.boolean.words import BOOLEAN, FORMULA_TEXT, READER, FormulaEvaluator, Tokenizer
 from nca.objects import Composite, Primitive, Ref, Store
 
@@ -17,9 +18,10 @@ MEMBERS = ((Tokenizer, "nca.domains.boolean.words:Tokenizer"),
 
 
 def formulas(store: Store) -> Ref:
-    """Put the formula package and its members into ``store``."""
+    """Put the formula package, its types and its members into ``store``."""
+    constructors = tuple(store.put(c) for c in types.CONSTRUCTORS)
     members = tuple(store.put(Primitive(cls().manifest, entry)) for cls, entry in MEMBERS)
-    return store.put(Composite("nca.formulas", "1.0.0", members,
+    return store.put(Composite("nca.formulas", "1.0.0", (*constructors, *members),
                                requires=((READER.inputs, READER.output),),
                                exports=(Contract((FORMULA_TEXT,), BOOLEAN),),
                                effects=frozenset()))

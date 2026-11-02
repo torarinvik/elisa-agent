@@ -40,7 +40,7 @@ run the Python tests with `uv run pytest`.
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
-| [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast` |
+| [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `prelude`, `domains.*.types` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -385,9 +385,10 @@ complements, avoiding loss of probability mass from independent rounding.
 ## 1. Types and contracts
 
 A type id is the canonical text of a type term (`nca.abi.TypeId`): a constructor
-name with its namespace and version, optionally applied to bracketed,
-comma-separated argument types, as in `seq[digit.distribution.v1]`; `?a` is a
-type variable. Manifests carry type ids as text, so they stay plain data for any
+name, either the `sha256:` reference of a constructor object (§29) or a
+textual name with its namespace and version, optionally applied to bracketed,
+comma-separated argument types, as in `seq[image.rgb.v1]`; `?a` is a type
+variable. Manifests carry type ids as text, so they stay plain data for any
 language. `parse_type` and `format_type` convert between text and terms
 (`Var`, `App`), `substitute` applies a substitution, and `seq_type` and
 `elem_type` build and take apart sequence types. A `Contract` rejects types that
@@ -538,8 +539,8 @@ run is cropped and translated so that its center of ink mass is at the center
 of a 28×28 canvas, the MNIST normalization convention.
 
 Fusion, parsing and the recognizers are parameterized by an operator
-vocabulary: arithmetic (`+ − ×`, value type `int.v1`) and comparison
-(`< > =`, value type `bool.v1`) use separate module ids and semantic types,
+vocabulary: arithmetic (`+ − ×`, value type `prelude.INTEGER`) and comparison
+(`< > =`, value type `prelude.BOOLEAN`) use separate module ids and semantic types,
 so installing one family cannot satisfy or alter the other's contracts.
 
 ## 7. Measuring accumulation
@@ -1644,5 +1645,11 @@ returning it.
 
 The Lean evaluator of Theorem 29.2 (`Plan.eval`) is a model: modules are
 functions of their arguments' values and a map body reads only its element.
-The domains still name their types textually; moving them to constructor
-objects is a separate migration.
+`nca.prelude` holds the constructors of domain-free values that domains
+share, a truth value and an integer, since domains cannot import each other.
+Each domain defines the constructors of its own types in its `types` module
+(`domains.arithmetic.types`, `domains.boolean.types`); its modules take their
+type ids from them, and its package puts them into the store as members, so
+installing a package brings its types. `tests/test_layout.py` checks that
+every contract of a discovered package names only constructor objects or the
+core's `seq`, `pair`, `either` and `unit`.

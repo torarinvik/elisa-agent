@@ -5,6 +5,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from nca.abi import App, Contract, Term, parse_type
+from nca.objects import Composite, Primitive, Store, constructors
+from nca.packages import discover
+
 PACKAGE = Path(__file__).resolve().parent.parent / "src" / "nca"
 DOMAINS = PACKAGE / "domains"
 
@@ -43,4 +47,37 @@ def test_domains_import_only_the_core_and_themselves() -> None:
         others = sorted(m for m in imported_modules(path) if domain_of(m) not in (None, own))
         if others:
             offending[str(path.relative_to(PACKAGE))] = others
+    assert offending == {}
+
+
+CORE_CONSTRUCTORS = {"seq", "pair", "either", "unit"}
+
+
+def textual(term: Term) -> set[str]:
+    if not isinstance(term, App):
+        return set()
+    own = set() if term.name.startswith("sha256:") or term.name in CORE_CONSTRUCTORS else {term.name}
+    return own.union(*(textual(a) for a in term.args))
+
+
+def test_domain_packages_name_their_types_by_constructor_objects() -> None:
+    store = Store()
+    offending: dict[str, set[str]] = {}
+    for name, ref in discover(store).items():
+        for node in store.walk(ref):
+            obj = store.get(node)
+            if isinstance(obj, Primitive):
+                label, contracts = obj.manifest.module_id, [obj.manifest.contract]
+            elif isinstance(obj, Composite):
+                label = obj.name
+                contracts = [*(obj.exports or ()), *(Contract(i, o) for i, o in obj.requires)]
+            else:
+                continue
+            names = set().union(*(textual(parse_type(t)) for c in contracts
+                                  for t in (*c.inputs, c.output,
+                                            *(u for i, o in c.slots for u in (*i, o)))))
+            if names:
+                offending[f"{name}: {label}"] = names
+            # Installing the package brings every type it names.
+            assert set(constructors(contracts)) <= set(store.walk(ref))
     assert offending == {}

@@ -21,14 +21,12 @@ import torch
 from torch import nn
 
 from nca.abi import Contract, Manifest, TypeId
+from nca.domains.arithmetic import types
 from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, render_operator
 from nca.domains.arithmetic.digit_recognizer import GLYPH, build_network as _digit_network
 
-OPERATOR_DISTRIBUTION = "operator.distribution.v1"
-"""Tuple of 4 probabilities over ``("+", "-", "*", None)``; ``None`` = not an operator."""
-
-RELATION_DISTRIBUTION = "relation.distribution.v1"
-"""Tuple of 4 probabilities over ``("<", ">", "=", None)``; ``None`` = not a relation."""
+OPERATOR_DISTRIBUTION = types.OPERATOR_DISTRIBUTION.type()
+RELATION_DISTRIBUTION = types.RELATION_DISTRIBUTION.type()
 
 
 @dataclass(frozen=True)

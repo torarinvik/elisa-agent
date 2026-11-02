@@ -17,6 +17,7 @@ from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, evaluate, v
 from nca.ladder import RankedReading
 from nca.native import load
 from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION
+from nca.domains.arithmetic import types
 from nca.domains.arithmetic.operator_recognizer import OPERATOR_DISTRIBUTION, RELATION_DISTRIBUTION
 
 _NATIVE = load("decoding")
@@ -38,11 +39,12 @@ class Vocabulary:
     value: TypeId
 
 
-ARITHMETIC = Vocabulary("nca", OPERATORS, OPERATOR_DISTRIBUTION, "symbol.distribution.v1",
-                        "expression.infix.v1", "int.v1")
+ARITHMETIC = Vocabulary("nca", OPERATORS, OPERATOR_DISTRIBUTION,
+                        types.SYMBOL_DISTRIBUTION.type(), types.EXPRESSION.type(),
+                        types.INTEGER.type())
 COMPARISON = Vocabulary("nca.comparison", RELATIONS, RELATION_DISTRIBUTION,
-                        "comparison-symbol.distribution.v1", "comparison.chain.v1",
-                        "bool.v1")
+                        types.COMPARISON_SYMBOL_DISTRIBUTION.type(),
+                        types.COMPARISON_CHAIN.type(), types.BOOLEAN.type())
 
 SYMBOL_DISTRIBUTION = ARITHMETIC.symbol_distribution
 EXPRESSION = ARITHMETIC.expression
@@ -244,11 +246,8 @@ class ComparisonEvaluator:
         return all(evaluate(a, r, b) for a, r, b in zip(values, tokens[1::2], values[1:]))
 
 
-MIXED_SYMBOL_DISTRIBUTION = "mixed-symbol.distribution.v1"
-"""Dict mapping each digit, operator, and relation to its probability."""
-
-RELATIONAL_EXPRESSION = "relational.expression.v1"
-"""Tokens ``digit ((op | rel) digit)*`` with at least one relation."""
+MIXED_SYMBOL_DISTRIBUTION = types.MIXED_SYMBOL_DISTRIBUTION.type()
+RELATIONAL_EXPRESSION = types.RELATIONAL_EXPRESSION.type()
 
 
 class MixedSymbolFuser:

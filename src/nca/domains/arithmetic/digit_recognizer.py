@@ -23,12 +23,10 @@ import torch
 from torch import nn
 
 from nca.abi import Contract, Manifest
+from nca.domains.arithmetic import types
 
-GLYPH = "image.glyph.gray28.v1"
-"""``torch.Tensor`` of shape (28, 28), float in [0, 1], white ink on black."""
-
-DIGIT_DISTRIBUTION = "digit.distribution.v1"
-"""Tuple of 10 probabilities summing to 1, indexed by digit value."""
+GLYPH = types.GLYPH.type()
+DIGIT_DISTRIBUTION = types.DIGIT_DISTRIBUTION.type()
 
 CONTRACT = Contract(inputs=(GLYPH,), output=DIGIT_DISTRIBUTION)
 

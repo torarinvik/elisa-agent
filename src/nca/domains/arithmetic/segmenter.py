@@ -19,10 +19,10 @@ import numpy as np
 import torch
 
 from nca.abi import Contract, Manifest, seq_type
+from nca.domains.arithmetic import types
 from nca.domains.arithmetic.digit_recognizer import GLYPH
 
-EXPRESSION_IMAGE = "image.expression.gray.v1"
-"""``torch.Tensor`` of shape (H, W), float in [0, 1], white ink on black."""
+EXPRESSION_IMAGE = types.EXPRESSION_IMAGE.type()
 
 INK = 0.1
 MIN_GAP = 4

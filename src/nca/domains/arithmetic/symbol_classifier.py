@@ -20,12 +20,12 @@ import torch
 from torch import nn
 
 from nca.abi import Contract, Manifest
+from nca.domains.arithmetic import types
 from nca.domains.arithmetic.expressions import OPERATORS, render_operator
 from nca.domains.arithmetic.digit_recognizer import GLYPH
 from nca.domains.arithmetic.symbols import SYMBOL_DISTRIBUTION
 
-GLYPH_EMBEDDING = "glyph.embedding.v1"
-"""``torch.Tensor`` of shape (128,) from ``nca.glyph-encoder`` version 1."""
+GLYPH_EMBEDDING = types.GLYPH_EMBEDDING.type()
 
 SYMBOLS = (*"0123456789", *OPERATORS)
 

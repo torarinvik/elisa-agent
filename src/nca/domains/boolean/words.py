@@ -31,6 +31,7 @@ from torch import nn
 
 from nca.abi import Calls, Contract, Manifest, seq_type
 from nca.cost import network_flops
+from nca.domains.boolean import types
 from nca.domains.boolean.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
 from nca.modules.edit import EditDistanceReader
 from nca.native import load
@@ -39,23 +40,12 @@ from nca.priors import ArityPrior, complete_prior, height_prior
 
 _KERNELS = load("kernels", "nca.domains.boolean")
 
-BOOLEAN = "bool.v1"
-"""``bool``: a truth value, the type every Boolean answer shares."""
-
-FORMULA_TEXT = "text.formula.prefix.v1"
-"""``str``: words separated by single spaces."""
-
-NOISY_WORD = "text.word.noisy.v1"
-"""``str`` of lowercase letters."""
-
-WORD_DISTRIBUTION = "logic.word.distribution.v1"
-"""Tuple of probabilities over ``VOCABULARY``."""
-
-FORMULA_LENGTH = "logic.formula.length.v1"
-"""Positive integer count of words in a prefix formula."""
-
-ARITY_PRIOR = "logic.arity.prior.v1"
-"""Weighted arity automaton, including the formula syntax restriction."""
+BOOLEAN = types.BOOLEAN.type()
+FORMULA_TEXT = types.FORMULA_TEXT.type()
+NOISY_WORD = types.NOISY_WORD.type()
+WORD_DISTRIBUTION = types.WORD_DISTRIBUTION.type()
+FORMULA_LENGTH = types.FORMULA_LENGTH.type()
+ARITY_PRIOR = types.ARITY_PRIOR.type()
 
 
 class CompleteTreePrior:

@@ -44,7 +44,8 @@ from nca.domains.arithmetic.operator_recognizer import (
 from nca.domains.arithmetic.digit_recognizer import GLYPH
 from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
 from nca.domains.arithmetic.symbols import (
-    BOOLEAN, COMPARISON, INTEGER, ComparisonEvaluator, Evaluator, ExpressionParser,
+    BOOLEAN, COMPARISON, EXPRESSION, INTEGER, SYMBOL_DISTRIBUTION, ComparisonEvaluator, Evaluator,
+    ExpressionParser,
     SymbolFuser,
 )
 from nca.index import ProducerIndex
@@ -92,7 +93,7 @@ def decoys(n: int, store: ExpertStore, seed: int) -> list[LazyExpert]:
     from available inputs. A fifth produce real intermediate types, so the planner
     must consider and reject them."""
     rng = random.Random(seed)
-    real_outputs = [INTEGER, BOOLEAN, "symbol.distribution.v1", "expression.infix.v1"]
+    real_outputs = [INTEGER, BOOLEAN, SYMBOL_DISTRIBUTION, EXPRESSION]
     types = [f"decoy.t{j}.v1" for j in range(max(1, n // 4))]
 
     def never_loaded() -> Never:
