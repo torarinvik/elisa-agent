@@ -54,9 +54,9 @@ from nca.ladder import (INFLATIONS, Rung, State, Stop, certification_order, cert
                         charge_per_cost, stopping_rule)
 from nca.domains.boolean.words import (BOOLEAN, ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
-                               CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator,
-                               pair_risk_upper)
+                               CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator)
 from nca.planner import Plan, plan_stable
+from nca.shares import pair_risk_upper
 from nca.selective import Answer, build_ladders, solve, solve_many, solve_stops
 from nca.stats import (clopper_pearson_exceeds, family_audit_alpha, format_upper_bound,
                        pair_gap_sum, poisson_binomial_tails, poisson_binomial_upper_bound, wilson)
@@ -345,11 +345,11 @@ def premises(rung: Rung, args: argparse.Namespace) -> None:
                 truth = arities(sample.words)
                 posterior = decode(calibrated, ARITY_ORDER)
                 assert posterior is not None
-                chosen = arities(decoder.words(readings))
+                chosen = arities(decoder.symbols(readings))
                 risks.append(posterior.risk(calibrated, ARITY_ORDER, chosen))
                 wrong.append(chosen != truth)
                 rho = np.array([rung.risk(log, ARITY_DECISION) for log in logs])
-                read = arities(FormulaEvaluator().words(readings))
+                read = arities(FormulaEvaluator().symbols(readings))
                 failed = np.array([a != t for a, t in zip(read, truth)])
                 doubled += int(failed.sum() >= 2)
                 pair_estimates.append(pair_gap_sum(rho, 1))

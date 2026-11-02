@@ -10,12 +10,14 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nca.abi import Contract, Manifest
-from nca import decoding, priors
+from nca import decoding, prefix, priors
+from nca import shares as share_module
 from nca.domains.boolean.formulas import ARITY, VOCABULARY, FormulaDataset, corrupt, evaluate, formula
 from nca.decoding import decode, parse
 from nca.ladder import Decision, Rung, ladder, refine, risk
 from nca.domains.boolean.words import (BOOLEAN, ARITY_DECISION, ARITY_ORDER, FORMULA_TEXT, READER, EditReader,
-                               FormulaEvaluator, Tokenizer, edit_distance)
+                               FormulaEvaluator, Tokenizer)
+from nca.modules.edit import edit_distance
 from nca.planner import plan_stable
 from nca.selective import build_ladders, solve
 
@@ -27,7 +29,7 @@ def one_hot(words: list[str]) -> list[tuple[float, ...]]:
 def test_batched_word_argmax_matches_reference(monkeypatch) -> None:
     import nca.domains.boolean.words as words
 
-    native = getattr(words._NATIVE, "row_argmax", None)
+    native = getattr(prefix._NATIVE, "row_argmax", None)
     if native is None:
         pytest.skip("Elisa decoding kernel is not built")
     rng = np.random.default_rng(412)
@@ -37,12 +39,12 @@ def test_batched_word_argmax_matches_reference(monkeypatch) -> None:
     rows[1, 4] = np.nan  # NumPy chooses the first NaN.
     rows[2] = -np.inf
     expected = [VOCABULARY[int(np.argmax(row))] for row in rows]
-    assert words._most_likely_words(rows) == expected
-    assert words._most_likely_words([]) == []
+    assert prefix.most_likely(rows, words.FORMULA) == expected
+    assert prefix.most_likely([], words.FORMULA) == []
     assert list(native(np.array([], dtype=np.float64), 0)) == []
     assert list(native(np.array([1.0], dtype=np.float64), 2)) == []
-    monkeypatch.setattr(words, "_NATIVE", None)
-    assert words._most_likely_words(rows) == expected
+    monkeypatch.setattr(prefix, "_NATIVE", None)
+    assert prefix.most_likely(rows, words.FORMULA) == expected
 
 
 def test_word_argmax_preserves_higher_precision_inputs(monkeypatch) -> None:
@@ -53,12 +55,12 @@ def test_word_argmax_preserves_higher_precision_inputs(monkeypatch) -> None:
     integer_row = [0] * len(VOCABULARY)
     integer_row[:2] = [2**53, 2**53 + 1]
     for row in (decimal_row, integer_row):
-        assert words._most_likely_words([row]) == [VOCABULARY[1]]
-    assert words._most_likely_words([integer_row, [0.0] * len(VOCABULARY)]) == [
+        assert prefix.most_likely([row], words.FORMULA) == [VOCABULARY[1]]
+    assert prefix.most_likely([integer_row, [0.0] * len(VOCABULARY)], words.FORMULA) == [
         VOCABULARY[1], VOCABULARY[0]]
-    monkeypatch.setattr(words, "_NATIVE", None)
+    monkeypatch.setattr(prefix, "_NATIVE", None)
     for row in (decimal_row, integer_row):
-        assert words._most_likely_words([row]) == [VOCABULARY[1]]
+        assert prefix.most_likely([row], words.FORMULA) == [VOCABULARY[1]]
 
 
 def test_premise_diagnostic_handles_zero_expected_pairs(monkeypatch, capsys) -> None:
@@ -295,12 +297,12 @@ def test_pair_shares_preserve_tiny_risks(reference: bool, monkeypatch: pytest.Mo
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
+        monkeypatch.setattr(share_module, "_NATIVE", None)
     rng = np.random.default_rng(932)
     samples = [[1.0, 1e-18, 0.0], [1.0, np.nextafter(0.0, 1.0)],
                *[rng.random(10).tolist() for _ in range(100)]]
     for risks in samples:
-        shares = word_module._pair_shares(risks)
+        shares = share_module._pair_shares(risks)
         exact = [Fraction.from_float(float(r)) for r in risks]
         for i, share in enumerate(shares):
             expected = exact[i] * sum((v for j, v in enumerate(exact) if i != j), Fraction()) / 2
@@ -322,8 +324,8 @@ def test_pair_risk_upper_avoids_cancellation_and_underflow(
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
-        monkeypatch.setattr(word_module, "_STATS_NATIVE", None)
+        monkeypatch.setattr(share_module, "_NATIVE", None)
+        monkeypatch.setattr(share_module, "_STATS_NATIVE", None)
         monkeypatch.setattr(ladder_module, "_NATIVE", None)
     rng = np.random.default_rng(2331)
     samples = [[], [1.0, 1e-18], [1e-200, 1e-200], [0.8, 0.8, 0.8],
@@ -332,13 +334,13 @@ def test_pair_risk_upper_avoids_cancellation_and_underflow(
         values = [Fraction.from_float(float(r)) for r in risks]
         exact = min(Fraction(1), sum((a * b for a, b in itertools.combinations(values, 2)),
                                     Fraction()))
-        bound = word_module.pair_risk_upper(risks)
+        bound = share_module.pair_risk_upper(risks)
         assert Fraction.from_float(bound) >= exact
         assert bound <= 1.0
-    assert word_module.pair_risk_upper([1.0, 1e-18]) > 0.0
-    assert word_module.pair_risk_upper([1e-200, 1e-200]) > 0.0
-    assert np.isnan(word_module.pair_risk_upper([float("nan"), 0.2]))
-    assert np.isnan(word_module.pair_risk_upper([-0.1, 0.2]))
+    assert share_module.pair_risk_upper([1.0, 1e-18]) > 0.0
+    assert share_module.pair_risk_upper([1e-200, 1e-200]) > 0.0
+    assert np.isnan(share_module.pair_risk_upper([float("nan"), 0.2]))
+    assert np.isnan(share_module.pair_risk_upper([-0.1, 0.2]))
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -346,14 +348,14 @@ def test_detection_shares_round_up_at_boundaries(reference: bool, monkeypatch: p
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
+        monkeypatch.setattr(share_module, "_NATIVE", None)
     smallest = float(np.nextafter(0.0, 1.0))
     risks = [smallest, 1.0, 0.0]
-    shares = word_module._markov_shares(risks)
+    shares = share_module._markov_shares(risks)
     assert all(Fraction.from_float(share) >= Fraction.from_float(risk) / 2
                for share, risk in zip(shares, risks, strict=True))
     additions = [0.0, 1e-18, Fraction(1, 3)]
-    combined = word_module._combine_shares(shares, additions)
+    combined = share_module._combine_shares(shares, additions)
     for actual, share, addition in zip(combined, shares, additions, strict=True):
         assert Fraction.from_float(actual) >= Fraction.from_float(share) + Fraction(addition)
     arity = [smallest, 1.0, 0.0]
@@ -375,12 +377,12 @@ def test_combine_shares_preserves_precise_mixed_inputs(reference: bool, mixed: b
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
+        monkeypatch.setattr(share_module, "_NATIVE", None)
     additions = [np.float16(0.5), np.float32(0.25), np.float64(0.125), 0.0625]
     if mixed:
         additions.extend([Fraction(1, 3), 2**53 + 1])
     shares = [1e-18] * len(additions)
-    combined = word_module._combine_shares(shares, additions)
+    combined = share_module._combine_shares(shares, additions)
     for actual, addition in zip(combined, additions, strict=True):
         exact = Fraction.from_float(float(addition)) if isinstance(addition, np.floating) else Fraction(addition)
         assert Fraction.from_float(actual) >= exact + Fraction.from_float(1e-18)
@@ -430,8 +432,8 @@ def test_detection_floors_round_down(reference: bool, monkeypatch: pytest.Monkey
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
-    elif getattr(word_module._NATIVE, "detection_floors", None) is None:
+        monkeypatch.setattr(share_module, "_NATIVE", None)
+    elif getattr(share_module._NATIVE, "detection_floors", None) is None:
         pytest.skip("native kernel not built")
     rng = np.random.default_rng(10)
     cases: list[list[float | Fraction]] = [[1.0, 1e-18], [float(np.nextafter(0.0, 1.0))] * 3,
@@ -439,7 +441,7 @@ def test_detection_floors_round_down(reference: bool, monkeypatch: pytest.Monkey
     cases += [list(rng.random(int(rng.integers(1, 30))) * 10.0 ** rng.integers(-20, 1))
               for _ in range(300)]
     for risks in cases:
-        markov, pairs = word_module._detection_floors(risks)
+        markov, pairs = share_module._detection_floors(risks)
         exact = [Fraction(r) if isinstance(r, Fraction) else Fraction.from_float(r) for r in risks]
         total = sum(exact, Fraction())
         assert Fraction.from_float(markov) <= total / 2
@@ -461,7 +463,7 @@ def test_decoding_agrees_with_parseable_readings() -> None:
         per_word = [ARITY_ORDER[int(np.argmax(m))] for m in masses]
         if parse(per_word) is None:
             continue
-        decoded = FormulaEvaluator(decode=True).words(readings)
+        decoded = FormulaEvaluator(decode=True).symbols(readings)
         assert [ARITY[VOCABULARY.index(w)] for w in decoded] == per_word
         assert FormulaEvaluator(decode=True).invoke(readings) == FormulaEvaluator().invoke(readings)
 
@@ -493,7 +495,7 @@ def test_correction_account() -> None:
     evaluator = FormulaEvaluator(decode=True)
     account = evaluator.certificate(readings, risk, masses)
     assert account is not None
-    decoded = evaluator.words(readings)
+    decoded = evaluator.symbols(readings)
     log_probs = np.log(np.array([masses(k, ARITY_DECISION).tolist() for k in range(len(words))]))
     posterior = decode(log_probs, ARITY_ORDER)
     assert posterior is not None
@@ -565,7 +567,7 @@ def test_correction_revisions_invalidate_calibration_with_equal_scores() -> None
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.domains.boolean.words import CorrectionState
+    from nca.prefix import CorrectionState
 
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
@@ -577,7 +579,7 @@ def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.
     for _ in range(30):
         k = int(rng.integers(len(readings)))
         readings[k] = rng.dirichlet(np.ones(len(VOCABULARY)))
-        assert evaluator.words(readings, state) == evaluator.words(readings)
+        assert evaluator.symbols(readings, state) == evaluator.symbols(readings)
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -585,7 +587,8 @@ def test_changed_rows_matches_numpy_for_layouts_and_special_values(reference, mo
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
+        monkeypatch.setattr(prefix, "_NATIVE", None)
+        monkeypatch.setattr(share_module, "_NATIVE", None)
     current = np.array([[0.0, -0.0, np.inf], [np.nan, 1.0, -np.inf],
                         [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]])
     previous = current.copy()
@@ -593,12 +596,12 @@ def test_changed_rows_matches_numpy_for_layouts_and_special_values(reference, mo
     for left, right in ((current, previous), (current[::2], previous[::2]),
                         (current.astype(np.float32), previous.astype(np.float32))):
         expected = tuple(int(k) for k in np.flatnonzero(np.any(left != right, axis=1)))
-        assert word_module._changed_rows(left, right) == expected
-    assert word_module._changed_rows(np.empty((0, 3)), np.empty((0, 3))) == ()
+        assert prefix._changed_rows(left, right) == expected
+    assert prefix._changed_rows(np.empty((0, 3)), np.empty((0, 3))) == ()
 
 
 def test_answer_cursor_reuses_trace_only_for_unchanged_readings(monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.domains.boolean.words import CorrectionState
+    from nca.prefix import CorrectionState
 
     original = decoding.Split.best
     calls = 0
@@ -613,16 +616,16 @@ def test_answer_cursor_reuses_trace_only_for_unchanged_readings(monkeypatch: pyt
     readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=15)
     evaluator = FormulaEvaluator(decode=True)
     state = CorrectionState()
-    first = evaluator.words(readings, state)
+    first = evaluator.symbols(readings, state)
     assert calls == 1
-    assert evaluator.words(readings, state) == first and calls == 1
+    assert evaluator.symbols(readings, state) == first and calls == 1
     readings[7] = rng.dirichlet(np.ones(len(VOCABULARY)))
-    assert evaluator.words(readings, state) == evaluator.words(readings)
+    assert evaluator.symbols(readings, state) == evaluator.symbols(readings)
     assert calls == 2
 
 
 def test_correction_state_resets_when_evaluator_or_decoder_mode_changes() -> None:
-    from nca.domains.boolean.words import CorrectionState
+    from nca.prefix import CorrectionState
 
     rng = np.random.default_rng(572)
     exact = FormulaEvaluator(decode=True)
@@ -631,12 +634,12 @@ def test_correction_state_resets_when_evaluator_or_decoder_mode_changes() -> Non
     state = CorrectionState()
     for evaluator in (exact, banded, exact, with_prior, exact):
         readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=15)
-        assert evaluator.words(readings, state) == evaluator.words(readings)
+        assert evaluator.symbols(readings, state) == evaluator.symbols(readings)
     readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=15)
     exact.band_slack = 1e-4
-    assert exact.words(readings, state) == exact.words(readings)
+    assert exact.symbols(readings, state) == exact.symbols(readings)
     exact.band_slack = None
-    assert exact.words(readings, state) == exact.words(readings)
+    assert exact.symbols(readings, state) == exact.symbols(readings)
 
 
 def test_native_certificate_matches_reference_including_ties() -> None:
@@ -689,7 +692,7 @@ def test_native_grouped_argmax_preserves_first_class_ties() -> None:
 @pytest.mark.parametrize("reference", [False, True])
 def test_banded_answer_session_matches_exact_words(reference: bool,
                                                    monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.domains.boolean.words import CorrectionState
+    from nca.prefix import CorrectionState
 
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
@@ -701,17 +704,17 @@ def test_banded_answer_session_matches_exact_words(reference: bool,
     for _ in range(20):
         k = int(rng.integers(len(readings)))
         readings[k] = rng.dirichlet(np.ones(len(VOCABULARY)))
-        assert evaluator.words(readings, state) == FormulaEvaluator(decode=True).words(readings)
+        assert evaluator.symbols(readings, state) == FormulaEvaluator(decode=True).symbols(readings)
     assert state.answer_band is not None
     assert state.answer_band_result is not None and state.answer_band_result.exact
-    assert evaluator.words(np.zeros_like(readings), state) == [VOCABULARY[0]] * len(readings)
+    assert evaluator.symbols(np.zeros_like(readings), state) == [VOCABULARY[0]] * len(readings)
 
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_banded_correction_charges_selected_answer_conservatively(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
-    from nca.domains.boolean.words import CorrectionState
+    from nca.prefix import CorrectionState
 
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
@@ -794,7 +797,8 @@ def test_raw_arity_grouping_preserves_sums_and_inputs(
     from nca.domains.boolean import words as word_module
 
     if reference:
-        monkeypatch.setattr(word_module, "_NATIVE", None)
+        monkeypatch.setattr(prefix, "_NATIVE", None)
+        monkeypatch.setattr(share_module, "_NATIVE", None)
     rng = np.random.default_rng(1702)
     source = rng.dirichlet(np.ones(len(VOCABULARY)), size=34)
     source[0] = 0
@@ -805,17 +809,17 @@ def test_raw_arity_grouping_preserves_sums_and_inputs(
     expected = np.array([[sum(r[c] for c in g) for g in ARITY_DECISION] for r in rows])
     before = source.copy()
     for readings in (rows, rows.tolist(), tuple(map(tuple, rows))):
-        np.testing.assert_allclose(word_module._arity_masses(readings), expected, rtol=3e-16, atol=0)
+        np.testing.assert_allclose(prefix.arity_masses(readings, word_module.FORMULA), expected, rtol=3e-16, atol=0)
         if not reference and isinstance(readings, list):
             precise = [[sum(r[c] for c in g) for g in ARITY_DECISION] for r in readings]
-            np.testing.assert_array_equal(word_module._arity_masses(readings), precise)
+            np.testing.assert_array_equal(prefix.arity_masses(readings, word_module.FORMULA), precise)
     np.testing.assert_array_equal(source, before)
 
 
 def test_native_grouped_masses_handles_empty_and_reordered_groups() -> None:
     from nca.domains.boolean import words as word_module
 
-    native = getattr(word_module._NATIVE, "grouped_masses", None)
+    native = getattr(prefix._NATIVE, "grouped_masses", None)
     if native is None:
         pytest.skip("requires the native grouping kernel")
     groups = np.array([2, 0, 2, 3, 0, 2], dtype=np.int64)

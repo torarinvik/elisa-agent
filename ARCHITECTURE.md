@@ -29,18 +29,25 @@ run the Python tests with `uv run pytest`.
 | [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `domains.arithmetic.normalizer`, `domains.arithmetic.baseline` |
 | [§16 Knowing when to be unsure](theory/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `domains.arithmetic.practice` |
 | [§17 Calibration under shift](theory/17-calibration-under-distribution-shift.md) | `Calibration` | `domains.arithmetic.certify` |
-| [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `domains.boolean.logic`, `domains.boolean.formulas`, `domains.boolean.words` |
-| [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `domains.boolean.logic`, `domains.boolean.formulas` |
+| [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `prefix`, `modules.edit`, `domains.boolean.logic`, `domains.boolean.formulas`, `domains.boolean.words` |
+| [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `prefix`, `shares`, `domains.boolean.logic`, `domains.boolean.formulas` |
 | [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation`, `Relevance` | `modules.combinators`, `optimize`, `kernel`, `runtime` |
-| [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `native.decoding` |
-| [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `ladder` |
+| [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `prefix.PrefixEvaluator` (`decode`), `native.decoding` |
+| [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `prefix.PrefixEvaluator.floor`, `ladder` |
 | [§23 Efficient decoding](theory/23-efficient-decoding.md) | `Banding` | `decoding.decode_banded`, `decoding.Split` (references), `native.decoding` (exact passes) |
 | [§24 When the prior is wrong](theory/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
 | [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
 
-Formula data generation and evaluation live in `domains.boolean.formulas`; counter
+`prefix.PrefixEvaluator` reads per-position distributions over any
+`RankedVocabulary` as a prefix term and evaluates it with semantics the domain
+supplies; it carries the certificate, detection, correction and prior accounts
+and their floors, so any domain whose answers are terms over a ranked alphabet
+gets them by supplying its vocabulary, its semantics and, optionally, its
+short-circuit rule. `domains.boolean.words.FormulaEvaluator` is the Boolean
+instance. `modules.edit.EditDistanceReader` reads noisy strings against any
+vocabulary. Formula data generation lives in `domains.boolean.formulas`; counter
 decoding and incremental bands live in `decoding`; weighted automata and prior
 selection live in `priors`. Numerical kernels remain in `native/decoding.elisa`,
 with Python reference implementations for validation and fallback.
@@ -49,8 +56,10 @@ with Python reference implementations for validation and fallback.
 
 `src/nca/` is the generic core: the ABI, planners, index, kernel, runtime,
 loader, ladders and selective refinement, statistics, decoding over ranked
-alphabets, priors, measured costs (`cost`), the generic library experts in
-`modules/` (combinators and request wrappers), and the native kernels. Nothing
+alphabets, priors, prefix-term evaluation and its accounts (`prefix`,
+`shares`), measured costs (`cost`), the generic library experts in `modules/`
+(combinators, request wrappers and the edit-distance reader), and the native
+kernels. Nothing
 in it names a task, a data set, or a domain type.
 
 `src/nca/domains/` holds the research domains, each a package of its data, its
@@ -697,7 +706,7 @@ borrowed slices of the encoded vocabulary. The Python boundary supplies
 Unicode code points rather than UTF-8 bytes; it performs no normalization.
 The integer distances feed the existing Torch tensor and softmax operations,
 so the learned/calibrated reader interface and declared costs are unchanged.
-`_edit_distance_reference` retains the full-table reference; missing native
+`modules.edit._edit_distance_reference` retains the full-table reference; missing native
 exports fall back to Python. The compiled loop's agreement with the model is
 tested, not a theorem about the generated binary.
 
@@ -762,7 +771,7 @@ the consumer's other arguments must be passed through `solve` (§27.3).
 `ladder.allocate_risk` distributes a current sequence risk over nonnegative
 priorities (Theorem 23.11). It rescales priorities before summing to avoid
 overflow and uses uniform weights when all priorities are zero.
-`FormulaEvaluator.corrected` uses this allocation with its posterior marginal
+`prefix.PrefixEvaluator.corrected` uses this allocation with its posterior marginal
 risks. `certificate_session` creates a cursor and priorities owned by one solve;
 `element_certificate` creates that session through an optional generic hook.
 State is reset when its evaluator, decoder mode, or input length changes.
@@ -836,7 +845,9 @@ implementation or its machine-integer arithmetic; its guard keeps the counter
 within the remaining input length before addition.
 
 `native.decoding.grouped_masses` sums finite nonnegative row entries into
-caller-declared class groups. `FormulaEvaluator.words` uses it to prepare raw
+caller-declared class groups, indexed by each class's position in the
+vocabulary's arity order (`RankedVocabulary.class_groups`), so arities need
+not be consecutive. `prefix.arity_masses` uses it to prepare raw
 arity masses for stateless, prior, exact-cursor and banded decoding; the
 Python grouped sums remain the fallback. No calibration or normalization is
 applied by grouping. `grouped_mass_sum` and `grouped_mass_nonneg` in
@@ -847,7 +858,7 @@ NumPy scalar sums may round differently. This is not a formal floating-point
 error bound.
 
 `native.decoding.grouped_argmax` performs row-wise selection within supplied
-class groups. `FormulaEvaluator.words` uses it after arity decoding; group ids
+class groups. `PrefixEvaluator.symbols` uses it after arity decoding; group ids
 and scores are arguments, so the kernel is independent of the vocabulary.
 Strict score comparison preserves the first class on ties, matching the
 reference restricted argmax of §21.5. The Python loop remains the fallback.
@@ -1452,7 +1463,7 @@ reduced using observed audit results. Default per-audit confidence is
 unchanged. `audit_family_le` proves the finite union bound from supplied
 individual failure bounds; it does not cover arbitrary later CLI runs.
 
-Prior-aware `CorrectionState` retains a calibrated log-row snapshot. A
+Prior-aware `prefix.CorrectionState` retains a calibrated log-row snapshot. A
 revision-tagged distribution refreshes only invalidated rows, using the same
 per-solve revision identity as the format cursor (Theorem 23.12). Unversioned
 distributions rebuild all rows and clear revision provenance. Snapshots are
