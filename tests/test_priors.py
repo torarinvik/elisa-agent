@@ -348,9 +348,73 @@ def test_prior_risk_centered_retry_matches_small_weights(reference, monkeypatch)
             prior.sequence_risk(centered, (0, 0, 0, 0)), abs=1e-12)
 
 
-def test_prior_risk_does_not_center_nonunit_prior() -> None:
+@pytest.mark.parametrize("reference", [False, True])
+def test_weighted_prior_retry_restores_edge_and_final_scale(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
-                              np.full((1, 2), 0.1), np.zeros(1))
+                              np.full((1, 2), 1e306), np.array([1e306]))
+    rows = np.full((2, 2), 1e306)
+    result = prior.decode(rows)
+    assert result is not None and result.prior is prior
+    assert result.log_z == math.fsum([1e306] * 5)
+    np.testing.assert_allclose(result.marginals, np.full((2, 2), 0.5))
+    assert result.risk(rows, (0, 1), (0, 0)) == pytest.approx(3 / 4)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_weighted_prior_centered_retry_matches_enumeration(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(913)
+    candidates = list(itertools.product((0, 1), repeat=4))
+    for _ in range(30):
+        transitions = rng.integers(-1, 3, size=(3, 2))
+        transitions[:, 0] = np.arange(3)
+        prior = priors.ArityPrior((0, 1), transitions, rng.normal(size=(3, 2)) / 5,
+                                  rng.normal(size=3) / 5)
+        rows = rng.integers(-3, 4, size=(4, 2)).astype(float) + float(2**52)
+        centered = rows - rows.max(axis=1, keepdims=True)
+        scores = np.array([sum(centered[k, symbol] for k, symbol in enumerate(path))
+                           + prior.log_weight(path) for path in candidates])
+        weights = np.exp(scores - scores.max())
+        weights /= weights.sum()
+        expected = np.zeros((4, 2))
+        for path, weight in zip(candidates, weights, strict=True):
+            expected[np.arange(4), list(path)] += weight
+        result = prior.decode(rows)
+        assert result is not None and result.prior is prior
+        assert scores[candidates.index(result.arities)] == scores.max()
+        np.testing.assert_allclose(result.marginals, expected, atol=1e-12)
+        assert prior.sequence_risk(rows, (0, 0, 0, 0)) == pytest.approx(1 - weights[0], abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_centers_weighted_prior(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.array([[0.1, -0.2]]), np.zeros(1))
+    assert prior.sequence_risk(np.full((1, 2), float(2**52)), (0,)) == pytest.approx(
+        1 / (1 + math.exp(0.3)))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_preserves_error_for_unsafe_edge_shift(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.array([[1e308, -1e308]]), np.zeros(1))
+    with pytest.raises(ValueError, match="partition.*precision"):
+        prior.sequence_risk(np.full((1, 2), float(2**52)), (0,))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_preserves_error_for_unsafe_final_shift(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 1], [0, 1]]), np.zeros((2, 2)),
+                              np.array([1e308, -1e308]))
     with pytest.raises(ValueError, match="partition.*precision"):
         prior.sequence_risk(np.full((1, 2), float(2**52)), (0,))
 
@@ -692,13 +756,17 @@ def test_unit_prior_decode_recovers_marginals_from_precision_loss(reference, mon
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_nonunit_prior_decode_still_reports_precision_loss(reference, monkeypatch) -> None:
+def test_weighted_prior_decode_recovers_precision(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
-                              np.full((1, 2), 0.1), np.zeros(1))
-    with pytest.raises(ValueError, match="marginals are not normalized"):
-        prior.decode(np.full((1, 2), float(2**52)))
+                              np.array([[0.1, -0.2]]), np.zeros(1))
+    rows = np.full((1, 2), float(2**52))
+    result = prior.decode(rows)
+    assert result is not None and result.prior is prior
+    expected_risk = 1 / (1 + math.exp(0.3))
+    np.testing.assert_allclose(result.marginals, [[1 - expected_risk, expected_risk]])
+    assert result.risk(rows, (0, 1), (0,)) == pytest.approx(expected_risk)
 
 
 @pytest.mark.parametrize("reference", [False, True])

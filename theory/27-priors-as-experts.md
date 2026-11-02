@@ -269,8 +269,9 @@ would be representable after cancellation.
 Full decoding also checks marginal rows for finite, nonnegative entries and
 approximate unit sum. This detects some loss of precision but is not a
 floating-point error bound and cannot validate every normalized result.
-On a detected marginal failure, a unit-weight prior can retry decoding after
-checked common row shifts and restore the normalizer to its original scale.
+On a detected marginal failure, a weighted prior can retry decoding after
+checked common row, edge and final shifts and restore the normalizer to its
+original scale.
 That binary64 normalizer may still lose small corrections at large magnitudes;
 the selected-sequence risk is computed separately.
 Partition calculations likewise reject a log-sum correction distorted by at
@@ -281,14 +282,15 @@ Finite log-weight additions use the same local TwoSum residual check as the
 format partition; it detects a materially rounded individual addition, not
 the accumulated error of an entire partition. The Lean identity establishes
 the corresponding exact-real algebra; it is not a proof of binary64 rounding.
-Subtracting one common log weight per reading row scales every complete path
-by the same factor, so its selected-to-alternative risk is unchanged by
-Theorem 27.16. On a detected partition arithmetic failure, sequence-risk
-calculation retries this rescaling for unit-weight priors only, provided the
-row shifts are finite and their individual rounding residuals are small. This
-restriction is a numerical safeguard, not a mathematical restriction on the
-common-factor identity. Absolute partitions and incremental cursor outputs
-retain their original scale and still report the arithmetic failure.
+Subtracting one common log weight per reading row, one from every supported
+edge, and one from every supported final state scales every fixed-length path
+by the same factor. Its selected-to-alternative risk is unchanged by Theorem
+27.16 and `prior_common_factors`. On a detected partition arithmetic failure,
+sequence-risk calculation retries these shifts when they and their common
+offset are finite and their individual rounding residuals are small. These
+checks do not certify the subsequent calculation. Absolute partitions and
+incremental cursor outputs retain their original scale and still report the
+arithmetic failure.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

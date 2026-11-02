@@ -104,6 +104,14 @@ theorem prior_tilt (r : α → ℝ) (t : τ) (l : List α) :
   | nil => simp [prior]
   | cons a l ih => simp only [prior, List.map_cons, List.prod_cons, ih]; ring
 
+/-- Common edge and final factors scale every path of a fixed length equally. -/
+theorem prior_common_factors (edge_factor final_factor : ℝ) (t : τ) (l : List α) :
+    prior ε (fun s a => edge_factor * v s a) (fun s => final_factor * f s) t l =
+      edge_factor ^ l.length * final_factor * prior ε v f t l := by
+  induction l generalizing t with
+  | nil => simp [prior]
+  | cons a l ih => simp only [prior, List.length_cons, pow_succ, ih]; ring
+
 /-- Nonzero symbol factors cannot add or remove sequence support. -/
 theorem prior_tilt_ne_zero (r : α → ℝ) (hr : ∀ a, r a ≠ 0) (t : τ) (l : List α) :
     prior ε (fun t a => v t a * r a) f t l ≠ 0 ↔ prior ε v f t l ≠ 0 := by

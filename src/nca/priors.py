@@ -6,6 +6,7 @@ import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
+from itertools import chain, repeat
 from typing import Any
 
 import numpy as np
@@ -148,25 +149,40 @@ def _center_log_rows(rows: np.ndarray) -> np.ndarray | None:
     return centered
 
 
-def _center_unit_prior_rows(rows: np.ndarray, prior: ArityPrior) -> np.ndarray | None:
-    """Only retry a prior partition when all its supported weights are unity."""
-    edges = prior.log_weights[prior.transitions >= 0]
-    if (np.any((edges != 0.0) & (edges != -math.inf))
-            or np.any((prior.log_final != 0.0) & (prior.log_final != -math.inf))):
+def _center_prior(rows: np.ndarray, prior: ArityPrior) -> tuple[np.ndarray, ArityPrior, float, float] | None:
+    """Remove common row, edge and final weights when their shifts are representable."""
+    centered_rows = _center_log_rows(rows)
+    edges = np.where(prior.transitions >= 0, prior.log_weights, -math.inf)
+    centered_edges = _center_log_rows(edges.reshape(1, -1))
+    centered_final = _center_log_rows(prior.log_final.reshape(1, -1))
+    if centered_rows is None or centered_edges is None or centered_final is None:
         return None
-    return _center_log_rows(rows)
+    edge_offset, final_offset = float(np.max(edges)), float(np.max(prior.log_final))
+    try:
+        common = math.fsum(chain((float(x) for x in np.max(rows, axis=1)),
+                                 repeat(edge_offset, len(rows)), (final_offset,)))
+    except OverflowError:
+        return None
+    if not math.isfinite(common):
+        return None
+    centered_prior = ArityPrior(prior.alphabet, prior.transitions, centered_edges.reshape(edges.shape),
+                                centered_final.ravel(), prior.start)
+    return centered_rows, centered_prior, edge_offset, final_offset
 
 
-def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None) -> Decoded:
+def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None, *,
+                              prior: ArityPrior | None = None,
+                              edge_offset: float = 0.0, final_offset: float = 0.0) -> Decoded:
     if decoded is None:
         raise _MarginalPrecisionError("centered decoding unexpectedly has no supported path")
     try:
-        log_z = math.fsum([*(float(offset) for offset in np.max(rows, axis=1)), decoded.log_z])
+        log_z = math.fsum(chain((float(offset) for offset in np.max(rows, axis=1)),
+                                repeat(edge_offset, len(rows)), (final_offset, decoded.log_z)))
     except OverflowError as exc:
         raise _MarginalPrecisionError("restored decoder normalizer is not finite") from exc
     if not math.isfinite(log_z):
         raise _MarginalPrecisionError("restored decoder normalizer is not finite")
-    return Decoded(decoded.arities, log_z, decoded.marginals, decoded.prior)
+    return Decoded(decoded.arities, log_z, decoded.marginals, prior if prior is not None else decoded.prior)
 
 
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
@@ -372,16 +388,17 @@ class ArityPrior:
         return chosen, other
 
     def sequence_risk(self, log_probs: np.ndarray, selected: Sequence[int]) -> float:
-        """Selected-sequence risk, with a checked rescaling retry for unit priors."""
+        """Selected-sequence risk, with a checked common-weight rescaling retry."""
         selected = tuple(selected)
         try:
             return risk_from_partition(*self.partition(log_probs, selected))
         except _PartitionArithmeticError as failure:
-            centered = _center_unit_prior_rows(self._rows(log_probs), self)
-            if centered is None:
+            shifted = _center_prior(self._rows(log_probs), self)
+            if shifted is None:
                 raise
+            centered, centered_prior, _, _ = shifted
             try:
-                return risk_from_partition(*self.partition(centered, selected))
+                return risk_from_partition(*centered_prior.partition(centered, selected))
             except _PartitionArithmeticError:
                 raise failure from None
 
@@ -411,11 +428,16 @@ class ArityPrior:
         try:
             return self._decode_rows(rows)
         except _MarginalPrecisionError as failure:
-            centered = _center_unit_prior_rows(rows, self)
-            if centered is None or np.array_equal(centered, rows):
+            shifted = _center_prior(rows, self)
+            if shifted is None:
+                raise
+            centered, centered_prior, edge_offset, final_offset = shifted
+            if (np.array_equal(centered, rows) and edge_offset == 0.0 and final_offset == 0.0):
                 raise
             try:
-                return _restore_centered_decoded(rows, self._decode_rows(centered))
+                return _restore_centered_decoded(rows, centered_prior._decode_rows(centered),
+                                                  prior=self, edge_offset=edge_offset,
+                                                  final_offset=final_offset)
             except ValueError:
                 raise failure from None
 
@@ -495,7 +517,10 @@ class ArityPrior:
                         if best_suffix != -math.inf and not math.isfinite(candidate):
                             raise ValueError("prior decoder arithmetic is not finite")
                         best[k, state] = max(best[k, state], candidate)
-                        marginals[k, j] += math.exp(exponent)
+                        try:
+                            marginals[k, j] += math.exp(exponent)
+                        except OverflowError as exc:
+                            raise _MarginalPrecisionError("decoder marginal arithmetic overflows") from exc
         selected, state = [], self.start
         for k in range(m):
             candidates = [rows[k, j] + self.log_weights[state, j] + best[k + 1, target]
