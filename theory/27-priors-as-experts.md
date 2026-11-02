@@ -387,7 +387,9 @@ the chosen target score plus `4ε`.
 
 The implementation compares the full score gap with `2ε` when that gap is
 finite, avoiding premature underflow from halving subnormal scores. If the
-gap overflows, it compares half-scaled scores instead.
+gap overflows, it compares half-scaled scores instead. When rounding places
+the comparison exactly on the boundary, it compares the input floats as exact
+rationals; the guarantee still depends on the supplied score-error bound.
 
 The bound must hold simultaneously over the candidate set and be expressed
 in total-score units for the selection batch. This is a conditional

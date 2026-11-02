@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 from functools import lru_cache
 from itertools import chain, repeat
 from typing import Any
@@ -802,8 +803,16 @@ def _within_score_error(best: float, score: float, error: float) -> bool:
     """Compare the score gap with twice the error without avoidable underflow."""
     gap = best - score
     if math.isfinite(gap):
-        return gap <= 2.0 * float(error)
-    return best / 2 - score / 2 <= error
+        threshold = 2.0 * float(error)
+        if gap != threshold:
+            return gap < threshold
+    else:
+        half_gap = best / 2 - score / 2
+        if half_gap != error:
+            return half_gap < error
+    # Rounded equality can conceal a gap on either side of the boundary.
+    return (Fraction.from_float(best) - Fraction.from_float(score)
+            <= 2 * Fraction.from_float(float(error)))
 
 
 @dataclass(frozen=True)

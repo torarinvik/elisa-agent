@@ -239,6 +239,8 @@ def test_evidence_cancels_overflowed_base_normalizer(
 def test_priority_score_comparison_handles_overflowing_gap() -> None:
     assert not priors._within_score_error(1e308, -1e308, 9e307)
     assert priors._within_score_error(1e308, -1e308, 1e308)
+    assert not priors._within_score_error(1.0, -(2.0**-54), 0.5)
+    assert priors._within_score_error(1.0, 2.0**-54, 0.5)
 
 
 @pytest.mark.parametrize("reference", [False, True])
