@@ -201,7 +201,8 @@ class LazyExpert:
     def __init__(self, manifest: Manifest, load: Callable[[], Any], size: int,
                  store: ExpertStore, *,
                  demand: Callable[[int, Demand], Demand] | None = None,
-                 relevant: Callable[[int, list[Any]], bool] | None = None) -> None:
+                 relevant: Callable[[int, list[Any]], bool] | None = None,
+                 identity: str | None = None) -> None:
         if isinstance(size, bool) or not isinstance(size, Integral) or size < 0:
             raise ValueError("expert size must be a nonnegative integer")
         self._manifest = manifest
@@ -210,6 +211,8 @@ class LazyExpert:
         self._store = store
         self.demand = demand
         self.relevant = relevant
+        self.identity = identity
+        """The content reference of the expert's object (§28), if it has one."""
 
     @property
     def manifest(self) -> Manifest:

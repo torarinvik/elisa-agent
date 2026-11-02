@@ -288,6 +288,11 @@ class Manifest:
     expected_calls: tuple[Calls, ...] | None = None
     """Expected calls per invocation to each slot (``ν̄``), the planner's cost
     objective; ``calls`` if not declared."""
+    effects: frozenset[str] | None = None
+    """What an invocation may do besides computing its output from its inputs
+    (THEORY §28.5), for example ``{"random"}`` or ``{"io"}``. The empty set
+    declares a pure expert, whose results may be cached and shared; ``None``
+    declares nothing, so nothing may be assumed."""
 
     @property
     def ref(self) -> str:

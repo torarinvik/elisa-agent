@@ -39,6 +39,7 @@ run the Python tests with `uv run pytest`.
 | [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
+| [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -302,6 +303,10 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.17](theory/27-priors-as-experts.md) | `partitionCompose_assoc`, `partitionCompose_identity`, `partitionCompose_nonneg` | `Product` |
 | [27.18](theory/27-priors-as-experts.md) | `partitionBoundary_total`, `partitionBoundary_nonneg`, `partitionBoundary_assoc`, `partitionBoundary_identity` | `Product` |
 | [27.19](theory/27-priors-as-experts.md) | `partition_prefix_reuse` | `Product` |
+| [28.1](theory/28-packages-as-experts.md) | `Pkg.flattenList_append` | `Package` |
+| [28.2](theory/28-packages-as-experts.md) | `install_stable` | `Package` |
+| [28.3](theory/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
+| [28.4](theory/28-packages-as-experts.md) | `cached_eq`, `CacheSound.store` | `Package` |
 
 ## Native kernels
 
@@ -1536,3 +1541,38 @@ matching headers/configuration rather than guessing a platform-specific
 recorded bootstrap inputs, so development compiler rebuilds cannot invalidate
 the consumer's installed toolchain. Source/product and frozen-input integrity
 checks remain enabled.
+
+## 28. Packages as experts
+
+`objects` holds the content-addressed object model: `Primitive`, `Composite`
+and `Attestation`, each identified by the SHA-256 digest of its canonical
+JSON (`canonical`, `digest`). A primitive loads by calling its `entry` with
+JSON `arguments` and checks that the loaded manifest equals the declared one;
+`weights` carries the digest of the bytes it loads (`file_digest`). `Store`
+admits a composite only after its members and only when its declared effects
+cover theirs, keeps attestations by subject, and saves one canonical file per
+object, rechecking digests on `open`. `Names` maps mutable names to
+references. Manifests declare `effects` (`None`: undeclared; empty: pure).
+
+`packages.install(store, ref)` returns the experts a scope sees. Primitives
+become `LazyExpert`s carrying their reference as `identity`, one per
+reference however many composites share it. Transparent composites expand to
+their members in order. An exporting composite becomes one `Export` per
+exported contract, whose contract is the export with the composite's
+requirements as slots; inside, each requirement is a `Requirement` expert
+that calls the filling of the current invocation (a stack, so nested and
+recursive invocations are safe), the export's route is planned once by
+`plan_stable` over the members and requirements, and requests are resolved
+by a `Kernel` over that inner library. Each call executes the route in a
+fresh workspace with the `budget` given at installation, so inner provenance
+stays private and the outer workspace records one message per export
+invocation. `execute` accepts ordered input messages, so exports with
+several inputs of one type are supported. The Lean model's inlining
+(`WellTyped.inline`) is the correctness argument for this substitution; the
+implementation executes the inner route instead of rewriting the outer plan,
+which gives the same values because both evaluate the same expert
+applications on the same inputs.
+
+Selective refinement (`selective`) still requires the producer–map–consumer
+route shape, so it does not see through exports; composing refinement across
+a composite boundary is the composition problem of §26.

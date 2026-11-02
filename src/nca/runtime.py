@@ -96,7 +96,7 @@ class Filling:
 
 def execute(
     plan: Plan,
-    inputs: Mapping[TypeId, Message],
+    inputs: Mapping[TypeId, Message] | Sequence[Message],
     workspace: Workspace,
     budget: int,
     resolver: Resolver | None = None,
@@ -104,7 +104,8 @@ def execute(
 ) -> Message:
     """Run ``plan``; each module invocation, including each element of a
     ``Map``, costs one budget unit, and with ``cost_budget`` also its
-    declared cost.
+    declared cost. ``inputs`` are the available messages, in order (a mapping
+    is read in its order), so several may share a type.
 
     On failure the workspace is rolled back to its state before execution.
     """
@@ -245,11 +246,12 @@ def execute(
         workspace.post(result)
         return result
 
+    given = tuple(inputs.values()) if isinstance(inputs, Mapping) else tuple(inputs)
     try:
-        for message in inputs.values():
+        for message in given:
             if message.message_id not in workspace:
                 workspace.post(message)
-        return force(run(plan, tuple(inputs.values()), ()))
+        return force(run(plan, given, ()))
     except Exception:
         workspace.rollback(snapshot)
         raise
@@ -257,7 +259,7 @@ def execute(
 
 def attempt(
     plan: Plan,
-    inputs: Mapping[TypeId, Message],
+    inputs: Mapping[TypeId, Message] | Sequence[Message],
     workspace: Workspace,
     budget: int,
     resolver: Resolver | None = None,

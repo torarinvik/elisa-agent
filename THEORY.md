@@ -49,3 +49,7 @@ link for its definitions, arguments, and results.
 - [25. Which word to climb, and when to stop](theory/25-which-word-to-climb-and-when-to-stop.md)
 - [26. Composing cascades](theory/26-composing-cascades.md)
 - [27. Priors as experts](theory/27-priors-as-experts.md)
+
+## Distribution and composition
+
+- [28. Packages as experts](theory/28-packages-as-experts.md)
