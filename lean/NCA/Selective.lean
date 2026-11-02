@@ -186,6 +186,19 @@ theorem calibration_subset_membership {α β : Type*} (labels : List α)
     target ∈ labels.filterMap group ↔ ∃ label ∈ labels, group label = some target := by
   simp
 
+/-- With no mapped labels, a restricted calibration subset is empty. -/
+theorem calibration_subset_empty {α β : Type*} (labels : List α)
+    (group : α → Option β) (none : ∀ label ∈ labels, group label = Option.none) :
+    labels.filterMap group = [] := by
+  induction labels with
+  | nil => rfl
+  | cons label rest ih =>
+      have head : group label = Option.none := none label (List.mem_cons_self ..)
+      have tail : ∀ x ∈ rest, group x = Option.none := by
+        intro x hx
+        exact none x (List.mem_cons_of_mem _ hx)
+      simp [head, ih tail]
+
 /-- A restricted calibration matrix depends only on selected coordinates. -/
 theorem calibration_matrix_restriction_ext {ι κ α : Type*} (rows : List ι)
     (columns : List κ) (a b : ι → κ → α)

@@ -241,6 +241,95 @@ def test_restricted_calibration_subset_falls_back_for_out_of_range_classes(monke
         rung.temperature(((0,), (7,)))
 
 
+def test_missing_restricted_calibration_is_cached_and_invalidated(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibration_subset", None)
+    if kernel is None:
+        pytest.skip("native calibration subset kernel is not built")
+    calls = []
+    def measured(*args):
+        calls.append(True)
+        return kernel(*args)
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(calibration_subset=measured))
+    rung = Rung(constant("missing-cache", (0.5, 0.3, 0.2), 1.0))
+    rung.calibrate([0, 0], torch.tensor([0, 0]))
+    decision = ((1,), (2,))
+    for _ in range(3):
+        with pytest.raises(ladder_module.MissingCalibrationError):
+            rung.temperature(decision)
+    assert len(calls) == 1
+    with pytest.raises(ValueError):
+        rung.calibrate([0], torch.tensor([3]))
+    with pytest.raises(ladder_module.MissingCalibrationError):
+        rung.temperature(decision)
+    assert len(calls) == 1
+    rung.calibrate([0, 0], torch.tensor([1, 2]))
+    assert rung.temperature(decision) > 0
+    assert len(calls) == 2
+    rung.held_out = (torch.zeros((1, 3), dtype=torch.float64), torch.tensor([0]))
+    rung.temperatures = {None: 1.0}
+    with pytest.raises(ladder_module.MissingCalibrationError):
+        rung.temperature(decision)
+    assert len(calls) == 3
+
+
+def test_single_entry_default_temperature_is_cached_and_invalidated() -> None:
+    rung = Rung(constant("single-default-cache", (0.5, 0.5), 1.0))
+    decision = ((1,),)
+    rung.calibrate([0, 0], torch.tensor([0, 0]))
+    assert rung.temperature(decision) == 1.0
+    assert decision in rung._missing_temperatures
+    rung.held_out = (torch.zeros((1, 2), dtype=torch.float64), torch.tensor([1]))
+    assert rung.temperature(decision) == pytest.approx(0.1)
+    rung.calibrate([0, 0], torch.tensor([1, 1]))
+    assert decision not in rung._missing_temperatures
+    assert rung.temperature(decision) == pytest.approx(0.1)
+
+
+def test_missing_calibration_cache_has_bounded_entries() -> None:
+    from nca.ladder import MissingCalibrationError
+
+    rung = Rung(None)
+    rung.held_out = (torch.zeros((1, 262), dtype=torch.float64), torch.tensor([0]))
+    for i in range(1, 131):
+        with pytest.raises(MissingCalibrationError):
+            rung.temperature(((i,), (i + 1,)))
+    assert len(rung._missing_temperatures) == 128
+
+
+def test_missing_calibration_cache_does_not_retain_old_labels() -> None:
+    import gc
+    import weakref
+    from nca.ladder import MissingCalibrationError
+
+    rung = Rung(None)
+    labels = torch.tensor([0])
+    old_labels = weakref.ref(labels)
+    rung.held_out = (torch.zeros((1, 3), dtype=torch.float64), labels)
+    with pytest.raises(MissingCalibrationError):
+        rung.temperature(((1,), (2,)))
+    rung.held_out = None
+    del labels
+    gc.collect()
+    assert old_labels() is None
+
+
+def test_missing_calibration_cache_does_not_break_serialization() -> None:
+    import pickle
+    from nca.ladder import MissingCalibrationError
+
+    rung = Rung(None)
+    rung.held_out = (torch.zeros((1, 3), dtype=torch.float64), torch.tensor([0]))
+    with pytest.raises(MissingCalibrationError):
+        rung.temperature(((1,), (2,)))
+    restored = pickle.loads(pickle.dumps(rung))
+    assert not restored._missing_temperatures
+    with pytest.raises(MissingCalibrationError):
+        restored.temperature(((1,), (2,)))
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_restricted_calibration_gathers_only_requested_columns(native, monkeypatch) -> None:
     from nca import ladder as ladder_module

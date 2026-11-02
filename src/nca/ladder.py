@@ -49,6 +49,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, Literal, overload
+from weakref import ReferenceType, ref
 
 import numpy as np
 import torch
@@ -321,8 +322,17 @@ class Rung:
     one for its full output and one for each restricted decision it serves."""
 
     module: Module
-    temperatures: dict[tuple[int, ...] | None, float] = field(default_factory=dict)
+    temperatures: dict[DecisionKey, float] = field(default_factory=dict)
     held_out: tuple[torch.Tensor, torch.Tensor] | None = None
+    _missing_temperatures: set[DecisionKey] = field(default_factory=set, init=False, repr=False, compare=False)
+    _missing_labels: ReferenceType[torch.Tensor] | None = field(default=None, init=False, repr=False, compare=False)
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        # The cache is derived and weak references are not serializable.
+        state["_missing_temperatures"] = set()
+        state["_missing_labels"] = None
+        return state
 
     @property
     def cost(self) -> float:
@@ -423,6 +433,8 @@ class Rung:
         temperature = self._fit(observations, targets)
         self.held_out = (observations, targets)
         self.temperatures = {None: temperature}
+        self._missing_temperatures.clear()
+        self._missing_labels = None
 
     def temperature(self, classes: Decision = None) -> float:
         """Temperature of the decision over ``classes``, fitted on first use on
@@ -432,6 +444,14 @@ class Rung:
         if key not in self.temperatures:
             if self.held_out is None or key is None:
                 return 1.0
+            labels_snapshot = self.held_out[1]
+            if self._missing_labels is None or self._missing_labels() is not labels_snapshot:
+                self._missing_temperatures.clear()
+                self._missing_labels = ref(labels_snapshot)
+            if key in self._missing_temperatures:
+                if len(key) == 1:
+                    return 1.0
+                raise MissingCalibrationError("cannot fit decision temperature without matching held-out labels")
             log, labels = self.held_out
             union, positions = _layout(key)
             subset = getattr(_NATIVE, "calibration_subset", None)
@@ -459,6 +479,9 @@ class Rung:
                     targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long,
                                            device=labels.device)
             if not count:
+                if len(self._missing_temperatures) >= 128:
+                    self._missing_temperatures.pop()
+                self._missing_temperatures.add(key)
                 if len(positions) == 1:
                     return 1.0  # A single entry has no decision ambiguity.
                 raise MissingCalibrationError("cannot fit decision temperature without matching held-out labels")

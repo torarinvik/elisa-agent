@@ -147,6 +147,8 @@ global optimum. If a calibrated rung has no matching labels,
 a decision with multiple entries has no fitted restricted temperature. Direct
 queries report the missing calibration; refinement treats the account as
 unavailable, can try higher rungs, and abstains if no usable account is found.
+For fixed held-out labels, absence of matching labels remains unchanged;
+recalibration or replacement of the labels invalidates cached absence results.
 A later observation can also change a dynamic certificate so that the
 unsupported decision is no longer needed, even if its own rung is fixed.
 A decision with only one entry has zero conditional decision risk
