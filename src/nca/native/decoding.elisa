@@ -844,13 +844,21 @@ def retreat_ragged_log(backward: mutable view[f64], backward_max: mutable view[f
 
 # [log Z, best log weight] with word k replaced by log_row.
 def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    left: (first: i64, last: i64) = support_envelope(forward, forward_max, offsets, low, high, k)
+    right: (first: i64, last: i64) = support_envelope(backward, backward_max, offsets, low, high, k + 1)
     total, log_x =
         for j in 0..<alphabet.len.i64() |total: f64 = log(0.0), log_x: f64 = log(0.0)| -> (total, log_x):
             continue if log_row[j] == log(0.0)
             run: (first: i64, count: i64) = moves(k, alphabet[j], low, high)
-            for t in 0..<run.count |total, log_x|:
-                here: i64 = offsets[k] + run.first + t - low[k]
-                next: i64 = offsets[k + 1] + run.first - 1 + alphabet[j] + t - low[k + 1]
+            first_left: i64 = run.first if run.first > left.first else left.first
+            first_right: i64 = right.first + 1 - alphabet[j]
+            first: i64 = first_left if first_left > first_right else first_right
+            end_left: i64 = (run.first + run.count) if run.first + run.count < left.last + 1 else left.last + 1
+            end_right: i64 = right.last + 2 - alphabet[j]
+            end: i64 = end_left if end_left < end_right else end_right
+            for n in first..<end |total, log_x|:
+                here: i64 = offsets[k] + n - low[k]
+                next: i64 = offsets[k + 1] + n - 1 + alphabet[j] - low[k + 1]
                 if forward[here] != log(0.0) and backward[next] != log(0.0):
                     partial: f64 = forward[here] + log_row[j]
                     return [log(-1.0), log(-1.0)] if partial == log(0.0) or partial == -log(0.0) or partial != partial

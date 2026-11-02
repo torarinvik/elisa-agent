@@ -64,6 +64,15 @@ theorem support_shift_bounds (n arity first last : ℤ) :
       (first + 1 - arity ≤ n ∧ n ≤ last + 1 - arity) := by
   omega
 
+/-- A scored transition must lie in both the prefix and shifted suffix support. -/
+theorem split_support_intersection (n arity left_first left_last right_first right_last : ℤ) :
+    (left_first ≤ n ∧ n ≤ left_last ∧
+      right_first ≤ n - 1 + arity ∧ n - 1 + arity ≤ right_last) ↔
+    (max left_first (right_first + 1 - arity) ≤ n ∧
+      n ≤ min left_last (right_last + 1 - arity)) := by
+  simp only [max_le_iff, le_min_iff]
+  omega
+
 /-- Keep the earlier alphabet index when two candidates have equal score. -/
 def tiedChoice (current candidate : ℕ) : ℕ :=
   if candidate < current then candidate else current
