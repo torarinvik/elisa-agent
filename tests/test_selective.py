@@ -3111,7 +3111,9 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
 
 @pytest.mark.parametrize("ranked", [False, True])
 @pytest.mark.parametrize("decision", [None, ((0, 2), (1, 3))])
-def test_batched_default_account_matches_individual_refinement(monkeypatch, ranked, decision) -> None:
+@pytest.mark.parametrize("heterogeneous", [False, True])
+def test_batched_default_account_matches_individual_refinement(monkeypatch, ranked, decision,
+                                                               heterogeneous) -> None:
     import nca.ladder as ladder_module
 
     native = ladder_module._NATIVE
@@ -3137,7 +3139,10 @@ def test_batched_default_account_matches_individual_refinement(monkeypatch, rank
     low = Rung(constant("batch-low", (0.3, 0.1, 0.4, 0.2), 1.0))
     high = Rung(constant("batch-high", (0.97, 0.01, 0.01, 0.01), 2.0))
     other = Rung(constant("batch-other", (0.2, 0.2, 0.1, 0.5), 1.0))
-    ladders = [[low if i % 2 else other, high] for i in range(40)]
+    ladders = []
+    for i in range(40):
+        bottom = low if i % 2 else (Rung(other.module) if heterogeneous else other)
+        ladders.append([bottom, high])
 
     def run(batch):
         proxy = NativeProxy(batch)
@@ -3152,7 +3157,7 @@ def test_batched_default_account_matches_individual_refinement(monkeypatch, rank
 
     baseline, _ = run(False)
     actual, calls = run(True)
-    assert calls == 2
+    assert calls == (1 if heterogeneous else 2)
     assert actual == baseline
 
 

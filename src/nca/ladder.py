@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import math
 import sys
+from collections import Counter
 from numbers import Integral
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
@@ -1293,9 +1294,14 @@ def refine(values: Sequence[Any], ladders: Sequence[Sequence[Rung]], delta: floa
     if (fixed_account and len(values) >= 16
             and getattr(_NATIVE, "calibrated_risk_rows_into", None) is not None
             and getattr(_NATIVE, "calibrated_risk_for_reading_checked", None) is not None):
+        # A batch cannot span rungs, so skip detailed checks for rungs that
+        # cannot possibly fill one. This matters for heterogeneous ladders.
+        rung_counts = Counter(id(ladders[i][levels[i]]) for i in range(len(values)))
         batches: dict[tuple[int, DecisionKey, int], list[int]] = {}
         for i, decision in enumerate(decisions):
             rung = ladders[i][levels[i]]
+            if rung_counts[id(rung)] < 16:
+                continue
             observation = logs[i]
             if ranked != isinstance(observation, RankedObservation):
                 continue
