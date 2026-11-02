@@ -97,6 +97,9 @@ selects from the numerical reading, including its tie behavior. In unequal group
 weights can change the group risk substantially because other classes add
 mass to one group. Numerical probabilities returned by `reading` can still
 tie: a consumer using ranked risk must select with the same retained ordering.
+For batches, the same ordering argument applies independently to each row;
+callers may supply the original weights for selection when numerical readings
+have lost distinctions, provided the consumer uses that same ordering.
 When a numerical reading is reused to select a class, its selected entries
 must be finite and nonnegative; all-zero restricted entries are allowed and
 tie in class order. This representation check cannot establish that a cached

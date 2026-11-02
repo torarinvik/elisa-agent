@@ -150,7 +150,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `rowwise_shift_order`, `exp_shift_ratio`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `grouped_normalization`, `batched_group_mass_ext`, `batched_group_risk_bounds`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `batched_monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `rowwise_shift_order`, `exp_shift_ratio`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `grouped_normalization`, `batched_group_mass_ext`, `batched_group_risk_bounds`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
@@ -911,7 +911,10 @@ batch dimensions, returning binary64 risks. It uses Elisa
 logits and the tensor path otherwise; this is a routing heuristic, not a model
 limit. Unrestricted native batches use implicit singleton groups rather than
 materializing class metadata. MPS risk batches return on CPU because MPS lacks
-binary64. Ranked ordering remains available through the per-item interface.
+binary64. Callers may supply original binary64 ordering weights to
+`risk_batch` when consumers use that same ranking; otherwise it selects from
+the numerical reading. Ordering weights must have a floating-point dtype;
+reading and ordering inputs are mutually exclusive.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.

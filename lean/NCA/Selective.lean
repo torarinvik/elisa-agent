@@ -174,6 +174,13 @@ theorem monotone_normalized_rank (f : ℝ → ℝ) (hf : StrictMono f)
   rw [div_lt_div_iff_of_pos_right ht]
   exact hf.lt_iff_lt
 
+/-- A positive row normalizer preserves each row's original weight ordering. -/
+theorem batched_monotone_normalized_rank {ρ : Type*} (f : ℝ → ℝ) (hf : StrictMono f)
+    (a b total : ρ → ℝ) (ht : ∀ row, 0 < total row) :
+    ∀ row, f (a row) / total row < f (b row) / total row ↔ a row < b row := by
+  intro row
+  exact monotone_normalized_rank f hf (ht row)
+
 /-- A strict-improvement scan retains the earlier choice on equal weights. -/
 theorem ranked_tie_keeps_first {α : Type*} (first candidate : α) (a b : ℝ)
     (equal : a = b) : (if b > a then candidate else first) = first := by

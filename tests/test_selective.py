@@ -356,6 +356,40 @@ def test_batched_risk_uses_reading_ties_with_restricted_temperature(
 
 
 @pytest.mark.parametrize("native", [False, True])
+def test_batched_risk_accepts_original_ordering_weights(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    low = 1e-300
+    high = math.nextafter(low, math.inf)
+    weights = ((1.0, low, high, 1e-301), (1.0, high, low, 1e-301))
+    observed = [Rung(constant(f"ranked-batch-{i}", row, 1.0)).observe_ranked(None)
+                for i, row in enumerate(weights)]
+    logits = torch.stack([row.logits for row in observed])
+    ordering = torch.tensor(weights, dtype=torch.float64)
+    decision = ((1, 3), (2,))
+    rung = Rung(None)
+    expected = torch.tensor([rung.risk(row, decision) for row in observed], dtype=torch.float64)
+    actual = rung.risk_batch(logits, decision, ordering=ordering)
+    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+    assert not torch.allclose(rung.risk_batch(logits, decision), expected)
+    with pytest.raises(ValueError, match="either"):
+        rung.risk_batch(logits, decision, reading=torch.ones_like(logits), ordering=ordering)
+    with pytest.raises(ValueError, match="shape"):
+        rung.risk_batch(logits, decision, ordering=ordering[0])
+    with pytest.raises(ValueError, match="floating-point"):
+        rung.risk_batch(logits, decision, ordering=torch.ones_like(logits, dtype=torch.int64))
+    invalid = ordering.clone()
+    invalid[0, 1] = math.nan
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        rung.risk_batch(logits, decision, ordering=invalid)
+
+
+@pytest.mark.parametrize("native", [False, True])
 def test_batched_risk_rejects_invalid_inputs(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
@@ -403,6 +437,18 @@ def test_batched_risk_preserves_gradients() -> None:
     Rung(None).risk_batch(logits, decision).sum().backward()
     expected = logits.detach().clone().requires_grad_()
     expected.softmax(dim=-1)[:, 1].sum().backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad, expected.grad)
+
+
+def test_batched_ranked_risk_preserves_logit_gradients() -> None:
+    logits = torch.tensor([[2.0, 0.0, 1.0], [0.0, 1.0, 2.0]],
+                          dtype=torch.float64, requires_grad=True)
+    ordering = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]], dtype=torch.float64)
+    Rung(None).risk_batch(logits, ordering=ordering).sum().backward()
+    expected = logits.detach().clone().requires_grad_()
+    probabilities = expected.softmax(dim=-1)
+    ((1 - probabilities[0, 1]) + (1 - probabilities[1, 0])).backward()
     assert logits.grad is not None and expected.grad is not None
     assert torch.allclose(logits.grad, expected.grad)
 
@@ -484,6 +530,26 @@ def test_accelerator_batched_risk_preserves_gradients(device: str) -> None:
     zero = torch.tensor([[0.0, -math.inf], [1.0, -math.inf]], device=device, requires_grad=True)
     Rung(None).risk_batch(zero).sum().backward()
     assert zero.grad is not None and bool(torch.isfinite(zero.grad).all())
+
+
+def test_mps_batched_risk_accepts_cpu_ordering_weights() -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    from nca.ladder import RankedObservation
+
+    low = 1e-30
+    high = math.nextafter(low, math.inf)
+    weights = ((1.0, low, high, 1e-31), (1.0, high, low, 1e-31))
+    logits = torch.tensor([[-0.0, -69.1, -69.1, -71.4], [-0.0, -69.1, -69.1, -71.4]],
+                          dtype=torch.float32, device="mps")
+    ordering = torch.tensor(weights, dtype=torch.float64)
+    decision = ((1, 3), (2,))
+    rung = Rung(None)
+    actual = rung.risk_batch(logits, decision, ordering=ordering)
+    expected = torch.tensor([rung.risk(RankedObservation(row, order), decision)
+                             for row, order in zip(logits, weights)], dtype=torch.float64)
+    assert actual.device.type == "cpu"
+    assert torch.allclose(actual, expected, atol=1e-6, rtol=1e-6)
 
 
 @pytest.mark.parametrize("native", [False, True])

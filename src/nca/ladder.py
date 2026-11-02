@@ -702,24 +702,33 @@ class Rung:
         return math.nextafter(0.0, 1.0) if recovered == 0.0 else recovered
 
     def risk_batch(self, log: torch.Tensor, classes: Decision = None, *,
-                   reading: torch.Tensor | None = None) -> torch.Tensor:
+                   reading: torch.Tensor | None = None,
+                   ordering: torch.Tensor | None = None) -> torch.Tensor:
         """Calibrated decision risks for logits with leading batch dimensions.
 
-        Selection follows the numerical reading, including its tie behavior.
-        A supplied reading must belong to the same observation and calibration.
+        Selection follows the numerical reading unless original ordering weights
+        are supplied. A supplied reading must belong to the same observation and
+        calibration; ordering weights must belong to the same observation and
+        be floating-point values used by the consumer for its selection. Supply
+        at most one of them.
         MPS inputs return binary64 risks on CPU.
         """
         if not isinstance(log, torch.Tensor) or log.ndim < 2 or log.shape[-1] == 0:
             raise ValueError("batched risk requires logits with a nonempty final dimension")
-        if reading is not None and (not isinstance(reading, torch.Tensor) or reading.shape != log.shape):
-            raise ValueError("reused reading must match the observation's shape")
-        if reading is not None and (reading.is_complex() or reading.is_quantized):
-            raise ValueError("reused reading must be finite and nonnegative")
+        if reading is not None and ordering is not None:
+            raise ValueError("supply either a reused reading or ordering weights")
+        supplied = ordering if ordering is not None else reading
+        if supplied is not None and (not isinstance(supplied, torch.Tensor) or supplied.shape != log.shape):
+            raise ValueError("reused reading or ordering must match the observation's shape")
+        if supplied is not None and (supplied.is_complex() or supplied.is_quantized):
+            raise ValueError("reused reading or ordering must be finite and nonnegative")
+        if ordering is not None and not ordering.is_floating_point():
+            raise ValueError("ordering weights must use a floating-point dtype")
         key = decision_key(classes)
         temperature = self.temperature(key)
         if not math.isfinite(temperature) or temperature <= 0:
             raise ValueError("batched risk requires a positive finite temperature")
-        probabilities = self.reading(log) if reading is None else reading
+        selection_weights = self.reading(log) if supplied is None else supplied
         if key is None:
             union = None
             group_count = log.shape[-1]
@@ -729,12 +738,12 @@ class Rung:
             group_count = len(positions)
             group_ids = _group_ids(key)
         if key is None:
-            order = probabilities
-        elif probabilities.dtype == torch.uint64:
-            order_values = probabilities.detach().cpu().numpy()[..., union]
+            order = selection_weights
+        elif selection_weights.dtype == torch.uint64:
+            order_values = selection_weights.detach().cpu().numpy()[..., union]
             order = torch.from_numpy(np.ascontiguousarray(order_values))
         else:
-            order = probabilities[..., union]
+            order = selection_weights[..., union]
         if log.device.type == "mps":
             raw = log if key is None else log[..., union]
             selected = _selected_logits(raw.cpu(), None)
@@ -755,10 +764,10 @@ class Rung:
                             output, selected.shape[-1], group_count, temperature)
             if status != 0:
                 raise ValueError("calibrated decision requires finite log weights with positive mass "
-                                 "and a finite nonnegative reading")
+                                 "and finite nonnegative selection weights")
             return torch.from_numpy(output.reshape(shape))
         if not bool(torch.isfinite(order).all()) or bool((order < 0).any()):
-            raise ValueError("reused reading must be finite and nonnegative")
+            raise ValueError("reused reading or ordering must be finite and nonnegative")
         scores = _temperature_scores(_binary64_logits(selected), temperature)
         groups = (torch.arange(scores.shape[-1], device=scores.device) if key is None else
                   torch.as_tensor(group_ids.copy(), device=scores.device))
