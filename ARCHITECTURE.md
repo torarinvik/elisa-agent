@@ -873,8 +873,10 @@ reuses the split result of §23.4 without altering its weights or arithmetic.
 without gradients and partitioned decision groups. The kernel subtracts the
 largest logit before exponentiation, sums probabilities by supplied group,
 and returns the original tensor dtype.
-CPU temperature fitting can use Elisa `calibration_loss_grid`, which evaluates
-the same 120 candidate temperatures and supports arbitrary grouped labels.
+CPU temperature fitting can use Elisa `calibration_loss_grid_stable`, which
+evaluates the same 120 candidate temperatures, supports arbitrary grouped
+labels, and rescales overflowing mean losses. Older builds can use
+`calibration_loss_grid` when all its candidate losses are finite.
 Calibration accepts signed and unsigned integer label tensors; labels are
 converted to signed 64-bit indices and checked against the observation width.
 For CPU held-out data, `calibration_subset` finds included rows and their
@@ -895,8 +897,8 @@ Other devices, gradient-bearing inputs, unsupported layouts and unavailable
 kernels also use PyTorch. These are routing thresholds, not model-size limits;
 floating-point rounding can change a near-tied winner.
 The reference fit reuses row shifts across temperatures. If native grid
-losses or an ordinary reference mean overflow, it computes the mean from
-individually scaled row gaps and target-group normalizers.
+losses are unusable or an ordinary reference mean overflows, it computes the
+mean from individually scaled row gaps and target-group normalizers.
 Reading, risk, and distribution paths require positive finite temperatures
 for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.

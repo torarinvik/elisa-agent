@@ -913,7 +913,8 @@ class Rung:
         """
         grouped = entries is not None and any(len(e) > 1 for e in entries)
         temperatures = np.geomspace(0.1, 8.0, 120)
-        native = getattr(_NATIVE, "calibration_loss_grid", None)
+        stable_native = getattr(_NATIVE, "calibration_loss_grid_stable", None)
+        native = stable_native or getattr(_NATIVE, "calibration_loss_grid", None)
         if (native is not None and log.device.type == "cpu" and labels.device.type == "cpu"
                 and log.dtype == torch.float64 and labels.dtype == torch.int64
                 and log.ndim == 2 and labels.ndim == 1 and not log.requires_grad
@@ -931,7 +932,11 @@ class Rung:
             if native is not None:
                 losses = native(log.contiguous().numpy().reshape(-1), labels.contiguous().numpy(),
                                 groups, len(entries) if grouped else width, temperatures)
-                if len(losses) == len(temperatures) and all(math.isfinite(loss) for loss in losses):
+                usable = (len(losses) == len(temperatures) and
+                          (all(math.isfinite(loss) for loss in losses) or
+                           (native is stable_native and any(math.isfinite(loss) for loss in losses)
+                            and all(not math.isnan(loss) and loss != -math.inf for loss in losses))))
+                if usable:
                     return float(temperatures[min(range(len(losses)), key=losses.__getitem__)])
 
         shifted = _temperature_scores(log, 1.0)

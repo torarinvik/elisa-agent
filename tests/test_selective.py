@@ -1332,6 +1332,33 @@ def test_extreme_grouped_fit_allows_zero_mass_in_other_groups(monkeypatch) -> No
     assert Rung._fit(logits, torch.tensor([1, 1]), ((0, 2), (1,))) == 8.0
 
 
+def test_native_calibration_grid_stabilizes_overflowing_means(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
+    if native is None:
+        pytest.skip("stable native calibration kernel is not built")
+    logits = torch.tensor([[1e308, -1e308]] * 8, dtype=torch.float64)
+    labels = torch.ones(8, dtype=torch.int64)
+    groups = np.array([0, 1], dtype=np.int64)
+    temperatures = np.array([0.1, 1.0, 2.0, 8.0])
+    losses = native(logits.numpy().reshape(-1), labels.numpy(), groups, 2, temperatures)
+    assert math.isinf(losses[0]) and math.isinf(losses[1])
+    assert losses[2:] == pytest.approx([1e308, 2.5e307], rel=1e-14)
+    mixed = torch.zeros((100, 2), dtype=torch.float64)
+    mixed[0] = torch.tensor([1e308, -1e308], dtype=torch.float64)
+    mixed_losses = native(mixed.numpy().reshape(-1), torch.ones(100, dtype=torch.int64).numpy(),
+                          groups, 2, temperatures)
+    assert mixed_losses == pytest.approx([2e307, 2e306, 1e306, 2.5e305], rel=1e-14)
+    assert native(logits.numpy().reshape(-1), labels.numpy()[:1], groups, 2, temperatures) == []
+
+    def unexpected_fallback(*args):
+        raise AssertionError("stable native grid should handle this fit")
+
+    monkeypatch.setattr(ladder_module, "_temperature_scores", unexpected_fallback)
+    assert Rung._fit(logits, labels) == 8.0
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
     from nca import ladder as ladder_module
@@ -1346,6 +1373,10 @@ def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
     temperatures = np.geomspace(0.1, 8.0, 120)
     actual = native(logits.numpy().reshape(-1), labels.numpy(), groups,
                     3 if grouped else 8, temperatures)
+    stable = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
+    if stable is not None:
+        assert stable(logits.numpy().reshape(-1), labels.numpy(), groups,
+                      3 if grouped else 8, temperatures) == actual
     expected = []
     for temperature in temperatures:
         scaled = torch.log_softmax(logits / temperature, dim=-1)
