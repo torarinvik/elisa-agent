@@ -1448,11 +1448,12 @@ def test_symbol_tilt_validation_and_identity() -> None:
 
 
 def test_native_tilt_validation_rejects_invalid_dimensions() -> None:
-    native = getattr(priors._NATIVE, "tilt_weights_valid", None)
+    native = getattr(priors._NATIVE, "tilt_weights_checked", None)
     if native is None:
-        pytest.skip("native tilt validator is not built")
-    assert not native(np.zeros(1), np.empty(0))
-    assert not native(np.zeros(3), np.zeros(2))
+        pytest.skip("native tilt constructor is not built")
+    assert native(np.zeros(1), np.empty(0), np.zeros(1)) == 3
+    assert native(np.zeros(3), np.zeros(2), np.zeros(3)) == 3
+    assert native(np.zeros(2), np.zeros(1), np.zeros(1)) == 3
 
 
 @pytest.mark.parametrize("reference", [False, True])

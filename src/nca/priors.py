@@ -661,25 +661,29 @@ def tilt_prior(prior: ArityPrior, log_factors: Sequence[float]) -> ArityPrior:
     factors = np.asarray(log_factors, dtype=np.float64)
     if factors.shape != (len(prior.alphabet),) or not np.all(np.isfinite(factors)):
         raise ValueError("requires one finite log factor per prior symbol")
-    with np.errstate(over="ignore"):
-        weights = prior.log_weights + factors
-    finite = np.isfinite(prior.log_weights)
-    if np.any(finite & ~np.isfinite(weights)):
-        raise ValueError("tilted edge weights overflow")
-    native = getattr(_NATIVE, "tilt_weights_valid", None)
+    native = getattr(_NATIVE, "tilt_weights_checked", None)
     if native is not None:
-        valid = native(prior.log_weights.reshape(-1), np.ascontiguousarray(factors))
+        weights = np.empty_like(prior.log_weights)
+        status = native(prior.log_weights.reshape(-1), np.ascontiguousarray(factors),
+                        weights.reshape(-1))
+        if status == 1:
+            raise ValueError("tilted edge weights overflow")
+        if status == 2:
+            raise ValueError("tilted edge weights lose precision")
+        if status != 0:
+            raise ValueError("invalid tilted edge dimensions")
     else:
-        valid = True
+        with np.errstate(over="ignore"):
+            weights = prior.log_weights + factors
+        finite = np.isfinite(prior.log_weights)
+        if np.any(finite & ~np.isfinite(weights)):
+            raise ValueError("tilted edge weights overflow")
         for state, symbol in np.argwhere(finite & (np.abs(weights) >= 67108864.0)):
             try:
                 _partition_log_product(float(prior.log_weights[state, symbol]),
                                        float(factors[symbol]), "tilt")
-            except _PartitionArithmeticError:
-                valid = False
-                break
-    if not valid:
-        raise ValueError("tilted edge weights lose precision")
+            except _PartitionArithmeticError as exc:
+                raise ValueError("tilted edge weights lose precision") from exc
     return ArityPrior(prior.alphabet, prior.transitions, weights, prior.log_final, prior.start)
 
 

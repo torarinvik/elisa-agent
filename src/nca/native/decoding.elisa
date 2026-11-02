@@ -323,18 +323,26 @@ def partition_log_product(x: f64, y: f64) -> f64:
     return log(-1.0) if residual != residual or residual >= 1.01e-8 or residual <= -1.01e-8
     return result
 
-# Check that every finite tilted edge retains the requested local precision.
-def tilt_weights_valid(weights: view[f64], factors: view[f64]) -> bool can[Abort.Panic]:
+# Construct checked tilted edges: 0 success, 1 overflow, 2 precision loss, 3 shape error.
+def tilt_weights_checked(weights: view[f64], factors: view[f64], output: mutable view[f64]) -> i64 can[Abort.Panic]:
     width: i64 = factors.len.i64()
-    return false if width == 0
-    return false if weights.len.i64() % width != 0
+    return 3 if width == 0 or weights.len.i64() != output.len.i64()
+    return 3 if weights.len.i64() % width != 0
     for state in 0..<(weights.len.i64() / width):
         for symbol in 0..<width:
-            weight: f64 = weights[state * width + symbol]
-            if weight != log(0.0):
-                value: f64 = partition_log_product(weight, factors[symbol])
-                return false if value != value
-    return true
+            index: i64 = state * width + symbol
+            weight: f64 = weights[index]
+            if weight == log(0.0):
+                output[index] <- weight
+            else:
+                value: f64 = weight + factors[symbol]
+                return 1 if value == log(0.0) or value == -log(0.0) or value != value
+                if value <= -67108864.0 or value >= 67108864.0:
+                    virtual: f64 = value - weight
+                    residual: f64 = (weight - (value - virtual)) + (factors[symbol] - virtual)
+                    return 2 if residual != residual or residual >= 1.01e-8 or residual <= -1.01e-8
+                output[index] <- value
+    return 0
 
 # Sum off-reference masses and log(max(1, row mass)) without cancellation.
 def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -1502,7 +1510,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
-    fn tilt_weights_valid
+    fn tilt_weights_checked
     fn nonnegative_arities
     fn clamp_format_symbols
     fn clamp_unsigned_format_symbols
