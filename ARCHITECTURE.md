@@ -1022,8 +1022,9 @@ the calibrated account uses these while raw answer selection uses `result`
 and `climb` (the existing `banded_risk_le`
 and `banded_risk_slack` proofs apply). The native `accepted_log_weight` kernel
 validates the selected prefix sequence with a pending-subformula counter and
-sums its log weights in one pass, without constructing children. The counter
-corresponds to `await` and `accepts_iff_codes` in `NCA/Decoding.lean`; invalid
+sums its log weights in one pass, without constructing children. It uses the
+same remaining-length guard as `valid_prefix` and corresponds to `await` and
+`accepts_iff_codes` in `NCA/Decoding.lean`; invalid
 sequences return an empty result, distinct from a valid zero-weight sequence.
 Failed updates invalidate this bound. It validates
 probability row mass and arities 0–2; zero accepted mass returns `None`.

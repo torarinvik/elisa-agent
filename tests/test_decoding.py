@@ -2014,6 +2014,24 @@ def test_native_accepted_log_weight_matches_prefix_parser() -> None:
                       np.array(selected, dtype=np.int64)) == []
 
 
+def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
+    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    if native is None:
+        pytest.skip("native accepted sequence weight is not built")
+    alphabet = np.arange(4, dtype=np.int64)
+    for size in range(1, 7):
+        rows = np.zeros((size, len(alphabet)))
+        for selected in itertools.product(range(4), repeat=size):
+            actual = native(rows.ravel(), alphabet, np.asarray(selected, dtype=np.int64))
+            assert bool(actual) == (formulas.parse_reference(selected) is not None)
+            if actual:
+                assert actual == [0.0]
+    size = 100_000
+    rows = np.zeros((size, 2))
+    assert native(rows.ravel(), np.array([0, 2], dtype=np.int64),
+                  np.full(size, 2, dtype=np.int64)) == []
+
+
 def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
     rows = np.array([[-1488.0, 0.0, -1151.0], [0.0, -1381.0, -1487.0],
                      [0.0, -1488.0, -1487.0]])

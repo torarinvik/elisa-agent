@@ -1536,7 +1536,8 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
     pending, total, zero, failed =
         for k in 0..<m |pending: i64 = 1, total: f64 = 0.0, zero: bool = false, failed: bool = false| -> (pending, total, zero, failed):
             arity: i64 = selected[k]
-            return [] if pending == 0 or arity < 0 or arity > m - k - 1
+            # Bound pending by the remaining words before adding this arity.
+            return [] if pending == 0 or arity < 0 or arity > m - k - pending
             column: i64 =
                 for c in 0..<width |found: i64 = -1| -> found:
                     if alphabet[c] == arity:
