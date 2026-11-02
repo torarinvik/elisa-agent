@@ -130,6 +130,9 @@ the original predecessor on ties. Rolling-row clearing uses the same
 outside-envelope invariant. A dense predecessor table still costs O(mS)
 initialization and storage; interval scans reduce the subsequent transition
 work without removing that cost.
+Full decoding can retain one envelope per position alongside its dense
+forward rows, then reuse those envelopes during the reverse pass and marginal
+sums. Holes inside an envelope remain zero and are checked individually.
 
 ## 27.3 The contract
 

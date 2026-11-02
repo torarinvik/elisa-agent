@@ -740,6 +740,30 @@ def test_unreachable_prior_states_do_not_change_posteriors(
     assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
     np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
 
+
+def test_prior_decoder_handles_gaps_and_moving_state_envelopes() -> None:
+    transitions = np.array([[1, 3], [2, 0], [3, 1], [0, 2]])
+    weights = np.array([[0.1, -0.2], [-0.3, 0.4], [0.5, -0.6], [-0.7, 0.8]])
+    final = np.array([0.2, -0.1, 0.4, -0.5])
+    base = priors.ArityPrior((0, 1), transitions, weights, final)
+    mapping = np.array([10, 2, 9, 4])
+    expanded_transitions = np.full((12, 2), -1)
+    expanded_transitions[mapping] = mapping[transitions]
+    expanded_weights = np.zeros((12, 2))
+    expanded_weights[mapping] = weights
+    expanded_final = np.full(12, -np.inf)
+    expanded_final[mapping] = final
+    expanded = priors.ArityPrior((0, 1), expanded_transitions, expanded_weights,
+                                 expanded_final, start=int(mapping[0]))
+    rows = np.random.default_rng(601).normal(size=(9, 2))
+    rows[1, 1] = rows[4, 0] = rows[6, 1] = -np.inf
+    expected, actual = base.decode(rows), expanded.decode(rows)
+    assert expected is not None and actual is not None
+    assert actual.arities == expected.arities
+    assert actual.log_z == pytest.approx(expected.log_z, abs=1e-12)
+    np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
+
+
 def test_native_prior_log_weight_matches_reference_for_all_short_sequences(
         monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(priors._NATIVE, "prior_log_weight", None) is None:

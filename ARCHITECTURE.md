@@ -1074,8 +1074,9 @@ The Elisa prior decoder skips states whose current forward log weight is
 negative infinity in forward, backward and marginal passes (§27.6,
 `prior_support_sum` in `NCA/Product.lean`). The backward table is therefore
 valid on forward support, sufficient for all emitted posteriors, rather than
-a continuation table for arbitrary starting states. Arrays remain dense; no
-finite low-probability state is pruned.
+a continuation table for arbitrary starting states. Per-position support
+envelopes avoid scanning outside the reachable range. Arrays remain dense;
+no finite low-probability state is pruned.
 
 `modules.words.CompleteTreePrior` exposes the independent contract
 `logic.formula.length.v1 → logic.arity.prior.v1`. It delegates supported

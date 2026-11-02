@@ -678,15 +678,15 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
     if m == 0:
         return null if final[start] == unreachable
         return PriorDecoded{log_z: final[start], arities: [], marginals: []}
-    forward, best, choice =
-        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
+    forward, best, choice, bounds =
+        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start if i < 2 else (states if i % 2 == 0 else -1) for i in 0..<(2 * (m + 1))]| -> (forward, best, choice, bounds):
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
             for state in 0..<states |best|:
                 best[next + state] <- unreachable
-            for state in 0..<states |forward, best, choice|:
+            for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |forward, best, choice, bounds|:
                 continue if forward[k * states + state] == log(0.0)
-                for j in 0..<width |forward, best, choice|:
+                for j in 0..<width |forward, best, choice, bounds|:
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
@@ -699,13 +699,17 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     through: f64 = forward[k * states + state] + weight
                     return null if through == unreachable or through == -unreachable
                     forward[cell] <- log_add(forward[cell], through)
+                    if target < bounds[2 * (k + 1)]:
+                        bounds[2 * (k + 1)] <- target
+                    if target > bounds[2 * (k + 1) + 1]:
+                        bounds[2 * (k + 1) + 1] <- target
                     candidate: f64 = best[here + state] + weight
                     return null if candidate == unreachable or candidate == -unreachable
                     if candidate > best[next + target]:
                         best[next + target] <- candidate
                         choice[cell] <- edge
     log_z, terminal =
-        for state in 0..<states |log_z: f64 = log(0.0), top: f64 = log(0.0), terminal: i64 = -1| -> (log_z, terminal):
+        for state in bounds[2 * m]..<(bounds[2 * m + 1] + 1) |log_z: f64 = log(0.0), top: f64 = log(0.0), terminal: i64 = -1| -> (log_z, terminal):
             continue if forward[m * states + state] == unreachable or final[state] == unreachable
             weighted: f64 = forward[m * states + state] + final[state]
             return null if weighted == unreachable or weighted == -unreachable
@@ -728,7 +732,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             next: i64 = ((k + 1) % 2) * states
             for state in 0..<states |backward|:
                 backward[here + state] <- unreachable
-            for state in 0..<states |backward|:
+            for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |backward|:
                 continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |backward|:
                     edge: i64 = state * width + j
@@ -743,7 +747,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     backward[here + state] <- log_add(backward[here + state], through)
             for j in 0..<width |result|:
                 marginal: f64 =
-                    for state in 0..<states |total: f64 = 0.0| -> total:
+                    for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |total: f64 = 0.0| -> total:
                         continue if forward[k * states + state] == log(0.0)
                         edge: i64 = state * width + j
                         target: i64 = transitions[edge]
