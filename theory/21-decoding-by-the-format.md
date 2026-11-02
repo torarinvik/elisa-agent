@@ -200,6 +200,9 @@ finite nonnegative-arity alphabet. Multiplying every path weight by the same
 positive factor leaves their normalized ratio unchanged; carrying the two
 parts separately avoids losing a small alternative when a common log-weight
 shift makes the rounded total equal the selected weight.
+If both parts have no live paths, or a row has zero weight for every symbol,
+no later row can create a supported complete sequence and the partition may
+stop. Either part must continue while it still has a live path.
 Adding positive mass must increase the exact sum. The partition checks the
 difference between the intended log-sum correction and the correction retained
 after addition; distortion of at least `1.01 × 10⁻⁸` reports precision loss.

@@ -445,10 +445,21 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
     return [] if m == 0 or count == 0 or log_probs.len.i64() != m * count
     width: i64 = m + 2
     missing: f64 = log(0.0)
+    for j in 0..<count:
+        return [] if alphabet[j] < 0
     alternatives: darray[f64] = [missing for _ in 0..<(2 * width)]
     matched: darray[f64] = [0.0]
     state: darray[i64] = [1]
+    live: darray[i64] = [0]
     for k in 0..<m:
+        return [missing, missing] if matched[0] == missing and live[0] == 0
+        has_reading: bool =
+            for j in 0..<count |found: bool = false| -> found:
+                if log_probs[k * count + j] != missing:
+                    found <- true
+                    break
+        return [missing, missing] if not has_reading
+        live[0] <- 0
         here: i64 = (k % 2) * width
         next: i64 = ((k + 1) % 2) * width
         for n in 0..<width:
@@ -456,7 +467,6 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
         for n in 1..<(m - k + 1):
             for j in 0..<count:
                 arity: i64 = alphabet[j]
-                return [] if arity < 0
                 continue if arity > m - k - 1
                 target: i64 = n - 1 + arity
                 continue if target > m - k - 1
@@ -468,12 +478,14 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                     combined: f64 = partition_log_add(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
+                    live[0] <- 1
                 if n == state[0] and matched[0] != missing and arity != selected[k] and reading != missing:
                     through: f64 = partition_log_product(matched[0], reading)
                     return [] if through == missing or through == -missing or through != through
                     combined: f64 = partition_log_add(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
+                    live[0] <- 1
         chosen: i64 =
             for j in 0..<count |found: i64 = -1| -> found:
                 if alphabet[j] == selected[k]:

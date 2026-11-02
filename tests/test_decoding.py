@@ -406,6 +406,19 @@ def test_native_format_partition_matches_reference(alphabet, monkeypatch: pytest
             assert actual == pytest.approx(expected, rel=1e-12, abs=1e-15)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.zeros((5, 3))
+    rows[0] = [-np.inf, 0.0, -np.inf]
+    assert priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(0.5)
+    assert priors.format_sequence_risk(rows, (0, 1, 3), (9, 1, 1, 1, 0)) == 1.0
+    rows[1] = -np.inf
+    with pytest.raises(ValueError, match="positive total mass"):
+        priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0))
+
+
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3)])
 def test_format_partition_matches_enumerated_paths(alphabet) -> None:
     rng = np.random.default_rng(241)
