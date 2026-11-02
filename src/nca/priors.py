@@ -247,10 +247,16 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
         raise ValueError("weights must have one row per selected symbol and one column per class")
     if not _integer_symbols(alphabet) or not _integer_symbols(selected):
         raise ValueError("alphabet and selected symbols must be integers")
+    rows = np.ascontiguousarray(log_probs, dtype=np.float64)
+    validate = getattr(_NATIVE, "valid_log_weights", None)
+    valid = (validate(rows.reshape(-1)) if validate is not None
+             else not (np.any(np.isnan(rows)) or np.any(np.isposinf(rows))))
+    if not valid:
+        raise ValueError("weights must be finite or negative infinity")
     native_weight = getattr(_NATIVE, "sequence_log_weight", None)
     if native_weight is not None:
         symbols, encoded = _native_symbol_pair(tuple(alphabet), selected)
-        result = float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
+        result = float(native_weight(rows.reshape(-1),
                                      symbols, encoded))
         if math.isnan(result) or result == math.inf:
             raise _WeightArithmeticError("sequence log weight arithmetic is not finite or loses precision")
@@ -262,7 +268,7 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
             column = symbols.index(symbol)
         except ValueError:
             return -math.inf
-        reading = float(log_probs[k, column])
+        reading = float(rows[k, column])
         if reading == -math.inf:
             return -math.inf
         if not failed:

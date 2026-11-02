@@ -754,6 +754,24 @@ def test_decoded_combines_weights_safely(reference, monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("invalid", [np.nan, np.inf])
+def test_sequence_log_weight_rejects_invalid_inputs_even_on_zero_paths(
+        reference, invalid, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
+                              np.full((1, 2), -np.inf), np.zeros(1))
+    decoded = priors.Decoded((0, 0), 0.0, np.full((2, 2), 0.5), prior)
+    for rows, selected in ((np.array([[invalid, 0.0], [-np.inf, 0.0]]), (0, 0)),
+                           (np.array([[0.0, invalid], [0.0, 0.0]]), (0, 0)),
+                           (np.array([[invalid, 0.0], [0.0, 0.0]]), (0, 3))):
+        with pytest.raises(ValueError, match="finite or negative infinity"):
+            priors.sequence_log_weight(rows, (0, 1), selected)
+        with pytest.raises(ValueError, match="finite or negative infinity"):
+            decoded.log_weight(rows, (0, 1), selected)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(formulas, "_NATIVE", None)

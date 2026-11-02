@@ -206,6 +206,8 @@ inconsistent calculation, not zero risk. The risk calculation rejects a
 positive discrepancy of at least `1.01 × 10⁻⁸`; smaller discrepancies are
 clamped to zero to accommodate rounding. This tolerance is not a bound on
 accumulated numerical error.
+Reading weights must be finite or negative infinity; NaN and positive infinity
+are invalid inputs even if a sequence has zero mass.
 Selected reading-sequence scoring uses the same local check. An unsupported
 symbol or zero-weight reading still makes the sequence weight zero, including
 when a preceding finite sum could not be represented. The accepted-format
