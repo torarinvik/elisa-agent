@@ -42,6 +42,14 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
     m: i64 = selected.len.i64()
     unreachable: f64 = log(0.0)
     active: mutable darray[i64] = [0 for _ in 0..<width]
+    indexed: bool =
+        if width >= 16 and m - start >= 16:
+            for j in 0..<width |valid: bool = true| -> valid:
+                if alphabet[j] != j:
+                    valid <- false
+                    break
+        else:
+            false
     for k in start..<m:
         if matched_weights[k] == unreachable and bounds[k * 2] > bounds[k * 2 + 1]:
             # Every later prefix is empty; clear old suffix envelopes so a
@@ -108,10 +116,13 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
         matched_weights[k + 1] <- unreachable
         if match_weight != unreachable:
             chosen: i64 =
-                for j in 0..<width |found: i64 = -1| -> found:
-                    if alphabet[j] == selected[k]:
-                        found <- j
-                        break
+                if indexed:
+                    selected[k] if selected[k] >= 0 and selected[k] < width else -1
+                else:
+                    for j in 0..<width |found: i64 = -1| -> found:
+                        if alphabet[j] == selected[k]:
+                            found <- j
+                            break
             if chosen >= 0:
                 edge: i64 = match_state * width + chosen
                 target: i64 = transitions[edge]

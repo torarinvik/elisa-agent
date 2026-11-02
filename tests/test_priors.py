@@ -843,6 +843,31 @@ def test_partition_cursor_sparse_reading_columns_match_full_partition(width, pat
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("reversed_alphabet", [False, True])
+def test_partition_cursor_wide_selected_path_after_edits(reference, reversed_alphabet, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+    width, length = 32, 40
+    alphabet = tuple(range(width))
+    if reversed_alphabet:
+        alphabet = alphabet[::-1]
+    prior = priors.ArityPrior(alphabet, np.zeros((1, width), dtype=np.int64),
+                              np.zeros((1, width)), np.zeros(1))
+    rows = np.full((length, width), -np.inf)
+    rows[:, 0], rows[:, -1] = -1.0, -2.0
+    selected = (alphabet[-1],) * length
+    cursor = incremental.PartitionCursor(prior)
+    for k, value in ((0, -2.0), (9, -np.inf), (9, -2.5), (31, -2.3)):
+        rows[k, -1] = value
+        np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected),
+                                   rtol=1e-12, atol=1e-12)
+        if incremental._NATIVE is not None and k:
+            assert cursor.last_start == k
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_partition_cursor_recovers_after_an_empty_prefix(reference, monkeypatch) -> None:
     import nca.partition as incremental
 

@@ -538,6 +538,8 @@ search; unordered alphabets can index symbols in a compact range and search
 other values directly. These choices do not change path weights.
 The selected component of a selected-versus-alternative partition can use
 the same column lookup without changing the order of its weight products.
+For an indexed alphabet, this applies equally to a recomputed suffix after a
+cached prefix: the selected symbol and its column remain identical.
 If any selected symbol is absent from the alphabet, the selected path has
 zero mass and the alternative partition is the full normalizer. Checking
 membership before partitioning therefore preserves the same result.

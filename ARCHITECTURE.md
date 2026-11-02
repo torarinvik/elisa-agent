@@ -1285,6 +1285,8 @@ numeric update. For sufficiently wide rows that appear sparse, it gathers
 finite reading columns once per row and reuses them across source states;
 their original order is retained. `sum_filter_zero_readings` proves the
 corresponding real-arithmetic sum identity, not the floating-point code.
+For sufficiently long updates with an indexed alphabet, the selected symbol
+is also its column; other alphabets retain the general search.
 When both selected and alternative frontiers are empty, the update clears
 retained suffix summaries and stops; `zero_frontier_step` gives the
 real-arithmetic zero-propagation principle and `zero_frontier_suffix`
