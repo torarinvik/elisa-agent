@@ -104,6 +104,32 @@ theorem tiedChoice_eq_min (current candidate : ℕ) :
 theorem tiedChoice_comm (a b : ℕ) : tiedChoice a b = tiedChoice b a := by
   simp [tiedChoice_eq_min, min_comm]
 
+/-- Choose the larger score, breaking ties by the smaller original index. -/
+noncomputable def scoredChoice (a b : ℝ × ℕ) : ℝ × ℕ :=
+  if a.1 < b.1 then b else if b.1 < a.1 then a else (a.1, min a.2 b.2)
+
+/-- The score and original-index tie rule is independent of encounter order. -/
+theorem scoredChoice_comm (a b : ℝ × ℕ) : scoredChoice a b = scoredChoice b a := by
+  rcases a with ⟨x, i⟩
+  rcases b with ⟨y, j⟩
+  by_cases hxy : x < y
+  · have hyx : ¬y < x := not_lt_of_ge (le_of_lt hxy)
+    simp [scoredChoice, hxy, hyx]
+  · by_cases hyx : y < x
+    · simp [scoredChoice, hxy, hyx]
+    · have h : x = y := le_antisymm (le_of_not_gt hyx) (le_of_not_gt hxy)
+      subst y
+      simp [scoredChoice, min_comm]
+
+/-- Grouping candidates does not change the selected score and tie index. -/
+theorem scoredChoice_assoc (a b c : ℝ × ℕ) :
+    scoredChoice (scoredChoice a b) c = scoredChoice a (scoredChoice b c) := by
+  rcases a with ⟨x, i⟩
+  rcases b with ⟨y, j⟩
+  rcases c with ⟨z, k⟩
+  simp only [scoredChoice]
+  split_ifs <;> simp_all [min_comm, min_left_comm] <;> try linarith
+
 /-- A transition with arity beyond the next row cannot enter that row. -/
 theorem arity_exceeds_state_bound (state arity bound : ℕ) (h : bound < arity) :
     bound < state - 1 + arity := by

@@ -220,7 +220,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [23.3](theory/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length`, `tail_row_scale`, `row_mass_partition`, `anchored_exp_mass`, `rowFactor_normalizes`, `tail_le_row_factors`, `row_summary_append` | `Banding` |
 | [23.3](theory/23-efficient-decoding.md) | `bandPolynomial_recurrence`, `bandPolynomial_threshold_suffix`, `threshold_search_step`, `threshold_search_shrinks`, `searchGap_i64`, `threshold_search_adjacent` | `BandSearch` |
 | [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval`, `ragged_band_storage_covers` | `Banding` |
-| [23.4](theory/23-efficient-decoding.md) | `sum_filter_support`, `max_filter_support`, `support_shift_bounds`, `split_support_intersection`, `trace_predecessor_monotone`, `trace_successor_monotone`, `ordered_arity_exceeds_envelope` | `Decoding` |
+| [23.4](theory/23-efficient-decoding.md) | `sum_filter_support`, `max_filter_support`, `support_shift_bounds`, `split_support_intersection`, `trace_predecessor_monotone`, `trace_successor_monotone`, `ordered_arity_exceeds_envelope`, `scoredChoice_comm`, `scoredChoice_assoc` | `Decoding` |
 | [23.5](theory/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |
 | [23.6](theory/23-efficient-decoding.md) | `banded_risk_slack` | `Banding` |
 | [23.7](theory/23-efficient-decoding.md) | `dpSum_append` | `Banding` |
@@ -291,7 +291,9 @@ storage so native calls can borrow a flat view without copying the matrix.
 The cursor keeps its mapped arities read-only and caches their ordering;
 `scores_ragged_with_order` and `trace_ragged_with_order` require a true flag
 to mean the supplied arities are nondecreasing. Their compatibility entry
-points determine ordering independently.
+points determine ordering independently. `trace_ragged_indexed` additionally
+requires a permutation of the original indices sorted by their arities; the
+cursor constructs and caches that permutation lazily for unordered alphabets.
 Sum and max tables use log weights in
 both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.

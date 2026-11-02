@@ -898,8 +898,8 @@ def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view
 # current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
 # prefix traced back through the forward max rows and the best suffix forward through the
 # backward max rows.
-# The ordered flag may be true only for a nondecreasing alphabet.
-def trace_ragged_with_order(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, ordered: bool) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+# Indexed traversal requires a permutation sorted by the supplied arities.
+def trace_ragged_core(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, ordered: bool, indices: view[i64], indexed: bool) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     m: i64 = low.len.i64() - 1
     left: (first: i64, last: i64) = support_envelope(forward_max, forward_max, offsets, low, high, k)
@@ -933,23 +933,26 @@ def trace_ragged_with_order(forward_max: view[f64], backward_max: view[f64], log
     result[1 + k] <- alphabet[choice].f64()
     for back in 0..<k |before: i64 = state|:
         i: i64 = k - 1 - back
-        best, source, arity =
-            for j in 0..<arities |best: f64 = log(0.0), source: i64 = 1, arity: i64 = 0| -> (best, source, arity):
+        best, source, arity, _ =
+            for position in 0..<arities |best: f64 = log(0.0), source: i64 = 1, arity: i64 = 0, best_index: i64 = arities| -> (best, source, arity, best_index):
+                j: i64 = indices[position] if indexed else position
                 n: i64 = before + 1 - alphabet[j]
                 if n < 1 or n < low[i]:
                     break if ordered
                     continue
                 continue if n > high[i]
                 candidate: f64 = forward_max[offsets[i] + n - low[i]] + log_probs[i * arities + j]
-                if candidate > best:
+                if candidate > best or (indexed and candidate == best and candidate != log(0.0) and j < best_index):
                     best <- candidate
                     source <- n
                     arity <- alphabet[j]
+                    best_index <- j
         result[1 + i] <- arity.f64()
         before <- source
     for i in (k + 1)..<m |after: i64 = state - 1 + alphabet[choice]|:
-        best, target, arity =
-            for j in 0..<arities |best: f64 = log(0.0), target: i64 = 0, arity: i64 = 0| -> (best, target, arity):
+        best, target, arity, _ =
+            for position in 0..<arities |best: f64 = log(0.0), target: i64 = 0, arity: i64 = 0, best_index: i64 = arities| -> (best, target, arity, best_index):
+                j: i64 = indices[position] if indexed else position
                 continue if after < 1
                 if alphabet[j] > high[i + 1]:
                     break if ordered
@@ -960,13 +963,22 @@ def trace_ragged_with_order(forward_max: view[f64], backward_max: view[f64], log
                     continue
                 continue if n < low[i + 1]
                 candidate: f64 = log_probs[i * arities + j] + backward_max[offsets[i + 1] + n - low[i + 1]]
-                if candidate > best:
+                if candidate > best or (indexed and candidate == best and candidate != log(0.0) and j < best_index):
                     best <- candidate
                     target <- n
                     arity <- alphabet[j]
+                    best_index <- j
         result[1 + i] <- arity.f64()
         after <- target
     return result
+
+# The ordered flag may be true only for a nondecreasing alphabet.
+def trace_ragged_with_order(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, ordered: bool) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return trace_ragged_core(forward_max, backward_max, log_probs, alphabet, low, high, offsets, k, ordered, alphabet, false)
+
+# indices must be a permutation of the alphabet indices sorted by their arities.
+def trace_ragged_indexed(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, indices: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return trace_ragged_core(forward_max, backward_max, log_probs, alphabet, low, high, offsets, k, true, indices, true)
 
 # Compatibility entry point determines the ordering on each call.
 def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -1286,6 +1298,7 @@ export pymodule decoding:
     fn scores_ragged_with_order
     fn trace_ragged
     fn trace_ragged_with_order
+    fn trace_ragged_indexed
     fn certificate
     fn parse_tree
     fn parse_tree_generic

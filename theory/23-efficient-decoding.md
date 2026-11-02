@@ -214,9 +214,12 @@ and locating the traceback junction intersect the prefix envelope with the
 suffix envelope translated back through the transition for each arity.
 During traceback, an ascending arity list makes candidate predecessor states
 decrease and candidate successor states increase. Once a candidate passes the
-relevant interval boundary, later arities cannot re-enter it; unordered lists
-are scanned without this early stop. The original alphabet order is retained
-for ties.
+relevant interval boundary, later arities cannot re-enter it. For an unordered
+alphabet, traceback can traverse a cached index permutation sorted by arity;
+equal scores select the smallest original index, preserving the caller's tie
+order. The one-time permutation costs `O(|A| log |A|)` time and `O(|A|)` space.
+The junction search and the sum-product calculations retain their original
+alphabet order.
 The sweeps and replacement-row scoring likewise stop an ascending scan once
 the smallest possible source state would send every later arity above the
 destination envelope. Empty source or destination envelopes have no valid

@@ -1526,7 +1526,7 @@ def test_split_cached_order_matches_legacy_native_kernels(alphabet: tuple[int, .
 
     class OlderNative:
         def __getattr__(self, name: str) -> Any:
-            if name in ("scores_ragged_with_order", "trace_ragged_with_order"):
+            if name in ("scores_ragged_with_order", "trace_ragged_with_order", "trace_ragged_indexed"):
                 raise AttributeError(name)
             return getattr(native, name)
 
@@ -1548,6 +1548,45 @@ def test_split_cached_order_matches_legacy_native_kernels(alphabet: tuple[int, .
         cursor._native = native
         assert actual == pytest.approx(expected)
         assert actual_best == expected_best
+
+
+def test_indexed_trace_preserves_full_legacy_path_on_ties() -> None:
+    native = decoding._NATIVE
+    if getattr(native, "trace_ragged_indexed", None) is None:
+        pytest.skip("native indexed traceback is not built")
+    rng = np.random.default_rng(294)
+    for alphabet in itertools.permutations((0, 1, 2, 3)):
+        if list(alphabet) == sorted(alphabet):
+            continue
+        for m in range(1, 9):
+            for _ in range(3):
+                rows = rng.choice([-np.inf, -1000.0, -2.0, 0.0], size=(m, len(alphabet)))
+                cursor = decoding.Split(rows, alphabet)
+                for k in {0, m // 2, m - 1}:
+                    actual = cursor.best(k)
+                    expected = native.trace_ragged_with_order(
+                        cursor.forward_max, cursor.backward_max, cursor.log_probs.reshape(-1),
+                        cursor.arities, cursor.low, cursor.high, cursor.offsets, k, False)
+                    assert actual == (float(expected[0]), tuple(int(a) for a in expected[1:]))
+
+
+def test_indexed_trace_builds_order_lazily_and_reuses_it_after_updates() -> None:
+    if getattr(decoding._NATIVE, "trace_ragged_indexed", None) is None:
+        pytest.skip("native indexed traceback is not built")
+    alphabet = (10**100, 2, 0, 1, 10**99)
+    rows = np.log(np.full((7, len(alphabet)), 1 / len(alphabet)))
+    cursor = decoding.Split(rows, alphabet)
+    assert cursor._trace_indices is None
+    cursor.scores(3, rows[3])
+    assert cursor._trace_indices is None
+    cursor.best(3)
+    order = cursor._trace_indices
+    assert order is not None and not order.flags.writeable
+    assert np.all(cursor.arities[order][:-1] <= cursor.arities[order][1:])
+    updated = np.log(np.array([0.1, 0.3, 0.1, 0.4, 0.1]))
+    cursor.climb(3, updated)
+    cursor.best(3)
+    assert cursor._trace_indices is order
 
 
 @pytest.mark.parametrize("reference_only", [False, True])

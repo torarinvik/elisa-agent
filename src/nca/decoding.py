@@ -401,6 +401,7 @@ class Split:
         self.arities = _native_format_symbols(alphabet, m)
         self._arities_ordered = bool(np.all(self.arities[:-1] <= self.arities[1:]))
         self.arities.flags.writeable = False
+        self._trace_indices: np.ndarray | None = None
         position = np.arange(m + 1)
         if centre is None and half is None:
             self.low, self.high = np.zeros(m + 1, dtype=np.int64), m - position
@@ -573,7 +574,14 @@ class Split:
             args = (self.forward_max, self.backward_max, self.log_probs.reshape(-1),
                     self.arities, self.low, self.high, self.offsets, k)
             ordered_trace = getattr(self._native, "trace_ragged_with_order", None)
-            if ordered_trace is None:
+            indexed_trace = getattr(self._native, "trace_ragged_indexed", None)
+            if not self._arities_ordered and indexed_trace is not None:
+                if self._trace_indices is None:
+                    self._trace_indices = np.ascontiguousarray(
+                        np.argsort(self.arities, kind="stable"), dtype=np.int64)
+                    self._trace_indices.flags.writeable = False
+                out = np.asarray(indexed_trace(*args, self._trace_indices))
+            elif ordered_trace is None:
                 out = np.asarray(self._native.trace_ragged(*args))
             else:
                 out = np.asarray(ordered_trace(*args, self._arities_ordered))
