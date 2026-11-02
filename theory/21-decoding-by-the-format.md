@@ -206,6 +206,11 @@ inconsistent calculation, not zero risk. The risk calculation rejects a
 positive discrepancy of at least `1.01 × 10⁻⁸`; smaller discrepancies are
 clamped to zero to accommodate rounding. This tolerance is not a bound on
 accumulated numerical error.
+For an alphabet equal to `(0, ..., A − 1)`, the symbol-to-column mapping is
+the identity: after checking this once, selected-column lookup takes constant
+time per position instead of a linear alphabet search. General alphabets keep
+their existing lookup, including first-match behavior for duplicate symbols.
+Validating all input weights still takes `O(mA)` for `m` rows.
 Reading weights must be finite or negative infinity; NaN and positive infinity
 are invalid inputs even if a sequence has zero mass.
 Selected reading-sequence scoring uses the same local check. An unsupported

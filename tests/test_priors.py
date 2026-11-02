@@ -772,6 +772,17 @@ def test_sequence_log_weight_rejects_invalid_inputs_even_on_zero_paths(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.array([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]])
+    assert priors.sequence_log_weight(rows, (0, 1, 2), (2, 1)) == 10.0
+    assert priors.sequence_log_weight(rows, (2, 0, 2), (2, 0)) == 8.0
+    assert priors.sequence_log_weight(rows, (0, 1, 2), (2, -1)) == -np.inf
+    assert priors.sequence_log_weight(rows, (0, 1, 2), (2, 3)) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(formulas, "_NATIVE", None)

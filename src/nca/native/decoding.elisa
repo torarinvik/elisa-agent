@@ -1312,13 +1312,22 @@ def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.All
 # Log product of the selected sequence, preserving position order.
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
     width: i64 = alphabet.len.i64()
+    indexed: bool =
+        for c in 0..<width |valid: bool = true| -> valid:
+            if alphabet[c] != c:
+                valid <- false
+                break
     total, failed =
         for k in 0..<selected.len.i64() |total: f64 = 0.0, failed: bool = false| -> (total, failed):
+            symbol: i64 = selected[k]
             column: i64 =
-                for c in 0..<width |found: i64 = -1| -> found:
-                    if alphabet[c] == selected[k]:
-                        found <- c
-                        break
+                if indexed:
+                    symbol if symbol >= 0 and symbol < width else -1
+                else:
+                    for c in 0..<width |found: i64 = -1| -> found:
+                        if alphabet[c] == symbol:
+                            found <- c
+                            break
             return log(0.0) if column < 0
             reading: f64 = log_probs[k * width + column]
             return log(0.0) if reading == log(0.0)
