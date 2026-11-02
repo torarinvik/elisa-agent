@@ -1026,6 +1026,10 @@ sums its log weights in one pass, without constructing children. It uses the
 same remaining-length guard as `valid_prefix` and corresponds to `await` and
 `accepts_iff_codes` in `NCA/Decoding.lean`; invalid
 sequences return an empty result, distinct from a valid zero-weight sequence.
+For wide alphabets, direct indexed lookup or a temporary first-occurrence
+table avoids a linear alphabet scan for each selected symbol; duplicate
+symbols retain their first column. `accepted_arity_lt_length` bounds table
+indices for accepted sequences. Smaller alphabets use direct scanning.
 The scorer, format partition, and one-shot banded decoder check flat matrix
 dimensions with division and remainder instead of multiplying signed lengths.
 `matrix_shape_division` proves the equivalent natural-number relation; it does

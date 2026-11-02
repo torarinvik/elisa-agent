@@ -1497,14 +1497,18 @@ def risk_shares_checked(bound: f64, priorities: view[f64]) -> darray[f64] can[Me
 def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     return risk_shares_covering(bound, priorities)
 
-# Log product of the selected sequence, preserving position order.
-def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
-    width: i64 = alphabet.len.i64()
-    indexed: bool =
-        for c in 0..<width |valid: bool = true| -> valid:
+# Check whether an alphabet's symbols equal their column indices.
+def indexed_alphabet(alphabet: view[i64]) -> bool can[Abort.Panic]:
+    return
+        for c in 0..<alphabet.len.i64() |valid: bool = true| -> valid:
             if alphabet[c] != c:
                 valid <- false
                 break
+
+# Log product of the selected sequence, preserving position order.
+def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    indexed: bool = indexed_alphabet(alphabet)
     total, failed =
         for k in 0..<selected.len.i64() |total: f64 = 0.0, failed: bool = false| -> (total, failed):
             symbol: i64 = selected[k]
@@ -1538,16 +1542,28 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
     width: i64 = alphabet.len.i64()
     m: i64 = selected.len.i64()
     return [] if not matrix_shape(log_probs.len.i64(), m, width)
+    indexed: bool = width >= 16 and indexed_alphabet(alphabet)
+    lookup: darray[i64] = [-1 for _ in 0..<(m if width >= 16 and not indexed else 0)]
+    if lookup.count > 0:
+        for c in 0..<width:
+            symbol: i64 = alphabet[c]
+            if symbol >= 0 and symbol < m and lookup[symbol] < 0:
+                lookup[symbol] <- c
     pending, total, zero, failed =
         for k in 0..<m |pending: i64 = 1, total: f64 = 0.0, zero: bool = false, failed: bool = false| -> (pending, total, zero, failed):
             arity: i64 = selected[k]
             # Bound pending by the remaining words before adding this arity.
             return [] if pending == 0 or arity < 0 or arity > m - k - pending
             column: i64 =
-                for c in 0..<width |found: i64 = -1| -> found:
-                    if alphabet[c] == arity:
-                        found <- c
-                        break
+                if width < 16:
+                    for c in 0..<width |found: i64 = -1| -> found:
+                        if alphabet[c] == arity:
+                            found <- c
+                            break
+                elif indexed:
+                    arity if arity < width else -1
+                else:
+                    lookup[arity]
             return [] if column < 0
             pending <- pending - 1 + arity
             reading: f64 = log_probs[k * width + column]

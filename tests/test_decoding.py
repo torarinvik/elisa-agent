@@ -2032,6 +2032,44 @@ def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
                   np.full(size, 2, dtype=np.int64)) == []
 
 
+@pytest.mark.parametrize("alphabet, expected", [([0, 1, 2], 17.0),
+                                                ([2, 0, 1], 11.0),
+                                                ([2, 0, 2], 11.0)])
+def test_native_accepted_log_weight_preserves_alphabet_lookup(alphabet, expected) -> None:
+    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    if native is None:
+        pytest.skip("native accepted sequence weight is not built")
+    rows = np.array([[1., 2., 9.], [3., 4., 200.], [5., 6., 300.]])
+    assert native(rows.ravel(), np.asarray(alphabet, dtype=np.int64),
+                  np.array([2, 0, 0], dtype=np.int64)) == [expected]
+    assert native(np.zeros(12), np.asarray(alphabet, dtype=np.int64),
+                  np.array([3, 0, 0, 0], dtype=np.int64)) == []
+
+
+def test_native_accepted_log_weight_wide_alphabet_lookup() -> None:
+    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    if native is None:
+        pytest.skip("native accepted sequence weight is not built")
+    rng = np.random.default_rng(719)
+    selected = [3, 0, 0, 0]
+    for width in (16, 256):
+        for _ in range(20):
+            alphabet = rng.permutation(width).tolist()
+            alphabet.extend([0, 3])  # Duplicates must keep their first columns.
+            rows = rng.integers(-5, 6, size=(len(selected), len(alphabet))).astype(float)
+            expected = sum(rows[k, alphabet.index(a)] for k, a in enumerate(selected))
+            assert native(rows.ravel(), np.asarray(alphabet, dtype=np.int64),
+                          np.asarray(selected, dtype=np.int64)) == [expected]
+        missing = [a for a in range(width) if a != 3]
+        assert native(np.zeros((len(selected), len(missing))).ravel(),
+                      np.asarray(missing, dtype=np.int64),
+                      np.asarray(selected, dtype=np.int64)) == []
+    width = 256
+    selected = [width - 1, *([0] * (width - 1))]
+    alphabet = np.arange(width - 1, -1, -1, dtype=np.int64)
+    assert native(np.zeros(width * width), alphabet, np.asarray(selected, dtype=np.int64)) == [0.0]
+
+
 def test_native_decoding_kernels_reject_inconsistent_matrix_shapes() -> None:
     native = formulas._NATIVE
     if any(getattr(native, name, None) is None

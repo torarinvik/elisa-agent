@@ -233,8 +233,10 @@ clamped to zero to accommodate rounding. This tolerance is not a bound on
 accumulated numerical error.
 For an alphabet equal to `(0, ..., A − 1)`, the symbol-to-column mapping is
 the identity: after checking this once, selected-column lookup takes constant
-time per position instead of a linear alphabet search. General alphabets keep
-their existing lookup, including first-match behavior for duplicate symbols.
+time per position instead of a linear alphabet search. For a complete prefix
+of length `m`, all arities are below `m`, so a table of their first alphabet
+positions can be built in `O(m + A)` time and used for constant-time lookup.
+The first occurrence preserves the existing behavior for duplicate symbols.
 Validating all input weights still takes `O(mA)` for `m` rows.
 Reading weights must be finite or negative infinity; NaN and positive infinity
 are invalid inputs even if a sequence has zero mass.
