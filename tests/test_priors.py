@@ -1468,6 +1468,22 @@ def test_symbol_tilt_rejects_lost_finite_adjustments(reference, monkeypatch) -> 
     np.testing.assert_array_equal(tilted.log_weights, [[0.0, -np.inf]])
 
 
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_symbol_tilt_prioritizes_overflow_over_precision_loss(reference, reverse, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    weights = [float(2**54), 1e308]
+    factors = [1.0, 1e308]
+    if reverse:
+        weights.reverse()
+        factors.reverse()
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
+                              np.array([weights]), np.zeros(1))
+    with pytest.raises(ValueError, match="overflow"):
+        priors.tilt_prior(prior, factors)
+
+
 def test_complete_prior_unary_tilts_cancel_at_fixed_length() -> None:
     rng = np.random.default_rng(1706)
     for size in (7, 9, 11):

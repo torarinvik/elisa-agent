@@ -669,6 +669,11 @@ def tilt_prior(prior: ArityPrior, log_factors: Sequence[float]) -> ArityPrior:
         if status == 1:
             raise ValueError("tilted edge weights overflow")
         if status == 2:
+            # Overflow takes precedence over precision loss, as in the reference path.
+            with np.errstate(over="ignore"):
+                trial = prior.log_weights + factors
+            if np.any(np.isfinite(prior.log_weights) & ~np.isfinite(trial)):
+                raise ValueError("tilted edge weights overflow")
             raise ValueError("tilted edge weights lose precision")
         if status != 0:
             raise ValueError("invalid tilted edge dimensions")
