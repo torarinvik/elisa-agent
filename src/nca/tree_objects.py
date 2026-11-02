@@ -8,7 +8,7 @@ from nca.abi import Module
 from nca.discovery import FeatureTree, _Decision
 from nca.objects import (Json, Primitive, Ref, Store, digest,
                          manifest_data, manifest_from)
-from nca.packages import install
+from nca.packages import resolve_binding
 from nca.value_codec import decode_value, encode_value
 
 
@@ -53,14 +53,7 @@ def tree_object(store: Store, tree: FeatureTree, bindings: Sequence[tuple[Ref, i
     if len(bindings) != len(tree.features):
         raise ValueError("one binding is required for each trained feature")
     for feature, (reference, index) in zip(tree.features, bindings, strict=True):
-        scope = install(store, reference)
-        if type(index) is not int or not 0 <= index < len(scope):
-            raise ValueError("invalid feature export position")
-        selected = scope[index]
-        identity = getattr(feature, "identity", None)
-        if (identity is None or identity != getattr(selected, "identity", None)
-                or feature.manifest != selected.manifest):
-            raise ValueError("feature binding must match its trained content identity and manifest")
+        resolve_binding(store, reference, index, feature)
     ordered = [tree.root]
     positions = {tree.root: 0}
     nodes: list[dict[str, Json]] = []

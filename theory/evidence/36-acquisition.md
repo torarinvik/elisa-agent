@@ -318,3 +318,20 @@ inspect held-out samples, that their returned families are finite, and that
 fitted experts remain stable during evaluation. The existing conditional
 split theorem supplies this probability step; correctness of the executable
 subtree scoping and callback data isolation is regression-tested.
+
+## 36.16 Retaining acquired numeric interfaces
+
+A learned numeric encoder can be stored by its boundary parameters, encoding
+cost, generated constructor and an explicit binding to its measurement expert.
+Reconstructing the same encoder over the same faithful measurement preserves
+its code for every finite observation. Content-derived interpreter identities
+distinguish separately fitted transformations in the residency store.
+
+To retain a tree with acquired encoders, store each generated constructor and
+encoder, install those artifacts, and rebind the tree's feature positions to
+their reconstructed modules before storing its node table. Costs, effects and
+contracts remain unchanged; only interpreter identifiers change. This is valid
+conditional on executable feature equivalence, using Proposition 36.8. It does
+not infer equivalence from matching contracts alone. The existing learned-state
+factorization theorem supplies the conditional composition argument; Python
+parameter serialization and binding checks are regression-tested.

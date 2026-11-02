@@ -244,6 +244,19 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
     return scope(ref)
 
 
+def resolve_binding(store: Store, reference: Ref, index: int, expected: Module) -> Module:
+    """Resolve an export whose content identity and manifest match the expected module."""
+    scope = install(store, reference)
+    if type(index) is not int or not 0 <= index < len(scope):
+        raise ValueError("invalid feature export position")
+    selected = scope[index]
+    identity = getattr(expected, "identity", None)
+    if (identity is None or identity != getattr(selected, "identity", None)
+            or expected.manifest != selected.manifest):
+        raise ValueError("binding must match its trained content identity and manifest")
+    return selected
+
+
 GROUP = "nca.packages"
 
 

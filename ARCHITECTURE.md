@@ -2149,3 +2149,15 @@ them. Pure nodes or insufficient remaining node budget skip acquisition.
 Projection uses only fitted features. `split_test_le` supplies the conditional
 training/evaluation argument; callback isolation and scoping are tested.
 This supports local learned interfaces without registering any task in core.
+
+`numeric_objects.encoder_object` (§36.16) retains learned threshold/region
+parameters with a verified measurement scope binding and a model-derived
+residency identifier. Generated constructors must precede artifact admission.
+`store_numeric_tree` retains acquired numeric encoders, reconstructs their lazy
+modules, and snapshots the tree against those artifact bindings. Existing
+content-identified features use the same generic `packages.resolve_binding`
+check as `tree_objects`. The factories reconstruct contracts, costs and effects
+from the measurement and parameters; ordinary primitive loading checks metadata.
+`state_factorization_eq` supplies the conditional executable-equivalence
+composition argument. Parameter fidelity and complete acquired-tree reload are
+regression-tested; external feature code/weight fidelity remains an assumption.
