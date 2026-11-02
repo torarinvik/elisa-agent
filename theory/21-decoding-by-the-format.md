@@ -23,7 +23,9 @@ For a sequence of length `m`, replacing each nonnegative arity `a` by
 `min(a, m)` preserves whether the complete prefix is accepted. Any accepted
 sequence has every arity below `m`; conversely, an accepted clamped sequence
 cannot contain the sentinel `m`, so no element could have been changed. This
-justifies using `m` as an out-of-range sentinel before native parsing.
+justifies using `m` as an out-of-range sentinel before native parsing. In the
+accepted case the arity sequence is unchanged, so its child structure is also
+unchanged for any deterministic parser.
 
 **Premise (P).** Given the readings, the posterior probability of an arity
 sequence `a` is

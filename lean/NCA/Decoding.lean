@@ -399,6 +399,17 @@ theorem accepted_arity_lt_length (l : List ℕ) (a : ℕ) (member : a ∈ l)
   have total := accepted_arity_sum l accepted
   omega
 
+/-- An accepted prefix is unchanged when its arities are clamped to its length. -/
+theorem accepted_clamp_length_eq (l : List ℕ)
+    (accepted : l.foldl await (some 1) = some 0) :
+    l.map (fun a => min a l.length) = l := by
+  have same : l.map (fun a => min a l.length) = l.map id := by
+    apply List.map_congr_left
+    intro a member
+    have bound := accepted_arity_lt_length l a member accepted
+    simp [Nat.min_eq_left (Nat.le_of_lt bound)]
+  simpa using same
+
 /-- Clamping every arity to the sequence length preserves format acceptance. -/
 theorem accepted_clamp_length_iff (l : List ℕ) :
     ((l.map fun a => min a l.length).foldl await (some 1) = some 0) ↔
@@ -422,11 +433,7 @@ theorem accepted_clamp_length_iff (l : List ℕ) :
       (fun a ha => List.mem_map.mpr ⟨a, ha, rfl⟩) (List.length_map ..)
     simpa [equal] using h
   · intro h
-    have equal := identity_of_accepted l h
-      (fun a ha => by
-        have bound := accepted_arity_lt_length l a ha h
-        simpa [Nat.min_eq_left (Nat.le_of_lt bound)] using ha) rfl
-    simpa [equal] using h
+    simpa [accepted_clamp_length_eq l h] using h
 
 /-- Concatenated arity sequences of `n` formulas are accepted from `n`
 awaited subformulas. -/

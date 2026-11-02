@@ -310,8 +310,9 @@ before using an unchecked finite-range fast path (`log_weight_sum_bound` in
 calls; an absent positive-weight path yields an empty trace.
 The prefix parser uses Elisa's general-arity `parse_tree_generic` when
 available, with an iterative Python fallback; both reject noninteger arities.
-`accepted_clamp_length_iff` in `NCA.Decoding` proves that clamping nonnegative
-arities to the sequence length preserves format acceptance.
+`accepted_clamp_length_iff` and `accepted_clamp_length_eq` in `NCA.Decoding`
+prove that clamping nonnegative arities to the sequence length preserves format
+acceptance and leaves every accepted sequence unchanged.
 
 `stats.elisa` computes the Poisson-binomial count recurrence (§21.8) in place;
 `bernoulliStep_zero` and `bernoulliStep_succ` in `NCA.Decoding` state its steps.
