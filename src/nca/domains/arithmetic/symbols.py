@@ -7,6 +7,7 @@ boolean values), with distinct module ids and semantic types.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -183,7 +184,8 @@ class ExpressionParser:
             for i, dist in enumerate(symbols) if dist is not None
         )
 
-    def _batched_choices(self, symbols, native) -> tuple[str, ...]:
+    def _batched_choices(self, symbols: list[dict[str, float] | None],
+                         native: Callable[[np.ndarray, int], list[int]]) -> tuple[str, ...]:
         result: list[str] = []
         groups: list[list[tuple[int, tuple[float, ...]]]] = [[], []]
         for i, dist in enumerate(symbols):
