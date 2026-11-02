@@ -238,10 +238,13 @@ def test_ranked_product_matches_exhaustive_small_family_order() -> None:
         families.append([(score, Proposal(Expert(Manifest(f"{axis}-{i}", "1", CONTRACT, cost=cost),
                                                  lambda x: x)))
                          for i, (score, cost) in enumerate(values)])
+    for family in families:
+        family.append((0, None))
     positions = list(product(*(range(len(family)) for family in families)))
     positions.sort(key=lambda indices: (
         -sum(families[i][j][0] for i, j in enumerate(indices)),
-        sum(families[i][j][1].expert.manifest.cost for i, j in enumerate(indices)), indices))
+        sum(0.0 if families[i][j][1] is None else families[i][j][1].expert.manifest.cost
+            for i, j in enumerate(indices)), indices))
     expected = [tuple(families[i][j][1] for i, j in enumerate(indices)) for indices in positions]
     assert list(_ranked_combinations(families, 100)) == expected
     assert list(_ranked_combinations(families, 3)) == expected[:3]
@@ -264,3 +267,46 @@ def test_combination_budget_prefers_training_supported_choices_over_trainer_orde
     assert seen == [(1, 1), (2, 2)]
     assert len(proposals) == 5
     assert [proposals[-1].expert.invoke(x) for x in (-3, 3)] == [1, 2]
+
+
+def test_partial_composition_leaves_a_harmful_region_with_incumbent() -> None:
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x[1])
+    feature = Expert(Manifest("feature", "1", replace(CONTRACT, output="key")), lambda x: x[0])
+    rows = [(("a", 0),), (("a", 1),), (("b", 2),), (("b", 3),),
+            (("c", 4),), (("c", 5),), (("c", 6),), (("c", 7),)]
+    labels = [10, 10, 20, 20, 4, 5, 6, 99]
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        model = Expert(Manifest("constant", "1", CONTRACT), lambda x, value=targets[0]: value)
+        return [Proposal(model)]
+
+    proposals = propose_regional_experts(incumbent, feature, acquire, rows, labels,
+                lambda a, b: a == b, max_regions=3, overhead_cost=0, max_combinations=1)
+    assert len(proposals) == 4
+    combined = proposals[-1].expert
+    assert set(combined.specialists) == {"a", "b"}
+    assert sum(combined.invoke(*r) == y for r, y in zip(rows, labels)) == 7
+    assert combined.invoke(("c", 8)) == 8
+    assert combined.manifest.cost == 4
+
+
+def test_fallback_only_assignments_do_not_emit_duplicate_joint_candidates() -> None:
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    feature = Expert(Manifest("feature", "1", replace(CONTRACT, output="key")), lambda x: x >= 0)
+    proposals = propose_regional_experts(incumbent, feature, lambda rows, targets: [Proposal(incumbent)],
+                [(-1,), (1,)], [1, 2], lambda a, b: a == b,
+                max_regions=2, overhead_cost=0, max_combinations=100)
+    assert len(proposals) == 2
+
+
+def test_skipped_baseline_and_singles_do_not_consume_joint_output_budget() -> None:
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    feature = Expert(Manifest("feature", "1", replace(CONTRACT, output="key")), lambda x: x[0])
+    bad = Expert(Manifest("bad", "1", CONTRACT), lambda x: 2)
+    rows = [((key, i),) for key in ("a", "b") for i in range(3)]
+    proposals = propose_regional_experts(incumbent, feature, lambda rows, labels: [Proposal(bad)],
+                rows, [0, 0, 1] * 2, lambda a, b: a == b,
+                max_regions=2, overhead_cost=0, max_combinations=1)
+    assert len(proposals) == 3
+    assert set(proposals[-1].expert.specialists) == {"a", "b"}
+    assert proposals[-1].expert.invoke(("a", 10)) == 2

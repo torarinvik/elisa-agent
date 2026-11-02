@@ -251,4 +251,13 @@ theorem regional_training_maxima {I : Type*} (regions : Finset I) (best other : 
     ∑ i ∈ regions, other i ≤ ∑ i ∈ regions, best i := by
   exact Finset.sum_le_sum maximal
 
+/-- With one offered alternative, local training preference plus fallback
+realizes the larger empirical score. This does not imply held-out improvement. -/
+theorem regional_fallback_score (baseline offered : ℕ) :
+    (if baseline < offered then some offered else none).getD baseline = max baseline offered := by
+  by_cases better : baseline < offered
+  · simp [better, max_eq_right (Nat.le_of_lt better)]
+  · have weak : offered ≤ baseline := le_of_not_gt better
+    simp [better, max_eq_left weak]
+
 end NCA

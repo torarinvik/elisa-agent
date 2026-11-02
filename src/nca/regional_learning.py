@@ -52,16 +52,17 @@ class RegionalExpert(RegionalPolicy):
             module_id=f"{incumbent.manifest.module_id}/regional/{specialist.manifest.module_id}")
 
 
-def _ranked_combinations(families: Sequence[Sequence[tuple[int, Proposal]]],
-                         limit: int) -> Iterator[tuple[Proposal, ...]]:
-    """Best-first product of families ordered by successes, cost, then input order."""
+def _ranked_combinations(families: Sequence[Sequence[tuple[int, Proposal | None]]],
+                         limit: int) -> Iterator[tuple[Proposal | None, ...]]:
+    """Best-first product; None is fallback with zero incremental wiring cost."""
     if not families or any(not family for family in families):
         return
 
     def priority(indices: tuple[int, ...]) -> tuple[int, float, tuple[int, ...]]:
         chosen = [family[index] for family, index in zip(families, indices, strict=True)]
         return (-sum(score for score, _ in chosen),
-                sum(candidate.expert.manifest.cost for _, candidate in chosen), indices)
+                sum(0.0 if candidate is None else candidate.expert.manifest.cost
+                    for _, candidate in chosen), indices)
 
     initial = (0,) * len(families)
     pending, seen = [priority(initial)], {initial}
@@ -95,9 +96,11 @@ def propose_regional_experts(incumbent: Module, feature: Module,
     Models, row payloads and feature keys must remain stable. No active library,
     saved package or risk certificate is changed by this in-memory proposal step.
     max_combinations optionally adds a training-ranked Cartesian prefix over all
-    trainable selected regions (§36.31), not exhaustive region-subset search.
+    trainable selected regions (§36.31), without an exhaustive-search guarantee.
     Scoring uses original regional training targets only; ties prefer lower
-    declared cost then stable family order. Held-out selection remains separate.
+    incremental declared cost then stable family order. An explicit fallback
+    choice leaves each region with the incumbent; omit baseline/single choices
+    already offered separately (§36.32). Held-out selection remains separate.
     """
     if type(max_combinations) is not int or max_combinations < 0:
         raise ValueError("combination budget must be a nonnegative integer")
@@ -133,17 +136,31 @@ def propose_regional_experts(incumbent: Module, feature: Module,
         keys = tuple(key for key, _ in alternatives)
         ranked = []
         for key, family in alternatives:
-            scores = [(sum(bool(correct(candidate.expert.invoke(*rows[i]), labels[i]))
-                           for i in groups[key]), candidate) for candidate in family]
-            scores.sort(key=lambda item: (-item[0], item[1].expert.manifest.cost))
+            scores: list[tuple[int, Proposal | None]] = [
+                (sum(bool(correct(candidate.expert.invoke(*rows[i]), labels[i]))
+                     for i in groups[key]), candidate) for candidate in family
+                if candidate.expert is not incumbent]
+            scores.append((len(groups[key]) - errors[key], None))
+            scores.sort(key=lambda item: (-item[0],
+                0.0 if item[1] is None else item[1].expert.manifest.cost, item[1] is not None))
             ranked.append(scores)
-        for choice in _ranked_combinations(ranked, max_combinations):
+        # Empty/single-specialist assignments are already offered separately.
+        skipped_bound = 1 + sum(len(family) - 1 for family in ranked)
+        emitted = 0
+        for choice in _ranked_combinations(ranked, max_combinations + skipped_bound):
+            active = [(key, candidate) for key, candidate in zip(keys, choice, strict=True)
+                      if candidate is not None]
+            if len(active) < 2:
+                continue
             policy = RegionalPolicy(incumbent, feature,
-                                     dict(zip(keys, (c.expert for c in choice), strict=True)),
+                                     {key: candidate.expert for key, candidate in active},
                                      overhead_cost)
-            constructors = tuple(constructor for candidate in choice
+            constructors = tuple(constructor for _, candidate in active
                                  for constructor in candidate.constructors)
             proposals.append(Proposal(policy, constructors))
+            emitted += 1
+            if emitted == max_combinations:
+                break
     return proposals
 
 

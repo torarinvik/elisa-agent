@@ -108,3 +108,21 @@ visited states deduplicated. Initial scoring still costs all alternatives on
 their regional training rows. Only subsequent independent outcomes justify
 promotion; training maxima and a limited frontier do not imply best held-out
 performance or exhaustive subset/representation search.
+
+## 36.32 Leaving regions with the incumbent
+
+Add an explicit fallback choice to each selected regional family, scored by
+the incumbent's observed successes in that region. Its incremental wiring cost
+is zero because the incumbent is already the policy's default. Prefer fallback
+when scores and costs tie. The single-alternative special case realizes
+`max(incumbent_successes, offered_successes)`; Lean proves this natural-number
+identity, not held-out improvement or executable scoring correctness.
+
+A combined policy omits fallback keys, allowing partial region subsets within
+the same bounded ranked product. Incumbent-only and one-specialist assignments
+are already represented by the baseline and single candidates, so skip them
+without spending joint-output slots. With mᵢ nonfallback alternatives per region,
+there are exactly `1+Σmᵢ` such assignment states; bound frontier pops by this
+count plus the requested joint-candidate budget. This does not bound trainer
+costs or prove heap enumeration. Stable models/scoring and independent selection
+remain necessary; refusing an expert on training data is not a generalization proof.
