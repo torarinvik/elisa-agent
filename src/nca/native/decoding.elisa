@@ -256,7 +256,7 @@ def log_add(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return log_add_present(x, y)
 
-# Detect a lost log-sum correction at the posterior normalization tolerance.
+# Detect a distorted log-sum correction at the posterior normalization tolerance.
 def partition_log_add(x: f64, y: f64) -> f64:
     return y if x == log(0.0)
     return x if y == log(0.0)
@@ -264,7 +264,8 @@ def partition_log_add(x: f64, y: f64) -> f64:
     smaller: f64 = y if x >= y else x
     correction: f64 = log1p(exp(smaller - larger))
     result: f64 = larger + correction
-    return log(-1.0) if result == larger and correction >= 1.01e-8
+    roundoff: f64 = (result - larger) - correction
+    return log(-1.0) if roundoff >= 1.01e-8 or roundoff <= -1.01e-8
     return result
 
 # Sum off-reference masses and log(max(1, row mass)) without cancellation.

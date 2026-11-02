@@ -11,7 +11,8 @@ def add_logs(x: f64, y: f64) -> f64:
     smaller: f64 = y if x >= y else x
     correction: f64 = log1p(exp(smaller - larger))
     result: f64 = larger + correction
-    return log(-1.0) if result == larger and correction >= 1.01e-8
+    roundoff: f64 = (result - larger) - correction
+    return log(-1.0) if roundoff >= 1.01e-8 or roundoff <= -1.01e-8
     return result
 
 # Find the earliest changed input row without allocating a comparison array.

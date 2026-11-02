@@ -101,7 +101,8 @@ def _partition_log_add(left: float, right: float, context: str) -> float:
     result = float(np.logaddexp(left, right))
     if math.isfinite(left) and math.isfinite(right):
         larger, smaller = max(left, right), min(left, right)
-        if result == larger and math.log1p(math.exp(smaller - larger)) >= 1.01e-8:
+        correction = math.log1p(math.exp(smaller - larger))
+        if abs((result - larger) - correction) >= 1.01e-8:
             raise ValueError(f"{context} partition arithmetic loses precision")
     return result
 
