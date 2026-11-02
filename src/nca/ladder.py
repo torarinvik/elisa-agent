@@ -450,19 +450,20 @@ class Rung:
                     mapped = np.asarray(packed, dtype=np.int64)
                     rows = torch.from_numpy(mapped[:count])
                     targets = torch.from_numpy(mapped[count:])
-                    selected_log = log[rows][:, union]
             else:
                 entry = {union[i]: k for k, part in enumerate(positions) for i in part}
                 inside = torch.isin(labels, torch.tensor(union, device=labels.device))
                 count = int(inside.sum())
                 if count:
+                    rows = inside.nonzero(as_tuple=True)[0]
                     targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long,
                                            device=labels.device)
-                    selected_log = log[inside][:, union]
             if not count:
                 if len(positions) == 1:
                     return 1.0  # A single entry has no decision ambiguity.
                 raise MissingCalibrationError("cannot fit decision temperature without matching held-out labels")
+            columns = torch.as_tensor(union, dtype=torch.long, device=log.device)
+            selected_log = log[rows[:, None], columns]
             self.temperatures[key] = self._fit(selected_log, targets, positions)
         return self.temperatures[key]
 

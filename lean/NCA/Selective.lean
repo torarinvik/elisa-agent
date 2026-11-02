@@ -186,6 +186,24 @@ theorem calibration_subset_membership {α β : Type*} (labels : List α)
     target ∈ labels.filterMap group ↔ ∃ label ∈ labels, group label = some target := by
   simp
 
+/-- A restricted calibration matrix depends only on selected coordinates. -/
+theorem calibration_matrix_restriction_ext {ι κ α : Type*} (rows : List ι)
+    (columns : List κ) (a b : ι → κ → α)
+    (same : ∀ row ∈ rows, ∀ column ∈ columns, a row column = b row column) :
+    rows.map (fun row => columns.map (a row)) =
+      rows.map (fun row => columns.map (b row)) := by
+  induction rows with
+  | nil => rfl
+  | cons row rest ih =>
+      simp only [List.map_cons, List.cons.injEq]
+      constructor
+      · apply ranked_restriction_ext
+        intro column hc
+        exact same row (List.mem_cons_self ..) column hc
+      · apply ih
+        intro r hr column hc
+        exact same r (List.mem_cons_of_mem _ hr) column hc
+
 /-- The negative log likelihood of a group is the difference of log masses. -/
 theorem grouped_negative_log_likelihood {total group : ℝ}
     (htotal : 0 < total) (hgroup : 0 < group) :

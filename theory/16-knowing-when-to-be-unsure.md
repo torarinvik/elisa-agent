@@ -135,7 +135,9 @@ Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs
 whose label is among its classes. Each included label maps to the entry that
-contains it; excluded labels contribute no observation to that fit. For
+contains it; excluded labels contribute no observation to that fit. The
+restricted calibration matrix depends only on included rows and selected
+classes, in their stated order. For
 positive total mass `Z` and labeled
 group mass `G`, each observation's negative log-likelihood is
 `−log(G/Z) = log Z − log G`. The implementation factors out a separate

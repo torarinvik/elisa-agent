@@ -190,6 +190,22 @@ def test_native_calibration_subset_matches_label_mapping() -> None:
         assert native(labels, classes, groups, 32, 4) == expected
 
 
+def test_native_sparse_calibration_subset_matches_dense_and_validates() -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_subset", None)
+    if native is None:
+        pytest.skip("native calibration subset kernel is not built")
+    rng = np.random.default_rng(732)
+    classes = np.array([3, 42, 1000, 17], dtype=np.int64)
+    groups = np.array([0, 1, 1, 0], dtype=np.int64)
+    labels = np.concatenate((rng.integers(-2, 1100, size=1000, dtype=np.int64), classes))
+    assert native(labels, classes, groups, 1_000_000, 2) == native(labels, classes, groups, 4096, 2)
+    assert native(labels, np.array([3, 3]), np.array([0, 1]), 1_000_000, 2) == [-1]
+    assert native(labels, np.array([1_000_000]), np.array([0]), 1_000_000, 2) == [-1]
+    assert native(labels, np.array([], dtype=np.int64), np.array([], dtype=np.int64), 1_000_000, 2) == []
+
+
 def test_restricted_calibration_subset_matches_reference(monkeypatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
@@ -223,6 +239,57 @@ def test_restricted_calibration_subset_falls_back_for_out_of_range_classes(monke
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
     with pytest.raises(IndexError):
         rung.temperature(((0,), (7,)))
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_restricted_calibration_gathers_only_requested_columns(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibration_subset", None) is None:
+        pytest.skip("native calibration subset kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+
+    class CaptureRung(Rung):
+        def _fit(self, log, labels, entries=None):
+            self.captured = (log, labels, entries)
+            return 1.0
+
+    width = 100_000
+    logits = torch.arange(4 * width, dtype=torch.float64).reshape(4, width).requires_grad_()
+    labels = torch.tensor([width - 1, 7, 2, 17], dtype=torch.int64)
+    rung = CaptureRung(None)
+    rung.held_out = (logits, labels)
+    assert rung.temperature(((2, 17), (width - 1,))) == 1.0
+    selected, targets, entries = rung.captured
+    assert selected.shape == (3, 3)
+    assert targets.tolist() == [1, 0, 0]
+    assert entries == [[0, 1], [2]]
+    expected = torch.stack([logits[i, [2, 17, width - 1]] for i in (0, 2, 3)])
+    assert torch.equal(selected, expected)
+    selected.sum().backward()
+    assert logits.grad is not None and logits.grad.sum().item() == 9.0
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_restricted_calibration_gather(device) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+
+    class CaptureRung(Rung):
+        def _fit(self, log, labels, entries=None):
+            self.captured = (log, labels)
+            return 1.0
+
+    logits = torch.arange(24, dtype=torch.float32, device=device).reshape(4, 6)
+    labels = torch.tensor([5, 1, 2, 3], dtype=torch.int64, device=device)
+    rung = CaptureRung(None)
+    rung.held_out = (logits, labels)
+    assert rung.temperature(((2, 3), (5,))) == 1.0
+    selected, targets = rung.captured
+    assert targets.tolist() == [1, 0, 0]
+    assert selected.cpu().tolist() == [[2.0, 3.0, 5.0], [14.0, 15.0, 17.0], [20.0, 21.0, 23.0]]
 
 
 @pytest.mark.parametrize("grouped", [False, True])

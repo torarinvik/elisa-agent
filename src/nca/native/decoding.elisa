@@ -1683,10 +1683,36 @@ def calibrated_difference(value: f64, anchor: f64, temperature: f64) -> f64:
     difference: f64 = value - anchor
     return value / temperature - anchor / temperature if temperature > 1.0 and difference == log(0.0) and value != log(0.0) else difference / temperature
 
+# Find the group of a label in a small validated class list.
+def calibration_small_group(label: i64, classes: view[i64], groups: view[i64]) -> i64 can[Abort.Panic]:
+    return
+        for i in 0..<classes.len.i64() |group: i64 = -1| -> group:
+            group <- groups[i] if classes[i] == label else group
+
+def calibration_subset_sparse(labels: view[i64], classes: view[i64], groups: view[i64], width: i64, entries: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    for i in 0..<classes.len.i64():
+        return [-1] if classes[i] < 0 or classes[i] >= width or groups[i] < 0 or groups[i] >= entries
+        for j in 0..<i:
+            return [-1] if classes[i] == classes[j]
+    count: i64 =
+        for i in 0..<labels.len.i64() |count: i64 = 0| -> count:
+            count += 1 if calibration_small_group(labels[i], classes, groups) >= 0 else 0
+    return [-1] if count > 4611686018427387903
+    result: darray[i64] = [0 for _ in 0..<(count * 2)]
+    for i in 0..<labels.len.i64() |next: i64 = 0|:
+        group: i64 = calibration_small_group(labels[i], classes, groups)
+        if group >= 0:
+            result[next] <- i
+            result[count + next] <- group
+            next += 1
+    return result
+
 # Match held-out labels to decision groups, returning row indices followed by
 # their group labels. A single -1 reports invalid mapping metadata.
 def calibration_subset(labels: view[i64], classes: view[i64], groups: view[i64], width: i64, entries: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     return [-1] if width <= 0 or entries <= 0 or classes.len.i64() != groups.len.i64()
+    return [] if classes.len.i64() == 0
+    return calibration_subset_sparse(labels, classes, groups, width, entries) if width > 4096 and classes.len.i64() <= 16 and labels.len.i64() <= width / (2 * classes.len.i64())
     lookup: darray[i64] = [-1 for _ in 0..<width]
     for i in 0..<classes.len.i64():
         index: i64 = classes[i]

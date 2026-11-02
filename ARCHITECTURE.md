@@ -150,7 +150,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_matrix_restriction_ext`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
@@ -874,6 +874,10 @@ CPU temperature fitting can use Elisa `calibration_loss_grid`, which evaluates
 the same 120 candidate temperatures and supports arbitrary grouped labels.
 For CPU held-out data, `calibration_subset` finds included rows and their
 group labels in input order; unsupported metadata uses the PyTorch reference.
+For a wide class space and a small selected set, it scans the selected classes
+instead of allocating a lookup proportional to the full width. The selected
+matrix gathers row and class indices together, avoiding an intermediate copy
+of all columns in the included rows. Other shapes retain the lookup path.
 The native path is used for up to 2,048 logits in ungrouped fits and 16,384
 in grouped fits; larger fits use PyTorch based on local timing measurements.
 Other devices, gradient-bearing inputs, unsupported layouts and unavailable
