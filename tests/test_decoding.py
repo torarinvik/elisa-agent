@@ -420,6 +420,15 @@ def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(referenc
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_format_partition_handles_holes_in_state_support(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.zeros((7, 2))
+    assert priors.format_sequence_risk(rows, (0, 3), (3, 3, 0, 0, 0, 0, 0)) == pytest.approx(2 / 3)
+    assert priors.format_sequence_risk(rows, (0, 3), (1, 3, 0, 0, 0, 0, 0)) == 1.0
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_format_partition_excludes_early_completed_state(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
