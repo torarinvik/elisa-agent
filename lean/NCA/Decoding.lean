@@ -85,6 +85,12 @@ theorem trace_successor_monotone (after upper arity later : ℤ)
     upper < after - 1 + later := by
   omega
 
+/-- Once an ordered arity exceeds the destination envelope, later ones do too. -/
+theorem ordered_arity_exceeds_envelope (source minimum upper arity later : ℤ)
+    (source_bound : minimum ≤ source) (ordered : arity ≤ later)
+    (outside : upper + 1 - minimum < arity) : upper < source - 1 + later := by
+  omega
+
 /-- Keep the earlier alphabet index when two candidates have equal score. -/
 def tiedChoice (current candidate : ℕ) : ℕ :=
   if candidate < current then candidate else current

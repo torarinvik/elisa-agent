@@ -217,6 +217,11 @@ decrease and candidate successor states increase. Once a candidate passes the
 relevant interval boundary, later arities cannot re-enter it; unordered lists
 are scanned without this early stop. The original alphabet order is retained
 for ties.
+The sweeps and replacement-row scoring likewise stop an ascending scan once
+the smallest possible source state would send every later arity above the
+destination envelope. Empty source or destination envelopes have no valid
+transition. These bounds apply to the supplied arities and do not restrict the
+alphabet a caller may use.
 
 After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
 stays valid. The next climb at `k` needs `F_k`, which costs recomputing the

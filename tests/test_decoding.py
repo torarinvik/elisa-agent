@@ -1282,6 +1282,31 @@ def test_ragged_split_sparse_generic_alphabet_after_many_updates(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+@pytest.mark.parametrize("alphabet", [
+    (0, 1, 2, 3, 4, 8, 16, 32, 64, 10**100),
+    (64, 3, 10**100, 0, 8, 1, 32, 2, 16, 4),
+])
+def test_ragged_sweeps_handle_ordered_and_permuted_large_arities(
+        reference_only: bool, alphabet: tuple[int, ...], monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(289)
+    m = 15
+    rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+    centre = [1] * m + [0]
+    cursor = decoding.Split(rows, alphabet, centre, 3)
+    for k in (0, m - 1, m // 2, 1, m - 2):
+        rows[k] = np.log(rng.dirichlet(np.ones(len(alphabet))))
+        actual = cursor.climb(k, rows[k])
+        expected = decoding._banded_passes(rows, alphabet, centre, 3)
+        assert expected is not None
+        assert actual == pytest.approx(expected[:2])
+        best, arities = cursor.best(k)
+        assert best == pytest.approx(expected[1])
+        assert parse(arities) is not None
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_ragged_split_recovers_support_after_empty_row(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
