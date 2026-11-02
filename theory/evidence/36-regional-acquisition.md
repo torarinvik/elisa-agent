@@ -183,3 +183,17 @@ Larger empirical fitting and independent whole-task selection retain their
 previous assumptions. Stable callbacks and observations are required; a supplied
 feedback function extends the search signal, not the available measurements or
 expert families, and offers no universal bootstrap guarantee.
+
+
+## 36.36 Exact ordering of promotion evidence
+
+For w wins and l losses on paired correctness, let n = w + l and retain
+p = (Σ from k=w to n of binomial(n,k)) / 2^n as a rational number.
+For a frozen family of m candidates accept exactly when m p < α; choose the
+smallest accepted rational p, retaining proposal order for genuine ties.
+Conversion to a reported floating value must not control either decision.
+For an all-win candidate p = 1/2^w, strictly decreasing with w. Lean proves
+the positive-denominator reciprocal ordering special case, not executable
+binomial summation, probability validity or generalization. This preserves the
+finite-family assumptions of §36.3 and does not make p-value ranking equivalent
+to maximizing accuracy. Exact integer arithmetic has sample-dependent cost.

@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.35) are described in the
+Regional acquisition and composition (§§36.26–36.36) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2322,3 +2322,9 @@ the router, while specialists receive original targets. The default remains
 binary failure routing; no-error samples produce no proposals. The callback is
 not part of retained inference graphs. `auxiliary_feedback_separation` proves
 only the ordered two-observation threshold identity.
+
+`router.sign_probability` (§36.36) retains paired binomial tails as exact
+fractions. `sign_test` compares before float conversion, and `discover` uses
+exact tails for multiplicity-adjusted acceptance and ranking. Reported trial
+p-values remain floats and may be zero. `reciprocal_evidence_order` proves only
+the positive-denominator reciprocal ordering used by the all-win special case.

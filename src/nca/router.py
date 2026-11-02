@@ -14,6 +14,7 @@ reversible, and stable under module installation.
 from __future__ import annotations
 
 import math
+from fractions import Fraction
 from typing import Sequence
 
 from nca.abi import Module, TypeId, canonical_type, parse_type, seq_type, type_variables
@@ -90,8 +91,19 @@ def sign_test(current: Sequence[bool], candidate: Sequence[bool], alpha: float =
     is better, ``wins ~ Binomial(discordant, 1/2)``. Returns whether to accept
     the candidate and the p-value ``P(X >= wins)``.
     """
-    wins = sum(c and not o for o, c in zip(current, candidate))
-    losses = sum(o and not c for o, c in zip(current, candidate))
+    probability = sign_probability(current, candidate)
+    return probability < alpha, float(probability)
+
+
+def sign_probability(current: Sequence[bool], candidate: Sequence[bool]) -> Fraction:
+    """Exact paired sign-test tail, retaining ordering below float range.
+
+    Both sequences must be aligned. Integer arithmetic avoids underflow in
+    decisions; converting the returned fraction to float may still yield zero.
+    """
+    if len(current) != len(candidate):
+        raise ValueError("paired outcomes must have equal lengths")
+    wins = sum(c and not o for o, c in zip(current, candidate, strict=True))
+    losses = sum(o and not c for o, c in zip(current, candidate, strict=True))
     n = wins + losses
-    p_value = sum(math.comb(n, k) for k in range(wins, n + 1)) / 2**n if n else 1.0
-    return p_value < alpha, p_value
+    return Fraction(sum(math.comb(n, k) for k in range(wins, n + 1)), 2**n)

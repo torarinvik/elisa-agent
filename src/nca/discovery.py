@@ -14,7 +14,7 @@ from nca.abi import Calls, Contract, Manifest, Module
 from nca.objects import (Constructor, Json, Primitive, Ref, Store, canonical,
                          contract_data, contract_from, digest)
 from nca.packages import install
-from nca.router import sign_test
+from nca.router import sign_probability
 from nca.value_codec import decode_value, encode_value
 
 
@@ -510,7 +510,8 @@ def discover(incumbent: Module,
     Rows supply slot fillings before ordinary inputs, as in Module.invoke.
     Candidates preserve the external contract but may introduce new types and
     decompositions. Tests use alpha/count. Lowest accepted p-value wins, with
-    ties in proposal order. Requires independent splits, honest scoring, and
+    ties in proposal order. Acceptance/ranking use exact rational tails; reported
+    float p-values can underflow. Requires independent splits, honest scoring, and
     proposals that cannot inspect or mutate held-out samples. Snapshots are
     shallow; installation and calibration are separate decisions.
     """
@@ -531,12 +532,16 @@ def discover(incumbent: Module,
     held = tuple(zip(samples[half:], targets[half:], strict=True))
     baseline = tuple(bool(correct(incumbent.invoke(*row), label)) for row, label in held)
     trials = []
+    probabilities = []
     for proposal in proposals:
         outcomes = tuple(bool(correct(proposal.expert.invoke(*row), label)) for row, label in held)
-        accepted, p_value = sign_test(baseline, outcomes, alpha / len(proposals))
-        trials.append(Trial(proposal, outcomes, p_value, accepted))
-    accepted_trials = [trial for trial in trials if trial.accepted]
-    chosen = min(accepted_trials, key=lambda trial: trial.p_value).proposal if accepted_trials else None
+        probability = sign_probability(baseline, outcomes)
+        probabilities.append(probability)
+        trials.append(Trial(proposal, outcomes, float(probability),
+                            probability * len(proposals) < alpha))
+    accepted_indices = [i for i, trial in enumerate(trials) if trial.accepted]
+    chosen = (trials[min(accepted_indices, key=lambda i: probabilities[i])].proposal
+              if accepted_indices else None)
     return Discovery(baseline, tuple(trials), chosen)
 
 

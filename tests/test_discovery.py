@@ -558,3 +558,26 @@ def test_residual_learning_does_not_patch_a_region_where_incumbent_is_better() -
                                correction_cost=1) == []
     with pytest.raises(ValueError, match="aligned"):
         propose_corrections(Constant(), [feature], [], [], correction_cost=1)
+
+
+def test_discovery_ranks_exact_tails_below_float_range() -> None:
+    class Candidate:
+        manifest = Constant.manifest
+
+        def __init__(self, limit: int) -> None:
+            self.limit = limit
+
+        def invoke(self, x: float) -> float:
+            return float(x < self.limit)
+
+    weak, strong = Proposal(Candidate(1102)), Proposal(Candidate(2000))
+    rows = [(float(i),) for i in range(2000)] * 2
+    result = discover(Constant(), lambda rows, labels: [weak, strong],
+                      rows, [1.0] * 4000, lambda a, b: a == b)
+    assert [t.p_value for t in result.trials] == [0.0, 0.0]
+    assert all(t.accepted for t in result.trials)
+    assert result.chosen is strong
+    equal = Proposal(Candidate(2000))
+    tied = discover(Constant(), lambda rows, labels: [strong, equal],
+                    rows, [1.0] * 4000, lambda a, b: a == b)
+    assert tied.chosen is strong

@@ -173,3 +173,15 @@ def test_sequential_unification_is_most_general() -> None:
         for tau in unifiers:
             assert all(substitute(resolve(Var(v), binding), tau) == tau[v] for v in names)
     assert solved > 70 and factored > 30
+
+
+def test_sign_probability_preserves_tiny_tails_and_strict_threshold() -> None:
+    from fractions import Fraction
+
+    from nca.router import sign_probability
+
+    assert sign_probability([False] * 2000, [True] * 2000) == Fraction(1, 2**2000)
+    assert sign_test([False] * 4, [True] * 4, alpha=0.0625) == (False, 0.0625)
+    assert sign_probability([], []) == 1
+    with pytest.raises(ValueError, match="equal lengths"):
+        sign_probability([False], [])

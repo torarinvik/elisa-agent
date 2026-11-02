@@ -286,4 +286,9 @@ theorem auxiliary_feedback_separation {A : Type*} (a c : A)
   · simp [hl]
   · simp [not_lt.mpr hu]
 
+/-- Larger positive denominators yield strictly smaller reciprocal evidence. -/
+theorem reciprocal_evidence_order (a b : ℝ) (ha : 0 < a) (hab : a < b) :
+    1 / b < 1 / a := by
+  exact one_div_lt_one_div_of_lt ha hab
+
 end NCA
