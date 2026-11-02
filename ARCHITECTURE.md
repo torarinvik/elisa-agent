@@ -2140,3 +2140,12 @@ binary search for region codes. Pure or constant-valued intervals stop refining.
 `modal_refinement_le` supplies the nonnegative local training-gain inequality;
 the greedy search policy is not formally verified or globally optimal. Tests
 cover region budgets, training-score monotonicity and duplicate observations.
+
+`train_tree(refine=...)` (§36.15) optionally asks a supplied trainer for new
+features on each unresolved node's training subset. Contracts and cost/call
+bounds are validated as for initial features. Acquired features and their
+cached keys are scoped to that subtree; already queued siblings cannot see
+them. Pure nodes or insufficient remaining node budget skip acquisition.
+Projection uses only fitted features. `split_test_le` supplies the conditional
+training/evaluation argument; callback isolation and scoping are tested.
+This supports local learned interfaces without registering any task in core.

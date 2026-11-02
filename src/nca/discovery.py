@@ -288,7 +288,9 @@ def factor_tree(tree: FeatureTree, *, encoding_cost: float, decoder_cost: float)
 def train_tree(incumbent: Module, features: Sequence[Module],
                rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
                max_nodes: int, overhead_cost: float, lookahead: int = 1,
-               lookahead_budget: int | None = None) -> FeatureTree:
+               lookahead_budget: int | None = None,
+               refine: Callable[[Sequence[tuple[Any, ...]], Sequence[Hashable]],
+                                Sequence[Module]] | None = None) -> FeatureTree:
     """Fit a breadth-first categorical feature tree on training data only (§36.6).
 
     Splits maximize projected modal successes, then minimize projected declared
@@ -302,6 +304,9 @@ def train_tree(incumbent: Module, features: Sequence[Module],
     require an explicit projection-state budget (§36.7). Exhaustion falls back
     to modal leaves during projection and is reported on the returned tree.
     Projection does not optimize allocation of the global final-node budget.
+    An optional trainer can propose new features on each unresolved training
+    subset (§36.15). They are scoped to that subtree. Projection uses only
+    already fitted features; samples and fitted experts must remain stable.
     """
     if max_nodes < 1 or not rows or len(rows) != len(labels):
         raise ValueError("tree training needs a positive node budget and aligned nonempty data")
@@ -312,10 +317,10 @@ def train_tree(incumbent: Module, features: Sequence[Module],
     if lookahead > 1 and lookahead_budget is None:
         raise ValueError("lookahead above one needs an explicit work budget")
     contract = incumbent.manifest.contract
-    features, rows, labels = tuple(features), tuple(rows), tuple(labels)
+    features, rows, labels = list(features), tuple(rows), tuple(labels)
     if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
         raise ValueError("rows must supply slot fillings followed by inputs")
-    for feature in features:
+    def validate(feature: Module) -> None:
         manifest = feature.manifest
         if replace(manifest.contract, output=contract.output) != contract:
             raise ValueError("features must preserve inputs, slots and relevance")
@@ -323,7 +328,10 @@ def train_tree(incumbent: Module, features: Sequence[Module],
                 not math.isfinite(c.fixed) or not math.isfinite(c.per_element)
                 or c.fixed < 0 or c.per_element < 0 for c in manifest.calls):
             raise ValueError("feature costs and slot counts must be finite and nonnegative")
-    values = [tuple(feature.invoke(*row) for row in rows) for feature in features]
+    for feature in features:
+        validate(feature)
+    values: list[Sequence[Any] | Mapping[int, Any]] = [
+        tuple(feature.invoke(*row) for row in rows) for feature in features]
 
     def groups_for(indices: tuple[int, ...], feature: int) -> dict[Hashable, list[int]]:
         groups: dict[Hashable, list[int]] = {}
@@ -367,8 +375,18 @@ def train_tree(incumbent: Module, features: Sequence[Module],
     remaining, used = max_nodes - 1, set()
     while pending:
         node, indices, available = pending.popleft()
-        if len({labels[i] for i in indices}) == 1:
+        if len({labels[i] for i in indices}) == 1 or remaining < 2:
             continue
+        if refine is not None:
+            acquired = tuple(refine(tuple(rows[i] for i in indices),
+                                    tuple(labels[i] for i in indices)))
+            for feature in acquired:
+                validate(feature)
+            new_indices = tuple(range(len(features), len(features) + len(acquired)))
+            for feature in acquired:
+                values.append({i: feature.invoke(*rows[i]) for i in indices})
+            features.extend(acquired)
+            available += new_indices
         best: tuple[int, dict[Hashable, list[int]]] | None = None
         best_rank: tuple[int, float] = (-1, 0)
         for feature in available:

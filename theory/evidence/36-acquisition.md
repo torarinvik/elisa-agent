@@ -300,3 +300,21 @@ modes can retain the parent's label. `modal_refinement_le` proves that local
 sum comparison. This is greedy refinement, not a globally optimal segmentation,
 and implies no held-out improvement. The budget is a caller-selected resource
 limit; the representation has no fixed architectural region count.
+
+## 36.15 Acquiring features at unresolved training nodes
+
+A conditional learner may ask a supplied trainer for new feature experts at
+each impure node, using only that node's training invocations and targets.
+New features must preserve the incumbent's inputs, slots and relevance; their
+output types and learned transformations may differ. They are eligible in
+that node's subtree, not unrelated branches. The node budget bounds training
+requests. Projection lookahead considers already fitted features only.
+
+This makes the fitted tree, including its newly acquired interfaces, a function
+of the training split alone. Under independent evaluation, the split-promotion
+argument of Theorem 36.1 therefore still applies. It does not require that the
+feature family was fixed before training. It does require that trainers cannot
+inspect held-out samples, that their returned families are finite, and that
+fitted experts remain stable during evaluation. The existing conditional
+split theorem supplies this probability step; correctness of the executable
+subtree scoping and callback data isolation is regression-tested.
