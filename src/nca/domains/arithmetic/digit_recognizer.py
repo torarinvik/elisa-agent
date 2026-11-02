@@ -78,6 +78,12 @@ class DigitRecognizer:
         logits = self.network(glyph.reshape(1, 1, 28, 28))
         return tuple(torch.softmax(logits, dim=1)[0].tolist())
 
+    @torch.no_grad()
+    def invoke_batch(self, glyphs: list[torch.Tensor]) -> list[tuple[float, ...]]:
+        """``invoke`` on each glyph, in one forward pass."""
+        logits = self.network(torch.stack([g.reshape(1, 28, 28) for g in glyphs]))
+        return [tuple(row) for row in torch.softmax(logits, dim=1).tolist()]
+
 
 def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
           subset: str = "all", normalized: bool = False, augment: bool = False) -> float:

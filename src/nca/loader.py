@@ -229,6 +229,14 @@ class LazyExpert:
     def invoke(self, *inputs: Any) -> Any:
         return self.store.acquire(self).invoke(*inputs)
 
+    def invoke_batch(self, *columns: list[Any]) -> list[Any]:
+        """Invoke on columns of inputs, in one call if the implementation can."""
+        expert = self.store.acquire(self)
+        batch = getattr(expert, "invoke_batch", None)
+        if batch is not None:
+            return list(batch(*columns))
+        return [expert.invoke(*row) for row in zip(*columns, strict=True)]
+
 
 def route_experts(route: Plan) -> Iterator[LazyExpert]:
     """The lazy experts a route may invoke, in preorder."""

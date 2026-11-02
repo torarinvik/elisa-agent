@@ -58,3 +58,4 @@ link for its definitions, arguments, and results.
 - [31. Composing uncertainty](theory/31-composing-uncertainty.md)
 - [32. Trust](theory/32-trust.md)
 - [33. Per-input risk on any route](theory/33-per-input-risk.md)
+- [34. Compiled routes](theory/34-compiled-routes.md)

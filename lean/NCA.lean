@@ -42,3 +42,4 @@ import NCA.Selection
 import NCA.Risk
 import NCA.Trust
 import NCA.Spot
+import NCA.Batch

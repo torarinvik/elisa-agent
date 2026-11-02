@@ -45,6 +45,7 @@ run the Python tests with `uv run pytest`.
 | [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
 | [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
 | [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
+| [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `loader.LazyExpert.invoke_batch` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -326,6 +327,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [33.1](theory/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
 | [33.2](theory/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
 | [33.4](theory/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
+| [34.2](theory/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
 
 ## Native kernels
 
@@ -1791,3 +1793,20 @@ charged invocation with the largest report whose expert can climb, until
 the ledger is within `δ` (answer) or nothing can climb (abstain). Every
 round re-executes the whole route; experts other than the escalating ones
 are re-invoked unless the result cache serves them.
+
+## 34. Compiled routes
+
+`compile.compile_route(plan, available, demand)` checks that the plan has
+no slots (else `NotCompilable`) and returns a function from a batch of
+rows, one value per available type, to the answers. Each node is
+evaluated for the whole batch: `Given` is resolved per row as in the
+runtime; an `Apply` evaluates each argument only for the rows whose
+declared demand on it is not empty (the others pass `None`), then calls
+the expert's `invoke_batch(*columns)` once, or `invoke` per row if it has
+none; a `Map` flattens the elements of every row, with their element
+demands, evaluates the body on that one batch and regroups. An output
+that is a `Request` or generator raises `NotCompilable`. A compiled route
+records no messages, spends no budget, uses no result cache and keeps no
+risk ledger; `execute` remains the reference semantics. `LazyExpert`
+forwards `invoke_batch`, falling back to per-row invocation, and the
+arithmetic digit and operator readers batch their forward pass.

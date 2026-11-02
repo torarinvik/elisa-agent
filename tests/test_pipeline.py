@@ -360,3 +360,26 @@ def test_relevant_risk_charges_each_reader_only_where_the_parser_reads_it() -> N
         assert plain == pytest.approx(glyphs * 0.03)
         assert relevant == pytest.approx((glyphs + 1) / 2 * 0.02 + (glyphs - 1) / 2 * 0.01)
     assert route_risk(route, rate, 4, relevant=True) == 0.0  # Even lengths are never parsed.
+
+
+def test_compiled_pipeline_equals_the_runtime() -> None:
+    from nca.compile import compile_route
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.abi import Message
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    torch.manual_seed(0)
+    digit, operator = DigitRecognizer(digit_net()), SymbolRecognizer(op_net())
+    glyphs = [torch.rand(28, 28) for _ in range(5)]
+    for reader in (digit, operator):
+        for glyph, row in zip(glyphs, reader.invoke_batch(glyphs)):
+            assert row == pytest.approx(reader.invoke(glyph), abs=1e-6)
+    graph = compose_plan(build_registry(digit, operator))
+    rng = np.random.default_rng(1)
+    images = [torch.from_numpy(compose([render_operator(op, rng) for op in ops], ("1", "+", "2"),
+                                       rng).image)
+              for ops in (("+", "*", "-"), ("-", "+", "*"), ("*", "*", "+"))]
+    expected = [execute(graph, [Message(EXPRESSION_IMAGE, image, "input")], Workspace(),
+                        1000).payload for image in images]
+    assert compile_route(graph, (EXPRESSION_IMAGE,))([(image,) for image in images]) == expected
