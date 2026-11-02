@@ -1992,3 +1992,13 @@ deterministic. These proposals have no persistent object identity or risk
 certificate. `modal_decoder_optimal` proves empirical optimality conditional
 on per-key maximal counts. Tests exhaustively compare a small fitted table
 with all alternatives and exercise held-out selection, unseen keys and slots.
+
+`discovery.joint_features` (§36.5) enumerates feature subsets in increasing size
+and input order, bounded explicitly by `max_size` and `limit`. `JointFeature`
+constructs left-associated structural product interfaces, calling both components
+on the same inputs and fillings in order. Declared feature costs plus `pair_cost`
+add, as do known affine slot calls; expected counts fall back to worst-case
+counts per component. Missing counts or effects remain unknown. Feeding these
+features to `propose_decoders` searches decompositions not supplied as complete
+interfaces. `joint_decoder_simulates` proves exact prediction preservation for
+a decoder projecting one component; held-out improvement remains empirical.

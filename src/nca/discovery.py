@@ -6,9 +6,10 @@ import math
 from collections import Counter
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from itertools import combinations
 from typing import Any
 
-from nca.abi import Contract, Manifest, Module
+from nca.abi import Calls, Contract, Manifest, Module
 from nca.objects import Constructor, Ref, Store
 from nca.packages import install
 from nca.router import sign_test
@@ -73,6 +74,65 @@ class Decoded:
 
     def invoke(self, *inputs: Any) -> Hashable:
         return self.decoder.invoke(self.feature.invoke(*inputs))
+
+
+class JointFeature:
+    """An ordered structural product of two features over the same inputs."""
+
+    def __init__(self, left: Module, right: Module, pair_cost: float) -> None:
+        a, b = left.manifest, right.manifest
+        if replace(a.contract, output=b.contract.output) != b.contract:
+            raise ValueError("joint features must share inputs, slots and relevance")
+        self.left, self.right = left, right
+
+        def calls(expected: bool) -> tuple[Calls, ...]:
+            counts = [(m.expected_calls if expected and m.expected_calls is not None else m.calls)
+                      for m in (a, b)]
+            if any(len(count) != len(a.contract.slots) for count in counts):
+                return ()  # Never invent counts for undeclared slot usage.
+            return tuple(Calls(x.fixed + y.fixed, x.per_element + y.per_element)
+                         for x, y in zip(*counts, strict=True))
+
+        effects = None if a.effects is None or b.effects is None else a.effects | b.effects
+        self.manifest = Manifest(
+            f"joint({a.ref},{b.ref})", "1",
+            replace(a.contract, output=f"pair[{a.contract.output},{b.contract.output}]"),
+            cost=a.cost + b.cost + pair_cost, calls=calls(False),
+            expected_calls=calls(True) or None, effects=effects)
+
+    def invoke(self, *inputs: Any) -> tuple[Any, Any]:
+        return self.left.invoke(*inputs), self.right.invoke(*inputs)
+
+
+def joint_features(features: Sequence[Module], *, max_size: int, limit: int,
+                   pair_cost: float) -> list[Module]:
+    """Enumerate nonempty feature subsets, smallest first, up to explicit bounds.
+
+    Singletons preserve the supplied order. Larger subsets use index order and
+    left-associated pairs, deriving structural interfaces automatically (§36.5).
+    Feed the result to propose_decoders within the training callback. A limit
+    truncates search deterministically; it does not establish exhaustiveness.
+    All supplied features must share inputs, slots and relevance. Repeated
+    evaluation is intentional; no purity or cacheability is inferred.
+    """
+    if max_size < 1 or limit < 1:
+        raise ValueError("joint search bounds must be positive")
+    if not math.isfinite(pair_cost) or pair_cost < 0:
+        raise ValueError("pair cost must be finite and nonnegative")
+    features = tuple(features)
+    if features and any(replace(f.manifest.contract, output=features[0].manifest.contract.output)
+                        != features[0].manifest.contract for f in features):
+        raise ValueError("joint features must share inputs, slots and relevance")
+    candidates = []
+    for size in range(1, min(max_size, len(features)) + 1):
+        for subset in combinations(features, size):
+            feature = subset[0]
+            for other in subset[1:]:
+                feature = JointFeature(feature, other, pair_cost)
+            candidates.append(feature)
+            if len(candidates) == limit:
+                return candidates
+    return candidates
 
 
 def propose_decoders(incumbent: Module, features: Sequence[Module],

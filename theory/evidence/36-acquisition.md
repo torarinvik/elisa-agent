@@ -94,3 +94,27 @@ for each representation. The feature family and its type meanings are still
 supplied; this construction does not invent a feature space or new type meaning.
 An inadequate feature irreversibly loses information, while an overly specific
 one can memorize training pairs and generalize poorly.
+
+## 36.5 Searching joint representations
+
+For feature experts `f : X → A` and `g : X → B`, their joint representation is
+`h(x) = (f(x), g(x)) : A × B`. Its interface is a structural product of the
+existing feature types, not a claim of semantic equivalence or a new primitive
+meaning. Repeated pairing represents any finite nonempty subset of features.
+Enumerate subsets in increasing size, freeze them using training data alone,
+fit the decoders of §36.4, then select using §36.3. The subset size and total
+candidate count are explicit search resource bounds; enumeration can be
+exponential in the number of available features.
+
+**Proposition 36.5 (joint representation can simulate a component).** For
+any decoder `d : A → Y`, the decoder `d'(a,b) = d(a)` satisfies
+`d'(h(x)) = d(f(x))` for every `x`. Thus the optimal empirical decoder for a
+joint representation cannot have fewer training successes than a decoder
+using its first component, by Theorem 36.4. This does not imply better
+held-out performance: a joint table can have many more unseen keys.
+
+Joint feature execution calls both components on the same inputs and slot
+fillings, in order. Declared costs and known slot-call counts add; effects
+are their union when both are declared, otherwise unknown. Stateful features
+need extra care: this construction does not make calls commute or preserve
+a feature's behavior across separate training and evaluation invocations.

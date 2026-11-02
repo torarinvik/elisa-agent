@@ -57,4 +57,11 @@ theorem modal_decoder_optimal {K L : Type*} (keys : Finset K)
     ∑ k ∈ keys, count k (alternative k) ≤ ∑ k ∈ keys, count k (mode k) := by
   exact Finset.sum_le_sum fun k hk => maximal k hk (alternative k)
 
+/-- A decoder on the first component is also a decoder on the joint
+representation, with exactly the same predictions (Proposition 36.5). -/
+theorem joint_decoder_simulates {X A B Y : Type*}
+    (f : X → A) (g : X → B) (d : A → Y) :
+    (fun x => (fun ab : A × B => d ab.1) (f x, g x)) = (fun x => d (f x)) := by
+  rfl
+
 end NCA

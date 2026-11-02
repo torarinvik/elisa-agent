@@ -7,8 +7,9 @@ from typing import Any
 
 import pytest
 
-from nca.abi import Contract, Manifest
-from nca.discovery import Decoded, Proposal, discover, discover_packages, propose_decoders
+from nca.abi import Calls, Contract, Manifest
+from nca.discovery import (Decoded, JointFeature, Proposal, discover, discover_packages,
+                           joint_features, propose_decoders)
 from nca.objects import Composite, Constructor, Primitive, Store
 from nca.packages import install
 
@@ -255,3 +256,58 @@ def test_decoder_proposals_preserve_multi_input_slots_and_reject_bad_contracts()
         propose_decoders(Constant(), [], [], [], decoder_cost=1)
     with pytest.raises(ValueError, match="slot fillings"):
         propose_decoders(Constant(), [], [()], ["a"], decoder_cost=1)
+
+
+def test_joint_search_discovers_information_absent_from_single_features() -> None:
+    rows = [((i % 2, (i // 2) % 2, (i // 4) % 2),) for i in range(256)]
+    labels = ["same" if row[0][0] == row[0][1] else "different" for row in rows]
+    features = [Feature(Contract(("source",), f"component{i}"),
+                        lambda value, index=i: value[index]) for i in range(3)]
+
+    def propose(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        candidates = joint_features(features, max_size=2, limit=6, pair_cost=0.1)
+        return propose_decoders(Constant(), candidates, train, targets, decoder_cost=0.1)
+
+    result = discover(Constant(), propose, rows, labels, lambda a, b: a == b)
+    assert [sum(t.outcomes) for t in result.trials] == [64, 64, 64, 128, 64, 64]
+    assert result.chosen is result.trials[3].proposal
+    expert = result.chosen.expert
+    assert isinstance(expert, Decoded)
+    assert expert.decoder.manifest.contract.inputs == ("pair[component0,component1]",)
+
+
+def test_joint_search_limits_order_and_three_component_interfaces() -> None:
+    features = [Feature(Contract(("source",), f"part{i}"),
+                        lambda value, index=i: value[index]) for i in range(3)]
+    candidates = joint_features(features, max_size=3, limit=7, pair_cost=0.5)
+    assert candidates[:3] == features
+    assert candidates[-1].manifest.contract.output == "pair[pair[part0,part1],part2]"
+    assert candidates[-1].invoke(("a", "b", "c")) == (("a", "b"), "c")
+    assert candidates[-1].manifest.cost == 4.0
+    assert len(joint_features(features, max_size=100, limit=4, pair_cost=0)) == 4
+    assert joint_features([], max_size=1, limit=1, pair_cost=0) == []
+    with pytest.raises(ValueError, match="positive"):
+        joint_features(features, max_size=0, limit=4, pair_cost=0)
+    with pytest.raises(ValueError, match="finite"):
+        joint_features(features, max_size=2, limit=4, pair_cost=float("nan"))
+    with pytest.raises(ValueError, match="share inputs"):
+        joint_features([features[0], Feature(Contract(("other",), "part"), lambda x: x)],
+                       max_size=1, limit=1, pair_cost=0)
+
+
+def test_joint_features_sum_slot_usage_and_keep_unknown_declarations_unknown() -> None:
+    contract = Contract(("source",), "left", ((("source",), "source"),))
+    left = Feature(contract, lambda f, x: f(x))
+    right = Feature(replace(contract, output="right"), lambda f, x: f(x))
+    left.manifest = replace(left.manifest, calls=(Calls(1, 2),),
+                            expected_calls=(Calls(0.5, 1),), effects=frozenset({"read"}))
+    right.manifest = replace(right.manifest, calls=(Calls(3, 4),), effects=frozenset({"write"}))
+    joint = JointFeature(left, right, 0.25)
+    assert joint.invoke(lambda x: x + 1, 2) == (3, 3)
+    assert joint.manifest.calls == (Calls(4, 6),)
+    assert joint.manifest.expected_calls == (Calls(3.5, 5),)
+    assert joint.manifest.effects == frozenset({"read", "write"})
+    right.manifest = replace(right.manifest, calls=(), effects=None)
+    unknown = JointFeature(left, right, 0)
+    assert unknown.manifest.calls == () and unknown.manifest.expected_calls is None
+    assert unknown.manifest.effects is None
