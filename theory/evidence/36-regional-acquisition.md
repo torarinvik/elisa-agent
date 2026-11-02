@@ -126,3 +126,22 @@ there are exactly `1+Σmᵢ` such assignment states; bound frontier pops by this
 count plus the requested joint-candidate budget. This does not bound trainer
 costs or prove heap enumeration. Stable models/scoring and independent selection
 remain necessary; refusing an expert on training data is not a generalization proof.
+
+## 36.33 Bounded refinement inside unresolved regions
+
+After fitting a region's direct alternatives, choose the training-best seed
+among them and the incumbent (cost then stable order break ties). If that seed
+still has training errors and a refinement-call budget remains, invoke a supplied
+refiner with the seed, the complete regional training subset and original targets.
+Append its contract-preserving proposals rather than overwriting direct ones;
+carry the seed's constructor declarations into them. Perfect training seeds
+consume no refinement call. Empty direct families may still refine the incumbent.
+The budget counts outer refiner calls, not arbitrary computation inside callbacks;
+measurement searches each have their own budget, and allocation is greedy.
+
+A refiner may itself propose a regional decomposition, creating a hierarchy.
+Nested pure gates with the same fallback act on the intersection of their
+regions; Lean proves this special-case identity, not learned-boundary accuracy,
+seed quality or held-out improvement. Existing regional artifacts can represent
+such dependencies after child components are retained. Stable models/samples,
+faithful callbacks and independent whole-task selection remain assumptions.

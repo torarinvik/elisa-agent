@@ -260,4 +260,12 @@ theorem regional_fallback_score (baseline offered : ℕ) :
   · have weak : offered ≤ baseline := le_of_not_gt better
     simp [better, max_eq_left weak]
 
+/-- Nested pure gates sharing a fallback specialize only their intersection.
+This does not prove how learned regions or specialists are selected. -/
+theorem nested_refinement_scope {Y : Type*} (outer inner : Prop)
+    [Decidable outer] [Decidable inner] (fallback specialist : Y) :
+    (if outer then (if inner then specialist else fallback) else fallback) =
+      (if outer ∧ inner then specialist else fallback) := by
+  by_cases h : outer <;> simp [h]
+
 end NCA

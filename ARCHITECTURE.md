@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.32) are described in the
+Regional acquisition and composition (§§36.26–36.33) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2297,3 +2297,11 @@ partial compositions directly. Baseline/single assignments are skipped with a
 finite pop allowance before emitting bounded joint candidates. `regional_fallback_score`
 proves the one-alternative empirical maximum identity, not generalization or
 best-first enumeration. Omitted experts contribute no policy dependency or cost.
+
+The optional `RegionalRefiner` hook (§36.33) receives the best regional training
+seed only when errors remain. `max_refinements` bounds calls per regional search
+(per measurement in failure-partition search); callbacks own internal budgets.
+Direct alternatives remain available, and seed constructor declarations propagate
+into refined proposals. Existing regional runtimes support nested results.
+`nested_refinement_scope` proves the pure shared-fallback intersection identity,
+not automatic discovery of a refiner or held-out improvement.

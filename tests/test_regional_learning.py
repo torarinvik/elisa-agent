@@ -310,3 +310,109 @@ def test_skipped_baseline_and_singles_do_not_consume_joint_output_budget() -> No
     assert len(proposals) == 3
     assert set(proposals[-1].expert.specialists) == {"a", "b"}
     assert proposals[-1].expert.invoke(("a", 10)) == 2
+
+
+def test_refinement_targets_only_the_unsolved_region_with_its_best_seed() -> None:
+    from nca.numeric_learning import midpoint_boundary
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
+    feature = Expert(Manifest("coarse", "1", replace(CONTRACT, output="region")),
+                     lambda x: 0 if x < -0.33 else 1 if x < 0.33 else 2)
+    reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
+    rows = [(i / 100,) for i in range(-100, 101)]
+    labels = [2 * x - 1 if x < -0.33 else 2 * x + 1 if x < 0.33
+              else 3 * x + 1 if x >= 0.9 else x for x, in rows]
+    refined = []
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        return [Proposal(fit_affine(CONTRACT, [r[0] for r in train], targets, cost=1))]
+
+    def refine(seed: Any, train: Any, targets: Any) -> list[Proposal]:
+        refined.append((seed, tuple(train), tuple(targets)))
+        return propose_failure_partitions(seed, [reading], acquire, train, targets,
+                    lambda a, b: abs(a - b) < 1e-9, max_measurements=1, max_regions=1,
+                    encoding_cost=0, overhead_cost=0, place_boundary=midpoint_boundary)
+
+    proposals = propose_regional_experts(incumbent, feature, acquire, rows, labels,
+                lambda a, b: abs(a - b) < 1e-9, max_regions=3, overhead_cost=0,
+                max_combinations=1, refine=refine, max_refinements=1)
+    expected = [(r, y) for r, y in zip(rows, labels) if r[0] >= 0.33]
+    assert refined == [(incumbent, tuple(r for r, _ in expected), tuple(y for _, y in expected))]
+    model = proposals[-1].expert
+    inner = model.specialists[2]
+    assert abs(inner.feature.boundary - 0.9) < 0.01
+    assert model.invoke(0.5) == 0.5
+    assert model.invoke(0.95) == pytest.approx(3.85)
+    assert model.invoke(-0.8) == pytest.approx(-2.6)
+    assert len(proposals[-1].constructors) == 1
+
+
+def test_refinement_budget_applies_even_without_direct_alternatives() -> None:
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    feature = Expert(Manifest("feature", "1", replace(CONTRACT, output="key")), lambda x: x)
+    seen = []
+
+    def refine(seed: Any, rows: Any, labels: Any) -> list[Proposal]:
+        seen.append((seed, tuple(rows), tuple(labels)))
+        return [Proposal(Expert(Manifest("replacement", "1", CONTRACT), lambda x: 1))]
+
+    proposals = propose_regional_experts(incumbent, feature, lambda rows, labels: [],
+                [(0,), (1,), (2,)], [1, 1, 1], lambda a, b: a == b,
+                max_regions=3, overhead_cost=0, refine=refine, max_refinements=1)
+    assert seen == [(incumbent, ((0,),), (1,))]
+    assert len(proposals) == 1
+    with pytest.raises(ValueError, match="requires a refiner"):
+        propose_regional_experts(incumbent, feature, lambda rows, labels: [],
+                                [(0,)], [1], lambda a, b: a == b,
+                                max_regions=1, overhead_cost=0, max_refinements=1)
+
+
+def test_refined_proposals_carry_seed_and_new_constructor_declarations() -> None:
+    from nca.numeric_learning import midpoint_boundary, propose_partition
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    feature = Expert(Manifest("coarse", "1", replace(CONTRACT, output="key")), lambda x: 0)
+    reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
+    rows, labels = [(-2.0,), (-1.0,), (1.0,), (2.0,)], [1, 1, 2, 3]
+    seeds = []
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        return propose_partition(incumbent, reading, train, targets, encoding_cost=0, decoder_cost=1)
+
+    def refine(seed: Any, train: Any, targets: Any) -> list[Proposal]:
+        seeds.append(seed)
+        return propose_failure_partitions(seed, [reading],
+                    lambda rows, labels: [Proposal(Expert(Manifest("leaf", "1", CONTRACT),
+                                                          lambda x: labels[0]))],
+                    train, targets, lambda a, b: a == b, max_measurements=1, max_regions=1,
+                    encoding_cost=0, overhead_cost=0, place_boundary=midpoint_boundary)
+
+    proposals = propose_regional_experts(incumbent, feature, acquire, rows, labels,
+                lambda a, b: a == b, max_regions=1, overhead_cost=0,
+                refine=refine, max_refinements=1)
+    assert len(seeds) == 1 and seeds[0] is not incumbent
+    assert len(proposals[-1].constructors) == 2
+    assert proposals[-1].constructors[0] == seeds[0].feature.constructor
+    assert [proposals[-1].expert.invoke(*r) for r in rows] == labels
+
+
+def test_learned_failure_routing_forwards_the_refinement_budget() -> None:
+    from nca.numeric_learning import midpoint_boundary
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
+    seen = []
+
+    def refine(seed: Any, rows: Any, targets: Any) -> list[Proposal]:
+        seen.append((seed, tuple(rows), tuple(targets)))
+        return [Proposal(Expert(Manifest("replacement", "1", CONTRACT), lambda x: 1))]
+
+    proposals = propose_failure_partitions(incumbent, [reading], lambda rows, labels: [],
+                [(-2.0,), (-1.0,), (1.0,), (2.0,)], [0, 0, 1, 1], lambda a, b: a == b,
+                max_measurements=1, max_regions=1, encoding_cost=0, overhead_cost=0,
+                place_boundary=midpoint_boundary, refine=refine, max_refinements=1)
+    assert seen == [(incumbent, ((1.0,), (2.0,)), (1, 1))]
+    assert len(proposals) == 1 and proposals[0].expert.invoke(0.5) == 1

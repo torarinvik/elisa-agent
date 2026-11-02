@@ -11,6 +11,9 @@ from nca.discovery import Proposal, _total_calls
 from nca.numeric_learning import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
 
+RegionalRefiner = Callable[[Module, Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Proposal]]
+
+
 class RegionalPolicy:
     """One routing evaluation dispatches to a specialist or the incumbent."""
 
@@ -86,7 +89,8 @@ def propose_regional_experts(incumbent: Module, feature: Module,
         propose: Callable[[Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Proposal]],
         rows: Sequence[tuple[Any, ...]], labels: Sequence[Any],
         correct: Callable[[Any, Any], bool], *, max_regions: int,
-        overhead_cost: float, max_combinations: int = 0) -> list[Proposal]:
+        overhead_cost: float, max_combinations: int = 0,
+        refine: RegionalRefiner | None = None, max_refinements: int = 0) -> list[Proposal]:
     """Train replacements in error-bearing regions using training rows only (§36.26).
 
     Rank by error count, ties by first occurrence; this is not optimal allocation.
@@ -100,10 +104,17 @@ def propose_regional_experts(incumbent: Module, feature: Module,
     Scoring uses original regional training targets only; ties prefer lower
     incremental declared cost then stable family order. An explicit fallback
     choice leaves each region with the incumbent; omit baseline/single choices
-    already offered separately (§36.32). Held-out selection remains separate.
+    already offered separately (§36.32). An optional refiner receives the best
+    local seed only when training errors remain, up to max_refinements calls
+    (§36.33). Perfect training fit is not a generalization claim. Held-out
+    selection remains separate; callbacks own their internal work budgets.
     """
     if type(max_combinations) is not int or max_combinations < 0:
         raise ValueError("combination budget must be a nonnegative integer")
+    if type(max_refinements) is not int or max_refinements < 0:
+        raise ValueError("refinement budget must be a nonnegative integer")
+    if max_refinements and refine is None:
+        raise ValueError("a positive refinement budget requires a refiner")
     if type(max_regions) is not int or max_regions < 1:
         raise ValueError("region budget must be a positive integer")
     if not rows or len(rows) != len(labels):
@@ -124,14 +135,30 @@ def propose_regional_experts(incumbent: Module, feature: Module,
     selected = sorted((key for key in groups if errors[key]), key=lambda key: -errors[key])
     proposals = []
     alternatives = []
+    refinement_calls = 0
     for key in selected[:max_regions]:
         indices = groups[key]
-        local = tuple(propose(tuple(rows[i] for i in indices), tuple(labels[i] for i in indices)))
-        if local:
-            alternatives.append((key, local))
+        subset, targets = tuple(rows[i] for i in indices), tuple(labels[i] for i in indices)
+        local = tuple(propose(subset, targets))
         for candidate in local:
             expert = RegionalExpert(incumbent, feature, key, candidate.expert, overhead_cost)
             proposals.append(Proposal(expert, candidate.constructors))
+        if refine is not None and refinement_calls < max_refinements:
+            seeds = [(len(indices) - errors[key], Proposal(incumbent))]
+            seeds.extend((sum(bool(correct(candidate.expert.invoke(*row), target))
+                              for row, target in zip(subset, targets, strict=True)), candidate)
+                         for candidate in local if candidate.expert is not incumbent)
+            successes, seed = min(seeds, key=lambda item: (-item[0], item[1].expert.manifest.cost))
+            if successes < len(indices):
+                refinement_calls += 1
+                extra = tuple(Proposal(p.expert, seed.constructors + p.constructors, p.package)
+                              for p in refine(seed.expert, subset, targets))
+                for candidate in extra:
+                    expert = RegionalExpert(incumbent, feature, key, candidate.expert, overhead_cost)
+                    proposals.append(Proposal(expert, candidate.constructors))
+                local += extra
+        if local:
+            alternatives.append((key, local))
     if len(alternatives) > 1 and max_combinations:
         keys = tuple(key for key, _ in alternatives)
         ranked = []
@@ -171,7 +198,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         encoding_cost: float, overhead_cost: float,
         place_boundary: Callable[[float, float], float] | None = None,
         routing_regions: int = 2, tie_break: SplitTieBreak | None = None,
-        max_combinations: int = 0) -> list[Proposal]:
+        max_combinations: int = 0, refine: RegionalRefiner | None = None,
+        max_refinements: int = 0) -> list[Proposal]:
     """Learn routing cuts from training failures, then acquire task specialists (§36.27).
 
     Measurements are finite-float experts with the original external inputs.
@@ -182,9 +210,14 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     This family learns scalar cuts, not measurement implementations. An explicit
     routing_regions budget permits interval refinement (§36.28); tie_break is a
     pure secondary score over read-only label histograms, with modal accuracy primary.
+    Each measurement search has its own max_refinements call budget.
     """
     if type(max_combinations) is not int or max_combinations < 0:
         raise ValueError("combination budget must be a nonnegative integer")
+    if type(max_refinements) is not int or max_refinements < 0:
+        raise ValueError("refinement budget must be a nonnegative integer")
+    if max_refinements and refine is None:
+        raise ValueError("a positive refinement budget requires a refiner")
     if any(type(n) is not int or n < 1 for n in (max_measurements, max_regions, routing_regions)):
         raise ValueError("measurement and region budgets must be positive integers")
     if len(rows) < 2 or len(rows) != len(labels):
@@ -215,7 +248,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
             continue
         local = propose_regional_experts(incumbent, encoder, propose, rows, labels, correct,
                                          max_regions=max_regions, overhead_cost=overhead_cost,
-                                         max_combinations=max_combinations)
+                                         max_combinations=max_combinations, refine=refine,
+                                         max_refinements=max_refinements)
         proposals.extend(Proposal(candidate.expert, (encoder.constructor,) + candidate.constructors)
                          for candidate in local)
     return proposals
