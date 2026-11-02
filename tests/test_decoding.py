@@ -1691,6 +1691,18 @@ def test_parse_accepts_exactly_the_automaton_language() -> None:
         assert {a for a in itertools.product(ARITY_ORDER, repeat=m) if accepted(a)} == \
             set(parseable(m))
 
+@pytest.mark.parametrize("dtype", [np.int64, np.uint64, object])
+def test_array_parser_matches_reference_for_generic_and_invalid_sequences(dtype) -> None:
+    for length in range(1, 6):
+        for values in itertools.product(range(4), repeat=length):
+            arities = np.array(values, dtype=dtype)
+            before = arities.copy()
+            assert parse(arities) == decoding.parse_reference(values)
+            np.testing.assert_array_equal(arities, before)
+    too_large = np.array([2**64 - 1, 0], dtype=dtype) if dtype is not np.int64 else np.array([2**63 - 1, 0])
+    assert parse(too_large) is None
+
+
 def test_native_parser_matches_reference() -> None:
     if getattr(formulas._NATIVE, "parse_tree", None) is None:
         pytest.skip("native parser is not built")

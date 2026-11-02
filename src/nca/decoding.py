@@ -42,12 +42,18 @@ def parse(arities: Sequence[int]) -> list[list[int]] | None:
     """Parse a prefix formula, using a native parser when available."""
     if not _valid_arities(arities):
         return None
+    generic = getattr(_NATIVE, "parse_tree_generic", None)
+    if generic is not None and isinstance(arities, np.ndarray) and arities.ndim == 1:
+        result = generic(_native_format_symbols(arities, len(arities)))
+        if not result:
+            return None
+        offset = len(arities) + 1
+        return [result[offset + result[k]:offset + result[k + 1]] for k in range(len(arities))]
     native = getattr(_NATIVE, "parse_tree", None)
     if native is not None and all(a in (0, 1, 2) for a in arities):
         result = native(np.asarray(arities, dtype=np.int64))
         return ([[c for c in result[2 * k:2 * k + 2] if c >= 0]
                  for k in range(len(arities))] if result else None)
-    generic = getattr(_NATIVE, "parse_tree_generic", None)
     if generic is not None:
         if any(a > len(arities) - 1 for a in arities):
             return None
