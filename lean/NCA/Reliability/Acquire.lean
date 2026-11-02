@@ -139,4 +139,15 @@ theorem vector_adapter_composition_eq {X A Y I : Type*} (source : X → A)
   funext i
   exact aligned x i
 
+/-- A centroid-difference direction separates its two prototypes by their
+squared distance. This is not a separability claim for the training classes. -/
+theorem projection_prototype_gap {I : Type*} (indices : Finset I) (a b : I → ℝ) :
+    (∑ i ∈ indices, (b i - a i) * b i) -
+      (∑ i ∈ indices, (b i - a i) * a i) =
+      ∑ i ∈ indices, (b i - a i) ^ 2 := by
+  rw [← Finset.sum_sub_distrib]
+  apply Finset.sum_congr rfl
+  intro i _
+  nlinarith
+
 end NCA

@@ -396,3 +396,21 @@ or global embedding equivalence. Independent task outcomes must support keeping
 the adapter. Parameter artifacts retain the matrix and contract without a
 teacher implementation. This is an affine vector family, not arbitrary
 nonlinear representation alignment.
+
+## 36.20 Learned oblique intermediate partitions
+
+Given finite tuple-vector observations and opaque categorical targets, estimate
+one centroid per observed target. For each target pair within an explicit search
+budget, use their centroid difference as a projection direction, then fit the
+best observed scalar threshold and modal decoder as in §36.13. The learned
+projection parameters and threshold define new intermediate interfaces. Input
+dimension and target vocabulary come entirely from training observations.
+
+For prototypes a and b and d=b−a, the projected separation is
+`〈d,b〉−〈d,a〉 = Σᵢ (bᵢ−aᵢ)²`. Lean proves this finite real identity. It does
+not prove that class centroids separate their observations, floating-point
+accuracy, or generalization. Coincident centroids yield no direction; nonlinear
+or symmetric distinctions can be missed. Candidate order follows first target
+occurrence, and a budget truncates search without a completeness claim.
+Independent end-to-end selection must justify keeping any proposal. This is
+supervised acquisition of one representation family, not unrestricted invention.

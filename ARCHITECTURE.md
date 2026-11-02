@@ -2191,3 +2191,11 @@ training-teacher dependencies. NumPy's native least-squares backend supplies a
 minimum-norm solution for rank-deficient data; independent task selection is
 still required. `vector_adapter_composition_eq` proves conditional downstream
 agreement from exact coordinatewise alignment, not solver correctness.
+
+`projection_learning.propose_projections` (§36.20) learns budgeted centroid-pair
+projection directions from supplied tuple-vector measurements and opaque training
+targets. Each direction feeds the generic scalar partition learner, proposing
+two generated constructors plus an encoder/head route for independent selection.
+The current proposals are in-memory; no persistence or unrestricted nonlinear
+feature search is implied. `projection_prototype_gap` proves the finite-real
+prototype separation identity, with no floating-point or generalization claim.
