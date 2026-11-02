@@ -44,7 +44,7 @@ run the Python tests with `uv run pytest`.
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 | [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
 | [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
-| [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by` |
+| [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -325,6 +325,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [32.2](theory/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
 | [33.2](theory/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
+| [33.4](theory/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
 
 ## Native kernels
 
@@ -1778,3 +1779,15 @@ outputs a rung's calibrated distribution and reports `1 − max p`.
 `evidence.answer_within(plan, inputs, δ, exact)` answers only when the
 ledger is certified and at most `δ`, and `evidence.exact_by(store,
 issuers)` is an `exact` predicate from accepted exactness attestations.
+
+The ledger's `entries` record each charged invocation's expert, input
+values and report. `modules.refinement.Escalating(rungs, module_id)` holds
+reporting substitutes with one contract, cheapest first, answers each
+distinct input (by `value_digest`) at its level and reports the answering
+rung's risk; `refine(*values)` raises that input's level. Levels persist
+across calls, so an input once found hard starts higher next time.
+`evidence.refine_within` re-executes the route, each time raising the
+charged invocation with the largest report whose expert can climb, until
+the ledger is within `δ` (answer) or nothing can climb (abstain). Every
+round re-executes the whole route; experts other than the escalating ones
+are re-invoked unless the result cache serves them.

@@ -327,3 +327,25 @@ def answer_within(plan: Plan, inputs: Sequence[Message], delta: float,
     ledger = RiskLedger() if exact is None else RiskLedger(exact)
     answer = execute(plan, inputs, Workspace(), budget, resolver, ledger=ledger).payload
     return (answer if ledger.certified and ledger.charge <= delta else None), ledger
+
+
+def refine_within(plan: Plan, inputs: Sequence[Message], delta: float,
+                  exact: Callable[[Module], bool] | None = None, budget: int = 10_000,
+                  resolver: Resolver | None = None) -> tuple[Any, RiskLedger, int]:
+    """``answer_within`` with refinement (§33.3): while the ledger exceeds
+    ``delta``, raise the charged invocation with the largest report whose
+    expert can ``refine`` its inputs, and execute again. Returns the answer
+    (``None`` if no climb is left), the final ledger and the number of
+    executions, at most the bound of Theorem 33.3."""
+    executions = 0
+    while True:
+        answer, ledger = answer_within(plan, inputs, delta, exact, budget, resolver)
+        executions += 1
+        if not ledger.certified or ledger.charge <= delta:
+            return answer, ledger, executions
+        for module, values, _ in sorted(ledger.entries, key=lambda e: -e[2]):
+            climb = getattr(module, "refine", None)
+            if climb is not None and climb(*values):
+                break
+        else:
+            return None, ledger, executions

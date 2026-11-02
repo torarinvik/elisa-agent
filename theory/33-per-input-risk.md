@@ -45,3 +45,36 @@ The static bound of §31 remains the planner's estimate. The expected
 ledger total over inputs is at least the expected number of relevant
 failures, and when reports are exactly calibrated it equals the static
 charge computed from the same experts' in-situ rates.
+
+## 33.3 Refinement on any route
+
+When an input's ledger total exceeds `δ`, abstaining is not the only
+option. An *escalating* expert holds a ladder of substitutes (§16), cheap to
+dear, and answers each distinct input at that input's current level. The
+ledger records, for each charged invocation, the expert, its inputs and
+its report. *Refinement* repeats: execute; if the total is at most `δ`,
+answer; otherwise raise the level of the invocation with the largest
+report among those whose expert can still climb, and execute again; if
+none can, abstain.
+
+**Theorem 33.3 (termination).** Refinement executes the route at most
+`1 + Σ (hₑ − 1) · nₑ` times, where `hₑ` is the height of escalating expert
+`e`'s ladder and `nₑ` the number of distinct inputs it is invoked on.
+
+*Proof.* Every execution but the last raises one level of one pair
+(expert, input), and levels only rise and are bounded by the ladder
+heights. ∎
+
+**Theorem 33.4 (selective refinement on any route).** If every report is
+calibrated given everything observed, including the readings that led to
+the climbs, the error rate among inputs refinement answers is at most `δ`.
+
+*Proof.* An answer is given only when the final ledger total is at most
+`δ`; apply Theorem 33.2 to the final execution. ∎
+
+The premise is stronger than calibration of each rung on its own: the
+choice to climb depends on the cheaper readings, so the dearer rung's
+report must remain calibrated on the inputs that reach it, which is the
+in-situ condition of §31 at the level of single inputs. Climbing the
+largest report is the rule of §25 on any route, and as there it need
+not minimize compute.

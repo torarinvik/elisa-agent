@@ -118,6 +118,8 @@ class RiskLedger:
     charge: float = 0.0
     uncertified: list[str] = field(default_factory=list)
     """Experts invoked without a reported risk, by module id."""
+    entries: list[tuple[Module, tuple[Any, ...], float]] = field(default_factory=list)
+    """Each charged invocation: the expert, its input values and its report."""
 
     @property
     def certified(self) -> bool:
@@ -238,7 +240,7 @@ def execute(
         if key is not None:
             hit, stored = cache.lookup(key)
             if hit and not cache.sample():
-                account(node.module, stored, decision)
+                account(node.module, stored, decision, args)
                 result = Message(contract.output, stored, f"{manifest.ref}+cache", parents)
                 workspace.post(result)
                 return result
@@ -268,12 +270,13 @@ def execute(
                     f"{manifest.ref} requested {payload.type_id}, not its output {output}")
             pending = Pending(payload, manifest.module_id, manifest.ref, output, parents, chain)
             return Message(output, pending, manifest.ref, parents)
-        account(node.module, payload, decision)
+        account(node.module, payload, decision, args)
         result = Message(contract.output, payload, manifest.ref, parents)
         workspace.post(result)
         return result
 
-    def account(module: Module, payload: Any, decision: Demand) -> None:
+    def account(module: Module, payload: Any, decision: Demand,
+                args: Sequence[Message]) -> None:
         if (ledger is None or decision == NOTHING
                 or getattr(module, "accounts_inside", False)):
             return
@@ -281,6 +284,7 @@ def execute(
         reported = None if report is None else report(payload)
         if reported is not None:
             ledger.charge += reported
+            ledger.entries.append((module, tuple(a.payload for a in args), reported))
         elif not ledger.exact(module):
             ledger.uncertified.append(module.manifest.module_id)
 

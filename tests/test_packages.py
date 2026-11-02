@@ -10,7 +10,7 @@ import torch
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
 from nca.evidence import (benchmark, error_bound, evaluation, exact, rates, route_bound,
-                          route_risk, answer_within)
+                          route_risk, answer_within, refine_within)
 from nca.optimize import cheapest_within, plan_pareto
 from nca.ladder import CALIBRATION, Calibrated, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
@@ -425,3 +425,39 @@ def test_calibrated_experts_report_their_calibrated_risk() -> None:
     reading = calibrated.invoke(0)
     assert reading[1] == pytest.approx(0.7, abs=0.02)
     assert calibrated.risk(reading) == pytest.approx(1 - reading[1])
+
+
+class Rung1(Expert):
+    """A word reader that reports a fixed risk."""
+
+    def __init__(self, name: str, reported: float) -> None:
+        super().__init__(name, [WORD], INT, [])
+        self.reported = reported
+
+    def invoke(self, word: str) -> int:
+        return len(word)
+
+    def risk(self, output: int) -> float:
+        return self.reported
+
+
+def test_refinement_climbs_the_riskiest_invocation_on_any_route() -> None:
+    from nca.modules.refinement import Escalating
+
+    reader = Escalating([Rung1("cheap", 0.04), Rung1("dear", 0.001)], "reader")
+    modules = [Expert("split", [TEXT], seq_type(WORD), []), reader,
+               Expert("sum", [seq_type(INT)], INT, [])]
+    route = plan_stable(modules, (TEXT,), INT)
+
+    def exact_module(module: Any) -> bool:
+        return module.manifest.module_id in {"split", "sum"}
+
+    text = [Message(TEXT, "ab cd ab ef", "input")]
+    answer, ledger, executions = refine_within(route, text, 0.1, exact_module)
+    # Three distinct words: 0.16 > 0.1; climbing "ab" (read twice) gives 0.082.
+    assert answer == 8 and executions == 2
+    assert ledger.charge == pytest.approx(0.002 + 0.08)
+    # Levels persist: "ab" is already at the top, so two climbs remain, and
+    # with every word at the top (0.004) the target is out of reach.
+    answer, ledger, executions = refine_within(route, text, 0.003, exact_module)
+    assert answer is None and executions == 3
