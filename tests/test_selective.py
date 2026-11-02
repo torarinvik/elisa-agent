@@ -295,6 +295,20 @@ def test_native_restricted_ranked_selection_matches_reference(monkeypatch) -> No
     assert actual == [ladder_module._ranked_top(weights, indices) for weights, indices in cases]
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("outside", [10**400, "not-a-weight"])
+def test_restricted_ranked_selection_ignores_unconvertible_outside_weights(native, outside, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
+        pytest.skip("native indexed ranked selection kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    weights = tuple([0.5] * 31 + [outside])
+    observation = ladder_module.RankedObservation(torch.zeros(32), weights)
+    assert observation.top(tuple(range(16))) == 0
+
+
 def test_ranked_index_cache_respects_identity_and_mutable_lists() -> None:
     from nca import ladder as ladder_module
 

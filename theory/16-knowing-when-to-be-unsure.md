@@ -96,6 +96,8 @@ original weights for the selected classes. Ties, including all-zero restricted
 weights, retain the first supplied class. Weights outside the restriction do
 not participate in that selection. A scan that replaces its current choice
 only on strict improvement preserves the first choice on equal weights.
+Two weight assignments that agree at every listed class produce the same
+restricted weight sequence, regardless of their values outside the list.
 The selective controller passes ranked observations to consumers or fusers
 that opt in to preserving this choice; other consumers use numerical readings.
 

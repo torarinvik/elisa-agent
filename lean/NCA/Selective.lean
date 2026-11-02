@@ -166,6 +166,19 @@ theorem ranked_tie_keeps_first {α : Type*} (first candidate : α) (a b : ℝ)
     (equal : a = b) : (if b > a then candidate else first) = first := by
   simp [equal]
 
+/-- Gathering a restriction depends only on weights at its listed indices. -/
+theorem ranked_restriction_ext {ι α : Type*} (indices : List ι) (a b : ι → α)
+    (same : ∀ i ∈ indices, a i = b i) : indices.map a = indices.map b := by
+  induction indices with
+  | nil => rfl
+  | cons i rest ih =>
+      simp only [List.map_cons, List.cons.injEq]
+      constructor
+      · exact same i (List.mem_cons_self ..)
+      · apply ih
+        intro j hj
+        exact same j (List.mem_cons_of_mem _ hj)
+
 /-- Positive temperature preserves logit order; negative temperature reverses it. -/
 theorem temperature_rank (a b temperature : ℝ) :
     (0 < temperature → (a / temperature < b / temperature ↔ a < b)) ∧

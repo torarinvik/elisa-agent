@@ -233,12 +233,18 @@ def _ranked_top(weights: tuple[float, ...], classes: Sequence[int] | None) -> in
         else:
             native_indices = _ranked_index_array(indices)
         if native_indices is not None:
-            top = int(indexed_native(np.ascontiguousarray(weights, dtype=np.float64), native_indices))
-            if top == -1:
-                raise ValueError("classes must contain valid class indices")
-            if top == -2:
-                raise ValueError("ranked weights must be finite and nonnegative")
-            return top
+            try:
+                native_weights = np.ascontiguousarray(weights, dtype=np.float64)
+            except (TypeError, ValueError, OverflowError):
+                # Unselected weights need not be convertible to binary64.
+                native_weights = None
+            if native_weights is not None:
+                top = int(indexed_native(native_weights, native_indices))
+                if top == -1:
+                    raise ValueError("classes must contain valid class indices")
+                if top == -2:
+                    raise ValueError("ranked weights must be finite and nonnegative")
+                return top
     if (len(weights) == 0 or (indices is not None and
             (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
                                 or not 0 <= i < len(weights) for i in indices)))):

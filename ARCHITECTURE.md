@@ -150,7 +150,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `calibrated_difference_rescale` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `ranked_restriction_ext`, `calibrated_difference_rescale` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
@@ -938,11 +938,12 @@ numeric readings may still tie, so the consumer must use the same ranked
 choice. `ranked_argmax_checked` validates selected weights in Elisa; older
 kernels use the validated Python fallback. For larger restrictions,
 `ranked_argmax_indices_checked` also validates indices and gathers weights in
-Elisa; sparse restrictions retain the existing path. Immutable built-in integer
-tuples cache read-only index arrays by identity, with at most 128 entries
-(not a byte limit);
-mutable inputs are copied and validated on each call. The selective controller propagates it to consumers and fusers that
-explicitly support the handoff.
+Elisa; sparse restrictions retain the existing path. If unselected weights
+cannot be converted to binary64, selection gathers only the selected weights.
+Immutable built-in integer tuples cache read-only index arrays by identity,
+with at most 128 entries, not a byte limit. Mutable inputs are copied and
+validated on each call. The selective controller propagates ranked readings
+to consumers and fusers that explicitly support the handoff.
 Positive unnormalized weights are accepted; neither validation nor smoothing
 is a calibration guarantee. Native double arithmetic can change rounding.
 
