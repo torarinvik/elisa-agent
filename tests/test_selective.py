@@ -3171,6 +3171,41 @@ def test_batched_default_account_preserves_custom_risk() -> None:
     assert result.bound == 4.0
 
 
+def test_batched_refinement_preserves_ranked_selection_after_log_tie(monkeypatch) -> None:
+    import nca.ladder as ladder_module
+
+    native = ladder_module._NATIVE
+    kernel = getattr(native, "calibrated_risk_rows_into", None)
+    if kernel is None or getattr(native, "calibrated_risk_for_reading_checked", None) is None:
+        pytest.skip("native risk kernels unavailable")
+
+    calls = []
+    class NativeProxy:
+        def __getattr__(self, name):
+            if name == "calibrated_risk_rows_into":
+                def measured(*args):
+                    calls.append(True)
+                    return kernel(*args)
+                return measured
+            return getattr(native, name)
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", NativeProxy())
+    low = 1e-300
+    high = math.nextafter(low, math.inf)
+    rung = Rung(constant("ranked-refinement-tie", (1.0, low, high, 1e-301), 1.0))
+    decision = ((1, 3), (2,))
+    observation = rung.observe_ranked(None)
+    assert observation.logits[1] == observation.logits[2]
+    risk = rung.risk(observation, decision)
+    values = [None] * 16
+    ladders = [[rung]] * len(values)
+    ranked = refine(values, ladders, math.inf, classes=[decision] * 16, ranked=True)
+    numerical = refine(values, ladders, math.inf, classes=[decision] * 16)
+    assert calls == [True, True]
+    assert ranked.bound == ladder_module._upper_sum([risk] * len(values))
+    assert ranked.bound != numerical.bound
+
+
 def test_batched_default_account_leaves_missing_calibration_unavailable() -> None:
     low = Rung(constant("batch-uncalibrated-decision", (0.5, 0.3, 0.2), 1.0))
     low.held_out = (torch.zeros((1, 3), dtype=torch.float64), torch.tensor([2]))
