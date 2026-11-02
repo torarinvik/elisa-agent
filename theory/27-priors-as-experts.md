@@ -327,7 +327,9 @@ transition sum. The normalizer can enumerate only the nonzero symbols in
 their original order without changing that recurrence. The same filtering
 applies to both selected and alternative partition updates. If a reading row has
 no nonzero symbols, or no states remain reachable, all complete paths have
-zero weight and the normalizer can stop. The separate selected/alternative
+zero weight and both the normalizer and maximum-only search can stop. The
+maximum search also skips zero-weight reading symbols in their original order,
+preserving strict-tie traversal. The separate selected/alternative
 partition can likewise stop when both parts have zero mass; either part alone
 may still produce a path and cannot be discarded.
 

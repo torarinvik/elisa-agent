@@ -1305,6 +1305,24 @@ def test_prior_best_matches_full_decoder_ties_and_zero_support(
     with pytest.raises(ValueError):
         prior.best(np.ones((3, 2)))
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_best_preserves_sparse_wide_ties(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = tuple(reversed(range(64)))
+    prior = priors.ArityPrior(alphabet, np.zeros((1, 64), dtype=np.int64),
+                              np.zeros((1, 64)), np.zeros(1))
+    rows = np.full((8, 64), -np.inf)
+    rows[:, [1, 5, 40]] = 0.0
+    decoded = prior.decode(rows)
+    assert decoded is not None
+    assert prior.best(rows) == decoded.arities == (alphabet[1],) * len(rows)
+    rows[4] = -np.inf
+    assert prior.best(rows) is None
+    rows[0] = -np.inf
+    assert prior.best(rows) is None
+
+
 def test_native_prior_best_does_not_compute_unused_posteriors(
         monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(priors._NATIVE, "prior_best", None) is None:

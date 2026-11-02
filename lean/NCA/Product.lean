@@ -68,6 +68,18 @@ def pdpMax : List (α → ℝ) → σ → τ → ℝ
   | [], s, t => if F s then f t else 0
   | w :: ws, s, t => (as.map fun a => w a * v t a * pdpMax ws (δ s a) (ε t a)).foldr max 0
 
+/-- A zero reading row also makes every maximum path weight zero. -/
+theorem pdpMax_zero_row (front suffix : List (α → ℝ)) (s : σ) (t : τ) :
+    pdpMax δ F as ε v f (front ++ (fun _ => 0) :: suffix) s t = 0 := by
+  have zero_fold : ∀ n : ℕ, (List.replicate n (0 : ℝ)).foldr max 0 = 0 := by
+    intro n
+    induction n with
+    | zero => simp
+    | succ n ih => simp [List.replicate, ih]
+  induction front generalizing s t with
+  | nil => simp [pdpMax, zero_fold]
+  | cons w rest ih => simp [pdpMax, ih, zero_fold]
+
 theorem score_nil_mul_prior (s : σ) (t : τ) :
     score δ F [] s [] * prior ε v f t [] = if F s then f t else 0 := by
   rw [score_nil]

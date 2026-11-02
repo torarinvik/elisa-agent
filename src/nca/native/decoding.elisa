@@ -769,11 +769,24 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
     m: i64 = log_probs.len.i64() / width
     unreachable: f64 = log(0.0)
     return [] if m == 0
+    first_present: bool =
+        for j in 0..<width |found: bool = false| -> found:
+            if log_probs[j] != unreachable:
+                found <- true
+                break
+    return [] if not first_present
     rows, choice, bounds =
-        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start, start, 0, -1]| -> (rows, choice, bounds):
+        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start, start, 0, -1], active: darray[i64] = [0 for _ in 0..<width]| -> (rows, choice, bounds):
+            here_bound: i64 = (k % 2) * 2
+            return [] if bounds[here_bound] > bounds[here_bound + 1]
+            active_count: i64 =
+                for j in 0..<width |count: i64 = 0, active| -> count:
+                    if log_probs[k * width + j] != unreachable:
+                        active[count] <- j
+                        count += 1
+            return [] if active_count == 0
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            here_bound: i64 = (k % 2) * 2
             next_bound: i64 = ((k + 1) % 2) * 2
             for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:
                 rows[next + state] <- log(0.0)
@@ -781,13 +794,14 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
             bounds[next_bound + 1] <- -1
             for state in bounds[here_bound]..<(bounds[here_bound + 1] + 1) |rows, choice, bounds|:
                 continue if rows[here + state] == log(0.0)
-                for j in 0..<width |rows, choice, bounds|:
+                for position in 0..<active_count |rows, choice, bounds|:
+                    j: i64 = active[position]
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
-                    continue if reading == unreachable or edge_weight == unreachable
+                    continue if edge_weight == unreachable
                     weight: f64 = partition_log_product(reading, edge_weight)
                     return [] if weight != weight
                     candidate: f64 = partition_log_product(rows[here + state], weight)
