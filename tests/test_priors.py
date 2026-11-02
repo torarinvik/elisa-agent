@@ -1,5 +1,6 @@
 import copy
 import itertools
+import math
 import pickle
 from types import SimpleNamespace
 from typing import Any
@@ -253,7 +254,7 @@ def test_prior_risk_preserves_tiny_alternative_mass(
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_rejects_lost_log_weight_addition(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_lost_log_weight_addition(reference, monkeypatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -265,14 +266,15 @@ def test_prior_risk_rejects_lost_log_weight_addition(reference, monkeypatch) -> 
     large = float(2**54)
     rows = np.array([[large, large], [1.0, 0.0]])
     # The two valid paths differ by one log unit; their risk is 1/(1+e).
+    assert prior.sequence_risk(rows, (0, 0)) == pytest.approx(1 / (1 + math.e))
     with pytest.raises(ValueError, match="partition.*precision"):
-        prior.sequence_risk(rows, (0, 0))
+        prior.partition(rows, (0, 0))
     with pytest.raises(ValueError, match="partition.*precision"):
         incremental.PartitionCursor(prior).partition(rows, (0, 0))
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_rejects_partly_rounded_log_sum(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_partly_rounded_log_sum(reference, monkeypatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -282,14 +284,15 @@ def test_prior_risk_rejects_partly_rounded_log_sum(reference, monkeypatch) -> No
                               np.zeros((1, 3)), np.zeros(1))
     rows = np.full((1, 3), float(2**52))
     # Three equally weighted sequences give a selected-sequence risk of 2/3.
+    assert prior.sequence_risk(rows, (0,)) == pytest.approx(2 / 3)
     with pytest.raises(ValueError, match="partition.*precision"):
-        prior.sequence_risk(rows, (0,))
+        prior.partition(rows, (0,))
     with pytest.raises(ValueError, match="partition.*precision"):
         incremental.PartitionCursor(prior).partition(rows, (0,))
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_rejects_lost_unequal_alternative_mass(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_lost_unequal_alternative_mass(reference, monkeypatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -299,21 +302,57 @@ def test_prior_risk_rejects_lost_unequal_alternative_mass(reference, monkeypatch
                               np.zeros((1, 3)), np.zeros(1))
     large = float(2**54)
     rows = np.array([[large, large, large - 2.0], [0.0, -np.inf, -np.inf]])
+    expected = (1 + math.exp(-2)) / (2 + math.exp(-2))
+    assert prior.sequence_risk(rows, (0, 0)) == pytest.approx(expected)
     with pytest.raises(ValueError, match="partition.*precision"):
-        prior.sequence_risk(rows, (0, 0))
+        prior.partition(rows, (0, 0))
     with pytest.raises(ValueError, match="partition.*precision"):
         incremental.PartitionCursor(prior).partition(rows, (0, 0))
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_rejects_lost_equal_alternative_mass(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
     rows = np.full((4, 2), 1e307)
     # All 16 sequences have equal weight, so the true risk is 15/16.
+    assert prior.sequence_risk(rows, (0, 0, 0, 0)) == pytest.approx(15 / 16)
     with pytest.raises(ValueError, match="partition.*precision"):
-        prior.sequence_risk(rows, (0, 0, 0, 0))
+        prior.partition(rows, (0, 0, 0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_preserves_error_when_centering_is_unsafe(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1, 2), np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    rows = np.array([[1e308, 1e308, -1e308], [1.0, 0.0, -np.inf]])
+    with pytest.raises(ValueError, match="partition.*precision"):
+        prior.sequence_risk(rows, (0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_centered_retry_matches_small_weights(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(874)
+    for _ in range(30):
+        transitions = rng.integers(-1, 3, size=(3, 2))
+        transitions[:, 0] = np.arange(3)
+        prior = priors.ArityPrior((0, 1), transitions, np.zeros((3, 2)), np.zeros(3))
+        rows = rng.integers(-3, 4, size=(4, 2)).astype(float) + float(2**52)
+        centered = rows - rows.max(axis=1, keepdims=True)
+        assert prior.sequence_risk(rows, (0, 0, 0, 0)) == pytest.approx(
+            prior.sequence_risk(centered, (0, 0, 0, 0)), abs=1e-12)
+
+
+def test_prior_risk_does_not_center_nonunit_prior() -> None:
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.full((1, 2), 0.1), np.zeros(1))
+    with pytest.raises(ValueError, match="partition.*precision"):
+        prior.sequence_risk(np.full((1, 2), float(2**52)), (0,))
 
 
 @pytest.mark.parametrize("reference", [False, True])

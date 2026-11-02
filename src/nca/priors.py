@@ -97,25 +97,55 @@ def risk_from_partition(chosen: float, alternative: float) -> float:
     return 1.0 / (1.0 + math.exp(-difference))
 
 
+class _PartitionArithmeticError(ValueError):
+    """A partition could not be represented with the required local precision."""
+
+
 def _partition_log_add(left: float, right: float, context: str) -> float:
-    result = float(np.logaddexp(left, right))
+    with np.errstate(over="ignore"):
+        result = float(np.logaddexp(left, right))
     if math.isfinite(left) and math.isfinite(right):
         larger, smaller = max(left, right), min(left, right)
         correction = math.log1p(math.exp(smaller - larger))
         if abs((result - larger) - correction) >= 1.01e-8:
-            raise ValueError(f"{context} partition arithmetic loses precision")
+            raise _PartitionArithmeticError(f"{context} partition arithmetic loses precision")
     return result
 
 
 def _partition_log_product(left: float, right: float, context: str) -> float:
     result = left + right
     if not math.isfinite(result):
-        raise ValueError(f"{context} partition arithmetic is not finite")
+        raise _PartitionArithmeticError(f"{context} partition arithmetic is not finite")
     virtual = result - left
     residual = (left - (result - virtual)) + (right - virtual)
     if not math.isfinite(residual) or abs(residual) >= 1.01e-8:
-        raise ValueError(f"{context} partition arithmetic loses precision")
+        raise _PartitionArithmeticError(f"{context} partition arithmetic loses precision")
     return result
+
+
+def _center_unit_prior_rows(rows: np.ndarray, prior: ArityPrior) -> np.ndarray | None:
+    """Remove common row weights when a unit prior makes that safe to retry."""
+    edges = prior.log_weights[prior.transitions >= 0]
+    if (np.any((edges != 0.0) & (edges != -math.inf))
+            or np.any((prior.log_final != 0.0) & (prior.log_final != -math.inf))):
+        return None
+    offsets = np.max(rows, axis=1)
+    if not np.all(np.isfinite(offsets)):
+        return None
+    total = 0.0
+    for offset in offsets:
+        total += float(offset)
+        if not math.isfinite(total):
+            return None
+    with np.errstate(over="ignore", invalid="ignore"):
+        centered = rows - offsets[:, None]
+        virtual = centered - rows
+        residual = (rows - (centered - virtual)) + (-offsets[:, None] - virtual)
+    finite = np.isfinite(rows)
+    if (np.any(~np.isfinite(centered[finite])) or np.any(~np.isfinite(residual[finite]))
+            or np.any(np.abs(residual[finite]) >= 1.01e-8)):
+        return None
+    return centered
 
 
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
@@ -278,7 +308,7 @@ class ArityPrior:
                             self.transitions.reshape(-1), self.log_weights.reshape(-1),
                             self.log_final, self.start, encoded)
             if len(result) != 2:
-                raise ValueError("prior partition arithmetic is not finite or loses precision")
+                raise _PartitionArithmeticError("prior partition arithmetic is not finite or loses precision")
             return float(result[0]), float(result[1])
         alternatives = np.full(len(self.log_final), -np.inf)
         state, matched = self.start, 0.0
@@ -321,7 +351,18 @@ class ArityPrior:
         return chosen, other
 
     def sequence_risk(self, log_probs: np.ndarray, selected: Sequence[int]) -> float:
-        return risk_from_partition(*self.partition(log_probs, selected))
+        """Selected-sequence risk, with a checked rescaling retry for unit priors."""
+        selected = tuple(selected)
+        try:
+            return risk_from_partition(*self.partition(log_probs, selected))
+        except _PartitionArithmeticError as failure:
+            centered = _center_unit_prior_rows(self._rows(log_probs), self)
+            if centered is None:
+                raise
+            try:
+                return risk_from_partition(*self.partition(centered, selected))
+            except _PartitionArithmeticError:
+                raise failure from None
 
     def best(self, log_probs: np.ndarray) -> tuple[int, ...] | None:
         """Maximum-weight sequence without computing sums or marginals (§27.2–3)."""

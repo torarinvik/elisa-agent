@@ -277,6 +277,14 @@ Finite log-weight additions use the same local TwoSum residual check as the
 format partition; it detects a materially rounded individual addition, not
 the accumulated error of an entire partition. The Lean identity establishes
 the corresponding exact-real algebra; it is not a proof of binary64 rounding.
+Subtracting one common log weight per reading row scales every complete path
+by the same factor, so its selected-to-alternative risk is unchanged by
+Theorem 27.16. On a detected partition arithmetic failure, sequence-risk
+calculation retries this rescaling for unit-weight priors only, provided the
+row shifts are finite and their individual rounding residuals are small. This
+restriction is a numerical safeguard, not a mathematical restriction on the
+common-factor identity. Absolute partitions and incremental cursor outputs
+retain their original scale and still report the arithmetic failure.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
