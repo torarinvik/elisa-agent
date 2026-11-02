@@ -109,7 +109,7 @@ class _MarginalPrecisionError(ValueError):
 def _partition_log_add(left: float, right: float, context: str) -> float:
     with np.errstate(over="ignore"):
         result = float(np.logaddexp(left, right))
-    if math.isfinite(left) and math.isfinite(right):
+    if abs(result) >= 67108864.0 and math.isfinite(left) and math.isfinite(right):
         larger, smaller = max(left, right), min(left, right)
         correction = math.log1p(math.exp(smaller - larger))
         if abs((result - larger) - correction) >= 1.01e-8:
@@ -121,11 +121,29 @@ def _partition_log_product(left: float, right: float, context: str) -> float:
     result = left + right
     if not math.isfinite(result):
         raise _PartitionArithmeticError(f"{context} partition arithmetic is not finite")
+    if abs(result) < 67108864.0:
+        return result
     virtual = result - left
     residual = (left - (result - virtual)) + (right - virtual)
     if not math.isfinite(residual) or abs(residual) >= 1.01e-8:
         raise _PartitionArithmeticError(f"{context} partition arithmetic loses precision")
     return result
+
+
+def _decoder_log_product(left: float, right: float, context: str = "prior normalizer") -> float:
+    if not math.isfinite(left + right):
+        raise ValueError(f"{context} arithmetic is not finite")
+    try:
+        return _partition_log_product(left, right, "prior decoder")
+    except _PartitionArithmeticError as exc:
+        raise _MarginalPrecisionError(f"{context} arithmetic is not finite or loses precision") from exc
+
+
+def _decoder_log_add(left: float, right: float, context: str = "prior normalizer") -> float:
+    try:
+        return _partition_log_add(left, right, "prior decoder")
+    except _PartitionArithmeticError as exc:
+        raise _MarginalPrecisionError(f"{context} arithmetic is not finite or loses precision") from exc
 
 
 def _center_log_rows(rows: np.ndarray) -> np.ndarray | None:
@@ -467,7 +485,7 @@ class ArityPrior:
             if out is None:
                 if (getattr(_NATIVE, "prior_normalizer", None) is not None
                         and self.log_normalizer(rows) != -math.inf):
-                    raise ValueError("prior decoding unavailable despite nonzero mass")
+                    raise _MarginalPrecisionError("prior decoding unavailable despite nonzero mass")
                 return None
             if not math.isfinite(out["log_z"]):
                 raise ValueError("prior decoder normalizer is not finite")
@@ -488,16 +506,14 @@ class ArityPrior:
                         previous = float(forward[k, state])
                         if -math.inf in (reading, edge_weight, previous):
                             continue
-                        weight = reading + edge_weight
-                        if not math.isfinite(weight) or not math.isfinite(previous + weight):
-                            raise ValueError("prior normalizer arithmetic is not finite")
-                        forward[k + 1, target] = np.logaddexp(
-                            forward[k + 1, target], previous + weight)
-        with np.errstate(over="ignore", invalid="ignore"):
-            terminal = forward[m] + self.log_final
-        if np.any(np.isfinite(forward[m]) & np.isfinite(self.log_final) & ~np.isfinite(terminal)):
-            raise ValueError("prior normalizer arithmetic is not finite")
-        log_z = float(np.logaddexp.reduce(terminal))
+                        weight = _decoder_log_product(reading, edge_weight)
+                        through = _decoder_log_product(previous, weight)
+                        forward[k + 1, target] = _decoder_log_add(float(forward[k + 1, target]), through)
+        log_z = -math.inf
+        for state in range(states):
+            if forward[m, state] != -math.inf and self.log_final[state] != -math.inf:
+                terminal = _decoder_log_product(float(forward[m, state]), float(self.log_final[state]))
+                log_z = _decoder_log_add(log_z, terminal)
         if log_z == -math.inf:
             return None
         if not math.isfinite(log_z):
@@ -515,29 +531,33 @@ class ArityPrior:
                         suffix = float(backward[k + 1, target])
                         if -math.inf in (reading, edge_weight, suffix):
                             continue
-                        weight = reading + edge_weight
-                        through = weight + suffix
-                        first = previous + reading
-                        second = first + edge_weight
-                        third = second + suffix
-                        exponent = third - log_z
-                        if not all(map(math.isfinite, (through, first, second, third, exponent))):
-                            raise ValueError("prior decoder arithmetic is not finite")
-                        backward[k, state] = np.logaddexp(backward[k, state], through)
+                        weight = _decoder_log_product(reading, edge_weight, "prior decoder")
+                        through = _decoder_log_product(weight, suffix, "prior decoder")
+                        first = _decoder_log_product(previous, reading, "prior decoder")
+                        second = _decoder_log_product(first, edge_weight, "prior decoder")
+                        third = _decoder_log_product(second, suffix, "prior decoder")
+                        exponent = _decoder_log_product(third, -log_z, "prior decoder")
+                        backward[k, state] = _decoder_log_add(float(backward[k, state]), through, "prior decoder")
                         best_suffix = float(best[k + 1, target])
-                        candidate = weight + best_suffix
-                        if best_suffix != -math.inf and not math.isfinite(candidate):
-                            raise ValueError("prior decoder arithmetic is not finite")
-                        best[k, state] = max(best[k, state], candidate)
+                        if best_suffix != -math.inf:
+                            candidate = _decoder_log_product(weight, best_suffix, "prior decoder")
+                            best[k, state] = max(best[k, state], candidate)
                         try:
                             marginals[k, j] += math.exp(exponent)
                         except OverflowError as exc:
                             raise _MarginalPrecisionError("decoder marginal arithmetic overflows") from exc
         selected, state = [], self.start
         for k in range(m):
-            candidates = [rows[k, j] + self.log_weights[state, j] + best[k + 1, target]
-                          if target >= 0 else -np.inf
-                          for j, target in enumerate(self.transitions[state])]
+            candidates = []
+            for j, target in enumerate(self.transitions[state]):
+                if (target < 0 or rows[k, j] == -math.inf
+                        or self.log_weights[state, j] == -math.inf or best[k + 1, target] == -math.inf):
+                    candidates.append(-math.inf)
+                else:
+                    weight = _decoder_log_product(float(rows[k, j]), float(self.log_weights[state, j]),
+                                                  "prior decoder")
+                    candidates.append(_decoder_log_product(weight, float(best[k + 1, target]),
+                                                           "prior decoder"))
             j = int(np.argmax(candidates))
             selected.append(self.alphabet[j])
             state = int(self.transitions[state, j])

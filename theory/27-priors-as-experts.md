@@ -269,6 +269,11 @@ would be representable after cancellation.
 Full decoding also checks marginal rows for finite, nonnegative entries and
 approximate unit sum. This detects some loss of precision but is not a
 floating-point error bound and cannot validate every normalized result.
+The weighted decoder also checks local log-weight additions and log-sum
+corrections before using them. A conservative magnitude envelope permits
+ordinary arithmetic when all relevant values are small enough that an
+individual binary64 rounding error is below the local tolerance. This is
+not a bound on accumulated error or a certificate of the final marginals.
 On a detected marginal failure, a weighted prior can retry decoding after
 checked common row, edge and final shifts and restore the normalizer to its
 original scale.

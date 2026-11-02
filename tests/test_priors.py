@@ -770,13 +770,26 @@ def test_weighted_prior_decode_recovers_precision(reference, monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_weighted_prior_decode_recovers_normalized_but_inaccurate_marginals(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    weights = np.array([[2.5583011308519303, 0.7653156869269757, 1.1481474912947576]])
+    prior = priors.ArityPrior((0, 1, 2), np.zeros((1, 3), dtype=np.int64), weights, np.zeros(1))
+    shifted = prior.decode(np.full((1, 3), float(2**40)))
+    expected = prior.decode(np.zeros((1, 3)))
+    assert shifted is not None and expected is not None
+    assert shifted.arities == expected.arities
+    np.testing.assert_allclose(shifted.marginals, expected.marginals, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_decode_rejects_unnormalized_marginals_from_precision_loss(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
     rows = np.array([[1e292, -1e308], [0.0, 0.0], [1e308, 1e308], [0.0, 0.0]])
-    with pytest.raises(ValueError, match="marginals are not normalized"):
+    with pytest.raises(ValueError, match="marginals are not normalized|loses precision|decoding unavailable"):
         prior.decode(rows)
 
 

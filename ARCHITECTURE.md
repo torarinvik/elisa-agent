@@ -1036,7 +1036,8 @@ uses Elisa `decode_prior` for forward sums, maximum
 backtracking and backward marginals, with a NumPy reference fallback.
 `Decoded` retains the prior so its sequence risks include the edge and final
 weights. Its marginal-row check detects invalid normalization but is not a
-floating-point accuracy certificate. On detected marginal or partition failure,
+floating-point accuracy certificate. Weighted decoding also checks material
+local log-arithmetic loss, with a magnitude-bounded fast path. On detected marginal or partition failure,
 format and weighted-prior decoding and sequence risk can retry with checked shifts;
 absolute partitions and incremental cursors retain their original scale. The recurrences
 correspond to `pdpSum_eq`, `pdpMax_ge` and `pdpMax_attained` in

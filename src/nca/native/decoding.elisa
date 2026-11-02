@@ -264,6 +264,8 @@ def partition_log_add(x: f64, y: f64) -> f64:
     smaller: f64 = y if x >= y else x
     correction: f64 = log1p(exp(smaller - larger))
     result: f64 = larger + correction
+    # Below 2^26, binary64 round-to-nearest error is less than 2^-27.
+    return result if result > -67108864.0 and result < 67108864.0
     roundoff: f64 = (result - larger) - correction
     return log(-1.0) if roundoff >= 1.01e-8 or roundoff <= -1.01e-8
     return result
@@ -272,6 +274,7 @@ def partition_log_add(x: f64, y: f64) -> f64:
 def partition_log_product(x: f64, y: f64) -> f64:
     result: f64 = x + y
     return log(-1.0) if result == log(0.0) or result == -log(0.0) or result != result
+    return result if result > -67108864.0 and result < 67108864.0
     virtual: f64 = result - x
     residual: f64 = (x - (result - virtual)) + (y - virtual)
     return log(-1.0) if residual != residual or residual >= 1.01e-8 or residual <= -1.01e-8
@@ -711,6 +714,35 @@ struct PriorDecoded:
     arities: darray[i64]
     marginals: darray[darray[f64]]
 
+# A conservative magnitude envelope for every forward, backward and split sum.
+def prior_small_arithmetic(log_probs: view[f64], prior: view[f64], final: view[f64], width: i64) -> bool:
+    m: i64 = log_probs.len.i64() / width
+    unreachable: f64 = log(0.0)
+    reading_bound: f64 =
+        for k in 0..<m |total: f64 = 0.0| -> total:
+            peak: f64 =
+                for j in 0..<width |peak: f64 = 0.0| -> peak:
+                    value: f64 = log_probs[k * width + j]
+                    continue if value == unreachable
+                    magnitude: f64 = -value if value < 0.0 else value
+                    peak <- magnitude if magnitude > peak else peak
+            total += peak
+    edge_bound: f64 =
+        for i in 0..<prior.len.i64() |peak: f64 = 0.0| -> peak:
+            value: f64 = prior[i]
+            continue if value == unreachable
+            magnitude: f64 = -value if value < 0.0 else value
+            peak <- magnitude if magnitude > peak else peak
+    final_bound: f64 =
+        for i in 0..<final.len.i64() |peak: f64 = 0.0| -> peak:
+            value: f64 = final[i]
+            continue if value == unreachable
+            magnitude: f64 = -value if value < 0.0 else value
+            peak <- magnitude if magnitude > peak else peak
+    bound: f64 = reading_bound + m.f64() * (edge_bound + log(width.f64())) + final_bound
+    # The extra factor of four leaves room for split subtraction and rounding.
+    return bound < 16777216.0
+
 # Weighted deterministic prior automaton (§27), including any format restriction.
 # Caller validates dimensions and state indices; -1 denotes a forbidden transition.
 def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], start: i64) -> PriorDecoded? can[Memory.Allocate, Abort.Panic]:
@@ -721,6 +753,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
     if m == 0:
         return null if final[start] == unreachable
         return PriorDecoded{log_z: final[start], arities: [], marginals: []}
+    small: bool = prior_small_arithmetic(log_probs, prior, final, width)
     forward, best, choice, bounds =
         for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start if i < 2 else (states if i % 2 == 0 else -1) for i in 0..<(2 * (m + 1))]| -> (forward, best, choice, bounds):
             here: i64 = (k % 2) * states
@@ -739,28 +772,32 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
                     continue if reading == unreachable or edge_weight == unreachable
-                    weight: f64 = reading + edge_weight
-                    return null if weight == unreachable or weight == -unreachable
-                    through: f64 = forward[k * states + state] + weight
-                    return null if through == unreachable or through == -unreachable
-                    forward[cell] <- log_add(forward[cell], through)
+                    weight: f64 = reading + edge_weight if small else partition_log_product(reading, edge_weight)
+                    return null if weight != weight
+                    through: f64 = forward[k * states + state] + weight if small else partition_log_product(forward[k * states + state], weight)
+                    return null if through != through
+                    combined: f64 = log_add(forward[cell], through) if small else partition_log_add(forward[cell], through)
+                    return null if combined != combined
+                    forward[cell] <- combined
                     if target < bounds[2 * (k + 1)]:
                         bounds[2 * (k + 1)] <- target
                     if target > bounds[2 * (k + 1) + 1]:
                         bounds[2 * (k + 1) + 1] <- target
-                    candidate: f64 = best[here + state] + weight
-                    return null if candidate == unreachable or candidate == -unreachable
+                    candidate: f64 = best[here + state] + weight if small else partition_log_product(best[here + state], weight)
+                    return null if candidate != candidate
                     if candidate > best[next + target]:
                         best[next + target] <- candidate
                         choice[cell] <- edge
     log_z, terminal =
         for state in bounds[2 * m]..<(bounds[2 * m + 1] + 1) |log_z: f64 = log(0.0), top: f64 = log(0.0), terminal: i64 = -1| -> (log_z, terminal):
             continue if forward[m * states + state] == unreachable or final[state] == unreachable
-            weighted: f64 = forward[m * states + state] + final[state]
-            return null if weighted == unreachable or weighted == -unreachable
-            log_z <- log_add(log_z, weighted)
-            candidate: f64 = best[(m % 2) * states + state] + final[state]
-            return null if candidate == unreachable or candidate == -unreachable
+            weighted: f64 = forward[m * states + state] + final[state] if small else partition_log_product(forward[m * states + state], final[state])
+            return null if weighted != weighted
+            combined: f64 = log_add(log_z, weighted) if small else partition_log_add(log_z, weighted)
+            return null if combined != combined
+            log_z <- combined
+            candidate: f64 = best[(m % 2) * states + state] + final[state] if small else partition_log_product(best[(m % 2) * states + state], final[state])
+            return null if candidate != candidate
             if candidate > top:
                 top <- candidate
                 terminal <- state
@@ -789,17 +826,21 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     edge_weight: f64 = prior[edge]
                     suffix: f64 = backward[next + target]
                     continue if reading == unreachable or edge_weight == unreachable or suffix == unreachable
-                    through: f64 = (reading + edge_weight) + suffix
-                    return null if through == unreachable or through == -unreachable
-                    backward[here + state] <- log_add(backward[here + state], through)
-                    first: f64 = forward[k * states + state] + reading
-                    return null if first == unreachable or first == -unreachable
-                    second: f64 = first + edge_weight
-                    return null if second == unreachable or second == -unreachable
-                    third: f64 = second + suffix
-                    return null if third == unreachable or third == -unreachable
-                    exponent: f64 = third - log_z
-                    return null if exponent == unreachable or exponent == -unreachable
+                    weight: f64 = reading + edge_weight if small else partition_log_product(reading, edge_weight)
+                    return null if weight != weight
+                    through: f64 = weight + suffix if small else partition_log_product(weight, suffix)
+                    return null if through != through
+                    combined: f64 = log_add(backward[here + state], through) if small else partition_log_add(backward[here + state], through)
+                    return null if combined != combined
+                    backward[here + state] <- combined
+                    first: f64 = forward[k * states + state] + reading if small else partition_log_product(forward[k * states + state], reading)
+                    return null if first != first
+                    second: f64 = first + edge_weight if small else partition_log_product(first, edge_weight)
+                    return null if second != second
+                    third: f64 = second + suffix if small else partition_log_product(second, suffix)
+                    return null if third != third
+                    exponent: f64 = third - log_z if small else partition_log_product(third, -log_z)
+                    return null if exponent != exponent
                     result[k][j] <- result[k][j] + exp(exponent)
     return PriorDecoded{log_z: log_z, arities: decoded, marginals: marginals}
 

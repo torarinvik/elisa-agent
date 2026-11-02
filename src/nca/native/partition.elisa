@@ -11,6 +11,8 @@ def add_logs(x: f64, y: f64) -> f64:
     smaller: f64 = y if x >= y else x
     correction: f64 = log1p(exp(smaller - larger))
     result: f64 = larger + correction
+    # Below 2^26, binary64 round-to-nearest error is less than 2^-27.
+    return result if result > -67108864.0 and result < 67108864.0
     roundoff: f64 = (result - larger) - correction
     return log(-1.0) if roundoff >= 1.01e-8 or roundoff <= -1.01e-8
     return result
@@ -18,6 +20,7 @@ def add_logs(x: f64, y: f64) -> f64:
 def multiply_logs(x: f64, y: f64) -> f64:
     result: f64 = x + y
     return log(-1.0) if result == log(0.0) or result == -log(0.0) or result != result
+    return result if result > -67108864.0 and result < 67108864.0
     virtual: f64 = result - x
     residual: f64 = (x - (result - virtual)) + (y - virtual)
     return log(-1.0) if residual != residual or residual >= 1.01e-8 or residual <= -1.01e-8
