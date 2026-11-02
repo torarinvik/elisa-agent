@@ -715,6 +715,14 @@ def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
         raise ValueError("bound must be finite and nonnegative")
     if not priorities:
         raise ValueError("risk allocation requires at least one item")
+    checked = getattr(_NATIVE, "risk_shares_checked", None)
+    if checked is not None:
+        values = np.asarray(priorities)
+        if values.ndim == 1 and values.dtype.kind in "biuf" and values.dtype.itemsize <= 8:
+            shares = checked(bound, np.asarray(values, dtype=np.float64))
+            if not shares:
+                raise ValueError("priorities must be finite and nonnegative")
+            return shares
     if any(not math.isfinite(p) or p < 0 for p in priorities):
         raise ValueError("priorities must be finite and nonnegative")
     native = getattr(_NATIVE, "risk_shares", None)

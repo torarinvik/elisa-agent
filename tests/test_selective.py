@@ -742,6 +742,18 @@ def test_risk_allocation_rejects_invalid_inputs(bound: float, priorities: list[f
         allocate_risk(bound, priorities)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_risk_allocation_rejects_priorities_lost_by_binary64_conversion(reference, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if reference:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        allocate_risk(0.1, [Decimal("-1e-1000")])
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        allocate_risk(0.1, [1.0, float("nan")])
+
+
 def test_distribution_revision_changes_even_for_identical_readings() -> None:
     from nca.ladder import Distribution
 

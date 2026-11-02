@@ -1428,13 +1428,15 @@ def grouped_argmax(scores: view[f64], groups: view[i64], decisions: view[i64]) -
                         chosen <- c
                         best <- scores[k * width + c]
 
-# Allocate a current risk over validated finite nonnegative priorities (23.11).
+# Validate priorities and allocate risk (23.11).
 # Rescale before summing and compensate additions to preserve small weights.
-def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+def risk_shares_checked(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = priorities.len.i64()
     scale: f64 =
         for k in 0..<m |largest: f64 = 0.0| -> largest:
-            largest <- priorities[k] if priorities[k] > largest else largest
+            value: f64 = priorities[k]
+            return [] if value < 0.0 or value != value or value == -log(0.0)
+            largest <- value if value > largest else largest
     weights: darray[f64] = [priorities[k] / scale if scale > 0.0 else 1.0 for k in 0..<m]
     total: f64 =
         for k in 0..<m |total: f64 = 0.0, correction: f64 = 0.0| -> total:
@@ -1452,6 +1454,10 @@ def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.All
                 top <- k if weights[k] > weights[top] else top
         result[top] <- bound
     return result
+
+# Compatibility entry point for earlier clients.
+def risk_shares(bound: f64, priorities: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return risk_shares_checked(bound, priorities)
 
 # Log product of the selected sequence, preserving position order.
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
@@ -1644,6 +1650,7 @@ export pymodule decoding:
     fn grouped_argmax
     fn grouped_masses
     fn risk_shares
+    fn risk_shares_checked
     fn sequence_log_weight
     fn accepted_log_weight
     fn calibrated_groups
