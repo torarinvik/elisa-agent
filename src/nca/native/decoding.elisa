@@ -1785,12 +1785,39 @@ def calibration_subset(labels: view[i64], classes: view[i64], groups: view[i64],
 
 # Mean grouped negative log-likelihood for each supplied temperature.
 # An empty result asks the caller to use its reference implementation.
+def calibration_singleton_loss_grid(logits: view[f64], labels: view[i64], temperatures: view[f64], rows: i64, width: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
+    for row in 0..<rows:
+        return [] if labels[row] < 0 or labels[row] >= width
+        for j in 0..<width:
+            value: f64 = logits[row * width + j]
+            return [] if value != value or value == log(0.0) or value == -log(0.0)
+            maxima[row] <- value if value > maxima[row] else maxima[row]
+    result: darray[f64] = [0.0 for _ in 0..<temperatures.len.i64()]
+    for t in 0..<temperatures.len.i64():
+        temperature: f64 = temperatures[t]
+        return [] if temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
+        loss: f64 =
+            for row in 0..<rows |loss: f64 = 0.0| -> loss:
+                maximum: f64 = maxima[row]
+                target: f64 = logits[row * width + labels[row]]
+                total: f64 =
+                    for j in 0..<width |total: f64 = 0.0| -> total:
+                        total += exp(calibrated_difference(logits[row * width + j], maximum, temperature))
+                loss += calibrated_difference(target, maximum, temperature) * -1.0 + log(total)
+        result[t] <- loss / rows.f64()
+    return result
+
 def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64], entries: i64, temperatures: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     rows: i64 = labels.len.i64()
     width: i64 = groups.len.i64()
     return [] if entries <= 0 or temperatures.len.i64() == 0 or not matrix_shape(logits.len.i64(), rows, width)
     for j in 0..<width:
         return [] if groups[j] < 0 or groups[j] >= entries
+    singleton: bool =
+        for j in 0..<width |identity: bool = entries == width| -> identity:
+            identity <- false if groups[j] != j else identity
+    return calibration_singleton_loss_grid(logits, labels, temperatures, rows, width) if singleton
     maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
     target_maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
     for row in 0..<rows:

@@ -1391,6 +1391,27 @@ def test_native_stable_grid_matches_high_precision_extreme_gaps() -> None:
     assert checked > 0
 
 
+def test_native_singleton_calibration_matches_equivalent_permuted_groups() -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
+    if native is None:
+        pytest.skip("stable native calibration kernel is not built")
+    rng = np.random.default_rng(924)
+    width = 5
+    temperatures = np.geomspace(0.1, 8.0, 120)
+    cases = [rng.uniform(-744, 709, size=(12, width)),
+             np.array([[1e308, -1e308, -1e308, -1e308, -1e308]] * 8)]
+    labels = [rng.integers(0, width, size=12, dtype=np.int64), np.ones(8, dtype=np.int64)]
+    for logits, target in zip(cases, labels):
+        identity = native(logits.reshape(-1), target, np.arange(width, dtype=np.int64),
+                          width, temperatures)
+        reversed_groups = np.arange(width - 1, -1, -1, dtype=np.int64)
+        permuted = native(logits.reshape(-1), width - 1 - target, reversed_groups,
+                          width, temperatures)
+        assert identity == permuted
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
     from nca import ladder as ladder_module

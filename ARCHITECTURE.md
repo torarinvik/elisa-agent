@@ -876,7 +876,8 @@ and returns the original tensor dtype.
 CPU temperature fitting can use Elisa `calibration_loss_grid_stable`, which
 evaluates the same 120 candidate temperatures, supports arbitrary grouped
 labels, and rescales overflowing mean losses using row maxima cached across
-affected temperatures. Older builds can use
+affected temperatures. Singleton entries use a direct target calculation;
+other groupings retain the grouped calculation. Older builds can use
 `calibration_loss_grid` when all its candidate losses are finite.
 Calibration accepts signed and unsigned integer label tensors; labels are
 converted to signed 64-bit indices and checked against the observation width.
