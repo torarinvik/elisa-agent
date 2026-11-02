@@ -173,4 +173,9 @@ end
 
 end
 
+/-- A package reference and export position uniquely identify an export. -/
+theorem export_identity_eq {Ref : Type} (r s : Ref) (i j : Nat) :
+    (r, i) = (s, j) ↔ r = s ∧ i = j := by
+  simp only [Prod.mk.injEq]
+
 end NCA

@@ -134,13 +134,13 @@ class Export:
         self.requirements = [Requirement(composite.name, composite.version, i, slot)
                              for i, slot in enumerate(composite.requires)]
         self.library: list[Module] = [*members, *self.requirements]
-        index = ProducerIndex(self.library)
-        route = plan_stable_indexed(index, exported.inputs, exported.output)
+        producer_index = ProducerIndex(self.library)
+        route = plan_stable_indexed(producer_index, exported.inputs, exported.output)
         if route is None:
             raise ValueError(f"{composite.name} cannot implement its export "
                              f"{exported.inputs} ⇒ {exported.output}")
         self.route = route
-        self.kernel = Kernel(self.library, index=index)
+        self.kernel = Kernel(self.library, index=producer_index)
         self.identity = f"{composite.ref}#{index}"
 
         def cost(at: int) -> float:

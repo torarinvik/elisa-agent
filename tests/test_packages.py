@@ -515,3 +515,21 @@ def test_in_situ_samples_name_the_rung_that_answered() -> None:
     assert result.failures == 0 and result.reported == pytest.approx(0.004 + 0.12)
     with pytest.raises(ValueError, match="probability"):
         sample_invocations(ledgers, 1.5)
+
+
+def test_export_identity_survives_reinstallation_and_store_reload(tmp_path: Path) -> None:
+    store = Store()
+    single = counting_package(store)
+    obj = store.get(single)
+    assert isinstance(obj, Composite) and obj.exports is not None
+    package = store.put(Composite("two-exports", "1", obj.members, obj.requires,
+                                  obj.exports * 2, obj.effects))
+    first = install(store, package)
+    second = install(store, package)
+    store.save(tmp_path)
+    reloaded = install(Store.open(tmp_path), package)
+    assert [m.identity for m in first] == [f"{package}#0", f"{package}#1"]
+    assert [m.manifest.module_id for m in first] == ["two-exports#0", "two-exports#1"]
+    assert [m.identity for m in first] == [m.identity for m in second]
+    assert [m.identity for m in first] == [m.identity for m in reloaded]
+    assert [m.manifest for m in first] == [m.manifest for m in reloaded]

@@ -88,6 +88,13 @@ its declared calls, at an assumed sequence length. The number of calls to a
 requirement is declared exactly when it is affine in the length, that is,
 when no requirement is called inside nested maps.
 
+An export's identity is the pair of its composite's content reference and its
+zero-based position in the export list. Reinstalling the same object preserves
+that pair, including across store save/reload. Different positions remain
+different exports even if they have equal contracts. This is a statement about
+object identity; it does not prove that executable code loaded from an entry
+point implements the declared object faithfully.
+
 ## 28.4 Attestations
 
 Calibration temperatures, audit results, measured costs and failure rates,

@@ -1602,6 +1602,12 @@ cover theirs, keeps attestations by subject, and saves one canonical file per
 object, rechecking digests on `open`. `Names` maps mutable names to
 references. Manifests declare `effects` (`None`: undeclared; empty: pure).
 
+Export identities (§28.3) are `composite.ref#position`, with the numeric export
+position also used in the manifest's module id. The planner's producer index
+is separate state and contributes nothing to this identity. `export_identity_eq`
+in `Execution/Package.lean` proves uniqueness of the abstract reference/index
+pair; the formatting and store round trip are regression-tested.
+
 `packages.install(store, ref)` returns the experts a scope sees. Primitives
 become `LazyExpert`s carrying their reference as `identity`, one per
 reference however many composites share it. Transparent composites expand to
