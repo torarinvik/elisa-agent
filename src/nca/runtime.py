@@ -237,7 +237,7 @@ def execute(
         record = Message("kernel.request", request, ref, parents)
         workspace.post(record)
         env = [Message(type_id, value, ref, (record.message_id,))
-               for type_id, value in request.inputs.items()]
+               for type_id, value in request.inputs]
         for message in env:
             workspace.post(message)
         answer = force(run(sub_plan, env, chain))

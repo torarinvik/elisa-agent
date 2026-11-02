@@ -34,7 +34,7 @@ cascade error are measured on validation glyphs. For error targets, the
 cheapest plan within the target is executed on the test glyphs and compared
 with the hand-built requesting recognizer at the same threshold.
 
-    uv run --extra vision python -m nca.cascade --cheap checkpoints/digit_mlp.pt \\
+    uv run --extra vision python -m nca.domains.arithmetic.cascade --cheap checkpoints/digit_mlp.pt \\
         --expensive checkpoints/digit_cnn.pt
 """
 
@@ -49,14 +49,14 @@ from nca.abi import Message, Module
 from nca.modules.combinators import Fallback
 from nca.optimize import cheapest_within, plan_pareto
 from nca.planner import Apply, Given, Plan
-from nca.efficiency import costed, network_flops
-from nca.expressions import ExpressionDataset
+from nca.cost import costed, network_flops
+from nca.domains.arithmetic.expressions import ExpressionDataset
 from nca.kernel import Kernel
-from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION, GLYPH, DigitRecognizer
-from nca.modules.operator_recognizer import SymbolRecognizer
-from nca.modules.refinement import ConsultingRecognizer, RequestingRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
+from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION, GLYPH, DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import SymbolRecognizer
+from nca.modules.refinement import ConsultingExpert, RequestingExpert
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
 from nca.planner import plan_stable
 from nca.runtime import execute
 from nca.stats import wilson
@@ -130,13 +130,13 @@ def end_to_end(cheap: DigitRecognizer, expensive: DigitRecognizer, operator: Sym
             "expensive only": build([segmenter], expensive, operator, []),
         }
         for tau in args.end_to_end:
-            requester = RequestingRecognizer(cheap, tau)
+            requester = RequestingExpert(cheap, tau)
             systems[f"refine τ={tau}"] = build([segmenter], requester, operator, [expensive])
             for gate in ("gated", "demand"):
                 systems[f"refine τ={tau} {gate}"] = build([segmenter], requester, operator,
                                                           [expensive], gate)
             for weight in args.weights:
-                consulter = ConsultingRecognizer(cheap, tau, weight)
+                consulter = ConsultingExpert(cheap, tau, weight)
                 systems[f"consult τ={tau} w={weight}"] = build(
                     [segmenter], consulter, operator, [expensive], "demand")
         answers: dict[str, list] = {}
@@ -225,7 +225,7 @@ def planned_cascade(cheap: DigitRecognizer, expensive: DigitRecognizer,
         node = chosen.plan
         if (isinstance(node, Apply) and isinstance(node.module, Fallback)
                 and [f.module for f in node.slots if isinstance(f, Apply)] == [cheap, expensive]):
-            requester = RequestingRecognizer(cheap, node.module.threshold)
+            requester = RequestingExpert(cheap, node.module.threshold)
             hand_error, hand_cost = measure(Apply(requester, (Given(GLYPH),)), crops, labels,
                                             Kernel([requester, expensive]))
             hand = f"{hand_error:17.4f} {hand_cost:11,.0f}"

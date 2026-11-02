@@ -15,7 +15,7 @@
 
 Train the character reader with::
 
-    uv run --extra vision python -m nca.modules.words --out checkpoints/words.pt
+    uv run --extra vision python -m nca.domains.boolean.words --out checkpoints/words.pt
 """
 
 from __future__ import annotations
@@ -33,9 +33,9 @@ import torch
 from torch import nn
 
 from nca.abi import Calls, Contract, Manifest, seq_type
-from nca.efficiency import network_flops
+from nca.cost import network_flops
 from nca.decoding import Banded, CertifiedSplit, Split, decode, parse
-from nca.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
+from nca.domains.boolean.formulas import ALPHABET, ARITY, VOCABULARY, FormulaDataset, apply, labeled_words
 from nca.priors import ArityPrior, complete_prior, format_prior, height_prior, risk_from_partition
 from nca.partition import PartitionCursor
 from nca.ladder import RankedReading, Decision, _lower_sum, _lower_values, _upper_sum, allocate_risk
@@ -44,7 +44,9 @@ from nca.native import load
 _NATIVE = load("decoding")
 _EDIT_NATIVE = load("edit")
 _STATS_NATIVE = load("stats")
-from nca.modules.symbols import BOOLEAN
+_KERNELS = load("kernels", "nca.domains.boolean")
+BOOLEAN = "bool.v1"
+"""``bool``: a truth value, the type every Boolean answer shares."""
 
 FORMULA_TEXT = "text.formula.prefix.v1"
 """``str``: words separated by single spaces."""
@@ -625,7 +627,7 @@ class FormulaEvaluator:
         with weight ``full[k]`` at evaluated words and ``shape[k]`` in skipped
         subtrees; a child is skipped only if its sibling's value absorbs the
         connective."""
-        native = getattr(_NATIVE, "certificate", None)
+        native = getattr(_KERNELS, "certificate", None)
         if native is not None:
             left = np.array([kids[0] if kids else -1 for kids in children], dtype=np.int64)
             right = np.array([kids[1] if len(kids) == 2 else -1 for kids in children],
@@ -667,7 +669,7 @@ class FormulaEvaluator:
             stack += kids if choice[k] == "both" else [kids[choice[k] == "right"]]
         return found
 
-    def corrected(self, words: Sequence[str], children: Sequence[Sequence[int]] | None,
+    def corrected(self, words: Sequence[str], children: Sequence[Sequence[int]],
                   risk: Callable[[int, Decision], float],
                   distribution: Callable[[int, Decision], torch.Tensor],
                   state: CorrectionState | None = None,
@@ -815,23 +817,8 @@ class FormulaEvaluator:
                 if (k, a) not in state.within:
                     state.within[k, a] = risk(k, ARITY_DECISION[a])
             within = [state.within[k, a] for k, a in enumerate(arities)]
-        if children is None:
-            valid = getattr(_NATIVE, "valid_prefix", None)
-            if not self.short_circuit and valid is not None:
-                if not valid(np.asarray(arities, dtype=np.int64)):
-                    return None
-                return dict(enumerate(_combine_shares(shares, within)))
-            native = getattr(_NATIVE, "certificate_words")
-            found = native(np.array([VOCABULARY.index(w) for w in words], dtype=np.int64),
-                           np.asarray(within, dtype=np.float64), np.zeros(n))
-            if not found:
-                return None
-            kept = {k for k, chosen in enumerate(found) if chosen}
-            if not self.short_circuit:
-                kept = set(range(n))
-        else:
-            kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
-                    else set(range(n)))
+        kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
+                else set(range(n)))
         combined = _combine_shares(shares, [within[k] if k in kept else 0.0 for k in range(n)])
         return dict(enumerate(combined))
 
@@ -856,14 +843,12 @@ class FormulaEvaluator:
         if self.prior is not None and prior is None:
             return None
         words = self.words(readings, state, _prior=prior)
-        fused = self.decode and getattr(_NATIVE, "certificate_words", None) is not None
-        children = None if fused else parse([ARITY[VOCABULARY.index(w)] for w in words])
-        if children is None and not fused:
+        children = parse([ARITY[VOCABULARY.index(w)] for w in words])
+        if children is None:
             return None
         n = len(words)
         if self.decode:
             return self.corrected(words, children, risk, distribution, state, _prior=prior)
-        assert children is not None
         arity = [risk(k, ARITY_DECISION) for k in range(n)]
         if self.detection == "none":
             full = [risk(k, None) for k in range(n)]

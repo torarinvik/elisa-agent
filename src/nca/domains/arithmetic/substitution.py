@@ -16,7 +16,7 @@ contract). For each substitute the runner reports:
 ``NCA.substitution_change_le`` predicts ``changed ≤ Σ d`` and
 ``NCA.substitution_accuracy_ge`` predicts ``reference − accuracy ≤ Σ d``.
 
-    uv run --extra vision python -m nca.substitution \\
+    uv run --extra vision python -m nca.domains.arithmetic.substitution \\
         --digits checkpoints/digit_cnn.pt checkpoints/digit_mlp.pt ...
 """
 
@@ -28,12 +28,12 @@ from pathlib import Path
 import torch
 
 from nca.abi import Message
-from nca.expressions import ExpressionDataset
-from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import SymbolRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import INTEGER
-from nca.pipeline import build_registry, compose
+from nca.domains.arithmetic.expressions import ExpressionDataset
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import SymbolRecognizer
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import INTEGER
+from nca.domains.arithmetic.pipeline import build_registry, compose
 from nca.planner import Apply, Given, Plan
 from nca.router import infer
 from nca.runtime import execute

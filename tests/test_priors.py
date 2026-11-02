@@ -8,9 +8,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from nca import decoding, formulas, priors
-from nca.formulas import (decode,
-                          parse)
+from nca import decoding, priors
+from nca.decoding import decode, parse
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -1259,7 +1258,6 @@ def test_mixed_signed_and_large_symbols_do_not_alias(reference, outside, monkeyp
 @pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(31)
@@ -1267,13 +1265,13 @@ def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -
     rows = np.log(rng.dirichlet(np.ones(3), size=575))
     selected = rng.choice(alphabet, size=575).tolist()
     expected = sum(rows[k, alphabet.index(a)] for k, a in enumerate(selected))
-    assert formulas.sequence_log_weight(rows, alphabet, selected) == expected
-    assert formulas.sequence_log_weight(np.empty((0, 3)), alphabet, []) == 0.0
-    assert formulas.sequence_log_weight(np.zeros((1, 3)), alphabet, [99]) == -np.inf
+    assert priors.sequence_log_weight(rows, alphabet, selected) == expected
+    assert priors.sequence_log_weight(np.empty((0, 3)), alphabet, []) == 0.0
+    assert priors.sequence_log_weight(np.zeros((1, 3)), alphabet, [99]) == -np.inf
     rows[0] = -np.inf
-    assert formulas.sequence_log_weight(rows, alphabet, selected) == -np.inf
+    assert priors.sequence_log_weight(rows, alphabet, selected) == -np.inf
     with pytest.raises(ValueError):
-        formulas.sequence_log_weight(rows, alphabet, selected[:-1])
+        priors.sequence_log_weight(rows, alphabet, selected[:-1])
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("row, valid", [([0.25, 0.75], True), ([0.0, 0.0], False),
@@ -1358,7 +1356,6 @@ def test_prior_decode_rejects_unnormalized_marginals_from_precision_loss(
 def test_weighted_prior_decode_matches_exhaustive_sequences(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(53)
@@ -1367,7 +1364,7 @@ def test_weighted_prior_decode_matches_exhaustive_sequences(
     weights = rng.normal(size=(4, 3))
     final = rng.normal(size=4)
     final[1] = -np.inf
-    prior = formulas.ArityPrior(alphabet, transitions, weights, final, start=2)
+    prior = priors.ArityPrior(alphabet, transitions, weights, final, start=2)
     # The prior owns a stable copy, even if the expert reuses its source arrays.
     transitions[:] = -1
     weights[:] = 99
@@ -1403,10 +1400,9 @@ def test_weighted_prior_decode_matches_exhaustive_sequences(
 def test_weighted_prior_empty_support_and_validation(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
-    prior = formulas.ArityPrior((0,), np.array([[0]]), np.zeros((1, 1)), np.array([-np.inf]))
+    prior = priors.ArityPrior((0,), np.array([[0]]), np.zeros((1, 1)), np.array([-np.inf]))
     assert prior.decode(np.zeros((3, 1))) is None
     assert prior.decode(np.empty((0, 1))) is None
     assert prior.log_weight((2,)) == -np.inf
@@ -1418,7 +1414,7 @@ def test_weighted_prior_empty_support_and_validation(
                                         ([[0]], [[np.nan]], [0]),
                                         ([[0]], [[0]], [np.inf])):
         with pytest.raises(ValueError):
-            formulas.ArityPrior((0,), np.array(transitions), np.array(weights), np.array(final))
+            priors.ArityPrior((0,), np.array(transitions), np.array(weights), np.array(final))
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -1454,7 +1450,6 @@ def test_native_empty_sequence_uses_start_final_weight() -> None:
 def test_counter_prior_matches_format_decoder(reference: bool,
                                               monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(59)
@@ -1468,7 +1463,7 @@ def test_counter_prior_matches_format_decoder(reference: bool,
                     transitions[state, j] = state - 1 + a
         final = np.full(states, -np.inf)
         final[0] = 0.0
-        prior = formulas.ArityPrior(alphabet, transitions, np.zeros_like(transitions), final, 1)
+        prior = priors.ArityPrior(alphabet, transitions, np.zeros_like(transitions), final, 1)
         rows = np.log(rng.dirichlet(np.ones(3), size=size))
         actual = prior.decode(rows)
         expected = decode(rows, alphabet)
@@ -1489,33 +1484,32 @@ def complete_shapes(depth: int) -> list[tuple[int, ...]]:
 def test_complete_prior_accepts_exactly_complete_shapes() -> None:
     expected = set(complete_shapes(0) + complete_shapes(1) + complete_shapes(2))
     for size in range(1, 9):
-        prior = formulas.complete_prior(size)
+        prior = priors.complete_prior(size)
         for selected in itertools.product(range(3), repeat=size):
             accepted = prior is not None and prior.log_weight(selected) == 0.0
             assert accepted == (selected in expected)
     for depth in range(4):
         for selected in complete_shapes(depth):
-            prior = formulas.complete_prior(len(selected))
+            prior = priors.complete_prior(len(selected))
             assert prior is not None and prior.log_weight(selected) == 0.0
             assert parse(selected) is not None
     for invalid in (0, -1, 1.5):
         with pytest.raises(ValueError):
-            formulas.complete_prior(invalid)
-    assert formulas.complete_prior(6) is None
-    assert formulas.complete_prior(12) is None
+            priors.complete_prior(invalid)
+    assert priors.complete_prior(6) is None
+    assert priors.complete_prior(12) is None
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_complete_prior_posterior_matches_enumerated_shapes(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(67)
     for depth in range(4):
         shapes = complete_shapes(depth)
         for size in sorted({len(shape) for shape in shapes}):
-            prior = formulas.complete_prior(size)
+            prior = priors.complete_prior(size)
             assert prior is not None
             rows = np.log(rng.dirichlet(np.ones(3), size=size))
             candidates = [shape for shape in shapes if len(shape) == size]
@@ -1533,13 +1527,12 @@ def test_complete_prior_posterior_matches_enumerated_shapes(
 def test_unreachable_prior_states_do_not_change_posteriors(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     transitions = np.array([[0, 1, -1], [1, -1, 0]])
-    base = formulas.ArityPrior((0, 1, 2), transitions, np.zeros((2, 3)),
+    base = priors.ArityPrior((0, 1, 2), transitions, np.zeros((2, 3)),
                               np.array([0.0, -np.inf]))
-    enlarged = formulas.ArityPrior((0, 1, 2),
+    enlarged = priors.ArityPrior((0, 1, 2),
         np.vstack([transitions, [[2, 3, 4], [3, 4, 2], [4, 2, 3]]]),
         np.vstack([np.zeros((2, 3)), np.full((3, 3), 1e6)]),
         np.array([0.0, -np.inf, 1e6, 1e6, 1e6]))
@@ -1602,16 +1595,14 @@ def test_native_prior_log_weight_matches_reference_for_all_short_sequences(
         monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(priors._NATIVE, "prior_log_weight", None) is None:
         pytest.skip("native prior scoring kernel is not built")
-    native = formulas._NATIVE
-    prior = formulas.ArityPrior((2, 0, 1), np.array([[1, 0, -1], [0, -1, 1]]),
+    native = decoding._NATIVE
+    prior = priors.ArityPrior((2, 0, 1), np.array([[1, 0, -1], [0, -1, 1]]),
         np.array([[0.3, -0.7, 0.0], [-np.inf, 0.8, 1.2]]), np.array([-0.2, -np.inf]))
     for size in range(6):
         for selected in itertools.product((-1, 0, 1, 2, 3), repeat=size):
-            monkeypatch.setattr(formulas, "_NATIVE", None)
             monkeypatch.setattr(priors, "_NATIVE", None)
             monkeypatch.setattr(decoding, "_NATIVE", None)
             expected = prior.log_weight(selected)
-            monkeypatch.setattr(formulas, "_NATIVE", native)
             monkeypatch.setattr(priors, "_NATIVE", native)
             monkeypatch.setattr(decoding, "_NATIVE", native)
             assert prior.log_weight(selected) == expected
@@ -1627,28 +1618,27 @@ def bounded_shapes(height: int) -> set[tuple[int, ...]]:
 
 def test_height_prior_accepts_exactly_bounded_shapes() -> None:
     for height in range(3):
-        prior = formulas.height_prior(height)
+        prior = priors.height_prior(height)
         expected = bounded_shapes(height)
         for size in range(1, 8):
             for selected in itertools.product(range(3), repeat=size):
                 assert (prior.log_weight(selected) == 0.0) == (selected in expected)
     for depth in range(4):
-        prior = formulas.height_prior(depth + 1)
+        prior = priors.height_prior(depth + 1)
         for selected in complete_shapes(depth):
             assert prior.log_weight(selected) == 0.0
     for invalid in (-1, 1.5):
         with pytest.raises(ValueError):
-            formulas.height_prior(invalid)
+            priors.height_prior(invalid)
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_height_prior_posterior_matches_enumerated_shapes(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(89)
-    prior = formulas.height_prior(2)
+    prior = priors.height_prior(2)
     shapes = bounded_shapes(2)
     for size in range(1, 8):
         rows = np.log(rng.dirichlet(np.ones(3), size=size))
@@ -1690,10 +1680,9 @@ def test_native_prior_best_reports_unrecoverable_precision_loss() -> None:
 def test_prior_best_matches_full_decoder_ties_and_zero_support(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
-    prior = formulas.ArityPrior((2, 0, 1), np.array([[0, 1, -1], [1, 0, 2], [2, 2, 1]]),
+    prior = priors.ArityPrior((2, 0, 1), np.array([[0, 1, -1], [1, 0, 2], [2, 2, 1]]),
                                 np.zeros((3, 3)), np.zeros(3))
     for size in (1, 2, 5, 31):
         rows = np.zeros((size, 3))
@@ -1756,8 +1745,8 @@ def test_native_prior_best_does_not_compute_unused_posteriors(
     def no_decode(*args: Any) -> Any:
         raise AssertionError("maximum-only selection must not compute sums or marginals")
 
-    monkeypatch.setattr(formulas.ArityPrior, "decode", no_decode)
-    prior = formulas.complete_prior(3)
+    monkeypatch.setattr(priors.ArityPrior, "decode", no_decode)
+    prior = priors.complete_prior(3)
     assert prior is not None
     assert prior.best(np.zeros((3, 3))) == (2, 0, 0)
 

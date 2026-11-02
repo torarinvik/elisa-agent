@@ -11,8 +11,8 @@ from typing import Any, NamedTuple, Protocol
 
 TypeId = str
 """A semantic type in its canonical text form (THEORY §1.1): a constructor
-name, optionally applied to argument types, as in ``"digit.distribution.v1"``
-or ``"seq[digit.distribution.v1]"``. Names carry their namespace and version.
+name, optionally applied to argument types, as in ``"image.rgb.v1"``
+or ``"seq[image.rgb.v1]"``. Names carry their namespace and version.
 Variables (``"?a"``) stand for any type.
 
 Two values are compatible only if their type ids are equal; byte shape alone
@@ -323,9 +323,22 @@ class Request:
     generator to obtain a sub-result and continue."""
 
     type_id: TypeId
-    inputs: Mapping[TypeId, Any]
+    inputs: tuple[tuple[TypeId, Any], ...] | Mapping[TypeId, Any]
+    """The inputs as ``(type, value)`` pairs in order, so several may share a
+    type (§20.8); a mapping is read in its order."""
     provisional: Any = None
     """The requester's own best answer, used if the request turns out irrelevant."""
+
+    def __post_init__(self) -> None:
+        pairs = tuple(self.inputs.items() if isinstance(self.inputs, Mapping) else self.inputs)
+        if any(not isinstance(pair, tuple) or len(pair) != 2 for pair in pairs):
+            raise ValueError("request inputs must be (type, value) pairs")
+        object.__setattr__(self, "inputs", pairs)
+
+    @property
+    def types(self) -> tuple[TypeId, ...]:
+        """The input types in order: the inputs available to the plan."""
+        return tuple(type_id for type_id, _ in self.inputs)
 
 
 _message_ids = itertools.count()

@@ -6,11 +6,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from nca import decoding, formulas, priors
-from nca.formulas import (ARITY, VOCABULARY, evaluate)
+from nca import decoding, priors
+from nca.domains.boolean.formulas import ARITY, VOCABULARY, evaluate
 from nca.ladder import Decision
-from nca.modules.symbols import BOOLEAN
-from nca.modules.words import (ARITY_ORDER, FORMULA_TEXT, EditReader,
+from nca.domains.boolean.words import (BOOLEAN, ARITY_ORDER, FORMULA_TEXT, EditReader,
                                FormulaEvaluator, Tokenizer)
 from nca.planner import plan_stable
 from nca.selective import build_ladders, solve
@@ -23,15 +22,14 @@ def one_hot(words: list[str]) -> list[tuple[float, ...]]:
 def test_prior_evaluator_selection_and_account_use_same_structural_prior(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(71)
-    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=formulas.complete_prior)
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False, prior=priors.complete_prior)
     session = evaluator.certificate_session()
     readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
     calibrated = rng.dirichlet(np.ones(3), size=9)
-    prior = formulas.complete_prior(9)
+    prior = priors.complete_prior(9)
     assert prior is not None
 
     def distribution(k: int, decision: Decision) -> torch.Tensor:
@@ -55,9 +53,9 @@ def test_prior_evaluator_selection_and_account_use_same_structural_prior(
     assert evaluator.invoke(readings[:6]) is None
     assert evaluator.certificate(readings[:6], lambda k, d: 0.001, distribution) is None
     with pytest.raises(ValueError):
-        FormulaEvaluator(prior=formulas.complete_prior)
+        FormulaEvaluator(prior=priors.complete_prior)
     with pytest.raises(ValueError):
-        FormulaEvaluator(decode=True, band_slack=1e-4, prior=formulas.complete_prior)
+        FormulaEvaluator(decode=True, band_slack=1e-4, prior=priors.complete_prior)
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -107,8 +105,8 @@ def test_format_evaluator_retains_tiny_risk_with_and_without_session(
 def test_corrected_account_retains_tiny_sequence_risk_with_larger_within_risk(
         reference, use_state, monkeypatch) -> None:
     from nca import ladder as ladder_module
-    from nca.modules import words as word_module
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean import words as word_module
+    from nca.domains.boolean.words import CorrectionState
 
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
@@ -133,8 +131,8 @@ def test_corrected_account_retains_tiny_sequence_risk_with_larger_within_risk(
                                   ["true", "true"], ["and", "true"]])
 @pytest.mark.parametrize("use_state", [False, True])
 def test_uncut_correction_prefix_check_matches_certificate(words, use_state, monkeypatch) -> None:
-    from nca.modules import words as word_module
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean import words as word_module
+    from nca.domains.boolean.words import CorrectionState
 
     native = word_module._NATIVE
     if getattr(native, "valid_prefix", None) is None:
@@ -155,7 +153,7 @@ def test_uncut_correction_prefix_check_matches_certificate(words, use_state, mon
 def test_partition_cache_tracks_readings_selected_arities_and_prior(
         use_prior: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
     from nca.partition import PartitionCursor
 
     rng = np.random.default_rng(557)
@@ -163,7 +161,7 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
     masses = rng.dirichlet(np.ones(3), size=3)
     versions = [0, 0, 0]
     distribution = Distribution(lambda k, d: torch.tensor(masses[k]), versions.__getitem__)
-    evaluator = FormulaEvaluator(decode=True, prior=formulas.format_prior if use_prior else None)
+    evaluator = FormulaEvaluator(decode=True, prior=priors.format_prior if use_prior else None)
     state = CorrectionState()
     original = PartitionCursor.partition
     calls = 0
@@ -203,7 +201,7 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
 
 def test_format_session_reuses_unchanged_normalizer_check(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     original = decoding.Split.scores
     state = CorrectionState()
@@ -239,10 +237,10 @@ def test_format_session_reuses_unchanged_normalizer_check(monkeypatch: pytest.Mo
 @pytest.mark.parametrize("use_prior", [False, True])
 def test_correction_session_invalidates_when_distribution_source_changes(use_prior: bool) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     evaluator = FormulaEvaluator(decode=True, short_circuit=False,
-                                 prior=formulas.format_prior if use_prior else None)
+                                 prior=priors.format_prior if use_prior else None)
     readings = one_hot(["and", "true", "true"])
     first = np.array([[.1, .3, .6], [.5, .4, .1], [.8, .1, .1]])
     second = np.array([[.3, .1, .6], [.2, .7, .1], [.5, .2, .3]])
@@ -262,10 +260,10 @@ def test_correction_session_invalidates_when_distribution_source_changes(use_pri
 @pytest.mark.parametrize("use_prior", [False, True])
 def test_correction_session_invalidates_when_risk_callback_changes(use_prior: bool) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     evaluator = FormulaEvaluator(decode=True, short_circuit=False,
-                                 prior=formulas.format_prior if use_prior else None)
+                                 prior=priors.format_prior if use_prior else None)
     readings = one_hot(["and", "true", "false"])
     masses = np.tile([0.6, 0.25, 0.15], (3, 1))
     distribution = Distribution(lambda k, d: torch.tensor(masses[k]), lambda k: 0)
@@ -285,10 +283,10 @@ def test_correction_session_invalidates_when_risk_callback_changes(use_prior: bo
 @pytest.mark.parametrize("mode", ["format", "prior", "banded"])
 def test_correction_state_resets_when_formula_length_changes(mode: str) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     evaluator = FormulaEvaluator(decode=True, short_circuit=False,
-                                 prior=formulas.format_prior if mode == "prior" else None,
+                                 prior=priors.format_prior if mode == "prior" else None,
                                  band_slack=0.01 if mode == "banded" else None)
     masses = np.tile([0.6, 0.25, 0.15], (5, 1))
     distribution = Distribution(lambda k, d: torch.tensor(masses[k]), lambda k: 0)
@@ -306,7 +304,7 @@ def test_correction_state_resets_when_formula_length_changes(mode: str) -> None:
 
 def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> None:
     from nca.abi import Message
-    from nca.modules.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior
+    from nca.domains.boolean.words import ARITY_PRIOR, FORMULA_LENGTH, CompleteTreePrior
     from nca.runtime import execute
     from nca.workspace import Workspace
 
@@ -323,16 +321,16 @@ def test_complete_tree_prior_expert_is_planned_and_executed_independently() -> N
         result = execute(route, {FORMULA_LENGTH: Message(FORMULA_LENGTH, size, "input")},
                          workspace, budget=1)
         assert result.type_id == ARITY_PRIOR
-        assert isinstance(result.payload, formulas.ArityPrior)
+        assert isinstance(result.payload, priors.ArityPrior)
         assert workspace.spent == expert.manifest.cost
         if size in (6, 12):
             assert result.payload.decode(np.zeros((size, 3))) is None
         else:
-            assert result.payload is formulas.complete_prior(size)
+            assert result.payload is priors.complete_prior(size)
 
 def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
     from nca.abi import Message, seq_type
-    from nca.modules.words import (CompleteTreePrior, PriorFormulaEvaluator,
+    from nca.domains.boolean.words import (CompleteTreePrior, PriorFormulaEvaluator,
                                    WORD_DISTRIBUTION)
     from nca.runtime import execute
     from nca.selective import solve_many
@@ -341,7 +339,7 @@ def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
     class CountingPrior(CompleteTreePrior):
         calls = 0
 
-        def invoke(self, length: int) -> formulas.ArityPrior:
+        def invoke(self, length: int) -> priors.ArityPrior:
             self.calls += 1
             return super().invoke(length)
 
@@ -366,7 +364,7 @@ def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
     modules = [Tokenizer(), EditReader(), prior, consumer]
     route = plan_stable(modules, (FORMULA_TEXT,), BOOLEAN)
     provider = plan_stable([Tokenizer(), EditReader(), FormulaEvaluator(
-        decode=True, prior=formulas.complete_prior)], (FORMULA_TEXT,), BOOLEAN)
+        decode=True, prior=priors.complete_prior)], (FORMULA_TEXT,), BOOLEAN)
     assert route is not None and provider is not None
     words = list(VOCABULARY) * 10
     ladders = build_ladders(modules, route, {WORD_DISTRIBUTION: (
@@ -385,7 +383,7 @@ def test_typed_prior_slot_matches_provider_in_runtime_and_refinement() -> None:
 
 
 def test_selective_solve_pins_prior_for_certificate_and_answer() -> None:
-    from nca.modules.words import WORD_DISTRIBUTION
+    from nca.domains.boolean.words import WORD_DISTRIBUTION
 
     calls = []
     def provider(length: int) -> priors.ArityPrior:
@@ -406,7 +404,7 @@ def test_selective_solve_pins_prior_for_certificate_and_answer() -> None:
 
 def test_height_expert_fills_evaluator_slot_with_relaxed_support() -> None:
     from nca.abi import Message, seq_type
-    from nca.modules.words import HeightBoundedPrior, PriorFormulaEvaluator, WORD_DISTRIBUTION
+    from nca.domains.boolean.words import HeightBoundedPrior, PriorFormulaEvaluator, WORD_DISTRIBUTION
     from nca.runtime import execute
     from nca.workspace import Workspace
 
@@ -420,7 +418,7 @@ def test_height_expert_fills_evaluator_slot_with_relaxed_support() -> None:
         seq_type(WORD_DISTRIBUTION), readings, "input")}, Workspace(), budget=2)
     assert result.payload is True
     assert expert.invoke(3).log_weight((1, 1, 0)) == 0.0
-    assert formulas.complete_prior(3).log_weight((1, 1, 0)) == -np.inf
+    assert priors.complete_prior(3).log_weight((1, 1, 0)) == -np.inf
     assert expert.invoke(8).decode(np.zeros((8, 3))) is None
     assert HeightBoundedPrior(0).invoke(1).log_weight((0,)) == 0.0
     for invalid in (0, -1, 1.5):
@@ -431,10 +429,9 @@ def test_height_expert_fills_evaluator_slot_with_relaxed_support() -> None:
 def test_prior_calibration_cache_tracks_revisions_and_unversioned_calls(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(1103)
@@ -447,7 +444,7 @@ def test_prior_calibration_cache_tracks_revisions_and_unversioned_calls(
         seen.append(k)
         return torch.tensor(calibrated[k])
 
-    evaluator = FormulaEvaluator(decode=True, prior=formulas.complete_prior)
+    evaluator = FormulaEvaluator(decode=True, prior=priors.complete_prior)
     distribution = Distribution(masses, versions.__getitem__)
     state = CorrectionState()
     expected_calls = list(range(9))
@@ -488,27 +485,26 @@ def test_prior_calibration_cache_tracks_revisions_and_unversioned_calls(
 def test_prior_account_uses_current_risk_between_marginal_refreshes(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
-    original_decode = formulas.ArityPrior.decode
+    original_decode = priors.ArityPrior.decode
     calls = 0
 
-    def decode(prior: formulas.ArityPrior, rows: np.ndarray) -> Any:
+    def decode(prior: priors.ArityPrior, rows: np.ndarray) -> Any:
         nonlocal calls
         calls += 1
         return original_decode(prior, rows)
 
-    monkeypatch.setattr(formulas.ArityPrior, "decode", decode)
+    monkeypatch.setattr(priors.ArityPrior, "decode", decode)
     rng = np.random.default_rng(1203)
     readings = rng.dirichlet(np.ones(6), size=9)
     calibrated = rng.dirichlet(np.ones(3), size=9)
     versions = [0] * 9
     distribution = Distribution(lambda k, d: torch.tensor(calibrated[k]), versions.__getitem__)
-    evaluator = FormulaEvaluator(decode=True, prior=formulas.complete_prior)
+    evaluator = FormulaEvaluator(decode=True, prior=priors.complete_prior)
     state = CorrectionState()
     selected = tuple(ARITY[VOCABULARY.index(w)] for w in evaluator.words(readings))
     calls = 0
@@ -528,7 +524,7 @@ def test_prior_account_uses_current_risk_between_marginal_refreshes(
             assert state.priorities is original_priorities
         else:
             assert state.priorities is not original_priorities
-        oracle = original_decode(formulas.complete_prior(9), np.log(calibrated))
+        oracle = original_decode(priors.complete_prior(9), np.log(calibrated))
         assert oracle is not None
         assert sum(account.values()) == pytest.approx(
             oracle.risk(np.log(calibrated), ARITY_ORDER, selected), abs=1e-12)
@@ -536,7 +532,7 @@ def test_prior_account_uses_current_risk_between_marginal_refreshes(
 
 def test_prior_change_refreshes_allocation_priorities() -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     rng = np.random.default_rng(1620)
     readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
@@ -559,7 +555,7 @@ def test_prior_change_refreshes_allocation_priorities() -> None:
 
 @pytest.mark.parametrize("with_state", [False, True])
 def test_prior_provider_is_resolved_once_per_certificate(with_state: bool) -> None:
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
 
     rng = np.random.default_rng(506)
     readings = rng.dirichlet(np.ones(len(VOCABULARY)), size=9)
@@ -587,7 +583,7 @@ def test_prior_provider_is_resolved_once_per_certificate(with_state: bool) -> No
 
 def test_priorities_track_prior_when_partition_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.ladder import Distribution
-    from nca.modules.words import CorrectionState
+    from nca.domains.boolean.words import CorrectionState
     from nca.partition import PartitionCursor
 
     rng = np.random.default_rng(2311)

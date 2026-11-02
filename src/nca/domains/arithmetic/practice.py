@@ -26,7 +26,7 @@ reject. Reports labels used, digit
 error on test glyphs of each style, expression accuracy on ``test`` of each
 style, and the adoption decision.
 
-    uv run --extra vision python -m nca.practice --digit checkpoints/digit_cnn.pt
+    uv run --extra vision python -m nca.domains.arithmetic.practice --digit checkpoints/digit_cnn.pt
 """
 
 from __future__ import annotations
@@ -40,11 +40,11 @@ import torch
 from torch import nn
 
 from nca.abi import Message
-from nca.expressions import ExpressionDataset
-from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import SymbolRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.pipeline import build_registry, compose
+from nca.domains.arithmetic.expressions import ExpressionDataset
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import SymbolRecognizer
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.pipeline import build_registry, compose
 from nca.router import sign_test
 from nca.runtime import execute
 from nca.ladder import Rung

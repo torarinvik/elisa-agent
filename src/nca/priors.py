@@ -316,7 +316,7 @@ class ArityPrior:
     """Weighted deterministic arity automaton (§27).
 
     Missing transitions are -1. Log edge and final weights may be -inf.
-    Formula priors must incorporate the format constraint in their automaton.
+    Priors over terms must incorporate the format constraint in their automaton.
     Arrays use immutable backing storage so decoded risks retain their prior.
     """
 

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from nca.expressions import (
+from nca.domains.arithmetic.expressions import (
     GLYPH, HEIGHT, OPERATORS, RELATIONS, WIDTH, compose, evaluate, is_held_out, render_operator,
 )
 
@@ -35,7 +35,7 @@ def test_compose_places_glyphs_without_overlap() -> None:
 
 
 def test_value_of_mixed_expressions() -> None:
-    from nca.expressions import value_of
+    from nca.domains.arithmetic.expressions import value_of
 
     assert value_of(("7", "*", "8")) == 56
     assert value_of(("3", "+", "4", ">", "6")) is True
@@ -44,7 +44,7 @@ def test_value_of_mixed_expressions() -> None:
 
 
 def test_long_expressions_respect_precedence() -> None:
-    from nca.expressions import value_of
+    from nca.domains.arithmetic.expressions import value_of
 
     assert value_of(("1", "+", "2", "*", "3", "-", "4")) == 3
     assert value_of(("2", "*", "3", "*", "4", "+", "5", "*", "6")) == 54

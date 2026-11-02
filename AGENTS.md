@@ -11,6 +11,34 @@ runtime logic. Implement task-specific capabilities as replaceable modules
 registered through general interfaces. Existing task-specific pipelines are
 research examples, not a fixed catalog of the system's possible capabilities.
 
+### No hard-coded or hand-coded tasks in the core
+
+The core is everything under `src/nca/` outside `src/nca/domains/`, including
+its native kernels. It must work unchanged for tasks nobody has written yet.
+
+- The core never names a task, data set, domain type, vocabulary, label set,
+  opcode, symbol meaning, or the route shape of one pipeline, and it carries
+  no constants, thresholds, or heuristics tuned to one domain. Examples and
+  documentation in the core use neutral or clearly hypothetical types.
+- Task knowledge enters only through general interfaces: experts and their
+  manifests, contracts and types, and parameters such as vocabularies,
+  arities, semantics, priors, or certificates supplied by a domain.
+- Each domain lives in its own package under `src/nca/domains/<domain>/`, with
+  its data, experts, experiments, and any native kernels only it needs.
+  Domains depend on the core and never on each other, and the core never
+  imports a domain. `tests/test_layout.py` enforces this; extend the check
+  rather than weaken it. Domains share types only by naming the same type
+  identifier.
+- Build a capability generically in the core, with the domain as one instance
+  of it. If a second domain would have to copy code to get the same
+  capability, that code belongs in the core. Never fork a generic algorithm
+  into a domain to specialize it; parameterize it instead.
+- Hand-written experts, such as exact symbolic modules, are welcome as
+  replaceable modules installed like any other expert. Nothing in the core may
+  depend on a particular expert being present.
+- When existing code violates this, fix it in the same change that touches it,
+  or report it; do not build on it.
+
 ## Repository Hygiene and Professionalism
 
 Treat this repository as a professional, production-quality open-source project. Maintain the standards of mature projects such as the Linux kernel, SDL, and other carefully maintained systems software.

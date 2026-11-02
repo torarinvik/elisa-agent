@@ -15,7 +15,7 @@ infeasible and runs the lowest-error route. Measured cost, wall time, and
 error are reported with a transformer's analytic cost on the same inputs, at
 glyph-token and image-patch granularity.
 
-    uv run --extra vision python -m nca.efficiency
+    uv run --extra vision python -m nca.domains.arithmetic.efficiency
 """
 
 from __future__ import annotations
@@ -23,18 +23,17 @@ from __future__ import annotations
 import argparse
 import math
 import time
-from dataclasses import replace
 from pathlib import Path
 
 import torch
-from torch import nn
 
 from nca.abi import Message, Module
-from nca.expressions import HEIGHT, ExpressionDataset
-from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import SymbolRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
+from nca.cost import costed, network_flops
+from nca.domains.arithmetic.expressions import HEIGHT, ExpressionDataset
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import SymbolRecognizer
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import INTEGER, Evaluator, ExpressionParser, SymbolFuser
 from nca.optimize import cheapest_within, plan_min, plan_pareto
 from nca.planner import Apply, Map, Plan
 from nca.runtime import execute
@@ -44,32 +43,6 @@ from nca.workspace import Workspace
 SEGMENTER_FLOPS_PER_PIXEL = 10
 SYMBOLIC_FLOPS = 100
 """Nominal cost of one invocation of an exact symbolic module."""
-
-
-def network_flops(network: nn.Module, shape: tuple[int, ...]) -> int:
-    """Floating-point operations of one forward pass (multiply-adds count as two)."""
-    total = 0
-
-    def count(module: nn.Module, inputs: tuple[torch.Tensor, ...], output: torch.Tensor) -> None:
-        nonlocal total
-        if isinstance(module, nn.Conv2d):
-            kh, kw = module.kernel_size
-            total += 2 * output.numel() * module.in_channels // module.groups * kh * kw
-        elif isinstance(module, nn.Linear):
-            total += 2 * module.in_features * module.out_features
-
-    hooks = [m.register_forward_hook(count) for m in network.modules()]
-    with torch.no_grad():
-        network(torch.zeros(1, *shape))
-    for hook in hooks:
-        hook.remove()
-    return total
-
-
-def costed(module: Module, cost: float, module_id: str | None = None) -> Module:
-    module.manifest = replace(module.manifest, cost=cost,
-                              module_id=module_id or module.manifest.module_id)
-    return module
 
 
 def solve(route: Plan, image: torch.Tensor) -> tuple[object, float]:

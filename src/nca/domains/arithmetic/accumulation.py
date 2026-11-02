@@ -23,7 +23,7 @@ one, that route is considered as an explicit upgrade: both are evaluated on the
 validation split (digit images disjoint from the test splits) and the candidate is pinned only if a one-sided
 sign test on paired correctness accepts it (``nca.router``).
 
-    uv run --extra vision python -m nca.accumulation --scenario conflict
+    uv run --extra vision python -m nca.domains.arithmetic.accumulation --scenario conflict
 """
 
 from __future__ import annotations
@@ -36,12 +36,12 @@ from pathlib import Path
 import torch
 
 from nca.abi import Message
-from nca.expressions import OPERATORS, RELATIONS, ExpressionDataset
-from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules import symbol_classifier
-from nca.modules.operator_recognizer import RELATION_SET, SymbolRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import (
+from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, ExpressionDataset
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer
+from nca.domains.arithmetic import symbol_classifier
+from nca.domains.arithmetic.operator_recognizer import RELATION_SET, SymbolRecognizer
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import (
     BOOLEAN, COMPARISON, INTEGER, ComparisonEvaluator, Evaluator, ExpressionParser,
     SymbolFuser,
 )

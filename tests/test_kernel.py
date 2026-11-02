@@ -162,6 +162,16 @@ def test_requests_are_resolved_by_the_kernel_without_the_requester() -> None:
         execute(route, {TEXT: Message(TEXT, "3", "input")}, Workspace(), 5)
 
 
+def test_request_inputs_are_ordered_pairs_that_may_share_a_type() -> None:
+    from nca.abi import Request
+
+    assert Request(INT, {TEXT: "1"}).inputs == ((TEXT, "1"),)
+    both = Request(INT, ((TEXT, "1"), (TEXT, "2")))
+    assert both.types == (TEXT, TEXT) and both.inputs[1] == (TEXT, "2")
+    with pytest.raises(ValueError):
+        Request(INT, (TEXT,))
+
+
 def test_nested_request_chains_terminate() -> None:
     from nca.abi import Request
     from nca.kernel import Kernel

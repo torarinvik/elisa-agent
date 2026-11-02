@@ -533,7 +533,7 @@ def test_lazy_relevance_rule_skips_unneeded_request() -> None:
 
 def test_scaling_wrapper_preserves_runtime_rules() -> None:
     pytest.importorskip("torch")
-    from nca.scaling import ALGORITHM_BYTES, algorithm_expert
+    from nca.domains.arithmetic.scaling import ALGORITHM_BYTES, algorithm_expert
 
     class Consumer:
         manifest = Manifest("consumer", "1", Contract(("unused",), "output"))

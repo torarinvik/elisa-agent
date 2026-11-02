@@ -1,8 +1,8 @@
-# Decoding of prefix-formula arity sequences by the counter automaton (THEORY §21).
+# Decoding of prefix-term arity sequences by the counter automaton (THEORY §21).
 #
-# The state is the number of subformulas still awaited, starting at 1; a word of arity a
+# The state is the number of subterms still awaited, starting at 1; a symbol of arity a
 # read while n >= 1 are awaited leaves n - 1 + a, and a sequence is accepted when none
-# remain at its end. For maximum arity A, before word k the counter is at most
+# remain at its end. For maximum arity A, before symbol k the counter is at most
 # 1 + k * max(A - 1, 0), and it must be at most m - k to be completable.
 #
 # The sums run in linear space. Forward row k is stored unscaled and read divided by its
@@ -1177,7 +1177,7 @@ def retreat_ragged_log(backward: mutable view[f64], backward_max: mutable view[f
                 backward_max[cell] <- candidate if candidate > backward_max[cell] else backward_max[cell]
     return start - stop
 
-# [log Z, best log weight] with word k replaced by log_row. The ordered flag
+# [log Z, best log weight] with symbol k replaced by log_row. The ordered flag
 # may be true only if the supplied alphabet is nondecreasing.
 def scores_ragged_with_order(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, log_row: view[f64], ordered: bool) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     left: (first: i64, last: i64) = support_envelope(forward, forward_max, offsets, low, high, k)
@@ -1217,7 +1217,7 @@ def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view
     return scores_ragged_with_order(forward, forward_max, backward, backward_max, alphabet, low, high, offsets, k, log_row, arities_ordered(alphabet))
 
 # [best log weight, its arities (m)], with forward max row `k` and backward max row `k + 1`
-# current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
+# current (THEORY §23.4, Theorem 23.10): the best state and arity at symbol `k`, then the best
 # prefix traced back through the forward max rows and the best suffix forward through the
 # backward max rows.
 # Indexed traversal requires a permutation sorted by the supplied arities.
@@ -1306,44 +1306,6 @@ def trace_ragged_indexed(forward_max: view[f64], backward_max: view[f64], log_pr
 def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     return trace_ragged_with_order(forward_max, backward_max, log_probs, alphabet, low, high, offsets, k, arities_ordered(alphabet))
 
-# Least-risk certificate on an already parsed prefix tree. Opcodes follow the
-# formula vocabulary: true, false, not, and, or, xor. Ties prefer the right child.
-def certificate(ops: view[i64], left: view[i64], right: view[i64], full: view[f64], shape: view[f64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
-    m: i64 = ops.len.i64()
-    choice: darray[i64] =
-        for step in 0..<m |values: darray[i64] = [0 for _ in 0..<m], weight: darray[f64] = [0.0 for _ in 0..<m], skipped: darray[f64] = [0.0 for _ in 0..<m], choice: darray[i64] = [-1 for _ in 0..<m]| -> choice:
-            k: i64 = m - 1 - step
-            a: i64 = left[k]
-            b: i64 = right[k]
-            values[k] <- 1 if ops[k] == 0 else 0
-            skipped[k] <- shape[k]
-            weight[k] <- full[k]
-            if a >= 0:
-                values[k] <- 1 - values[a]
-                skipped[k] <- skipped[k] + skipped[a]
-                weight[k] <- weight[k] + weight[a]
-            if b >= 0:
-                values[k] <- (values[a] * values[b]) if ops[k] == 3 else (1 if values[a] + values[b] > 0 else 0) if ops[k] == 4 else (1 if values[a] != values[b] else 0)
-                skipped[k] <- skipped[k] + skipped[b]
-                weight[k] <- weight[k] + weight[b]
-                for side in 0..<2:
-                    kept: i64 = a if side == 0 else b
-                    other: i64 = b if side == 0 else a
-                    alternative: f64 = full[k] + weight[kept] + skipped[other]
-                    if (ops[k] == 3 and values[kept] == 0 or ops[k] == 4 and values[kept] == 1) and alternative <= weight[k]:
-                        weight[k] <- alternative
-                        choice[k] <- kept
-    return
-        for k in 0..<m |found: darray[i64] = [1 if i == 0 else 0 for i in 0..<m]| -> found:
-            continue if found[k] == 0
-            if choice[k] >= 0:
-                found[choice[k]] <- 1
-            else:
-                if left[k] >= 0:
-                    found[left[k]] <- 1
-                if right[k] >= 0:
-                    found[right[k]] <- 1
-
 # Check a prefix tree of arbitrary nonnegative arities without building it.
 def valid_prefix(arities: view[i64]) -> bool can[Abort.Panic]:
     m: i64 = arities.len.i64()
@@ -1357,7 +1319,7 @@ def valid_prefix(arities: view[i64]) -> bool can[Abort.Panic]:
             pending <- pending - 1 + arity
     return pending == 0
 
-# Parse arities 0, 1, 2 into two child slots per word; empty means invalid.
+# Parse arities 0, 1, 2 into two child slots per symbol; empty means invalid.
 def parse_tree(arities: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = arities.len.i64()
     return [] if m == 0
@@ -1401,15 +1363,6 @@ def parse_tree_generic(arities: view[i64]) -> darray[i64] can[Memory.Allocate, A
                 missing[depth] <- arities[k]
                 depth += 1
     return result if remaining == 0 else []
-
-# Keep child slots native between parsing and certificate selection.
-def certificate_words(ops: view[i64], full: view[f64], shape: view[f64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
-    arities: darray[i64] = [0 if ops[k] < 2 else 1 if ops[k] == 2 else 2 for k in 0..<ops.len.i64()]
-    children: darray[i64] = parse_tree(arities[0:arities.count])
-    return [] if children.count == 0
-    left: darray[i64] = [children[2 * k] for k in 0..<ops.len.i64()]
-    right: darray[i64] = [children[2 * k + 1] for k in 0..<ops.len.i64()]
-    return certificate(ops, left[0:left.count], right[0:right.count], full, shape)
 
 # Sum nonnegative finite row masses into caller-declared groups. Compensated
 # additions match Python's floating-point sum on the runtime's float tuples.
@@ -1643,7 +1596,7 @@ def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
     return log(-1.0) if failed
     return total
 
-# Validate a complete prefix formula and sum its selected log weights.
+# Validate a complete prefix term and sum its selected log weights.
 # Empty output denotes invalid shape or syntax; [-inf] is zero mass and [nan] is arithmetic failure.
 def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
@@ -1654,7 +1607,7 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
     pending, total, zero, failed =
         for k in 0..<m |pending: i64 = 1, total: f64 = 0.0, zero: bool = false, failed: bool = false| -> (pending, total, zero, failed):
             arity: i64 = selected[k]
-            # Bound pending by the remaining words before adding this arity.
+            # Bound pending by the remaining symbols before adding this arity.
             return [] if pending == 0 or arity < 0 or arity > m - k - pending
             column: i64 =
                 if width < 16:
@@ -2145,11 +2098,9 @@ export pymodule decoding:
     fn trace_ragged
     fn trace_ragged_with_order
     fn trace_ragged_indexed
-    fn certificate
     fn parse_tree
     fn parse_tree_generic
     fn valid_prefix
-    fn certificate_words
     fn row_argmax
     fn ranked_argmax_checked
     fn ranked_argmax_indices_checked

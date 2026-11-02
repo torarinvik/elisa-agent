@@ -21,7 +21,7 @@ or risk control), and for several independent audit draws, it reports the
 certified ``λ``, coverage and error among answered evaluation expressions,
 and whether the error met the target.
 
-    uv run --extra vision python -m nca.certify --cheap checkpoints/digit_mlp.pt \\
+    uv run --extra vision python -m nca.domains.arithmetic.certify --cheap checkpoints/digit_mlp.pt \\
         --expensive checkpoints/digit_cnn.pt
 """
 
@@ -35,18 +35,17 @@ from typing import Any
 import torch
 
 from nca.abi import TypeId
-from nca.expressions import OPERATORS, ExpressionDataset, Sample
-from nca.ladder import Rung, certification_order, certify, recalibrated
-from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
-from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import INTEGER
+from nca.domains.arithmetic.expressions import OPERATORS, ExpressionDataset, Sample
+from nca.ladder import INFLATIONS, Rung, certification_order, certify, recalibrated
+from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION
+from nca.domains.arithmetic.operator_recognizer import OPERATOR_DISTRIBUTION
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import INTEGER
 from nca.planner import Plan, plan_stable
-from nca.selective import build_ladders, library, solve, validation_data
+from nca.domains.arithmetic.abstention import library, validation_data
+from nca.selective import build_ladders, solve
 from nca.stats import wilson
 
-INFLATIONS = (4.0, 2.0, 1.5, 1.25, 1.0, 0.75, 0.5)
-"""Candidate inflation factors; below 1 the policy answers above its bound."""
 
 
 def labeled_glyphs(samples: Sequence[Sample]) -> dict[TypeId, tuple[list[Any], torch.Tensor]]:

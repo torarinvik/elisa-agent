@@ -5,9 +5,9 @@ embedding to a distribution over the 13 arithmetic symbols. They are trained
 jointly but installed as separate modules, so the classifier can be installed
 before any encoder exists. It is then dormant: its input type is unavailable,
 so no plan can use it. Installing the encoder later activates it, which is
-the routing conflict studied by ``nca.accumulation --scenario conflict``.
+the routing conflict studied by ``nca.domains.arithmetic.accumulation --scenario conflict``.
 
-    uv run --extra vision python -m nca.modules.symbol_classifier
+    uv run --extra vision python -m nca.domains.arithmetic.symbol_classifier
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ import torch
 from torch import nn
 
 from nca.abi import Contract, Manifest
-from nca.expressions import OPERATORS, render_operator
-from nca.modules.digit_recognizer import GLYPH
-from nca.modules.symbols import SYMBOL_DISTRIBUTION
+from nca.domains.arithmetic.expressions import OPERATORS, render_operator
+from nca.domains.arithmetic.digit_recognizer import GLYPH
+from nca.domains.arithmetic.symbols import SYMBOL_DISTRIBUTION
 
 GLYPH_EMBEDDING = "glyph.embedding.v1"
 """``torch.Tensor`` of shape (128,) from ``nca.glyph-encoder`` version 1."""

@@ -5,7 +5,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nca.abi import Message
-from nca.modules.digit_recognizer import (
+from nca.domains.arithmetic.digit_recognizer import (
     DIGIT_DISTRIBUTION,
     GLYPH,
     DigitRecognizer,

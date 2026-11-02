@@ -7,7 +7,7 @@ was trained on.
 ``--task arithmetic`` classifies ``a op b`` by value; ``--task mixed``
 classifies ``a op b rel c`` as true or false.
 
-    uv run --extra vision python -m nca.baseline --epochs 5
+    uv run --extra vision python -m nca.domains.arithmetic.baseline --epochs 5
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from nca.expressions import HEIGHT, MIXED_WIDTH, NUM_VALUES, SPLITS, WIDTH, ExpressionDataset
+from nca.domains.arithmetic.expressions import HEIGHT, MIXED_WIDTH, NUM_VALUES, SPLITS, WIDTH, ExpressionDataset
 
 TASKS = {"arithmetic": (WIDTH, NUM_VALUES), "mixed": (MIXED_WIDTH, 2)}
 

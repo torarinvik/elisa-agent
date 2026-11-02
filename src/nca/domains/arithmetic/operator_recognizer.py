@@ -4,10 +4,10 @@ Each classifies a glyph as one of its symbols or as none of them. A
 recognizer is trained only on rendered glyphs of its own symbols and, as
 negatives, MNIST digits and the other symbol set's glyphs. It never sees
 expressions, the digit recognizer, or arithmetic. With ``--normalized`` it is
-trained on, and consumes, normalized glyphs (``nca.modules.normalizer``).
+trained on, and consumes, normalized glyphs (``nca.domains.arithmetic.normalizer``).
 
-    uv run --extra vision python -m nca.modules.operator_recognizer --symbols operators
-    uv run --extra vision python -m nca.modules.operator_recognizer --symbols relations
+    uv run --extra vision python -m nca.domains.arithmetic.operator_recognizer --symbols operators
+    uv run --extra vision python -m nca.domains.arithmetic.operator_recognizer --symbols relations
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ import torch
 from torch import nn
 
 from nca.abi import Contract, Manifest, TypeId
-from nca.expressions import OPERATORS, RELATIONS, render_operator
-from nca.modules.digit_recognizer import GLYPH, build_network as _digit_network
+from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, render_operator
+from nca.domains.arithmetic.digit_recognizer import GLYPH, build_network as _digit_network
 
 OPERATOR_DISTRIBUTION = "operator.distribution.v1"
 """Tuple of 4 probabilities over ``("+", "-", "*", None)``; ``None`` = not an operator."""
@@ -57,7 +57,7 @@ def build_network(symbol_set: SymbolSet = OPERATOR_SET) -> nn.Module:
 class SymbolRecognizer:
     def __init__(self, network: nn.Module, symbol_set: SymbolSet = OPERATOR_SET,
                  version: str = "1.0.0", normalized: bool = False) -> None:
-        from nca.modules.normalizer import NORMALIZED_GLYPH
+        from nca.domains.arithmetic.normalizer import NORMALIZED_GLYPH
 
         self.symbol_set = symbol_set
         self.manifest = Manifest(symbol_set.module_id, version,
@@ -90,7 +90,7 @@ def make_dataset(mnist_images: np.ndarray, size: int, seed: int,
     Negatives are MNIST digits, plus rendered ``symbol_set.negatives`` glyphs
     for a third of them when that set is non-empty.
     """
-    from nca.modules.normalizer import normalize_all
+    from nca.domains.arithmetic.normalizer import normalize_all
 
     rng = np.random.default_rng(seed)
     n = len(symbol_set.symbols)

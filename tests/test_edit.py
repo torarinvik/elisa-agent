@@ -5,7 +5,7 @@ import pytest
 
 pytest.importorskip("torch")
 
-from nca.modules import words
+from nca.domains.boolean import words
 
 
 @pytest.mark.parametrize("reference", [False, True])

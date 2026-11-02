@@ -6,7 +6,7 @@
   every plan using the kernel's built-in ``map`` is expressed this way at the
   same cost). Demand on its output passes through to each call.
   ``embed_maps`` rewrites a plan accordingly.
-* ``Fallback``: the confidence cascade of §14 with both recognizers as slots
+* ``Fallback``: the confidence cascade of §14 with both experts as slots
   ``[x] ⇒ y``. It answers with the first slot's distribution when its most
   probable class has probability at least ``threshold``, and calls the second
   slot otherwise. Its error is a property of the pair of fillings

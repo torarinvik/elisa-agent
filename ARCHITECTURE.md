@@ -16,21 +16,21 @@ run the Python tests with `uv run pytest`.
 | [§2 Planning](theory/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification`, `PatternSearch` | `planner.plan`, `router.infer` |
 | [§3 Routing stability](theory/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
 | [§4 Compositional reliability](theory/04-compositional-reliability.md) | `Reliability` | |
-| [§5 Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md) | `Shift` | `pipeline` |
-| [§6 Handwritten-arithmetic pipeline](theory/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `modules.segmenter`, `modules.symbols`, `modules.digit_recognizer`, `modules.operator_recognizer` |
-| [§7 Measuring accumulation](theory/07-measuring-accumulation.md) | `Routing` | `accumulation` |
+| [§5 Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md) | `Shift` | `domains.arithmetic.pipeline` |
+| [§6 Handwritten-arithmetic pipeline](theory/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `domains.arithmetic.segmenter`, `domains.arithmetic.symbols`, `domains.arithmetic.digit_recognizer`, `domains.arithmetic.operator_recognizer` |
+| [§7 Measuring accumulation](theory/07-measuring-accumulation.md) | `Routing` | `domains.arithmetic.accumulation` |
 | [§8 Explicit route upgrades](theory/08-explicit-route-upgrades.md) | `Upgrade` | `router.Router`, `router.sign_test` |
-| [§9 Module substitution](theory/09-module-substitution.md) | `Substitution` | `substitution` |
-| [§10 Complementarity](theory/10-complementarity.md) | | `complementarity` |
-| [§11 Evaluation methodology](theory/11-evaluation-methodology.md) | | `expressions`, `stats` |
-| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `scaling` |
-| [§13 Efficiency](theory/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `efficiency`, `workspace` |
-| [§14 Kernel-mediated requests](theory/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `cascade` |
-| [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `modules.normalizer`, `baseline` |
-| [§16 Knowing when to be unsure](theory/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `practice` |
-| [§17 Calibration under shift](theory/17-calibration-under-distribution-shift.md) | `Calibration` | `certify` |
-| [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `logic`, `formulas`, `modules.words` |
-| [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `logic`, `formulas` |
+| [§9 Module substitution](theory/09-module-substitution.md) | `Substitution` | `domains.arithmetic.substitution` |
+| [§10 Complementarity](theory/10-complementarity.md) | | `domains.arithmetic.complementarity` |
+| [§11 Evaluation methodology](theory/11-evaluation-methodology.md) | | `domains.arithmetic.expressions`, `stats` |
+| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `domains.arithmetic.scaling` |
+| [§13 Efficiency](theory/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `domains.arithmetic.efficiency`, `workspace` |
+| [§14 Kernel-mediated requests](theory/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `domains.arithmetic.cascade` |
+| [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `domains.arithmetic.normalizer`, `domains.arithmetic.baseline` |
+| [§16 Knowing when to be unsure](theory/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `domains.arithmetic.practice` |
+| [§17 Calibration under shift](theory/17-calibration-under-distribution-shift.md) | `Calibration` | `domains.arithmetic.certify` |
+| [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `domains.boolean.logic`, `domains.boolean.formulas`, `domains.boolean.words` |
+| [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `domains.boolean.logic`, `domains.boolean.formulas` |
 | [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation`, `Relevance` | `modules.combinators`, `optimize`, `kernel`, `runtime` |
 | [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `native.decoding` |
 | [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `ladder` |
@@ -38,13 +38,27 @@ run the Python tests with `uv run pytest`.
 | [§24 When the prior is wrong](theory/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
 | [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
-| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `modules.words`, `logic` |
+| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
 
-Formula data generation and evaluation live in `formulas`; counter decoding and
-incremental bands live in `decoding`; weighted automata and prior selection live
-in `priors`. Existing decoding and prior imports from `formulas` remain available
-as compatibility aliases. Numerical kernels remain in `native/decoding.elisa`,
+Formula data generation and evaluation live in `domains.boolean.formulas`; counter
+decoding and incremental bands live in `decoding`; weighted automata and prior
+selection live in `priors`. Numerical kernels remain in `native/decoding.elisa`,
 with Python reference implementations for validation and fallback.
+
+## Layout
+
+`src/nca/` is the generic core: the ABI, planners, index, kernel, runtime,
+loader, ladders and selective refinement, statistics, decoding over ranked
+alphabets, priors, measured costs (`cost`), the generic library experts in
+`modules/` (combinators and request wrappers), and the native kernels. Nothing
+in it names a task, a data set, or a domain type.
+
+`src/nca/domains/` holds the research domains, each a package of its data, its
+experts and its experiments: `arithmetic` (handwritten arithmetic and
+comparison) and `boolean` (noisy Boolean formulas). A domain depends only on
+the core, never on another domain, and the core never imports a domain;
+`tests/test_layout.py` enforces both directions. Domains share a type only by
+naming the same type identifier, as independently written experts would.
 
 ## Theorems
 
@@ -285,13 +299,15 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 `src/nca/native/` holds optional kernels written in Elisa and built as CPython
 extensions with `python -m nca.native` (needs `elisac-stage1`). Each has a
 NumPy reference that gives the same results within rounding and is used when
-the kernel is not built or `NCA_NATIVE=0`. `decoding.elisa` runs the exact
+the kernel is not built or `NCA_NATIVE=0`. Kernels that only a domain needs
+live beside that domain's code (`domains/boolean/kernels.elisa`) and are
+built by the same command. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
 It also exports `advance_ragged_log`, `retreat_ragged_log`, `scores_ragged_log`
 and `trace_ragged`, the banded cursor of §23.4
 (`trace_ragged` reads the decoded sequence off the max tables, `Split.best`, and
 returns no sequence when the maximum is unreachable):
-`formulas.Split` keeps the forward and backward tables in NumPy arrays and the
+`decoding.Split` keeps the forward and backward tables in NumPy arrays and the
 kernel recomputes rows in place through `mutable view[f64]` parameters, which
 borrow the arrays' writable buffers. Cursors copy input weights into row-major
 storage so native calls can borrow a flat view without copying the matrix.
@@ -490,12 +506,12 @@ a requirement on the task's own inputs.
 
 ## 5. Reliability under distribution shift
 
-`nca.pipeline` reports, per recognizer, the excess of in-situ over offline
+`nca.domains.arithmetic.pipeline` reports, per recognizer, the excess of in-situ over offline
 failure rate: the lower bound on induced shift of `shift_ge_gap`.
 
 ## 6. Algorithms of the handwritten-arithmetic pipeline
 
-**Segmentation** (`nca.modules.segmenter`). Ink columns (intensity > 0.1) are
+**Segmentation** (`nca.domains.arithmetic.segmenter`). Ink columns (intensity > 0.1) are
 grouped into runs; runs separated by fewer than 4 blank columns merge (the
 gap was chosen on the `validation` split, where 4 minimizes segmentation
 failures for 2, 8 and 32 operands; results in sections before §15 were
@@ -510,7 +526,7 @@ so installing one family cannot satisfy or alter the other's contracts.
 
 ## 7. Measuring accumulation
 
-The add-and-freeze runner (`nca.accumulation`) checks the stability theorem
+The add-and-freeze runner (`nca.domains.arithmetic.accumulation`) checks the stability theorem
 on real modules. For each task in a fixed suite, before and after installing
 new modules, it records coverage (whether `planStable` finds a route),
 whether the route is unchanged, accuracy, and the number of individual
@@ -585,7 +601,7 @@ pending request is settled with the requester's provisional answer and
 recorded as skipped; requests consumed without a declaration, mapped, or
 returned are always resolved. `SymbolFuser` declares the digit reading
 irrelevant on glyphs the operator recognizer judges to be operators. That gate
-is not sound (a digit misjudged as an operator is skipped); `nca.cascade`
+is not sound (a digit misjudged as an operator is skipped); `nca.domains.arithmetic.cascade`
 measures its cost as the answers that differ between gated and ungated
 refinement.
 
@@ -603,7 +619,7 @@ choices through the Elisa row-argmax kernel when available.
 
 ## 15. Normalization against shift
 
-**Normalizer** (`nca.modules.normalizer.GlyphNormalizer`, contract
+**Normalizer** (`nca.domains.arithmetic.normalizer.GlyphNormalizer`, contract
 `GLYPH → NORMALIZED_GLYPH`). It scales the ink bounding box to 20 pixels,
 centers it, then thickens or thins strokes (3×3 max or min, at most three
 steps) until the ink fraction is in `[0.10, 0.21]`. This undoes size changes
@@ -648,7 +664,7 @@ shifts) of all but the cheapest. The stronger recognizer (`--arch wide
 and rescaled digits) reaches 99.19% on MNIST at about 10× the expensive
 recognizer's compute.
 
-**Practice** (`nca.practice`). Practice is offline. A copy of the recognizer
+**Practice** (`nca.domains.arithmetic.practice`). Practice is offline. A copy of the recognizer
 is fine-tuned on the queued glyphs mixed with 10,000 replayed MNIST training
 digits, so the normal style is not forgotten. The new version is adopted only
 if it beats the current one by a one-sided sign test on `validation`
@@ -799,34 +815,25 @@ uses `Split.best` (native Elisa `trace` when available). The calibrated cursor
 still computes the risk of that selected sequence, which need not maximize
 the calibrated posterior. Both cursors remain scoped to one solve.
 
-The optional native decoding module also exports `certificate`: the least-risk
-certificate recurrence over parsed prefix trees, including right-child tie
-preference. `FormulaEvaluator.evaluated` marshals opcodes and child indices to
-Elisa; `evaluated_reference` remains the Python recurrence and fallback when
-the native module or this export is absent. This implements the existing
-certificate soundness and minimum-weight results (18.3–18.5).
+The Boolean domain's own native module, `domains.boolean.kernels`, exports
+`certificate`: the least-risk certificate recurrence over parsed prefix trees,
+including right-child tie preference. Its opcodes are the formula vocabulary,
+so it lives with the domain, not in the core kernels. `FormulaEvaluator.evaluated`
+marshals opcodes and child indices to Elisa; `evaluated_reference` remains the
+Python recurrence and fallback when the module is absent. This implements the
+existing certificate soundness and minimum-weight results (18.3–18.5).
 
-`formulas.parse` uses native `parse_tree` for arities 0–2. It returns the
-same child lists as `parse_reference`, with invalid inputs returning `None`.
-The Elisa parser maintains an explicit parent stack, avoiding recursion depth
-limits. Other arities and installations without the export use the reference.
-The native result has two child slots per node; Python currently rebuilds
-lists before certificate selection marshals them back into native arrays.
-
-For the correction account, `certificate_words` combines parsing and
-certificate selection inside Elisa. Invalid prefix words return an empty
-result, which the account rejects. Child arrays remain native and are passed
-as borrowed slices. The Python child-list route remains the fallback when
-this export is absent. Existing format and certificate theorems cover the
-composition; neither decoding weights nor certificate tie rules change.
-When short-circuiting is disabled, the account instead uses Elisa's generic
-`valid_prefix` counter check and charges every word; it falls back to the
-fused certificate when that export is unavailable. The check uses the format
-automaton and remaining-length bound in `NCA.Decoding`;
-`guardedPrefix_correct` proves that the corresponding guarded natural-number
-validator accepts exactly the automaton's completed runs. This does not
-prove the Elisa implementation or its machine-integer arithmetic; its guard
-keeps the counter within the remaining input length before addition.
+`decoding.parse` uses the core's native `parse_tree_generic`, or `parse_tree`
+for arities 0–2. It returns the same child lists as `parse_reference`, with
+invalid inputs returning `None`. The Elisa parsers maintain an explicit parent
+stack, avoiding recursion depth limits. The certificate and correction
+accounts parse with it and then select the certificate, so parsing stays
+generic and only the selection is domain code. `valid_prefix` checks the
+format automaton without building the tree; `guardedPrefix_correct` in
+`NCA.Decoding` proves that the corresponding guarded natural-number validator
+accepts exactly the automaton's completed runs. This does not prove the Elisa
+implementation or its machine-integer arithmetic; its guard keeps the counter
+within the remaining input length before addition.
 
 `native.decoding.grouped_masses` sums finite nonnegative row entries into
 caller-declared class groups. `FormulaEvaluator.words` uses it to prepare raw
@@ -861,7 +868,7 @@ the documented floating-point assumptions. The Python path remains the
 fallback. Both implement Theorem 23.11;
 small floating-point differences in charges can affect refinement tie order.
 
-The correction account uses `formulas.sequence_log_weight` to score the
+The correction account uses `priors.sequence_log_weight` to score the
 actual selected arity sequence under calibrated weights (§21.5). The native
 reduction preserves position order, and accepts an explicit alphabet.
 Unknown symbols have weight zero (log weight minus infinity); incompatible
@@ -1049,20 +1056,20 @@ runner can audit the current correction path without a pointwise roundoff
 allowance, subject to the sampling assumptions of §17.
 
 `ladder.certification_possible` tests the zero-error upper bound for the
-entire checking budget. `logic.shifted` skips candidate fit/check evaluations
+entire checking budget. `domains.boolean.logic.shifted` skips candidate fit/check evaluations
 when even that bound exceeds the target. The uncontrolled evaluation remains
 unchanged, and feasible audit budgets use the existing fixed-sequence test.
 The Lean obstruction theorem covers the zero-error power inequality; the
 binomial bound's monotonicity in errors is used as its standard statistical
 property, not newly formalized here.
 
-For feasible audit budgets, `logic.shifted` computes checking outcomes lazily
+For feasible audit budgets, `domains.boolean.logic.shifted` computes checking outcomes lazily
 in the fit-half-determined order. It stops at the first rejected candidate
 and chooses maximum coverage only among the accepted prefix. Fit-half
 candidate evaluation remains complete, and the order never changes in
 response to checking labels. This implements §17.5's existing stopping rule.
 
-Checking calls to `logic.outcomes` pass `reject_above` and `alpha`. After a
+Checking calls to `domains.boolean.logic.outcomes` pass `reject_above` and `alpha`. After a
 new error, the runner tests the optimistic bound that credits every checking
 example as answered. If even it fails, the routine returns partial counts,
 which are used only to reject that candidate. Accepted candidates still
@@ -1085,7 +1092,7 @@ of that policy's stopping state. Exhausted targets use the final state.
 remain available. Multi-target calls exclude those options and require
 deterministic consumers. Audit fitting uses this API to share thresholds for each input.
 
-`logic.outcomes_many` accumulates fit-half answer/error counts from
+`domains.boolean.logic.outcomes_many` accumulates fit-half answer/error counts from
 `solve_many` for all inflation thresholds. These counts determine the same
 candidate order as independent solves. Checking lazily computes one shared
 path per visited sample and retains only its answer/error flags. Candidates
@@ -1095,7 +1102,7 @@ When the first candidate's fit coverage cannot certify even with zero errors,
 checking starts with that candidate alone and switches to sharing only after
 it passes. The fit-based choice changes computation, not the statistical test.
 
-`formulas.CertifiedSplit` manages a fixed-reference `Split` band and widens
+`decoding.CertifiedSplit` manages a fixed-reference `Split` band and widens
 it until the relative tail and exact-maximum conditions of §23.3 hold.
 Its band width uses the configured maximum arity, and its full-coverage
 threshold is precomputed from the fixed reference counters.
@@ -1158,7 +1165,7 @@ explains the unchanged score ordering. Zero-mass rows fall back to the
 existing nondecoded reading behavior. The option defaults to disabled pending
 broader timing, tie-choice and deployment-audit comparisons.
 
-`formulas.ArityPrior` represents the weighted deterministic automaton of
+`priors.ArityPrior` represents the weighted deterministic automaton of
 THEORY §27. Its validated transition, log-edge and log-final arrays are copied
 and read-only. Alphabets may contain distinct nonnegative integer arities.
 When a label exceeds native signed 64-bit range, native calls use dense
@@ -1241,7 +1248,7 @@ envelopes avoid scanning outside the reachable range. Arrays remain dense;
 reused score rows clear only their previous envelopes, and no finite
 low-probability state is pruned.
 
-`modules.words.CompleteTreePrior` exposes the independent contract
+`domains.boolean.words.CompleteTreePrior` exposes the independent contract
 `logic.formula.length.v1 → logic.arity.prior.v1`. It delegates supported
 lengths to the cached constructor and returns an empty-support automaton
 otherwise, retaining the output type without a format fallback. The ordinary
@@ -1308,7 +1315,7 @@ and initialization; sparse intervals reduce subsequent scans, not automaton size
 normalizer export is absent. Empty reading arrays follow the decoder
 convention of no accepted formula.
 
-`formulas.select_prior` sums relative log evidence from unlabeled held-out
+`priors.select_prior` sums relative log evidence from unlabeled held-out
 reading matrices under length-indexed candidate providers and one shared base
 vector. It returns `PriorSelection` with the winning index, all scores and
 sample count. Exact ties keep the caller's declared order; without clipping,

@@ -32,7 +32,7 @@ the decoded arity sequence's posterior risk ``R``, the pairs premise of §19
 failures of adjacent and distant word pairs against the products of their
 risks.
 
-    uv run --extra vision python -m nca.logic --reader checkpoints/words.pt
+    uv run --extra vision python -m nca.domains.boolean.logic --reader checkpoints/words.pt
 """
 
 from __future__ import annotations
@@ -46,15 +46,13 @@ import numpy as np
 import torch
 
 from nca.abi import Module, TypeId
-from nca.certify import INFLATIONS
 from nca.decoding import decode, parse
-from nca.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words
+from nca.domains.boolean.formulas import ARITY, VOCABULARY, FormulaDataset, FormulaSample, labeled_words
 from nca.priors import (ArityPrior, PriorSelection, complete_prior, format_prior,
                         height_prior, select_prior)
-from nca.ladder import (Rung, State, Stop, certification_order, certification_possible, certify,
+from nca.ladder import (INFLATIONS, Rung, State, Stop, certification_order, certification_possible, certify,
                         charge_per_cost, stopping_rule)
-from nca.modules.symbols import BOOLEAN
-from nca.modules.words import (ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
+from nca.domains.boolean.words import (BOOLEAN, ARITY_DECISION, ARITY_ORDER, WORD_DISTRIBUTION, CharReader,
                                EditReader, FormulaEvaluator, FORMULA_TEXT, Tokenizer,
                                CompleteTreePrior, HeightBoundedPrior, PriorFormulaEvaluator,
                                pair_risk_upper)

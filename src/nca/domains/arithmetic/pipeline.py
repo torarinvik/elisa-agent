@@ -22,7 +22,7 @@ At digit positions the parser's restricted argmax equals the digit
 recognizer's argmax, and at operator positions the operator recognizer's
 argmax over operators, so positional failures are exactly module failures.
 
-    uv run --extra vision python -m nca.pipeline
+    uv run --extra vision python -m nca.domains.arithmetic.pipeline
 """
 
 from __future__ import annotations
@@ -34,12 +34,12 @@ from pathlib import Path
 import torch
 
 from nca.abi import Message
-from nca.expressions import ExpressionDataset
-from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import SymbolRecognizer, make_dataset
-from nca.modules.normalizer import GlyphNormalizer, normalize_all
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import (
+from nca.domains.arithmetic.expressions import ExpressionDataset
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import SymbolRecognizer, make_dataset
+from nca.domains.arithmetic.normalizer import GlyphNormalizer, normalize_all
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import (
     INTEGER, SYMBOL_DISTRIBUTION, Evaluator, ExpressionParser, SymbolFuser,
 )
 from nca.planner import Plan, plan_stable

@@ -1626,6 +1626,11 @@ def certification_possible(budget: int, delta: float, alpha: float) -> bool:
     return clopper_pearson_within(0, budget, alpha, delta)
 
 
+INFLATIONS = (4.0, 2.0, 1.5, 1.25, 1.0, 0.75, 0.5)
+"""Candidate policies for ``certify``: refinement targets ``δ / λ`` for these
+inflation factors ``λ``; below 1 a policy answers above its bound."""
+
+
 def certify(candidates: Sequence[tuple[int, int]], delta: float, alpha: float,
             order: Sequence[int] | None = None) -> list[int]:
     """Fixed-sequence risk control (``NCA.fixed_sequence_le``).

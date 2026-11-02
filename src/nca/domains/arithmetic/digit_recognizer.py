@@ -9,9 +9,9 @@ MNIST training set used (``all``, ``first`` or ``second``) are training
 options. With ``--augment`` every training digit is randomly rotated (±10°),
 shifted (±10%) and rescaled (±10%) each epoch. With ``--normalized``
 the recognizer is trained on, and consumes, normalized glyphs
-(``nca.modules.normalizer``). Train with::
+(``nca.domains.arithmetic.normalizer``). Train with::
 
-    uv run --extra vision python -m nca.modules.digit_recognizer --out checkpoints/digit.pt
+    uv run --extra vision python -m nca.domains.arithmetic.digit_recognizer --out checkpoints/digit.pt
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ SUBSETS = ("all", "first", "second")
 class DigitRecognizer:
     def __init__(self, network: nn.Module, version: str = "1.0.0",
                  normalized: bool = False) -> None:
-        from nca.modules.normalizer import NORMALIZED_GLYPH
+        from nca.domains.arithmetic.normalizer import NORMALIZED_GLYPH
 
         contract = Contract((NORMALIZED_GLYPH,), DIGIT_DISTRIBUTION) if normalized else CONTRACT
         self.manifest = Manifest("nca.digit-recognizer", version, contract)
@@ -86,7 +86,7 @@ def train(data_dir: Path, out: Path, epochs: int, seed: int, arch: str = "cnn",
     """Train on MNIST (or one half of its training set) and return test accuracy."""
     from torchvision import datasets
 
-    from nca.modules.normalizer import normalize_all
+    from nca.domains.arithmetic.normalizer import normalize_all
 
     torch.manual_seed(seed)
 

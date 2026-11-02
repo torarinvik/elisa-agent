@@ -19,7 +19,7 @@ Reports accuracy of every system on every task, the majority-class baseline,
 an optional monolithic CNN trained on the mixed task, and the composition gain
 ``G = Q(A⊕B) − max(Q(A), Q(B), Q(A+B), baselines)`` on the mixed task.
 
-    uv run --extra vision python -m nca.complementarity --baseline checkpoints/baseline_mixed.pt
+    uv run --extra vision python -m nca.domains.arithmetic.complementarity --baseline checkpoints/baseline_mixed.pt
 """
 
 from __future__ import annotations
@@ -30,13 +30,13 @@ from pathlib import Path
 
 import torch
 
-from nca.accumulation import answers_for, comparison_modules
-from nca.baseline import TASKS as BASELINE_TASKS, build_network as build_baseline
-from nca.expressions import OPERATORS, RELATIONS, ExpressionDataset
-from nca.modules.digit_recognizer import DigitRecognizer
-from nca.modules.operator_recognizer import RELATION_SET, SymbolRecognizer
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import (
+from nca.domains.arithmetic.accumulation import answers_for, comparison_modules
+from nca.domains.arithmetic.baseline import TASKS as BASELINE_TASKS, build_network as build_baseline
+from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, ExpressionDataset
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import RELATION_SET, SymbolRecognizer
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import (
     BOOLEAN, INTEGER, Evaluator, ExpressionParser, MixedSymbolFuser, RelationalEvaluator,
     RelationalParser, SymbolFuser,
 )

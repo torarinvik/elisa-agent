@@ -1,0 +1,43 @@
+# Native kernels of the Boolean-formula domain.
+#
+# Least-risk certificate on an already parsed prefix tree. Opcodes follow the
+# formula vocabulary (`VOCABULARY`): true, false, not, and, or, xor. Ties prefer
+# the right child.
+def certificate(ops: view[i64], left: view[i64], right: view[i64], full: view[f64], shape: view[f64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    m: i64 = ops.len.i64()
+    choice: darray[i64] =
+        for step in 0..<m |values: darray[i64] = [0 for _ in 0..<m], weight: darray[f64] = [0.0 for _ in 0..<m], skipped: darray[f64] = [0.0 for _ in 0..<m], choice: darray[i64] = [-1 for _ in 0..<m]| -> choice:
+            k: i64 = m - 1 - step
+            a: i64 = left[k]
+            b: i64 = right[k]
+            values[k] <- 1 if ops[k] == 0 else 0
+            skipped[k] <- shape[k]
+            weight[k] <- full[k]
+            if a >= 0:
+                values[k] <- 1 - values[a]
+                skipped[k] <- skipped[k] + skipped[a]
+                weight[k] <- weight[k] + weight[a]
+            if b >= 0:
+                values[k] <- (values[a] * values[b]) if ops[k] == 3 else (1 if values[a] + values[b] > 0 else 0) if ops[k] == 4 else (1 if values[a] != values[b] else 0)
+                skipped[k] <- skipped[k] + skipped[b]
+                weight[k] <- weight[k] + weight[b]
+                for side in 0..<2:
+                    kept: i64 = a if side == 0 else b
+                    other: i64 = b if side == 0 else a
+                    alternative: f64 = full[k] + weight[kept] + skipped[other]
+                    if (ops[k] == 3 and values[kept] == 0 or ops[k] == 4 and values[kept] == 1) and alternative <= weight[k]:
+                        weight[k] <- alternative
+                        choice[k] <- kept
+    return
+        for k in 0..<m |found: darray[i64] = [1 if i == 0 else 0 for i in 0..<m]| -> found:
+            continue if found[k] == 0
+            if choice[k] >= 0:
+                found[choice[k]] <- 1
+            else:
+                if left[k] >= 0:
+                    found[left[k]] <- 1
+                if right[k] >= 0:
+                    found[right[k]] <- 1
+
+export pymodule kernels:
+    fn certificate

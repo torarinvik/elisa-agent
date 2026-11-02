@@ -1,4 +1,9 @@
-"""Prefix parsing, counter decoding and certified incremental bands (§21–23)."""
+"""Prefix parsing, counter decoding and certified incremental bands (§21–23).
+
+Generic over ranked alphabets: a sequence of symbols, each read as its arity,
+is decoded into exactly one tree written in prefix order, whatever the symbols
+mean in a domain.
+"""
 
 from __future__ import annotations
 
@@ -39,7 +44,7 @@ def _format_inputs(log_probs: np.ndarray, alphabet: Sequence[int]) -> np.ndarray
 
 
 def parse(arities: Sequence[int]) -> list[list[int]] | None:
-    """Parse a prefix formula, using a native parser when available."""
+    """Parse a prefix term, using a native parser when available."""
     if not _valid_arities(arities):
         return None
     generic = getattr(_NATIVE, "parse_tree_generic", None)
@@ -66,8 +71,8 @@ def parse(arities: Sequence[int]) -> list[list[int]] | None:
     return parse_reference(arities)
 
 def parse_reference(arities: Sequence[int]) -> list[list[int]] | None:
-    """Children of each word of a prefix formula, by position; ``None`` if the
-    arities do not form exactly one formula."""
+    """Children of each symbol of a prefix term, by position; ``None`` if the
+    arities do not form exactly one term."""
     if not len(arities) or not _valid_arities(arities):
         return None
     children: list[list[int]] = [[] for _ in arities]
@@ -90,10 +95,10 @@ def parse_reference(arities: Sequence[int]) -> list[list[int]] | None:
     return children if not pending else None
 
 def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decoded | None:
-    """Decode an arity sequence from per-word arity log-probabilities
+    """Decode an arity sequence from per-symbol arity log-probabilities
     (``log_probs[k, j]`` for arity ``alphabet[j]``) by the counter automaton:
-    the state is the number of subformulas still awaited, starting at 1; a
-    word of arity ``a`` read while ``n ≥ 1`` are awaited leaves ``n − 1 + a``;
+    the state is the number of subterms still awaited, starting at 1; a
+    symbol of arity ``a`` read while ``n ≥ 1`` are awaited leaves ``n − 1 + a``;
     the sequence is accepted when none remain at its end. ``None`` if no
     parseable sequence has positive weight. The alphabet must be nonempty and
     contain distinct nonnegative integer arities.
@@ -334,7 +339,7 @@ def band_changes(log_probs: np.ndarray, reference: Sequence[int], slack: float) 
 def decode_banded(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2),
                   slack: float = 1e-4) -> Banded | None:
     """``decode`` with the dynamic programs restricted to counter values within
-    ``max(alphabet) * (j − 1)`` of each word's most
+    ``max(alphabet) * (j − 1)`` of each symbol's most
     probable arity sequence. ``j`` starts at
     ``band_changes`` and widens until the tail bound is at most ``slack``
     times the band's weight, so the risk is within ``slack`` of the exact one
@@ -436,7 +441,7 @@ def _banded_passes(log_probs: np.ndarray, alphabet: Sequence[int], centre: Seque
 
 class Split:
     """Forward and backward vectors of the decoding programs, in log space,
-    kept valid around a cursor so that a change to one word's weights is
+    kept valid around a cursor so that a change to one symbol's weights is
     rescored from the vectors on either side of it (THEORY §23.4, Theorems
     23.7–23.9). With ``centre`` and ``half``, the programs are restricted to
     counter values within ``half`` of ``centre[k]`` at position ``k``, a band
@@ -575,10 +580,10 @@ class Split:
             self.swept += 1
 
     def scores(self, k: int, row: np.ndarray) -> tuple[float, float]:
-        """``log Z`` and the best log weight with word ``k``'s log weights
+        """``log Z`` and the best log weight with symbol ``k``'s log weights
         replaced by ``row``, from the vectors before and after it."""
         if not isinstance(k, (int, np.integer)) or not 0 <= k < len(self.log_probs):
-            raise IndexError("word index is out of range")
+            raise IndexError("symbol index is out of range")
         row = np.asarray(row, dtype=np.float64)
         if (row.shape != (len(self.alphabet),) or np.any(np.isnan(row))
                 or np.any(np.isposinf(row))):
@@ -620,10 +625,10 @@ class Split:
 
     def best(self, k: int) -> tuple[float, tuple[int, ...]]:
         """The best log weight and a sequence attaining it, traced from the
-        max vectors before and after word ``k`` (THEORY §23.4, Theorem 23.10).
+        max vectors before and after symbol ``k`` (THEORY §23.4, Theorem 23.10).
         If no path has positive weight, return ``(-inf, ())``."""
         if not isinstance(k, (int, np.integer)) or not 0 <= k < len(self.log_probs):
-            raise IndexError("word index is out of range")
+            raise IndexError("symbol index is out of range")
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
@@ -678,8 +683,8 @@ class Split:
         return log_x, tuple(arities)
 
     def climb(self, k: int, row: np.ndarray) -> tuple[float, float]:
-        """Replace word ``k``'s log weights by ``row`` and return the new
-        ``log Z`` and best log weight. Vectors that depend on word ``k`` (forward
+        """Replace symbol ``k``'s log weights by ``row`` and return the new
+        ``log Z`` and best log weight. Vectors that depend on symbol ``k`` (forward
         after it, backward before it) stop being current."""
         result = self.scores(k, row)
         self._commit_climb(k, row)
@@ -810,7 +815,7 @@ class CertifiedSplit:
         (THEORY §23.3). This is a model bound, not a floating-point enclosure.
         """
         if len(arities) != len(self.log_probs) or not _valid_arities(arities):
-            raise ValueError("sequence must be a complete prefix formula of matching length")
+            raise ValueError("sequence must be a complete prefix term of matching length")
         native = getattr(_NATIVE, "accepted_log_weight", None)
         if native is not None:
             accepted = native(self.log_probs.reshape(-1),
@@ -838,7 +843,7 @@ class CertifiedSplit:
             raise ValueError("row width must match the alphabet")
         self._validate(row)
         if not isinstance(k, (int, np.integer)) or not 0 <= k < len(self.log_probs):
-            raise IndexError("word index is out of range")
+            raise IndexError("symbol index is out of range")
         scores = self.split._scores_validated(k, row)
         self.split._commit_climb(k, row)
         self.log_probs[k] = row

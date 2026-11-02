@@ -11,10 +11,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from nca import decoding, formulas, priors
-from nca.formulas import (Decoded, decode,
-                          Split, decode_banded, decode_reference, parse)
-from nca.modules.words import (ARITY_ORDER)
+from nca import decoding, priors
+from nca.priors import Decoded
+from nca.decoding import decode, Split, decode_banded, decode_reference, parse
+from nca.domains.boolean.words import (ARITY_ORDER)
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -1243,10 +1243,9 @@ def test_split_traces_best_sequence(native: bool, monkeypatch: pytest.MonkeyPatc
     """After each climb, the sequence traced from the vectors around the
     climbed word parses and attains the best weight (Theorem 23.10)."""
     if not native:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
-    elif formulas._NATIVE is None:
+    elif decoding._NATIVE is None:
         pytest.skip("native kernel not built")
     rng = np.random.default_rng(9)
     for m in (1, 5, 17, 40):
@@ -1277,7 +1276,7 @@ def test_banded_split_matches_banded_passes() -> None:
             k = int(rng.integers(m))
             probs[k] = rng.dirichlet(np.full(3, 0.5))
             log_z, log_x = split.climb(k, np.log(probs[k]))
-            full = formulas._banded_passes(np.log(probs), ARITY_ORDER, centre, 4)
+            full = decoding._banded_passes(np.log(probs), ARITY_ORDER, centre, 4)
             if full is None:
                 assert log_z == -np.inf
                 continue
@@ -1700,7 +1699,7 @@ def test_cursors_copy_fortran_input_to_contiguous_private_rows(
     assert upper >= expected.log_z - 1e-12
 
 
-@pytest.mark.skipif(formulas._NATIVE is None, reason="native decoding kernel not built")
+@pytest.mark.skipif(decoding._NATIVE is None, reason="native decoding kernel not built")
 def test_native_decoder_matches_reference() -> None:
     """The native kernel against NumPy at formula sizes up to depth 9, with
     impossible arities (probability 0) and inputs that admit no formula."""
@@ -1759,11 +1758,11 @@ def test_long_tuple_parser_preserves_general_and_large_arities(reference, monkey
 
 
 def test_native_parser_matches_reference() -> None:
-    if getattr(formulas._NATIVE, "parse_tree", None) is None:
+    if getattr(decoding._NATIVE, "parse_tree", None) is None:
         pytest.skip("native parser is not built")
     for size in range(8):
         for arities in itertools.product(range(3), repeat=size):
-            assert parse(arities) == formulas.parse_reference(arities)
+            assert parse(arities) == decoding.parse_reference(arities)
     # A deep valid unary chain exceeds Python's recursive parser's stack.
     result = parse([1] * 2000 + [0])
     assert result is not None and len(result) == 2001
@@ -1773,12 +1772,11 @@ def test_native_parser_matches_reference() -> None:
 def test_certified_cursor_preserves_risk_bounds(reference: bool,
                                                 monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(32)
     weights = np.log(rng.dirichlet(np.full(3, 0.3), size=35))
-    cursor = formulas.CertifiedSplit(weights, slack=1e-4)
+    cursor = decoding.CertifiedSplit(weights, slack=1e-4)
     for step in range(20):
         if step:
             k = int(rng.integers(len(weights)))
@@ -1790,8 +1788,8 @@ def test_certified_cursor_preserves_risk_bounds(reference: bool,
         assert banded is not None and exact is not None and banded.exact
         risk = exact.risk(weights, (0, 1, 2), banded.arities)
         assert risk - 1e-12 <= banded.risk <= risk + 1e-4 + 1e-12
-        selected = formulas.sequence_log_weight(weights, (0, 1, 2), banded.arities)
-        best = formulas.sequence_log_weight(weights, (0, 1, 2), exact.arities)
+        selected = priors.sequence_log_weight(weights, (0, 1, 2), banded.arities)
+        best = priors.sequence_log_weight(weights, (0, 1, 2), exact.arities)
         assert selected == pytest.approx(best, abs=1e-12)
         # A valid answer may differ from the maximum and lie outside its band.
         alternate = (1,) * (len(weights) - 1) + (0,)
@@ -1802,12 +1800,12 @@ def test_certified_cursor_preserves_risk_bounds(reference: bool,
 
 def test_certified_cursor_rejects_invalid_weights_and_handles_zero_mass() -> None:
     with pytest.raises(ValueError):
-        formulas.CertifiedSplit(np.zeros((2, 3)))  # Row mass is three, not at most one.
+        decoding.CertifiedSplit(np.zeros((2, 3)))  # Row mass is three, not at most one.
     with pytest.raises(ValueError):
-        formulas.CertifiedSplit(np.log(np.full((2, 3), 1 / 3)), slack=0.0)
+        decoding.CertifiedSplit(np.log(np.full((2, 3), 1 / 3)), slack=0.0)
     with pytest.raises(ValueError):
-        formulas.CertifiedSplit(np.empty((0, 3)))
-    cursor = formulas.CertifiedSplit(np.full((3, 3), -np.inf))
+        decoding.CertifiedSplit(np.empty((0, 3)))
+    cursor = decoding.CertifiedSplit(np.full((3, 3), -np.inf))
     assert cursor.result() is None
 
 
@@ -1903,7 +1901,7 @@ def test_large_arity_sentinel_preserves_underflowed_valid_path(
     assert exact.risk(rows, alphabet) == banded.risk == cursor.risk == 0.0
 
 def test_certified_sequence_risk_requires_current_normalizer_and_valid_answer() -> None:
-    cursor = formulas.CertifiedSplit(np.log(np.full((3, 3), 1 / 3)))
+    cursor = decoding.CertifiedSplit(np.log(np.full((3, 3), 1 / 3)))
     with pytest.raises(ValueError, match="successful result"):
         cursor.sequence_risk((2, 0, 0))
     assert cursor.result() is not None
@@ -1918,7 +1916,7 @@ def test_certified_sequence_risk_scores_answer_outside_band() -> None:
     weights = np.full((9, 3), 1e-9)
     weights[:8, 1] = 1 - 2e-9
     weights[8, 0] = 1 - 2e-9
-    cursor = formulas.CertifiedSplit(np.log(weights))
+    cursor = decoding.CertifiedSplit(np.log(weights))
     result = cursor.result()
     assert result is not None and result.width == 1
     alternate = (2, 2, 2, 2, 0, 0, 0, 0, 0)
@@ -1932,7 +1930,6 @@ def test_certified_sequence_risk_scores_answer_outside_band() -> None:
 def test_normalizer_only_updates_bound_risk_without_tracing(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
-        monkeypatch.setattr(formulas, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
 
@@ -1941,7 +1938,7 @@ def test_normalizer_only_updates_bound_risk_without_tracing(
 
     rng = np.random.default_rng(43)
     weights = np.log(rng.dirichlet(np.full(3, 0.3), size=35))
-    cursor = formulas.CertifiedSplit(weights)
+    cursor = decoding.CertifiedSplit(weights)
     selected = (1,) * 34 + (0,)
     with monkeypatch.context() as patch:
         patch.setattr(Split, "best", no_trace)
@@ -1976,7 +1973,7 @@ def test_certified_sequence_risk_reports_weight_precision_loss(reference, monkey
 
 
 def test_native_accepted_log_weight_preserves_zero_and_invalid_after_loss() -> None:
-    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    native = getattr(decoding._NATIVE, "accepted_log_weight", None)
     if native is None:
         pytest.skip("native accepted sequence scorer is not built")
     alphabet = np.arange(3, dtype=np.int64)
@@ -1990,7 +1987,7 @@ def test_native_accepted_log_weight_preserves_zero_and_invalid_after_loss() -> N
 
 
 def test_native_accepted_log_weight_matches_prefix_parser() -> None:
-    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    native = getattr(decoding._NATIVE, "accepted_log_weight", None)
     if native is None:
         pytest.skip("native accepted sequence weight is not built")
     rng = np.random.default_rng(47)
@@ -1999,7 +1996,7 @@ def test_native_accepted_log_weight_matches_prefix_parser() -> None:
         rows = rng.normal(size=(size, 3))
         for selected in itertools.product(range(3), repeat=size):
             actual = native(rows.reshape(-1), alphabet, np.array(selected, dtype=np.int64))
-            if formulas.parse_reference(selected) is None:
+            if decoding.parse_reference(selected) is None:
                 assert actual == []
             else:
                 expected = sum(rows[k, list(alphabet).index(a)] for k, a in enumerate(selected))
@@ -2015,7 +2012,7 @@ def test_native_accepted_log_weight_matches_prefix_parser() -> None:
 
 
 def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
-    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    native = getattr(decoding._NATIVE, "accepted_log_weight", None)
     if native is None:
         pytest.skip("native accepted sequence weight is not built")
     alphabet = np.arange(4, dtype=np.int64)
@@ -2023,7 +2020,7 @@ def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
         rows = np.zeros((size, len(alphabet)))
         for selected in itertools.product(range(4), repeat=size):
             actual = native(rows.ravel(), alphabet, np.asarray(selected, dtype=np.int64))
-            assert bool(actual) == (formulas.parse_reference(selected) is not None)
+            assert bool(actual) == (decoding.parse_reference(selected) is not None)
             if actual:
                 assert actual == [0.0]
     size = 100_000
@@ -2036,7 +2033,7 @@ def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
                                                 ([2, 0, 1], 11.0),
                                                 ([2, 0, 2], 11.0)])
 def test_native_accepted_log_weight_preserves_alphabet_lookup(alphabet, expected) -> None:
-    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    native = getattr(decoding._NATIVE, "accepted_log_weight", None)
     if native is None:
         pytest.skip("native accepted sequence weight is not built")
     rows = np.array([[1., 2., 9.], [3., 4., 200.], [5., 6., 300.]])
@@ -2047,7 +2044,7 @@ def test_native_accepted_log_weight_preserves_alphabet_lookup(alphabet, expected
 
 
 def test_native_accepted_log_weight_wide_alphabet_lookup() -> None:
-    native = getattr(formulas._NATIVE, "accepted_log_weight", None)
+    native = getattr(decoding._NATIVE, "accepted_log_weight", None)
     if native is None:
         pytest.skip("native accepted sequence weight is not built")
     rng = np.random.default_rng(719)
@@ -2071,7 +2068,7 @@ def test_native_accepted_log_weight_wide_alphabet_lookup() -> None:
 
 
 def test_native_decoding_kernels_reject_inconsistent_matrix_shapes() -> None:
-    native = formulas._NATIVE
+    native = decoding._NATIVE
     if any(getattr(native, name, None) is None
            for name in ("accepted_log_weight", "format_partition", "banded_format")):
         pytest.skip("native decoding kernels are not built")

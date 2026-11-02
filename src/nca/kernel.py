@@ -40,5 +40,5 @@ class Kernel:
             full = self._indexes.setdefault(frozenset(), ProducerIndex(self.modules))
             self._indexes[excluded] = full.without(
                 [p for p, m in enumerate(self.modules) if m.manifest.module_id in excluded])
-        return plan_stable_indexed(self._indexes[excluded], tuple(request.inputs),
+        return plan_stable_indexed(self._indexes[excluded], request.types,
                                    request.type_id)

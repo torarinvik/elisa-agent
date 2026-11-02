@@ -12,11 +12,11 @@ from dataclasses import dataclass
 import numpy as np
 
 from nca.abi import NOTHING, Contract, Demand, Manifest, SequenceDemand, TypeId, seq_type
-from nca.expressions import OPERATORS, RELATIONS, evaluate, value_of
+from nca.domains.arithmetic.expressions import OPERATORS, RELATIONS, evaluate, value_of
 from nca.ladder import RankedReading
 from nca.native import load
-from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
-from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION, RELATION_DISTRIBUTION
+from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION
+from nca.domains.arithmetic.operator_recognizer import OPERATOR_DISTRIBUTION, RELATION_DISTRIBUTION
 
 _NATIVE = load("decoding")
 

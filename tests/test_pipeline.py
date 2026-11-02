@@ -3,12 +3,12 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from nca.expressions import GLYPH, compose, render_operator
-from nca.modules.digit_recognizer import DigitRecognizer, build_network as digit_net
-from nca.modules.operator_recognizer import SymbolRecognizer, build_network as op_net
-from nca.modules.segmenter import Segmenter, column_runs
-from nca.modules.symbols import Evaluator, ExpressionParser, SymbolFuser
-from nca.pipeline import build_registry, compose as compose_plan
+from nca.domains.arithmetic.expressions import GLYPH, compose, render_operator
+from nca.domains.arithmetic.digit_recognizer import DigitRecognizer, build_network as digit_net
+from nca.domains.arithmetic.operator_recognizer import SymbolRecognizer, build_network as op_net
+from nca.domains.arithmetic.segmenter import Segmenter, column_runs
+from nca.domains.arithmetic.symbols import Evaluator, ExpressionParser, SymbolFuser
+from nca.domains.arithmetic.pipeline import build_registry, compose as compose_plan
 from nca.planner import Apply, Map
 
 
@@ -62,10 +62,10 @@ def test_parser_respects_grammar_and_evaluator_precedence() -> None:
 
 
 def test_installing_comparison_keeps_arithmetic_route_and_adds_coverage() -> None:
-    from nca.accumulation import comparison_modules
-    from nca.modules.operator_recognizer import RELATION_SET
-    from nca.modules.segmenter import EXPRESSION_IMAGE
-    from nca.modules.symbols import BOOLEAN, INTEGER
+    from nca.domains.arithmetic.accumulation import comparison_modules
+    from nca.domains.arithmetic.operator_recognizer import RELATION_SET
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.domains.arithmetic.symbols import BOOLEAN, INTEGER
     from nca.planner import plan_stable
 
     registry = build_registry(DigitRecognizer(digit_net()), SymbolRecognizer(op_net()))
@@ -81,18 +81,18 @@ def test_installing_comparison_keeps_arithmetic_route_and_adds_coverage() -> Non
 
 
 def test_comparison_evaluator_chains() -> None:
-    from nca.modules.symbols import ComparisonEvaluator
+    from nca.domains.arithmetic.symbols import ComparisonEvaluator
 
     assert ComparisonEvaluator().invoke(("1", "<", "3", "=", "3"))
     assert not ComparisonEvaluator().invoke(("4", ">", "5"))
 
 
 def test_encoder_install_reroutes_plain_planner_but_not_stable() -> None:
-    from nca.modules.segmenter import EXPRESSION_IMAGE
-    from nca.modules.symbol_classifier import (
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.domains.arithmetic.symbol_classifier import (
         GlyphEncoder, SymbolClassifier, build_classifier, build_encoder,
     )
-    from nca.modules.symbols import INTEGER
+    from nca.domains.arithmetic.symbols import INTEGER
     from nca.planner import plan, plan_stable
     from nca.registry import Registry
 
@@ -115,10 +115,10 @@ def test_encoder_install_reroutes_plain_planner_but_not_stable() -> None:
 
 
 def test_substitute_recognizer_keeps_route_shape_and_types() -> None:
-    from nca.modules.segmenter import EXPRESSION_IMAGE
-    from nca.modules.symbols import INTEGER
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.domains.arithmetic.symbols import INTEGER
     from nca.router import infer
-    from nca.substitution import shape
+    from nca.domains.arithmetic.substitution import shape
 
     registry = build_registry(DigitRecognizer(digit_net()), SymbolRecognizer(op_net()))
     before = compose_plan(registry)
@@ -130,7 +130,7 @@ def test_substitute_recognizer_keeps_route_shape_and_types() -> None:
 
 
 def test_relational_parser_forces_one_relation() -> None:
-    from nca.modules.symbols import RelationalEvaluator, RelationalParser
+    from nca.domains.arithmetic.symbols import RelationalEvaluator, RelationalParser
 
     def dist(**probs: float) -> dict[str, float]:
         base = {k: 0.0 for k in "0123456789+-*<>="}
@@ -146,7 +146,7 @@ def test_relational_parser_forces_one_relation() -> None:
 
 
 def test_mixed_fuser_normalizes() -> None:
-    from nca.modules.symbols import MixedSymbolFuser
+    from nca.domains.arithmetic.symbols import MixedSymbolFuser
 
     fused = MixedSymbolFuser().invoke(tuple([0.1] * 10), (0.1, 0.1, 0.1, 0.7),
                                       (0.2, 0.0, 0.0, 0.8))
@@ -155,10 +155,10 @@ def test_mixed_fuser_normalizes() -> None:
 
 
 def test_integration_route_is_an_explicit_upgrade() -> None:
-    from nca.complementarity import build_systems, integration_modules_of, registry_of
-    from nca.modules.operator_recognizer import RELATION_SET
-    from nca.modules.segmenter import EXPRESSION_IMAGE
-    from nca.modules.symbols import BOOLEAN
+    from nca.domains.arithmetic.complementarity import build_systems, integration_modules_of, registry_of
+    from nca.domains.arithmetic.operator_recognizer import RELATION_SET
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.domains.arithmetic.symbols import BOOLEAN
     from nca.planner import plan, plan_stable
     from nca.router import infer
 
@@ -227,10 +227,10 @@ def test_library_map_matches_built_in_map() -> None:
     """``NCA.embed_wellTyped``: ``map`` as a library expert gives the same
     answers at the same cost, with the parser's demand passed through."""
     from nca.abi import Message
-    from nca.efficiency import costed
+    from nca.cost import costed
     from nca.modules.combinators import MapExpert, embed_maps
-    from nca.modules.segmenter import EXPRESSION_IMAGE
-    from nca.modules.symbols import INTEGER
+    from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE
+    from nca.domains.arithmetic.symbols import INTEGER
     from nca.planner import output_type, plan_stable
     from nca.runtime import execute
     from nca.workspace import Workspace
@@ -272,7 +272,7 @@ def test_parser_preserves_order_when_positive_fusion_scale_rounds_to_a_tie() -> 
 
 
 def test_batched_ranked_symbol_choices_match_fallback(monkeypatch) -> None:
-    import nca.modules.symbols as symbols
+    import nca.domains.arithmetic.symbols as symbols
     from nca.ladder import RankedReading
 
     if getattr(symbols._NATIVE, "row_argmax", None) is None:
@@ -294,7 +294,7 @@ def test_batched_ranked_symbol_choices_match_fallback(monkeypatch) -> None:
 
 
 def test_batched_ranked_symbol_choices_reject_short_weight_vectors(monkeypatch) -> None:
-    import nca.modules.symbols as symbols
+    import nca.domains.arithmetic.symbols as symbols
     from nca.ladder import RankedReading
 
     if getattr(symbols._NATIVE, "row_argmax", None) is None:

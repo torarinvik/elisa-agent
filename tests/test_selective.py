@@ -1902,7 +1902,7 @@ def test_observation_accepts_tensor_containing_sequence(native, monkeypatch) -> 
 
 
 def test_segmenter_alternatives_merge_narrowest_gap_first() -> None:
-    from nca.modules.segmenter import Segmenter
+    from nca.domains.arithmetic.segmenter import Segmenter
 
     image = np.zeros((28, 80), dtype=np.float32)
     for start, end in ((2, 10), (20, 24), (29, 33), (50, 58)):
@@ -2105,7 +2105,7 @@ def test_refinement_and_single_solve_reject_invalid_targets(target: float) -> No
 
 
 def test_practice_queue_and_fine_tuning() -> None:
-    from nca.practice import practice, proportional, queue
+    from nca.domains.arithmetic.practice import practice, proportional, queue
 
     torch.manual_seed(0)
     risks = torch.tensor([0.05, 0.6, 0.2, 0.9])
@@ -2543,7 +2543,7 @@ def test_certification_budget_obstruction() -> None:
 
 def test_impossible_audit_skips_candidate_evaluations(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
 
     calls: list[int] = []
 
@@ -2563,7 +2563,7 @@ def test_impossible_audit_skips_candidate_evaluations(monkeypatch: pytest.Monkey
 def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.MonkeyPatch,
                                                        capsys: pytest.CaptureFixture[str]) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
 
     calls: list[tuple[int, float]] = []
 
@@ -2607,7 +2607,7 @@ def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.Monk
 def test_low_fit_coverage_checks_first_candidate_without_speculative_paths(
         monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
     from nca.selective import Answer
 
     calls: list[str] = []
@@ -2633,7 +2633,7 @@ def test_low_fit_coverage_checks_first_candidate_without_speculative_paths(
 def test_checking_rejects_early_but_never_accepts_early(wrong_first: bool,
                                                        monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
     from nca.ladder import certify
     from nca.selective import Answer
 
@@ -2657,7 +2657,7 @@ def test_checking_rejects_early_but_never_accepts_early(wrong_first: bool,
 def test_shared_checking_paths_preserve_counts_and_early_rejection(
         monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
     from nca.selective import Answer
 
     samples = [SimpleNamespace(text=str(i), value=True) for i in range(60)]
@@ -2787,7 +2787,7 @@ def test_solve_stops_preserves_certificate_and_floor_endpoints() -> None:
 def test_structural_shift_reaches_both_audit_halves_and_evaluation(
         monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
 
     checked: list[int] = []
 
@@ -2815,7 +2815,7 @@ def test_structural_shift_reaches_both_audit_halves_and_evaluation(
 def test_family_budget_reaches_all_audit_decision_paths(
         monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     from types import SimpleNamespace
-    from nca import logic
+    from nca.domains.boolean import logic
     from nca.stats import family_audit_alpha
 
     level = family_audit_alpha(0.1, 8)
@@ -2941,9 +2941,9 @@ def test_ranked_fuser_and_legacy_fuser_match_their_risk_decisions() -> None:
 
 
 def test_symbol_fuser_hands_ranked_order_to_parser() -> None:
-    from nca.modules.digit_recognizer import DIGIT_DISTRIBUTION
-    from nca.modules.operator_recognizer import OPERATOR_DISTRIBUTION
-    from nca.modules.symbols import EXPRESSION, ExpressionParser, SymbolFuser
+    from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION
+    from nca.domains.arithmetic.operator_recognizer import OPERATOR_DISTRIBUTION
+    from nca.domains.arithmetic.symbols import EXPRESSION, ExpressionParser, SymbolFuser
 
     low = 1e-300
     high = math.nextafter(low, math.inf)

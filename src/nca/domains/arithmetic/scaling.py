@@ -20,7 +20,7 @@ loads, evictions, bytes loaded, and time spent loading. Route-aware
 eviction loads exactly each route's missing experts
 (``NCA.routeAware_optimal``).
 
-    uv run --extra vision python -m nca.scaling
+    uv run --extra vision python -m nca.domains.arithmetic.scaling
 """
 
 from __future__ import annotations
@@ -35,15 +35,15 @@ from typing import Callable
 import torch
 
 from nca.abi import Contract, Manifest, Message, Module, TypeId
-from nca.expressions import RELATIONS, ExpressionDataset
+from nca.domains.arithmetic.expressions import RELATIONS, ExpressionDataset
 from nca.loader import ExpertStore, LazyExpert
-from nca.modules.digit_recognizer import CONTRACT as DIGIT_CONTRACT, DigitRecognizer
-from nca.modules.operator_recognizer import (
+from nca.domains.arithmetic.digit_recognizer import CONTRACT as DIGIT_CONTRACT, DigitRecognizer
+from nca.domains.arithmetic.operator_recognizer import (
     OPERATOR_SET, RELATION_SET, SymbolRecognizer, SymbolSet,
 )
-from nca.modules.digit_recognizer import GLYPH
-from nca.modules.segmenter import EXPRESSION_IMAGE, Segmenter
-from nca.modules.symbols import (
+from nca.domains.arithmetic.digit_recognizer import GLYPH
+from nca.domains.arithmetic.segmenter import EXPRESSION_IMAGE, Segmenter
+from nca.domains.arithmetic.symbols import (
     BOOLEAN, COMPARISON, INTEGER, ComparisonEvaluator, Evaluator, ExpressionParser,
     SymbolFuser,
 )

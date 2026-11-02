@@ -3,11 +3,11 @@ import pytest
 
 pytest.importorskip("torch")
 
-from nca.modules.normalizer import HIGH, LOW, normalize
+from nca.domains.arithmetic.normalizer import HIGH, LOW, normalize
 
 
 def test_normalizer_removes_size_and_keeps_ink_in_range() -> None:
-    from nca.expressions import render_operator
+    from nca.domains.arithmetic.expressions import render_operator
 
     rng = np.random.default_rng(0)
     for _ in range(20):
