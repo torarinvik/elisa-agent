@@ -19,7 +19,7 @@ probability of a wrong answer (§31).
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -165,3 +165,19 @@ def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int =
         return charge(plan, length, unit, strict=True)
     except (_Unknown, ValueError):
         return None
+
+
+def rates(bounds: Mapping[str, float], length: int = 1) -> Callable[[Module], float | None]:
+    """A per-invocation failure rate for every module: ``bounds`` by identity
+    for experts, an export's own route charged by ``route_risk``, and 0 for
+    upcasts and requirements; ``None`` where nothing bounds it. Passed to
+    ``optimize.plan_pareto``, it plans by cost and risk through packages."""
+    def rate(module: Module) -> float | None:
+        if isinstance(module, Export):
+            return route_risk(module.route, rate, length)
+        if isinstance(module, (Upcast, Requirement)):
+            return 0.0
+        identity = getattr(module, "identity", None)
+        return None if identity is None else bounds.get(identity)
+
+    return rate

@@ -70,3 +70,20 @@ bound is only as tight as the propagation hypothesis is loose: an expert
 whose input is wrong may still answer correctly, and every such case is
 counted as a failure here. Demand (§14) and certificates (§18) tighten the
 bound by not counting invocations that cannot change the answer.
+
+## 31.4 Planning by risk
+
+The error objective of the Pareto planner (§13) is the total charge of
+§31.2, so its exactness theorems apply to risk unchanged: every option it
+returns is a well-typed plan with its reported cost and charge, every
+searchable plan is dominated by one of them, and the cheapest plan whose
+charge is at most a target `δ` is found exactly. By Theorems 31.1–31.2,
+with in-situ rate bounds that hold together, that plan's error probability
+is at most `δ`.
+
+A rate must be known to be charged. Treating an expert without evidence
+as exact would make every bound through it meaningless, so such an expert
+is left out, and the frontier is exact over the experts with rates. An
+export's rate per invocation is the charge of its own route, its
+requirements excluded since the slots that fill them are charged where
+the export is applied.

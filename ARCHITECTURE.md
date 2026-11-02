@@ -42,7 +42,7 @@ run the Python tests with `uv run pytest`.
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
 | [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
-| [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk` | `evidence.route_risk`, `evidence.error_bound`, `packages.charge` |
+| [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `packages.charge`, `optimize.plan_pareto` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -1702,3 +1702,12 @@ choice. The result is a bound on an expected count and may exceed 1, in
 which case it says nothing; it is a probability bound only for in-situ
 rates and a `length` that bounds every mapped sequence (Theorems 31.1 and
 31.2, `risk_le_charges`).
+
+`optimize.plan_pareto` accepts, besides a mapping from manifest refs to
+rates (absent meaning 0, as before), a function from modules to rates in
+which `None` leaves the module out (§31.4). `evidence.rates(bounds, length)`
+is such a function: rates by identity for experts, `route_risk` of its own
+route for an export, 0 for upcasts and requirements. With it the Pareto
+planner's error objective is the charge of §31.2 and `cheapest_within(δ)`
+plans by cost under a risk target, through packages, with the exactness of
+`NCA.planPareto_sound`, `planPareto_cover` and `planPareto_within`.

@@ -9,7 +9,8 @@ import torch
 
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
-from nca.evidence import benchmark, error_bound, evaluation, route_risk
+from nca.evidence import benchmark, error_bound, evaluation, rates, route_risk
+from nca.optimize import cheapest_within, plan_pareto
 from nca.ladder import CALIBRATION, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
 from nca.packages import GROUP, Export, discover, install
@@ -332,3 +333,24 @@ def test_error_bounds_come_from_trusted_evaluations() -> None:
     bound = error_bound(store, reader.identity, bench, {"lab"}, 0.05)
     assert 0.03 < bound < 0.1
     assert error_bound(store, reader.identity, bench, {"other"}, 0.05) is None
+
+
+def test_planning_by_risk_picks_the_cheapest_route_within_a_target() -> None:
+    BEHAVIOR["careful-count"] = BEHAVIOR["count-letters"]
+    store = Store()
+    cheap = store.put(primitive("count-letters", [WORD], INT, cost=1.0))
+    careful = store.put(primitive("careful-count", [WORD], INT, cost=10.0))
+    modules = install(store, store.put(Composite("world", "1", (cheap, careful,
+                                                                counting_package(store)))))
+    package = modules[-1]
+    inner = {m.manifest.module_id: m.identity for m in package.library if hasattr(m, "identity")}
+    bounds = {modules[0].identity: 0.05, modules[1].identity: 0.001,
+              inner["split"]: 0.0, inner["sum"]: 0.0}
+    frontier = plan_pareto(modules, (TEXT,), INT, 5, rates(bounds, length=5))
+    assert [(o.cost, o.error) for o in frontier] == [
+        pytest.approx((7.0, 0.25)), pytest.approx((52.0, 0.005))]
+    chosen = cheapest_within(frontier, 0.01)
+    assert chosen.plan.slots[0].module is modules[1]
+    del bounds[modules[1].identity]
+    assert [o.error for o in plan_pareto(modules, (TEXT,), INT, 5, rates(bounds, 5))] == [
+        pytest.approx(0.25)]

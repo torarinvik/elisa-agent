@@ -36,7 +36,7 @@ exact when the assessment is monotone in each filling's cost and error.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
 
@@ -145,16 +145,20 @@ def _frontier(options: list[Option]) -> list[Option]:
 
 
 def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
-                length: int, errors: Mapping[str, float], fuel: int = 8,
-                expected: bool = False, required: frozenset[int] = frozenset()) -> list[Option]:
+                length: int, errors: Mapping[str, float] | Callable[[Module], float | None],
+                fuel: int = 8, expected: bool = False,
+                required: frozenset[int] = frozenset()) -> list[Option]:
     """All non-dominated (cost, error bound) plans for ``goal``.
 
     ``errors`` maps a module's manifest ref to its per-invocation failure rate
-    (absent means 0). Both objectives are additive over invocations, with map
+    (absent means 0), or is a function giving a module's rate, ``None`` if it
+    is unknown; a module with an unknown rate is not used, since no plan
+    through it has an error bound (§31.4). Both objectives are additive over invocations, with map
     bodies counted ``length`` times, so combining the frontiers of sub-goals
     and discarding dominated results yields the exact frontier. Every plan
     uses the available inputs whose positions are in ``required``.
     """
+    rate = errors if callable(errors) else (lambda m: errors.get(m.manifest.ref, 0.0))
     index = ProducerIndex(modules)
     memo: dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]], list[Option]] = {}
 
@@ -172,6 +176,9 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
             return memo[key]
         options: list[Option] = []
         for module, binding in _instances(index, avail, t, n):
+            own_error = rate(module)
+            if own_error is None:
+                continue
             manifest = module.manifest
             contract = manifest.contract.instance(binding)
             fills = [search(inputs, out, n - 1, r) for inputs, out, r in slot_goals(contract)]
@@ -188,7 +195,7 @@ def plan_pareto(modules: Sequence[Module], available: Sequence[TypeId], goal: Ty
                             Apply(module, tuple(o.plan for o in combo),
                                   tuple(f.plan for f in filled), binding),
                             manifest.cost + slot_cost + sum(o.cost for o in combo),
-                            errors.get(manifest.ref, 0.0) + slot_error
+                            own_error + slot_error
                             + sum(o.error for o in combo)))
         element_goal = elem_type(t)
         if element_goal is not None:
