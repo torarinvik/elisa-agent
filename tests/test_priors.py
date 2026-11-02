@@ -1065,6 +1065,31 @@ def test_height_prior_posterior_matches_enumerated_shapes(
     assert prior.decode(np.zeros((8, 3))) is None
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("location", ["edge", "final"])
+def test_prior_best_recovers_lost_weight_preference(reference, location, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    if location == "edge":
+        prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                                  np.array([[-0.2, 0.1]]), np.zeros(1))
+    else:
+        prior = priors.ArityPrior((0, 1), np.array([[1, 2], [-1, -1], [-1, -1]]),
+                                  np.zeros((3, 2)), np.array([-np.inf, -0.2, 0.1]))
+    rows = np.full((1, 2), float(2**52))
+    assert prior.best(rows) == (1,)
+    assert prior.decode(rows).arities == (1,)
+
+
+def test_native_prior_best_reports_unrecoverable_precision_loss() -> None:
+    if getattr(priors._NATIVE, "prior_best", None) is None:
+        pytest.skip("native prior maximum is not built")
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.array([[1e308, -1e308]]), np.zeros(1))
+    with pytest.raises(ValueError, match="maximum unavailable"):
+        prior.best(np.full((1, 2), float(2**52)))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_best_matches_full_decoder_ties_and_zero_support(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:

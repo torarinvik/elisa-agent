@@ -417,6 +417,18 @@ class ArityPrior:
                 return _native_decoded_symbols(self.alphabet, selected)
             if (getattr(_NATIVE, "prior_normalizer", None) is not None
                     and self.log_normalizer(rows) != -math.inf):
+                shifted = _center_prior(rows, self)
+                if shifted is not None:
+                    centered, centered_prior, edge_offset, final_offset = shifted
+                    if (not np.array_equal(centered, rows) or edge_offset != 0.0
+                            or final_offset != 0.0):
+                        retried = native(np.ascontiguousarray(centered).reshape(-1),
+                                         _native_alphabet(centered_prior.alphabet),
+                                         centered_prior.transitions.reshape(-1),
+                                         centered_prior.log_weights.reshape(-1),
+                                         centered_prior.log_final, centered_prior.start)
+                        if retried:
+                            return _native_decoded_symbols(self.alphabet, retried)
                 raise ValueError("prior maximum unavailable despite nonzero mass")
             return None
         result = self.decode(rows)

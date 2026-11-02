@@ -680,10 +680,10 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
                     continue if reading == unreachable or edge_weight == unreachable
-                    weight: f64 = reading + edge_weight
-                    return [] if weight == unreachable or weight == -unreachable
-                    candidate: f64 = rows[here + state] + weight
-                    return [] if candidate == unreachable or candidate == -unreachable
+                    weight: f64 = partition_log_product(reading, edge_weight)
+                    return [] if weight != weight
+                    candidate: f64 = partition_log_product(rows[here + state], weight)
+                    return [] if candidate != candidate
                     if candidate > rows[next + target]:
                         rows[next + target] <- candidate
                         choice[(k + 1) * states + target] <- edge
@@ -693,8 +693,8 @@ def prior_best(log_probs: view[f64], alphabet: view[i64], transitions: view[i64]
         for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |top: f64 = log(0.0), terminal: i64 = -1| -> terminal:
             last: f64 = rows[(m % 2) * states + state]
             continue if last == unreachable or final[state] == unreachable
-            candidate: f64 = last + final[state]
-            return [] if candidate == unreachable or candidate == -unreachable
+            candidate: f64 = partition_log_product(last, final[state])
+            return [] if candidate != candidate
             if candidate > top:
                 top <- candidate
                 terminal <- state

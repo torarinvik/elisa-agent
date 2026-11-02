@@ -313,6 +313,10 @@ and traceback (Theorems 27.2–27.3), not forward sums or marginals. Rolling
 maximum rows suffice during the forward pass, while predecessor choices
 must remain available for backtracking. The same rolling maximum rows apply
 when full decoding also retains forward sums for marginal calculation.
+The native maximum pass detects material loss in individual log-weight
+additions; when it fails despite nonzero mass, checked common shifts can be
+used to retry. This local check is not a proof of exact ordering in every
+floating-point case.
 During the reverse pass, each position's marginals use the stored forward row
 and the next backward row; after emitting them, the older backward row can be
 reused. This leaves traceback choices and forward sums as the retained tables.

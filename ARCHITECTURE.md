@@ -1232,7 +1232,8 @@ The generic log-weight validation also uses Elisa for contiguous arrays;
 noncontiguous arrays and installations without the kernel use NumPy.
 When native prior decoding or maximization returns no result, the Python
 wrapper checks the native normalizer if available to distinguish zero mass
-from overflow. Older native modules without that entry point retain their
+from arithmetic failure. Maximum selection can retry the latter with checked
+common shifts when mass exists. Older native modules without that entry point retain their
 existing empty-result behavior.
 
 `FormulaDataset(..., early_leaf=p)` and `formula(..., early_leaf=p)` expose
