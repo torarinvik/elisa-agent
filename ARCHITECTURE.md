@@ -919,8 +919,11 @@ binary64. Callers may supply original binary64 ordering weights to
 `risk_batch` when consumers use that same ranking; otherwise it selects from
 the numerical reading. Ordering weights must have a floating-point dtype;
 reading and ordering inputs are mutually exclusive.
-An individual reused reading can also use a boolean or integer representation;
-its selected class is determined before any floating-point conversion.
+Reused readings can also use boolean or integer representations; class
+selection preserves integer ordering before a potentially lossy conversion,
+both per item and in batches. Supported CPU batches of 64-bit integer
+readings use Elisa `calibrated_integer_risk_rows_into`; other configurations
+retain the tensor selection path.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.

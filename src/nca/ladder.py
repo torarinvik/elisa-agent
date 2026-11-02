@@ -746,6 +746,8 @@ class Rung:
         if not math.isfinite(temperature) or temperature <= 0:
             raise ValueError("batched risk requires a positive finite temperature")
         selection_weights = self.reading(log) if supplied is None else supplied
+        if supplied is None and (selection_weights.is_complex() or selection_weights.is_quantized):
+            raise ValueError("reused reading or ordering must be finite and nonnegative")
         if key is None:
             union = None
             group_count = log.shape[-1]
@@ -768,8 +770,36 @@ class Rung:
             selected = _selected_logits(log, None if key is None else union)
         if order.device.type == "mps" and selected.device.type == "cpu":
             order = order.cpu()
-        order = order.to(device=selected.device, dtype=torch.float64)
         shape = log.shape[:-1]
+        integer_native = getattr(_NATIVE, "calibrated_integer_risk_rows_into", None)
+        if (order.dtype in (torch.int64, torch.uint64) and integer_native is not None
+                and selected.device.type == "cpu" and not selected.requires_grad
+                and selected.numel() <= 65536):
+            values = selected.double().contiguous().numpy()
+            unsigned = order.dtype == torch.uint64
+            orders = order.detach().cpu().contiguous().numpy()
+            if unsigned:
+                orders = orders.view(np.int64)
+            output = np.empty(math.prod(shape), dtype=np.float64)
+            status = integer_native(values.reshape(-1), orders.reshape(-1), group_ids,
+                                    output, selected.shape[-1], group_count, temperature, unsigned)
+            if status != 0:
+                raise ValueError("calibrated decision requires finite log weights with positive mass "
+                                 "and finite nonnegative selection weights")
+            return torch.from_numpy(output.reshape(shape))
+        if order.dtype in (torch.int64, torch.uint64):
+            # Preserve the first maximum before integer-to-binary64 rounding.
+            if order.dtype == torch.uint64:
+                indices = np.argmax(order.detach().cpu().numpy(), axis=-1)
+                top = torch.from_numpy(np.asarray(indices, dtype=np.int64)).to(selected.device)
+            else:
+                integer_order = order.to(device=selected.device, dtype=torch.int64)
+                if bool((integer_order < 0).any()):
+                    raise ValueError("reused reading or ordering must be finite and nonnegative")
+                top = integer_order.argmax(dim=-1)
+            order = torch.nn.functional.one_hot(top, num_classes=selected.shape[-1]).double()
+        else:
+            order = order.to(device=selected.device, dtype=torch.float64)
         native = getattr(_NATIVE, "calibrated_risk_rows_into", None)
         if (native is not None and selected.device.type == "cpu"
                 and not selected.requires_grad and not order.requires_grad

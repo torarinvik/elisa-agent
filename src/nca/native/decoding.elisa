@@ -1970,6 +1970,31 @@ def calibrated_risk_rows_into(logits: view[f64], reading: view[f64], groups: vie
         output[row] <- risk_at_offset(logits, groups, base, width, chosen, temperature, largest)
     return 0
 
+# Select each row using exact signed or unsigned integer weights.
+def calibrated_integer_risk_rows_into(logits: view[f64], reading: view[i64], groups: view[i64], output: mutable view[f64], width: i64, entries: i64, temperature: f64, unsigned: bool) -> i64 can[Memory.Allocate, Abort.Panic]:
+    return -1 if width <= 0 or entries <= 0 or logits.len.i64() % width != 0
+    return -1 if groups.len.i64() != width and groups.len.i64() != 0
+    return -1 if groups.len.i64() == 0 and entries != width
+    return -1 if reading.len.i64() != logits.len.i64() or output.len.i64() != logits.len.i64() / width
+    return -1 if temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
+    for j in 0..<groups.len.i64():
+        return -1 if groups[j] < 0 or groups[j] >= entries
+    for row in 0..<output.len.i64():
+        base: i64 = row * width
+        largest, top =
+            for j in 0..<width |largest: f64 = log(0.0), top: i64 = 0| -> (largest, top):
+                value: f64 = logits[base + j]
+                order: i64 = reading[base + j]
+                return -1 if value != value or value == -log(0.0) or (not unsigned and order < 0)
+                largest <- value if value > largest else largest
+                current: i64 = reading[base + top]
+                larger: bool = (order < 0 and current >= 0) or ((order < 0) == (current < 0) and order > current) if unsigned else order > current
+                top <- j if larger else top
+        return -1 if largest == log(0.0)
+        chosen: i64 = top if groups.len.i64() == 0 else groups[top]
+        output[row] <- risk_at_offset(logits, groups, base, width, chosen, temperature, largest)
+    return 0
+
 # Risk for a caller-selected class in a caller-declared partition.
 def calibrated_risk_at(logits: view[f64], groups: view[i64], entries: i64, temperature: f64, top: i64) -> f64 can[Memory.Allocate, Abort.Panic]:
     return log(-1.0) if top < 0 or top >= logits.len.i64() or groups.len.i64() != logits.len.i64()
@@ -2005,6 +2030,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
 
 export pymodule decoding:
     fn calibrated_risk_rows_into
+    fn calibrated_integer_risk_rows_into
     fn calibrated_group_rows_into
     fn scaled_logit_rows_into
     fn shifted_integer_logits_into

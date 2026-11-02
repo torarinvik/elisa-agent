@@ -356,6 +356,54 @@ def test_batched_risk_uses_reading_ties_with_restricted_temperature(
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype,large", [(torch.int64, 2**60), (torch.uint64, 2**63)])
+def test_batched_integer_readings_preserve_selection_before_conversion(
+        native, dtype, large, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.zeros((2, 2, 3), dtype=torch.float64)
+    reading = torch.tensor([[[large, large + 1, large // 2], [large + 1, large, large // 2]],
+                            [[large, large, large // 2], [0, 0, 0]]], dtype=dtype)
+    rung = Rung(None)
+    for decision in (((0, 2), (1,)), ((1,), (0, 2)), None):
+        actual = rung.risk_batch(logits, decision, reading=reading)
+        expected = torch.tensor([[rung.risk(row, decision, reading=weights)
+                                  for row, weights in zip(batch, weights_batch)]
+                                 for batch, weights_batch in zip(logits, reading)], dtype=torch.float64)
+        assert torch.allclose(actual, expected, atol=1e-14, rtol=0)
+    assert rung.risk_batch(logits[:0], reading=reading[:0]).shape == (0, 2)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_batched_integer_reading_checks_only_selected_values(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
+        pytest.skip("native risk row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.zeros((2, 3), dtype=torch.float64)
+    reading = torch.tensor([[1, 0, -1], [0, 1, -1]], dtype=torch.int64)
+    rung_risks = Rung(None).risk_batch(logits, ((0,), (1,)), reading=reading)
+    assert rung_risks.tolist() == pytest.approx([0.5, 0.5])
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        Rung(None).risk_batch(logits, reading=reading)
+
+
+@pytest.mark.parametrize("dtype", [torch.bool, torch.uint8, torch.uint16, torch.uint32, torch.uint64])
+def test_batched_integer_reading_accepts_valid_one_hot_values(dtype) -> None:
+    logits = torch.tensor([[0.0, -1000.0], [-1000.0, 0.0]], dtype=torch.float64)
+    reading = torch.tensor([[1, 0], [0, 1]], dtype=dtype)
+    rung = Rung(None)
+    assert rung.reading(logits).tolist() == reading.tolist()
+    assert torch.equal(rung.risk_batch(logits, reading=reading), rung.risk_batch(logits))
+
+
+@pytest.mark.parametrize("native", [False, True])
 def test_batched_risk_accepts_original_ordering_weights(
         native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
@@ -453,6 +501,18 @@ def test_batched_ranked_risk_preserves_logit_gradients() -> None:
     assert torch.allclose(logits.grad, expected.grad)
 
 
+def test_batched_integer_reading_preserves_logit_gradients() -> None:
+    logits = torch.zeros((2, 3), dtype=torch.float64, requires_grad=True)
+    large = 2**60
+    reading = torch.tensor([[large, large + 1, 0], [large + 1, large, 0]], dtype=torch.int64)
+    Rung(None).risk_batch(logits, ((0, 2), (1,)), reading=reading).sum().backward()
+    expected = logits.detach().clone().requires_grad_()
+    probabilities = expected.softmax(dim=-1)
+    (probabilities[0, 0] + probabilities[0, 2] + probabilities[1, 1]).backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad, expected.grad)
+
+
 def test_batched_zero_risk_has_finite_gradients() -> None:
     logits = torch.tensor([[0.0, -math.inf], [1.0, -math.inf]], dtype=torch.float64, requires_grad=True)
     risk = Rung(None).risk_batch(logits)
@@ -479,6 +539,30 @@ def test_native_batched_risk_kernel_validates_shape_and_metadata() -> None:
     empty_groups = np.empty(0, dtype=np.int64)
     assert kernel(logits, reading, empty_groups, output, 2, 2, 1.0) == 0
     assert kernel(logits, reading, empty_groups, output, 2, 1, 1.0) == -1
+
+
+@pytest.mark.parametrize("unsigned", [False, True])
+def test_native_batched_integer_risk_preserves_order_and_validates(unsigned) -> None:
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "calibrated_integer_risk_rows_into", None)
+    if kernel is None:
+        pytest.skip("native integer risk row kernel is not built")
+    large = 2**63 if unsigned else 2**60
+    dtype = np.uint64 if unsigned else np.int64
+    reading = np.array([large, large + 1, large // 2, large + 1, large, large // 2], dtype=dtype)
+    raw = reading.view(np.int64)
+    logits = np.zeros(6, dtype=np.float64)
+    groups = np.array([0, 1, 0], dtype=np.int64)
+    output = np.empty(2, dtype=np.float64)
+    assert kernel(logits, raw, groups, output, 3, 2, 1.0, unsigned) == 0
+    assert output.tolist() == pytest.approx([2 / 3, 1 / 3])
+    assert kernel(logits, raw, groups, np.empty(1), 3, 2, 1.0, unsigned) == -1
+    assert kernel(logits, raw, np.array([0, 2, 0]), output, 3, 2, 1.0, unsigned) == -1
+    assert kernel(logits, raw, groups, output, 3, 2, math.nan, unsigned) == -1
+    if not unsigned:
+        assert kernel(logits, np.array([-1, 0, 1, 1, 0, 0]), groups,
+                      output, 3, 2, 1.0, False) == -1
 
 
 def test_batched_risk_routes_large_cpu_inputs_to_tensor(monkeypatch: pytest.MonkeyPatch) -> None:
