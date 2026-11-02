@@ -216,3 +216,19 @@ The prediction-preservation argument is Proposition 36.8 with a fixed key as
 the stopping state. It assumes faithful key/value encoding and unchanged
 interpreter behavior; neither the digest nor the Lean theorem proves the
 Python codec correct. Round-trip and value-type preservation are tested.
+
+## 36.10 Persisting conditional structure
+
+A finite feature tree can be represented by an ordered node table. Each node
+records its chosen label, empirical counts, feature position and keyed child
+positions. Child positions strictly exceed their parent position, so decoding
+cannot introduce a cycle. Each feature is bound to an export position within
+an explicit dependency scope, checked against its content identity and manifest.
+Reconstruction preserves predictions if these feature implementations and all
+node data are preserved, by Proposition 36.8. Digests do not prove executable
+fidelity. The scalar codec rejects unsupported keys/labels explicitly.
+
+The stored interpreter manifest receives a model-content-derived identifier,
+so distinct fitted models do not share a residency key merely because their
+external contracts agree. External feature code and weights remain separate
+versioned dependencies. This persists conditional structure, not online state.

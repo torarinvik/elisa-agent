@@ -2095,3 +2095,12 @@ admitted by the ordinary store, and loading uses the ordinary lazy lifecycle.
 `state_factorization_eq` supplies the conditional prediction-preservation
 argument; scalar codec fidelity, snapshot behavior and reload are tested.
 This persists model data for a generic runtime, not a built-in expert catalog.
+
+`tree_objects.tree_object` (§36.10) snapshots a learned tree's ordered node
+records and explicit dependency/export bindings. Bindings must match trained
+feature identities and manifests. `load_tree` reconstructs the generic model
+without invoking feature implementations; backward edges and invalid export
+positions are rejected. Interpreter residency ids derive from model contents
+and dependency references. Scalar keys/labels are supported; the existing
+conditional state-factorization and ranked-dependency proofs supply the abstract
+preservation/acyclicity arguments, while codec behavior is regression-tested.
