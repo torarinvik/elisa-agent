@@ -283,7 +283,8 @@ throughout the selection batch.
 accepted sequence. Selecting an answer therefore needs only max-product
 and traceback (Theorems 27.2–27.3), not forward sums or marginals. Rolling
 maximum rows suffice during the forward pass, while predecessor choices
-must remain available for backtracking.
+must remain available for backtracking. The same rolling maximum rows apply
+when full decoding also retains forward sums for marginal calculation.
 
 **Risk-only refinement.** Once an answer is selected, its posterior risk
 needs its own weighted score and the current normalizer, not a new maximum

@@ -679,7 +679,11 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
         return null if final[start] == unreachable
         return PriorDecoded{log_z: final[start], arities: [], marginals: []}
     forward, best, choice =
-        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
+        for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)]| -> (forward, best, choice):
+            here: i64 = (k % 2) * states
+            next: i64 = ((k + 1) % 2) * states
+            for state in 0..<states |best|:
+                best[next + state] <- unreachable
             for state in 0..<states |forward, best, choice|:
                 continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |forward, best, choice|:
@@ -695,10 +699,10 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
                     through: f64 = forward[k * states + state] + weight
                     return null if through == unreachable or through == -unreachable
                     forward[cell] <- log_add(forward[cell], through)
-                    candidate: f64 = best[k * states + state] + weight
+                    candidate: f64 = best[here + state] + weight
                     return null if candidate == unreachable or candidate == -unreachable
-                    if candidate > best[cell]:
-                        best[cell] <- candidate
+                    if candidate > best[next + target]:
+                        best[next + target] <- candidate
                         choice[cell] <- edge
     log_z, terminal =
         for state in 0..<states |log_z: f64 = log(0.0), top: f64 = log(0.0), terminal: i64 = -1| -> (log_z, terminal):
@@ -706,7 +710,7 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             weighted: f64 = forward[m * states + state] + final[state]
             return null if weighted == unreachable or weighted == -unreachable
             log_z <- log_add(log_z, weighted)
-            candidate: f64 = best[m * states + state] + final[state]
+            candidate: f64 = best[(m % 2) * states + state] + final[state]
             return null if candidate == unreachable or candidate == -unreachable
             if candidate > top:
                 top <- candidate

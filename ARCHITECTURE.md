@@ -1041,9 +1041,11 @@ the unit-prior specialization of §27.4.
 
 The automaton must include any required format restriction: this interface
 does not automatically intersect an arbitrary expert with prefix syntax.
-It is not yet connected to the evaluator or planner. Both implementations
-use dense position-by-state tables, with O(length × states × alphabet) work
-and O(length × states) storage. Tie choices may differ between implementations.
+The evaluator accepts a generic length-indexed prior provider as described
+below. Both implementations use dense position-by-state tables, with
+O(length × states × alphabet) work and O(length × states) storage. The Elisa
+decoder rolls its maximum-score rows while retaining traceback choices. Tie
+choices may differ between implementations.
 
 `formulas.complete_prior(length)` constructs and caches the complete-tree
 unit-weight prior of §27.4. Theorem 27.5 maps a supported length to its depth;
