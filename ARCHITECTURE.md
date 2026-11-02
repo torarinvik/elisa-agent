@@ -908,6 +908,13 @@ For a large temperature, scaled differences that overflow before division
 are computed by scaling each finite operand first, in both Elisa and PyTorch.
 The PyTorch path promotes lower-precision logits when the temperature is
 outside their dtype's finite normal range.
+MPS promotes half-precision inputs to float32 when sufficient; temperatures
+outside float32's finite normal range use CPU binary64 intermediates. Log distributions
+from MPS observations are returned as CPU binary64 tensors, and a risk
+recovery requiring binary64 also copies its selected values to CPU.
+For MPS log distributions, sparse selections from inputs of at least 16 MB
+are gathered on the device before transfer; smaller or denser inputs are
+copied first. This routing threshold is a local performance heuristic.
 Calibrated decisions reject NaN or positive-infinite log weights and selected
 groups with zero total mass; negative infinity is valid for individual
 zero-mass entries. The fallback checks the maximum on the host, which entails

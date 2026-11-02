@@ -59,6 +59,8 @@ from nca.abi import Contract, Module
 from nca.native import load
 
 _NATIVE = load("decoding")
+_FLOAT32_TINY = torch.finfo(torch.float32).tiny
+_FLOAT32_MAX = torch.finfo(torch.float32).max
 
 
 class MissingCalibrationError(ValueError):
@@ -287,6 +289,9 @@ class RankedReading(Sequence[float]):
 
 
 def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
+    if ((temperature < _FLOAT32_TINY or temperature > _FLOAT32_MAX)
+            and log.device.type == "mps"):
+        return _temperature_scores(log.cpu(), temperature).to(device=log.device, dtype=torch.float32)
     if not log.is_floating_point():
         if log.is_complex() or log.is_quantized:
             raise ValueError("log weights must be real numeric values")
@@ -317,7 +322,7 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
     if (log.dtype != torch.float64
             and (0 < temperature < torch.finfo(log.dtype).tiny
                  or temperature > torch.finfo(log.dtype).max)):
-        log = log.double()
+        log = log.float() if log.device.type == "mps" else log.double()
     maximum = log.max()
     maximum_value = maximum.item()
     if not math.isfinite(maximum_value):
@@ -348,6 +353,10 @@ def _selected_logits(log: torch.Tensor, indices: Sequence[int] | None) -> torch.
         else:
             log = log[list(indices)]
     return _temperature_scores(log, 1.0)
+
+
+def _binary64_logits(log: torch.Tensor) -> torch.Tensor:
+    return log.cpu().double() if log.device.type == "mps" else log.double()
 
 
 def _checked_calibrated_risk(value: float) -> float:
@@ -625,7 +634,7 @@ class Rung:
         if result != 0.0:
             return result
         # A float32 softmax can erase probabilities that fit in binary64.
-        scores = values.double()
+        scores = _binary64_logits(values)
         scores = _temperature_scores(scores, temperature)
         top = int(scores.argmax()) if selected is None else selected
         chosen = (next(part for part in positions if top in part)
@@ -677,18 +686,27 @@ class Rung:
         if isinstance(log, RankedObservation):
             log = log.logits
         if classes is None:
-            return torch.log_softmax(_temperature_scores(_selected_logits(log, None).double(), temperature), dim=-1)
+            if log.device.type == "mps":
+                # MPS lacks binary64, which this interface uses for log probabilities.
+                log = log.cpu()
+            return torch.log_softmax(_temperature_scores(_binary64_logits(_selected_logits(log, None)), temperature), dim=-1)
         key = decision_key(classes)
         union, positions = _layout(key)
-        selected = _selected_logits(log, union)
+        if log.device.type == "mps":
+            if log.numel() * log.element_size() >= 16_000_000 and len(union) * 4 < log.numel():
+                selected = _selected_logits(log[union].cpu(), None)
+            else:
+                selected = _selected_logits(log.cpu(), union)
+        else:
+            selected = _selected_logits(log, union)
         native = getattr(_NATIVE, "calibrated_log_groups", None)
-        if native is not None and log.device.type == "cpu" and not log.requires_grad:
+        if native is not None and selected.device.type == "cpu" and not selected.requires_grad:
             values = native(selected.double().numpy(), _group_ids(key), len(positions), temperature)
             if (values and all(not math.isnan(value) and value != math.inf for value in values)
                     and any(math.isfinite(value) for value in values)):
                 return torch.tensor(values, dtype=torch.float64)
             raise ValueError("calibrated decision requires finite log weights with positive mass")
-        scores = _temperature_scores(selected.double(), temperature)
+        scores = _temperature_scores(_binary64_logits(selected), temperature)
         normalizer = torch.logsumexp(scores, dim=-1)
         return torch.stack([torch.logsumexp(scores[part], dim=-1) - normalizer
                             for part in positions])

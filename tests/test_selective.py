@@ -258,6 +258,84 @@ def test_accelerator_integer_logit_reading_preserves_adjacent_values(device) -> 
     assert torch.allclose(rung.distribution(logits, ((0,), (1,))).cpu().double(), expected, atol=1e-7)
 
 
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.int64, torch.uint64])
+def test_mps_calibration_handles_temperature_below_device_range(dtype) -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    rung = Rung(None)
+    decision = ((0,), (1,))
+    rung.temperatures[None] = 1e-100
+    rung.temperatures[decision] = 1e-100
+    logits = torch.tensor([1, 0], dtype=dtype, device="mps")
+    assert rung.reading(logits).cpu().tolist() == [1.0, 0.0]
+    assert rung.distribution(logits, decision).cpu().tolist() == [1.0, 0.0]
+    assert rung.risk(logits, decision) == math.nextafter(0.0, 1.0)
+    actual = rung.log_distribution(logits, decision)
+    assert actual.device.type == "cpu" and actual.dtype == torch.float64
+    assert actual[0].item() == 0.0
+    assert actual[1].item() == pytest.approx(-1e100)
+
+
+def test_mps_calibration_handles_temperature_above_device_range() -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    rung = Rung(None)
+    rung.temperatures[None] = 1e39
+    logits = torch.tensor([3e38, -3e38], dtype=torch.float32, device="mps")
+    expected = torch.softmax(logits.cpu().double() / 1e39, dim=0)
+    assert torch.allclose(rung.reading(logits).cpu().double(), expected, atol=1e-7)
+
+
+def test_mps_half_temperature_promotion_preserves_gradients() -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    rung = Rung(None)
+    rung.temperatures[None] = 1e-5
+    logits = torch.tensor([1e-5, 0.0], dtype=torch.float16, device="mps", requires_grad=True)
+    probability = rung.reading(logits)[0]
+    probability.backward()
+    expected_probability = torch.softmax(logits.detach().cpu().double() / 1e-5, dim=0)[0].item()
+    expected_gradient = expected_probability * (1 - expected_probability) / 1e-5
+    assert probability.item() == pytest.approx(expected_probability, abs=5e-4)
+    assert logits.grad is not None
+    assert logits.grad[0].item() == pytest.approx(expected_gradient, rel=1e-3)
+    assert logits.grad[1].item() == pytest.approx(-expected_gradient, rel=1e-3)
+
+
+def test_mps_log_distribution_preserves_gradients_across_cpu_copy() -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    logits = torch.tensor([1.0, 0.0], dtype=torch.float32, device="mps", requires_grad=True)
+    actual = Rung(None).log_distribution(logits, ((0,), (1,)))
+    assert actual.device.type == "cpu" and actual.dtype == torch.float64
+    actual[0].backward()
+    expected = torch.tensor([1.0, 0.0], dtype=torch.float64, requires_grad=True)
+    expected.log_softmax(dim=0)[0].backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad.cpu().double(), expected.grad, atol=1e-7)
+
+
+@pytest.mark.parametrize("dtype", [torch.int64, torch.uint64])
+def test_mps_restricted_log_distribution_preserves_large_integer_differences(dtype) -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    maximum = torch.iinfo(dtype).max
+    logits = torch.tensor([0, maximum - 1, maximum], dtype=dtype, device="mps")
+    actual = Rung(None).log_distribution(logits, ((1,), (2,)))
+    expected = torch.tensor([-1.0, 0.0], dtype=torch.float64).log_softmax(dim=0)
+    assert actual.device.type == "cpu" and torch.allclose(actual, expected)
+
+
+def test_mps_wide_sparse_log_distribution() -> None:
+    if not torch.backends.mps.is_available():
+        pytest.skip("mps is unavailable")
+    logits = torch.zeros(4_000_001, dtype=torch.float32, device="mps")
+    logits[-1] = 1.0
+    actual = Rung(None).log_distribution(logits, ((0,), (4_000_000,)))
+    expected = torch.tensor([0.0, 1.0], dtype=torch.float64).log_softmax(dim=0)
+    assert actual.device.type == "cpu" and torch.allclose(actual, expected)
+
+
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64])
 def test_calibration_accepts_unsigned_integer_labels(dtype) -> None:
     rung = Rung(constant("unsigned-labels", (0.4, 0.6), 1.0))

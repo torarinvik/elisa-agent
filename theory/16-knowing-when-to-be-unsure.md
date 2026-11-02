@@ -85,6 +85,9 @@ to avoid unnecessary cancellation. This does not make floating-point
 arithmetic exact. A finite temperature may also be outside the range of the
 logit tensor's dtype; the reference path uses binary64 intermediates in that
 case so converting the temperature cannot silently produce zero or infinity.
+On MPS, which lacks binary64 arithmetic, temperatures outside float32's
+finite normal range are evaluated with CPU binary64 intermediates before returning a device
+reading. Log probabilities that require binary64 are returned on CPU.
 `Rung.risk` accepts a ranked observation and charges
 the group containing the original highest-weight class; its tensor-only form
 selects from the numerical reading, including its tie behavior. In unequal groups, a tiny difference in the leading
