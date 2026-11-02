@@ -385,6 +385,10 @@ For any competitor, its target score is at most its report plus `ε`, at
 most `M + ε`, at most the chosen report plus `3ε`, and hence at most
 the chosen target score plus `4ε`.
 
+The implementation compares the full score gap with `2ε` when that gap is
+finite, avoiding premature underflow from halving subnormal scores. If the
+gap overflows, it compares half-scaled scores instead.
+
 The bound must hold simultaneously over the candidate set and be expressed
 in total-score units for the selection batch. This is a conditional
 deterministic guarantee, not an estimator of sampling uncertainty or a

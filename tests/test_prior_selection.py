@@ -236,6 +236,27 @@ def test_evidence_cancels_overflowed_base_normalizer(
     with pytest.raises(ValueError, match="normalizer.*finite"):
         extreme.log_normalizer(rows)
 
+def test_priority_score_comparison_handles_overflowing_gap() -> None:
+    assert not priors._within_score_error(1e308, -1e308, 9e307)
+    assert priors._within_score_error(1e308, -1e308, 1e308)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_selection_distinguishes_subnormal_score_gaps(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = (0, 1, 2)
+    base = np.array([0.0, -745.0, -745.0])
+    reading = np.array([[0.0, -743.5, -746.0]])
+    weak = priors.ArityPrior(alphabet, np.array([[0, -1, 0]]), np.zeros((1, 3)), np.zeros(1))
+    strong = priors.ArityPrior(alphabet, np.array([[0, 0, -1]]), np.zeros((1, 3)), np.zeros(1))
+    least = math.nextafter(0.0, 1.0)
+    result = priors.select_prior([lambda _: weak, lambda _: strong], [reading], base,
+                                 alphabet=alphabet, score_error=least)
+    assert result.scores == (-least, 2 * least)
+    assert result.index == 1
+
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_prior_selection_rejects_lost_evidence_contribution(reference, monkeypatch) -> None:
     if reference:

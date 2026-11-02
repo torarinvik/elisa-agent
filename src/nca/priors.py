@@ -798,6 +798,14 @@ def format_sequence_risk(log_probs: np.ndarray, alphabet: Sequence[int],
         rows = canonical
     return format_prior(len(rows)).sequence_risk(rows, selected)
 
+def _within_score_error(best: float, score: float, error: float) -> bool:
+    """Compare the score gap with twice the error without avoidable underflow."""
+    gap = best - score
+    if math.isfinite(gap):
+        return gap <= 2.0 * float(error)
+    return best / 2 - score / 2 <= error
+
+
 @dataclass(frozen=True)
 class PriorSelection:
     index: int
@@ -916,7 +924,7 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     best = max(range(len(scores)), key=scores.__getitem__)
     chosen = (best if score_error == 0 else next(
         i for i, score in enumerate(scores) if math.isfinite(score)
-        and scores[best] / 2 - score / 2 <= score_error))
+        and _within_score_error(scores[best], score, score_error)))
     return PriorSelection(chosen, tuple(scores), count, score_error, score_clip, alpha)
 
 @lru_cache(maxsize=32)
