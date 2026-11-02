@@ -31,6 +31,12 @@ theorem sum_filter_zero_readings {α : Type} (symbols : List α) (reading factor
     simp only [ne_eq, decide_not] at ih
     by_cases h : reading a = 0 <;> simp [h, ih]
 
+/-- A zero weighted-automaton frontier stays zero after any transition. -/
+theorem zero_frontier_step {S : Type} [Fintype S] (front : S → ℝ) (edge : S → S → ℝ)
+    (empty : ∀ s, front s = 0) (target : S) :
+    ∑ s, front s * edge s target = 0 := by
+  simp [empty]
+
 section Product
 
 variable {σ τ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)

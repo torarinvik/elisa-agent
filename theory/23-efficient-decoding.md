@@ -415,6 +415,9 @@ skip those contributions, and may insert the first finite contribution
 directly, without changing the real-arithmetic recurrence.
 Filtering zero-reading symbols once per row also preserves an ordered sum over
 symbols, so the same nonzero column list can be reused across source states.
+If every state has zero prefix mass, every later frontier is also zero. A
+cached implementation may stop numeric propagation there, provided it marks
+all retained suffix summaries as empty before accepting later revisions.
 The cursor also intersects each row's band with the format decoder's
 arity-dependent prefix reachability bound from §21.4. Later row updates
 cannot make a state beyond that bound reachable.

@@ -43,6 +43,17 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
     unreachable: f64 = log(0.0)
     active: mutable darray[i64] = [0 for _ in 0..<width]
     for k in start..<m:
+        if matched_weights[k] == unreachable and bounds[k * 2] > bounds[k * 2 + 1]:
+            # Every later prefix is empty; clear old suffix envelopes so a
+            # later update may safely reuse any of them.
+            for row in (k + 1)..<(m + 1):
+                for state in bounds[row * 2]..<(bounds[row * 2 + 1] + 1):
+                    alternatives[row * states + state] <- unreachable
+                bounds[row * 2] <- states
+                bounds[row * 2 + 1] <- -1
+                matched_states[row] <- matched_states[k]
+                matched_weights[row] <- unreachable
+            return [unreachable, unreachable]
         here: i64 = k * states
         next: i64 = (k + 1) * states
         # Cells outside the previous destination envelope are already unreachable.

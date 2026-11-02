@@ -773,6 +773,37 @@ def test_partition_cursor_sparse_reading_columns_match_full_partition(width, pat
                                    rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_partition_cursor_recovers_after_an_empty_prefix(reference, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+    rng = np.random.default_rng(592)
+    states, width, length = 9, 16, 18
+    prior = priors.ArityPrior(tuple(range(width)),
+                              rng.integers(0, states, size=(states, width), dtype=np.int64),
+                              rng.normal(size=(states, width)), np.zeros(states))
+    rows = rng.normal(size=(length, width))
+    selected = (0,) * length
+    cursor = incremental.PartitionCursor(prior)
+    initial = cursor.partition(rows, selected)
+    saved = rows[3].copy()
+    rows[3] = -np.inf
+    assert cursor.partition(rows, selected) == (-np.inf, -np.inf)
+    rows[12, 1] -= 0.5
+    assert cursor.partition(rows, selected) == (-np.inf, -np.inf)
+    rows[3] = saved
+    actual = cursor.partition(rows, selected)
+    np.testing.assert_allclose(actual, prior.partition(rows, selected), rtol=1e-12, atol=1e-12)
+    assert actual != initial
+    rows[0] = -np.inf
+    assert cursor.partition(rows, selected) == (-np.inf, -np.inf)
+    rows[0] = 0.0
+    np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected),
+                               rtol=1e-12, atol=1e-12)
+
+
 def test_partition_cursor_clears_old_gapped_envelopes() -> None:
     from nca.partition import PartitionCursor
 
