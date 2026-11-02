@@ -98,6 +98,7 @@ Maintain mathematical theory in topic chapters under `theory/`, with `THEORY.md`
 - Remove debugging code and temporary instrumentation before finishing.
 - Preserve established project conventions and directory structure.
 - Prefer files with fewer than 600 lines. When a file grows, consider splitting it into cohesive modules or chapters that improve clarity and maintainability; avoid arbitrary fragmentation.
+- Prefer folders with 35 or fewer files. When a folder grows beyond that, group its files into cohesive subfolders so the tree stays organized and scalable; avoid arbitrary fragmentation.
 - Add permanent regression tests when appropriate, but never commit disposable test harnesses or exploratory experiments.
 - Do not leave multiple competing implementations when only one is needed.
 
