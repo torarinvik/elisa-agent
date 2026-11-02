@@ -37,6 +37,17 @@ theorem zero_frontier_step {S : Type} [Fintype S] (front : S → ℝ) (edge : S 
     ∑ s, front s * edge s target = 0 := by
   simp [empty]
 
+/-- Any sequence of zero-preserving transitions keeps an empty frontier empty. -/
+theorem zero_frontier_suffix {S : Type} (steps : List ((S → ℝ) → (S → ℝ)))
+    (preserves : ∀ step ∈ steps, step (fun _ => 0) = fun _ => 0) :
+    steps.foldl (fun front step => step front) (fun _ => 0) = fun _ => 0 := by
+  induction steps with
+  | nil => rfl
+  | cons step rest ih =>
+    simp only [List.foldl_cons]
+    rw [preserves step List.mem_cons_self]
+    exact ih (fun f hf => preserves f (List.mem_cons_of_mem _ hf))
+
 section Product
 
 variable {σ τ α : Type} (δ : σ → α → σ) (F : σ → Prop) [DecidablePred F] (as : List α)

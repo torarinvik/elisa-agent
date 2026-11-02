@@ -804,6 +804,30 @@ def test_partition_cursor_recovers_after_an_empty_prefix(reference, monkeypatch)
                                rtol=1e-12, atol=1e-12)
 
 
+def test_partition_cursor_preserves_empty_frontier_across_suffix_edits() -> None:
+    import nca.partition as incremental
+
+    native = incremental._NATIVE
+    if native is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.zeros((1, 2)), np.zeros(1))
+    rows = np.zeros((10, 2))
+    rows[3] = -np.inf
+    selected = [0] * len(rows)
+    cursor = incremental.PartitionCursor(prior)
+    assert cursor.partition(rows, tuple(selected)) == (-np.inf, -np.inf)
+    rows[7, 1] = -1.0
+    assert cursor.partition(rows, tuple(selected)) == (-np.inf, -np.inf)
+    selected[5] = 1
+    assert cursor.partition(rows, tuple(selected)) == (-np.inf, -np.inf)
+    rows[7, 1] = 0.0
+    assert cursor.partition(rows, tuple(selected)) == (-np.inf, -np.inf)
+    rows[3] = 0.0
+    np.testing.assert_allclose(cursor.partition(rows, tuple(selected)),
+                               prior.partition(rows, selected), rtol=1e-12, atol=1e-12)
+
+
 def test_partition_cursor_clears_old_gapped_envelopes() -> None:
     from nca.partition import PartitionCursor
 
