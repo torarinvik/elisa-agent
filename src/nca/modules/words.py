@@ -816,6 +816,11 @@ class FormulaEvaluator:
                     state.within[k, a] = risk(k, ARITY_DECISION[a])
             within = [state.within[k, a] for k, a in enumerate(arities)]
         if children is None:
+            valid = getattr(_NATIVE, "valid_prefix", None)
+            if not self.short_circuit and valid is not None:
+                if not valid(np.asarray(arities, dtype=np.int64)):
+                    return None
+                return dict(enumerate(_combine_shares(shares, within)))
             native = getattr(_NATIVE, "certificate_words")
             found = native(np.array([VOCABULARY.index(w) for w in words], dtype=np.int64),
                            np.asarray(within, dtype=np.float64), np.zeros(n))

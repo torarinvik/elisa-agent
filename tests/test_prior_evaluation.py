@@ -129,6 +129,28 @@ def test_corrected_account_retains_tiny_sequence_risk_with_larger_within_risk(
     assert excess >= Fraction.from_float(sequence_risk)
 
 
+@pytest.mark.parametrize("words", [["and", "true", "false"], ["not", "true"],
+                                  ["true", "true"], ["and", "true"]])
+@pytest.mark.parametrize("use_state", [False, True])
+def test_uncut_correction_prefix_check_matches_certificate(words, use_state, monkeypatch) -> None:
+    from nca.modules import words as word_module
+    from nca.modules.words import CorrectionState
+
+    native = word_module._NATIVE
+    if getattr(native, "valid_prefix", None) is None:
+        pytest.skip("native prefix validation is not built")
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False)
+    probabilities = torch.tensor([0.5, 0.3, 0.2], dtype=torch.float64)
+    risk = lambda k, d: 0.001
+    distribution = lambda k, d: probabilities
+    fast = evaluator.corrected(words, None, risk, distribution,
+                               CorrectionState() if use_state else None)
+    monkeypatch.setattr(native, "valid_prefix", None)
+    reference = evaluator.corrected(words, None, risk, distribution,
+                                    CorrectionState() if use_state else None)
+    assert fast == reference
+
+
 @pytest.mark.parametrize("use_prior", [False, True])
 def test_partition_cache_tracks_readings_selected_arities_and_prior(
         use_prior: bool, monkeypatch: pytest.MonkeyPatch) -> None:

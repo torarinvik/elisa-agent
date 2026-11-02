@@ -1315,6 +1315,17 @@ def certificate(ops: view[i64], left: view[i64], right: view[i64], full: view[f6
                 if right[k] >= 0:
                     found[right[k]] <- 1
 
+# Check a prefix tree of arbitrary nonnegative arities without building it.
+def valid_prefix(arities: view[i64]) -> bool can[Abort.Panic]:
+    m: i64 = arities.len.i64()
+    return false if m == 0
+    pending: i64 =
+        for k in 0..<m |pending: i64 = 1| -> pending:
+            arity: i64 = arities[k]
+            return false if pending == 0 or arity < 0 or arity > m - k - 1
+            pending <- pending - 1 + arity
+    return pending == 0
+
 # Parse arities 0, 1, 2 into two child slots per word; empty means invalid.
 def parse_tree(arities: view[i64]) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = arities.len.i64()
@@ -1664,6 +1675,7 @@ export pymodule decoding:
     fn certificate
     fn parse_tree
     fn parse_tree_generic
+    fn valid_prefix
     fn certificate_words
     fn row_argmax
     fn partition_group_ids

@@ -812,6 +812,10 @@ result, which the account rejects. Child arrays remain native and are passed
 as borrowed slices. The Python child-list route remains the fallback when
 this export is absent. Existing format and certificate theorems cover the
 composition; neither decoding weights nor certificate tie rules change.
+When short-circuiting is disabled, the account instead uses Elisa's generic
+`valid_prefix` counter check and charges every word; it falls back to the
+fused certificate when that export is unavailable. The check uses the format
+automaton and remaining-length bound in `NCA.Decoding`.
 
 `native.decoding.grouped_masses` sums finite nonnegative row entries into
 caller-declared class groups. `FormulaEvaluator.words` uses it to prepare raw

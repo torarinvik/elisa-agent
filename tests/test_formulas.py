@@ -658,6 +658,20 @@ def test_native_certificate_matches_reference_including_ties() -> None:
                     FormulaEvaluator.evaluated_reference(words, kids, full, shape))
 
 
+def test_native_prefix_validity_matches_general_parser() -> None:
+    native = getattr(formulas._NATIVE, "valid_prefix", None)
+    if native is None:
+        pytest.skip("native prefix validation is not built")
+    rng = np.random.default_rng(2034)
+    samples = [[], [0], [1], [0, 0], [2, 0, 0], [3, 0, 0, 0], [-1], [2**63 - 1]]
+    samples.extend(list(arities) for length in range(1, 7)
+                   for arities in itertools.product(range(4), repeat=length))
+    samples.extend(rng.integers(-1, 6, size=int(rng.integers(1, 20))).tolist()
+                   for _ in range(3000))
+    for arities in samples:
+        assert native(np.asarray(arities, dtype=np.int64)) == (formulas.parse_reference(arities) is not None)
+
+
 def test_fused_native_certificate() -> None:
     native = getattr(formulas._NATIVE, "certificate_words", None)
     if native is None:
