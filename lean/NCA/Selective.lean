@@ -61,6 +61,13 @@ theorem target_maximum_unit_weight (value maximum temperature : ℝ) (same : val
   rw [same]
   simp
 
+/-- Relabeling entries and the target together preserves its normalized mass. -/
+theorem calibration_relabel_normalization {ι : Type*} [Fintype ι]
+    (mass : ι → ℝ) (relabel : ι ≃ ι) (target : ι) :
+    mass (relabel.symm (relabel target)) / (∑ i, mass (relabel.symm i)) =
+      mass target / ∑ i, mass i := by
+  rw [relabel.symm_apply_apply, relabel.symm.sum_comp mass]
+
 /-- A nonnegative finite family with zero total has no positive entry. -/
 theorem zero_total_no_positive_entry {ι : Type*} [Fintype ι]
     (mass : ι → ℝ) (nonneg : ∀ x, 0 ≤ mass x)

@@ -911,7 +911,10 @@ class Rung:
 
         Each label names an entry (a group of columns) when ``entries`` is given.
         """
-        grouped = entries is not None and any(len(e) > 1 for e in entries)
+        grouped = (entries is not None and
+                   (len(entries) != log.shape[-1] or
+                    any(len(entry) != 1 or entry[0] != index
+                        for index, entry in enumerate(entries))))
         temperatures = np.geomspace(0.1, 8.0, 120)
         stable_native = getattr(_NATIVE, "calibration_loss_grid_stable", None)
         native = stable_native or getattr(_NATIVE, "calibration_loss_grid", None)

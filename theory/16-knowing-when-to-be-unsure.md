@@ -167,7 +167,9 @@ fits a separate temperature per restricted decision, on the held-out inputs
 whose label is among its classes. Each included label maps to the entry that
 contains it; excluded labels contribute no observation to that fit. The
 restricted calibration matrix depends only on included rows and selected
-classes, in their stated order. For
+classes, in their stated order. Entry labels name groups in that order, even
+when every group is a singleton. Consistently relabeling the groups and their
+targets preserves each target's normalized mass. For
 positive total mass `Z` and labeled
 group mass `G`, each observation's negative log-likelihood is
 `−log(G/Z) = log Z − log G`. The implementation factors out a separate

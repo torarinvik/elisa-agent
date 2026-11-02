@@ -157,6 +157,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `average_calibrated_difference` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `singleton_target_normalizer` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `target_maximum_unit_weight` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `calibration_relabel_normalization` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |

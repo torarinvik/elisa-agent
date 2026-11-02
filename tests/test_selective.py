@@ -1300,6 +1300,23 @@ def test_native_temperature_fit_matches_reference(grouped, monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
+def test_temperature_fit_respects_permuted_singleton_entries(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
+        pytest.skip("native calibration kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("singleton-order", (0.99, 0.01), 1.0))
+    logits = rung.observe(None).unsqueeze(0)
+    labels = torch.tensor([0], dtype=torch.int64)
+    assert Rung._fit(logits, labels) == 0.1
+    assert Rung._fit(logits, labels, ((1,), (0,))) == 8.0
+    assert Rung._fit(logits, labels, ((1,), (0,))) == Rung._fit(logits[:, [1, 0]], labels)
+    assert Rung._fit(logits, labels, ((1,),)) == 8.0
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("grouped", [False, True])
 @pytest.mark.parametrize("rows", [1, 8, 100])
 @pytest.mark.parametrize("dtype,high,low", [
