@@ -2183,3 +2183,11 @@ runtime and `affine_object` store only parameters and contracts, without a
 teacher implementation. `affine_slope_optimal` proves the ideal real quadratic
 minimum from a normal equation, not Python numerical fidelity or global
 alignment. Tests cover fresh inputs, persistence, numeric limits and contracts.
+
+`vector_learning.fit_vector_affine` (§36.19) implements the same fitter protocol
+for finite tuple vectors of independently inferred input/output dimensions.
+`vector_affine_object` stores the fitted matrix and nominal contract without
+training-teacher dependencies. NumPy's native least-squares backend supplies a
+minimum-norm solution for rank-deficient data; independent task selection is
+still required. `vector_adapter_composition_eq` proves conditional downstream
+agreement from exact coordinatewise alignment, not solver correctness.

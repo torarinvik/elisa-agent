@@ -378,3 +378,21 @@ satisfying `Sxx a = Sxy` minimizes `Sxx c² - 2 Sxy c`: the difference from
 its value is `Sxx (c-a)² ≥ 0`. Lean proves this real-valued normal-equation
 statement; it does not verify floating-point statistics or global interface
 alignment. Independent outcomes must justify retaining the fitted bridge.
+
+## 36.19 Vector-valued interface fitting
+
+For paired finite tuple vectors, fit an affine map by least squares on a design
+matrix containing the source coordinates and an intercept column. Input and
+output dimensions come from the paired observations, not a fixed architecture.
+The backend's rank-deficient minimum-norm solution need not identify behavior
+in unobserved directions. Reject inconsistent shapes and nonfinite data/results.
+Type identity remains nominal; observed numerical alignment does not equate
+source and target interface types.
+
+Coordinatewise exact alignment implies agreement after any consumer, by
+function extensionality and Proposition 36.11. Lean proves this conditional
+composition statement, not floating-point solver correctness, unique recovery,
+or global embedding equivalence. Independent task outcomes must support keeping
+the adapter. Parameter artifacts retain the matrix and contract without a
+teacher implementation. This is an affine vector family, not arbitrary
+nonlinear representation alignment.

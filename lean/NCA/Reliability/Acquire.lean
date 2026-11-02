@@ -128,4 +128,15 @@ theorem affine_slope_optimal (xx xy estimate other : ℝ) (nonneg : 0 ≤ xx)
   rw [← normal]
   nlinarith
 
+/-- Coordinatewise alignment suffices for downstream agreement. It is a premise,
+not a claim that finite least-squares training recovers all future vectors. -/
+theorem vector_adapter_composition_eq {X A Y I : Type*} (source : X → A)
+    (teacher : X → I → ℝ) (adapter : A → I → ℝ) (consumer : (I → ℝ) → Y)
+    (aligned : ∀ x i, adapter (source x) i = teacher x i) :
+    (fun x => consumer (adapter (source x))) = (fun x => consumer (teacher x)) := by
+  apply adapter_composition_eq
+  intro x
+  funext i
+  exact aligned x i
+
 end NCA
