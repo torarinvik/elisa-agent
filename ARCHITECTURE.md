@@ -815,7 +815,11 @@ composition; neither decoding weights nor certificate tie rules change.
 When short-circuiting is disabled, the account instead uses Elisa's generic
 `valid_prefix` counter check and charges every word; it falls back to the
 fused certificate when that export is unavailable. The check uses the format
-automaton and remaining-length bound in `NCA.Decoding`.
+automaton and remaining-length bound in `NCA.Decoding`;
+`guardedPrefix_correct` proves that the corresponding guarded natural-number
+validator accepts exactly the automaton's completed runs. This does not
+prove the Elisa implementation or its machine-integer arithmetic; its guard
+keeps the counter within the remaining input length before addition.
 
 `native.decoding.grouped_masses` sums finite nonnegative row entries into
 caller-declared class groups. `FormulaEvaluator.words` uses it to prepare raw

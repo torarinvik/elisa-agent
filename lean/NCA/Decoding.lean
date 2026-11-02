@@ -386,6 +386,40 @@ theorem await_balance : ∀ (l : List ℕ) (start finish : ℕ),
     simp only [List.sum_cons, List.length_cons]
     omega
 
+/-- A completing transition leaves no more open slots than remaining words. -/
+theorem accepted_next_slots_le_remaining (a : ℕ) (tail : List ℕ) (pending : ℕ)
+    (accepted : (a :: tail).foldl await (some (pending + 1)) = some 0) :
+    pending + a ≤ tail.length := by
+  simp only [List.foldl_cons, await] at accepted
+  have balance := await_balance tail (pending + a) 0 accepted
+  omega
+
+/-- Counter validation with an early remaining-length check. -/
+def guardedPrefix : ℕ → List ℕ → Bool
+  | pending, [] => pending == 0
+  | 0, _ :: _ => false
+  | pending + 1, a :: tail =>
+      if pending + a ≤ tail.length then guardedPrefix (pending + a) tail else false
+
+/-- The guarded validator accepts exactly the runs completed by the automaton. -/
+theorem guardedPrefix_correct (pending : ℕ) (arities : List ℕ) :
+    guardedPrefix pending arities = true ↔ arities.foldl await (some pending) = some 0 := by
+  induction arities generalizing pending with
+  | nil => simp [guardedPrefix]
+  | cons a tail ih =>
+    cases pending with
+    | zero => simp [guardedPrefix, List.foldl_cons, await, foldl_await_none]
+    | succ n =>
+      simp only [guardedPrefix, List.foldl_cons, await]
+      by_cases h : n + a ≤ tail.length
+      · simp [h, ih]
+      · have impossible : tail.foldl await (some (n + a)) ≠ some 0 := by
+          intro accepted
+          have bound := accepted_next_slots_le_remaining a tail n (by
+            simpa [await] using accepted)
+          exact h bound
+        simp [h, impossible]
+
 /-- A complete prefix sequence has exactly one fewer child edge than words. -/
 theorem accepted_arity_sum (l : List ℕ) (h : l.foldl await (some 1) = some 0) :
     l.sum + 1 = l.length := by

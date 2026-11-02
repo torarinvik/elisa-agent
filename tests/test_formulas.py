@@ -670,6 +670,8 @@ def test_native_prefix_validity_matches_general_parser() -> None:
                    for _ in range(3000))
     for arities in samples:
         assert native(np.asarray(arities, dtype=np.int64)) == (formulas.parse_reference(arities) is not None)
+    assert not native(np.full(100_000, 2, dtype=np.int64))
+    assert native(np.r_[np.ones(99_999, dtype=np.int64), np.zeros(1, dtype=np.int64)])
 
 
 def test_fused_native_certificate() -> None:

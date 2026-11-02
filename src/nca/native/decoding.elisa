@@ -1322,7 +1322,9 @@ def valid_prefix(arities: view[i64]) -> bool can[Abort.Panic]:
     pending: i64 =
         for k in 0..<m |pending: i64 = 1| -> pending:
             arity: i64 = arities[k]
-            return false if pending == 0 or arity < 0 or arity > m - k - 1
+            # The previous step ensures pending <= m - k, so this guard
+            # bounds the next counter before performing the addition.
+            return false if pending == 0 or arity < 0 or arity > m - k - pending
             pending <- pending - 1 + arity
     return pending == 0
 

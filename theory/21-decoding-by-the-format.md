@@ -75,8 +75,11 @@ Consequently every arity in a complete sequence is less than `m`. For a
 fixed-length format calculation, all larger arities can share an unreachable
 sentinel without changing any accepted path or its weight.
 For validation alone, the counter can be updated in one pass without
-constructing child lists. At position `k`, an arity greater than the number
-of remaining words cannot complete: each child needs at least one word.
+constructing child lists. A transition leaving more open slots than remaining
+words cannot complete, since each slot needs at least one word. Rejecting
+such a transition preserves exactly the automaton's accepted runs, for any
+nonnegative arities and starting counter. Starting from one, this check keeps
+the counter bounded by the remaining input length.
 
 ## 21.4 Decoding by dynamic programming
 
