@@ -335,6 +335,11 @@ theorem compensated_evidence_step (total correction value result : ℝ) :
 def partitionCompose (left right : ℝ × ℝ) : ℝ × ℝ :=
   (left.1 * right.1, left.2 * (right.1 + right.2) + left.1 * right.2)
 
+/-- Once selected and alternative mass are both zero, extending the path keeps them zero. -/
+theorem partitionCompose_zero_left (right : ℝ × ℝ) :
+    partitionCompose (0, 0) right = (0, 0) := by
+  apply Prod.ext <;> simp [partitionCompose]
+
 /-- The composition is independent of how segments are parenthesized. -/
 theorem partitionCompose_assoc (a b c : ℝ × ℝ) :
     partitionCompose (partitionCompose a b) c = partitionCompose a (partitionCompose b c) := by

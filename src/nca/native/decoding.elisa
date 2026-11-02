@@ -655,6 +655,7 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
             next: i64 = ((k + 1) % 2) * states
             here_bound: i64 = (k % 2) * 2
             next_bound: i64 = ((k + 1) % 2) * 2
+            return [unreachable, unreachable] if matched == unreachable and bounds[here_bound] > bounds[here_bound + 1]
             for state in bounds[next_bound]..<(bounds[next_bound + 1] + 1) |rows|:
                 rows[next + state] <- unreachable
             bounds[next_bound] <- states

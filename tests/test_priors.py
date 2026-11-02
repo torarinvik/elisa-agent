@@ -1355,6 +1355,22 @@ def test_normalizer_handles_changing_sparse_symbol_support(reference, monkeypatc
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_partition_stops_only_when_both_parts_are_absent(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    rows = np.array([[0.0, -np.inf], [0.0, 0.0], [0.0, 0.0]])
+    chosen, other = prior.partition(rows, (0, 0, 0))
+    assert chosen == 0.0 and other == pytest.approx(math.log(3))
+    chosen, other = prior.partition(rows, (9, 0, 0))
+    assert chosen == -np.inf and other == pytest.approx(math.log(4))
+    rows[1] = -np.inf
+    assert prior.partition(rows, (0, 0, 0)) == (-np.inf, -np.inf)
+    with pytest.raises(ValueError, match="positive total mass"):
+        prior.sequence_risk(rows, (0, 0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_normalizer_stops_after_empty_support_without_hiding_earlier_failure(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
