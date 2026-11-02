@@ -6,9 +6,11 @@ run is cropped and centered on a 28x28 canvas by its center of ink mass, the
 convention MNIST digits follow, so crops match the recognizers' training
 distribution.
 
-``alternatives`` offers further segmentations: each merging one pair of
-adjacent runs, narrowest gap first, then each splitting one run too wide
-for a glyph, widest first. A consumer that cannot use a
+The first segmentation cuts each run into as many glyphs as its width
+holds, so glyphs that touch are separated. ``alternatives`` offers further
+segmentations: the uncut runs, each merging one pair of adjacent runs,
+narrowest gap first, then each splitting one run too wide for a glyph,
+widest first. A consumer that cannot use a
 segmentation (one it would read nothing of) lets the kernel try the next.
 """
 
@@ -57,6 +59,8 @@ def crop(image: np.ndarray, start: int, end: int) -> np.ndarray:
 ALTERNATIVES = 3
 SPLITS = 2
 SPLIT_WIDTH = 3 * SIZE // 2
+PITCH = 20
+"""The widest ink of one glyph: MNIST centers digits in a 20-pixel box."""
 
 
 class Segmenter:
@@ -73,21 +77,48 @@ class Segmenter:
             yield [torch.from_numpy(crop(array, s, e).astype(np.float32)) for s, e in segments]
 
 
+def pitched(image: np.ndarray, runs: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Each run cut into ``round(width / PITCH)`` parts at its faintest
+    columns near equal spacing: touching glyphs share a run, and no glyph's
+    ink is wider than ``PITCH``."""
+    ink = image.sum(axis=0)
+    spans = []
+    for start, end in runs:
+        parts = max(1, round((end - start) / PITCH))
+        cuts = [start]
+        for j in range(1, parts):
+            target = start + (end - start) * j // parts
+            low, high = max(cuts[-1] + 4, target - 6), min(end - 4, target + 7)
+            cuts.append(low + int(np.argmin(ink[low:high])) if high > low else target)
+        spans += list(zip(cuts, [*cuts[1:], end]))
+    return spans
+
+
 def segmentations(image: np.ndarray) -> Iterator[list[tuple[int, int]]]:
     """Column spans of the segmentations ``Segmenter.alternatives`` crops, in
-    its order: the runs; each merging one pair of adjacent runs, narrowest
-    gap first; each splitting one run wider than ``SPLIT_WIDTH`` at its
-    faintest column in the middle third, widest first."""
+    its order, without repeats: the runs cut by ``pitched``; the runs; each
+    merging one pair of adjacent runs, narrowest gap first; each splitting
+    one run wider than ``SPLIT_WIDTH`` at its faintest column in the middle
+    third, widest first."""
     runs = column_runs(image)
-    yield runs
-    gaps = sorted(range(len(runs) - 1), key=lambda k: runs[k + 1][0] - runs[k][1])
-    for k in gaps[:ALTERNATIVES]:
-        yield [*runs[:k], (runs[k][0], runs[k + 1][1]), *runs[k + 2:]]
-    wide = sorted((k for k, (s, e) in enumerate(runs) if e - s > SPLIT_WIDTH),
-                  key=lambda k: runs[k][0] - runs[k][1])
-    ink = (image > INK).sum(axis=0)
-    for k in wide[:SPLITS]:
-        start, end = runs[k]
-        third = (end - start) // 3
-        cut = start + third + int(np.argmin(ink[start + third:end - third]))
-        yield [*runs[:k], (start, cut), (cut, end), *runs[k + 1:]]
+    seen: list[list[tuple[int, int]]] = []
+
+    def candidates() -> Iterator[list[tuple[int, int]]]:
+        yield pitched(image, runs)
+        yield runs
+        gaps = sorted(range(len(runs) - 1), key=lambda k: runs[k + 1][0] - runs[k][1])
+        for k in gaps[:ALTERNATIVES]:
+            yield [*runs[:k], (runs[k][0], runs[k + 1][1]), *runs[k + 2:]]
+        wide = sorted((k for k, (s, e) in enumerate(runs) if e - s > SPLIT_WIDTH),
+                      key=lambda k: runs[k][0] - runs[k][1])
+        ink = (image > INK).sum(axis=0)
+        for k in wide[:SPLITS]:
+            start, end = runs[k]
+            third = (end - start) // 3
+            cut = start + third + int(np.argmin(ink[start + third:end - third]))
+            yield [*runs[:k], (start, cut), (cut, end), *runs[k + 1:]]
+
+    for segments in candidates():
+        if segments not in seen:
+            seen.append(segments)
+            yield segments

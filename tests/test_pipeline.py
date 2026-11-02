@@ -394,3 +394,19 @@ def test_fine_tuned_recognizer_is_a_new_expert_with_the_same_contract() -> None:
     assert challenger.manifest.contract == incumbent.manifest.contract
     assert challenger.network is not incumbent.network
     assert not torch.equal(challenger.network[-1].weight, incumbent.network[-1].weight)
+
+
+def test_touching_glyphs_are_cut_by_pitch() -> None:
+    from nca.domains.arithmetic.segmenter import column_runs, pitched, segmentations
+
+    image = np.zeros((28, 80), dtype=np.float32)
+    image[4:24, 10:28] = 1.0   # Two 18-pixel glyphs touching at a faint column.
+    image[4:24, 29:47] = 1.0
+    image[10:12, 28] = 0.5
+    image[4:24, 60:66] = 1.0   # A narrow glyph on its own.
+    runs = column_runs(image)
+    assert runs == [(10, 47), (60, 66)]
+    assert pitched(image, runs) == [(10, 28), (28, 47), (60, 66)]
+    candidates = list(segmentations(image))
+    assert candidates[0] == pitched(image, runs) and candidates[1] == runs
+    assert len(candidates) == len({tuple(c) for c in candidates})

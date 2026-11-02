@@ -1918,6 +1918,8 @@ the answer with the largest support `Σ q (1 − c)` is returned in a
 with ranked `alternatives`, giving candidate `k` the bound `table[(s, k)]`
 for `s = stratum(*inputs)`, and `alternatives.fit_table` estimates the
 table as per-cell Clopper–Pearson lower bounds at level `β` over the
-cells. The arithmetic segmenter's `alternatives` now also split runs too
-wide for a glyph, after the merges; `segmenter.segmentations` gives their
-column spans.
+cells. The arithmetic segmenter's first segmentation cuts each run into
+`round(width / PITCH)` glyphs at its faintest columns
+(`segmenter.pitched`), separating touching glyphs; its further
+`alternatives` are the uncut runs, merges and single splits, without
+repeats, and `segmenter.segmentations` gives their column spans.
