@@ -38,3 +38,28 @@ are not compiled, and an expert that returns a request at run time stops
 the compiled call. Such routes run on the runtime, which remains the
 reference semantics; compilation is an optimization for the routes, and
 the parts of routes, that are plain functions of their inputs.
+
+## 34.3 Ledgers and caches on compiled routes
+
+A compiled route can keep one ledger per row (§33.2) and read a result
+cache (§28.4). Alongside each row's demand it propagates the row's
+decision demand, exactly as the runtime does, and charges each row's
+relevant invocations to that row's ledger; an expert that accounts inside
+runs with the row's ledger current. A cache lookup is made per row; the
+misses of one batch that share a key are evaluated once.
+
+**Theorem 34.3 (compiled ledgers).** Under the premises of Theorem 34.1,
+the compiled route charges each row's ledger the same reports, and leaves
+it uncertified by the same experts, as the runtime executing that row
+alone; with a sound cache it returns the same answers.
+
+*Proof.* By the induction of Theorem 34.1, every row's invocations, their
+inputs and their read and decision demands are the runtime's, and the
+charge of an invocation depends only on these and its output. A cache hit
+returns the output of an earlier invocation with the same expert and
+inputs, which for a pure expert is its output now (Theorem 28.4);
+evaluating once for rows that share a key is the same argument within a
+batch. ∎
+
+So Theorems 33.1–33.4 hold for answers produced by a compiled route, and
+selective answering or refinement may use it in place of the runtime.

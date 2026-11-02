@@ -328,6 +328,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [33.2](theory/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
 | [33.4](theory/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
 | [34.2](theory/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
+| [34.3](theory/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
 
 ## Native kernels
 
@@ -1805,8 +1806,13 @@ declared demand on it is not empty (the others pass `None`), then calls
 the expert's `invoke_batch(*columns)` once, or `invoke` per row if it has
 none; a `Map` flattens the elements of every row, with their element
 demands, evaluates the body on that one batch and regroups. An output
-that is a `Request` or generator raises `NotCompilable`. A compiled route
-records no messages, spends no budget, uses no result cache and keeps no
-risk ledger; `execute` remains the reference semantics. `LazyExpert`
+that is a `Request` or generator raises `NotCompilable`. The compiled
+function takes an optional `cache` and an optional list of `ledgers`, one
+per row: it propagates decision demand, charges each row through
+`runtime.charge` and keys the cache through `runtime.result_key`, the
+functions `execute` uses, and invokes the misses of a batch once per
+distinct key. An expert with `accounts_inside` is invoked per row with that
+row's ledger current. A compiled route records no messages and spends no
+budget; `execute` remains the reference semantics. `LazyExpert`
 forwards `invoke_batch`, falling back to per-row invocation, and the
 arithmetic digit and operator readers batch their forward pass.

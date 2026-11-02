@@ -5,9 +5,10 @@ from typing import Any
 import pytest
 
 from nca.abi import NOTHING, Contract, Demand, Manifest, Message, Request, SequenceDemand
+from nca.cache import ResultCache
 from nca.compile import NotCompilable, compile_route
 from nca.planner import Apply, Given, Map
-from nca.runtime import execute
+from nca.runtime import RiskLedger, execute
 from nca.workspace import Workspace
 
 TEXT, WORD, LENGTH, LENGTHS, TOTAL = "text.v1", "word.v1", "len.v1", "list[len.v1]", "total.v1"
@@ -90,3 +91,55 @@ def test_routes_needing_the_kernel_are_not_compiled() -> None:
     asking = Expert("ask", (TEXT,), TOTAL, lambda t: Request(TOTAL, ((TEXT, t),)))
     with pytest.raises(NotCompilable, match="kernel"):
         compile_route(Apply(asking, (Given(TEXT),)), (TEXT,))([("x",)])
+
+
+class Reporting(Batched):
+    """Reports a risk that depends on its output, and is pure and identified."""
+
+    def __init__(self, *args: Any) -> None:
+        super().__init__(*args)
+        self.manifest = Manifest(self.manifest.module_id, "1.0.0", self.manifest.contract,
+                                 effects=frozenset())
+        self.identity = "measure-ref"
+
+    def risk(self, output: int) -> float:
+        return 0.01 * output
+
+
+def ledger_of(plan: Apply, text: str) -> RiskLedger:
+    ledger = RiskLedger()
+    execute(plan, [Message(TEXT, text, "input")], Workspace(), 100, ledger=ledger)
+    return ledger
+
+
+def test_compiled_ledgers_charge_each_row_as_the_runtime_does() -> None:
+    reader = EvenReader("even", (LENGTHS,), TOTAL,
+                        lambda xs: sum(x for i, x in enumerate(xs) if i % 2 == 0))
+    plan = route(Reporting("measure", (WORD,), LENGTH, len), reader)
+    ledgers = [RiskLedger() for _ in TEXTS]
+    compile_route(plan, (TEXT,))([(t,) for t in TEXTS], ledgers=ledgers)
+    for text, ledger in zip(TEXTS, ledgers):
+        expected = ledger_of(plan, text)
+        assert ledger.charge == pytest.approx(expected.charge)
+        assert ledger.uncertified == expected.uncertified
+        assert [(m, v) for m, v, _ in ledger.entries] == [(m, v) for m, v, _ in expected.entries]
+    # Only even-position words are charged; split and even report nothing.
+    assert ledgers[0].charge == pytest.approx(0.04)
+    assert ledgers[0].uncertified == ["split", "even"]
+    with pytest.raises(ValueError, match="ledgers"):
+        compile_route(plan, (TEXT,))([("a",)], ledgers=[])
+
+
+def test_compiled_routes_read_and_fill_the_cache_once_per_distinct_input() -> None:
+    measure = Reporting("measure", (WORD,), LENGTH, len)
+    plan = route(measure, Expert("total", (LENGTHS,), TOTAL, sum))
+    compiled, cache = compile_route(plan, (TEXT,)), ResultCache()
+    rows = [("a bb a",), ("bb ccc",)]
+    assert compiled(rows, cache=cache) == [4, 5]
+    assert measure.batches == [3]  # "a", "bb", "ccc": duplicates evaluated once.
+    assert compiled(rows, cache=cache) == [4, 5]
+    assert measure.batches == [3]  # Every word served by the cache.
+    checked = ResultCache(check_rate=1.0)
+    compiled(rows, cache=checked)
+    compiled(rows, cache=checked)
+    assert measure.batches == [3, 3, 3] and checked.checks["measure-ref"].checked == 3

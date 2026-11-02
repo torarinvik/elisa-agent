@@ -129,6 +129,33 @@ class RiskLedger:
 _LEDGER: ContextVar[RiskLedger | None] = ContextVar("nca_risk_ledger", default=None)
 
 
+def charge(ledger: RiskLedger | None, module: Module, payload: Any, decision: Demand,
+           values: Sequence[Any]) -> None:
+    """Charge ``module``'s invocation on ``values`` to ``ledger`` (§33.2)."""
+    if ledger is None or decision == NOTHING or getattr(module, "accounts_inside", False):
+        return
+    report = getattr(module, "risk", None)
+    reported = None if report is None else report(payload)
+    if reported is not None:
+        ledger.charge += reported
+        ledger.entries.append((module, tuple(values), reported))
+    elif not ledger.exact(module):
+        ledger.uncertified.append(module.manifest.module_id)
+
+
+def result_key(cache: ResultCache | None, ledger: RiskLedger | None, module: Module,
+               values: Sequence[Any]) -> tuple[Any, ...] | None:
+    """The cache key of ``module``'s invocation on ``values``, or ``None`` if
+    it is not cached."""
+    identity = getattr(module, "identity", None)
+    if ledger is not None and getattr(module, "accounts_inside", False):
+        return None
+    if cache is None or identity is None or module.manifest.effects != frozenset():
+        return None
+    digests = tuple(value_digest(value) for value in values)
+    return None if None in digests else (identity, digests)
+
+
 class Filling:
     """A slot's plan as a function of the slot's inputs, run by the kernel."""
 
@@ -277,26 +304,11 @@ def execute(
 
     def account(module: Module, payload: Any, decision: Demand,
                 args: Sequence[Message]) -> None:
-        if (ledger is None or decision == NOTHING
-                or getattr(module, "accounts_inside", False)):
-            return
-        report = getattr(module, "risk", None)
-        reported = None if report is None else report(payload)
-        if reported is not None:
-            ledger.charge += reported
-            ledger.entries.append((module, tuple(a.payload for a in args), reported))
-        elif not ledger.exact(module):
-            ledger.uncertified.append(module.manifest.module_id)
+        charge(ledger, module, payload, decision, [a.payload for a in args])
 
     def cache_key(node: Plan, args: Sequence[Message]) -> tuple[Any, ...] | None:
-        identity = getattr(node.module, "identity", None)
-        if ledger is not None and getattr(node.module, "accounts_inside", False):
-            return None
-        if (cache is None or identity is None or node.slots
-                or node.module.manifest.effects != frozenset()):
-            return None
-        digests = tuple(value_digest(a.payload) for a in args)
-        return None if None in digests else (identity, digests)
+        return None if node.slots else result_key(cache, ledger, node.module,
+                                                  [a.payload for a in args])
 
     def resume(program: Generator[Request, object, object], module_id: str, ref: str,
                parents: tuple[str, ...], chain: tuple[str, ...]) -> object:
