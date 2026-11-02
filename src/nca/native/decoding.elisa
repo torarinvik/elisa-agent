@@ -256,10 +256,15 @@ def log_add(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return log_add_present(x, y)
 
-# Two equal finite masses must increase their log sum by log(2).
+# Detect a lost log-sum correction at the posterior normalization tolerance.
 def partition_log_add(x: f64, y: f64) -> f64:
-    result: f64 = log_add(x, y)
-    return log(-1.0) if x == y and x != log(0.0) and result == x
+    return y if x == log(0.0)
+    return x if y == log(0.0)
+    larger: f64 = x if x >= y else y
+    smaller: f64 = y if x >= y else x
+    correction: f64 = log1p(exp(smaller - larger))
+    result: f64 = larger + correction
+    return log(-1.0) if result == larger and correction >= 1.01e-8
     return result
 
 # Sum off-reference masses and log(max(1, row mass)) without cancellation.

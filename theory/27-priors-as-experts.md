@@ -269,10 +269,10 @@ would be representable after cancellation.
 Full decoding also checks marginal rows for finite, nonnegative entries and
 approximate unit sum. This detects some loss of precision but is not a
 floating-point error bound and cannot validate every normalized result.
-Partition calculations likewise reject the detectable case where summing two
-equal finite log masses leaves the log sum unchanged; other numerical errors
-can remain undetected. Incremental partition updates invalidate their cached
-suffix after this arithmetic failure before a later retry.
+Partition calculations likewise reject a lost log-sum correction of at
+least `1.01 × 10⁻⁸`; other numerical errors can remain undetected. Incremental
+partition updates invalidate their cached suffix after this arithmetic
+failure before a later retry.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

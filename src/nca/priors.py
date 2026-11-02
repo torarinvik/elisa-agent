@@ -99,8 +99,10 @@ def risk_from_partition(chosen: float, alternative: float) -> float:
 
 def _partition_log_add(left: float, right: float, context: str) -> float:
     result = float(np.logaddexp(left, right))
-    if left == right and math.isfinite(left) and result == left:
-        raise ValueError(f"{context} partition arithmetic loses precision")
+    if math.isfinite(left) and math.isfinite(right):
+        larger, smaller = max(left, right), min(left, right)
+        if result == larger and math.log1p(math.exp(smaller - larger)) >= 1.01e-8:
+            raise ValueError(f"{context} partition arithmetic loses precision")
     return result
 
 

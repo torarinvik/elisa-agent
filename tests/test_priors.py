@@ -253,6 +253,23 @@ def test_prior_risk_preserves_tiny_alternative_mass(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_rejects_lost_unequal_alternative_mass(reference, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1, 2), np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    large = float(2**54)
+    rows = np.array([[large, large, large - 2.0], [0.0, -np.inf, -np.inf]])
+    with pytest.raises(ValueError, match="partition.*precision"):
+        prior.sequence_risk(rows, (0, 0))
+    with pytest.raises(ValueError, match="partition.*precision"):
+        incremental.PartitionCursor(prior).partition(rows, (0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_risk_rejects_lost_equal_alternative_mass(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)

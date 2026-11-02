@@ -7,8 +7,11 @@ extern log1p(x: f64) -> f64
 def add_logs(x: f64, y: f64) -> f64:
     return y if x == log(0.0)
     return x if y == log(0.0)
-    result: f64 = x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))
-    return log(-1.0) if x == y and result == x
+    larger: f64 = x if x >= y else y
+    smaller: f64 = y if x >= y else x
+    correction: f64 = log1p(exp(smaller - larger))
+    result: f64 = larger + correction
+    return log(-1.0) if result == larger and correction >= 1.01e-8
     return result
 
 # Find the earliest changed input row without allocating a comparison array.
