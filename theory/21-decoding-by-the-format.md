@@ -19,6 +19,12 @@ is `a ∈ {0, 1, 2}`: the arity decision's grouped reading (§18.3), under that
 decision's temperature. Let `L_m` be the set of arity sequences of formulas
 with `m` words.
 
+For a sequence of length `m`, replacing each nonnegative arity `a` by
+`min(a, m)` preserves whether the complete prefix is accepted. Any accepted
+sequence has every arity below `m`; conversely, an accepted clamped sequence
+cannot contain the sentinel `m`, so no element could have been changed. This
+justifies using `m` as an out-of-range sentinel before native parsing.
+
 **Premise (P).** Given the readings, the posterior probability of an arity
 sequence `a` is
 
