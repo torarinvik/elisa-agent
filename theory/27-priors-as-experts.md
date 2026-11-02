@@ -490,4 +490,9 @@ Two safeguards:
 The prior changes which formulas are answered; the audit decides whether
 the guarantee holds.
 
+For an alphabet `(0, ..., A − 1)`, a selected symbol is its own transition
+column. Once this ordering is checked, a length-`m` prior path needs `O(A + m)`
+work for column lookup instead of `O(mA)`; other alphabet orderings use the
+general search. This does not change the automaton or its path weights.
+
 [Theory index](../THEORY.md)

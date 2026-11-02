@@ -487,4 +487,9 @@ theorem selected_mass_probability_le_one (chosen total : ℝ)
   apply (div_le_iff₀ ht).2
   simpa using hc
 
+/-- In a zero-based alphabet, a valid symbol is its own column index. -/
+theorem range_alphabet_column (width symbol : ℕ) (h : symbol < width) :
+    (List.range width)[symbol]'(by simpa using h) = symbol := by
+  simp
+
 end NCA

@@ -772,6 +772,20 @@ def test_sequence_log_weight_rejects_invalid_inputs_even_on_zero_paths(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_log_weight_supports_dense_and_reordered_alphabets(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    transitions = np.array([[0, 0, 0]])
+    weights = np.array([[1.0, 2.0, 3.0]])
+    for alphabet, selected, expected in (((0, 1, 2), (2, 0), 4.0),
+                                          ((2, 0, 1), (2, 0), 3.0)):
+        prior = priors.ArityPrior(alphabet, transitions, weights, np.zeros(1))
+        assert prior.log_weight(selected) == expected
+        assert prior.log_weight((selected[0], 3)) == -np.inf
+        assert prior.log_weight((selected[0], -1)) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
