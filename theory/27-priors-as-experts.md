@@ -436,6 +436,12 @@ all rewards tie at the floor; the score rule supplies no coverage guarantee.
 A provider selected this way can still abstain on later inputs, and its
 answering policy still needs an independent risk audit.
 
+Finite-precision tilt construction checks each finite edge addition for
+overflow and for a local TwoSum residual of at least `1.01 × 10⁻⁸`. A
+finite mathematical tilt can otherwise be rounded away at large weights;
+zero-weight edges remain zero. This local check does not bound accumulated
+error in later inference.
+
 **Theorem 27.13 (support-preserving symbol tilts).** Given an automaton's
 edge weights v(s,a), final weights f(s) and positive symbol factors r(a),
 replace each edge weight by v(s,a) r(a). The weight of a sequence becomes

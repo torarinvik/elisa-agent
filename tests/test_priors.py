@@ -1447,6 +1447,26 @@ def test_symbol_tilt_validation_and_identity() -> None:
             priors.tilt_prior(extreme, [factor])
 
 
+def test_native_tilt_validation_rejects_invalid_dimensions() -> None:
+    native = getattr(priors._NATIVE, "tilt_weights_valid", None)
+    if native is None:
+        pytest.skip("native tilt validator is not built")
+    assert not native(np.zeros(1), np.empty(0))
+    assert not native(np.zeros(3), np.zeros(2))
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_symbol_tilt_rejects_lost_finite_adjustments(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
+                              np.array([[float(2**54), -np.inf]]), np.zeros(1))
+    with pytest.raises(ValueError, match="lose precision"):
+        priors.tilt_prior(prior, [1.0, 1e308])
+    tilted = priors.tilt_prior(prior, [-float(2**54), 1e308])
+    np.testing.assert_array_equal(tilted.log_weights, [[0.0, -np.inf]])
+
+
 def test_complete_prior_unary_tilts_cancel_at_fixed_length() -> None:
     rng = np.random.default_rng(1706)
     for size in (7, 9, 11):

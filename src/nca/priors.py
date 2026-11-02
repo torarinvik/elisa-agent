@@ -663,8 +663,23 @@ def tilt_prior(prior: ArityPrior, log_factors: Sequence[float]) -> ArityPrior:
         raise ValueError("requires one finite log factor per prior symbol")
     with np.errstate(over="ignore"):
         weights = prior.log_weights + factors
-    if np.any(np.isfinite(prior.log_weights) & ~np.isfinite(weights)):
+    finite = np.isfinite(prior.log_weights)
+    if np.any(finite & ~np.isfinite(weights)):
         raise ValueError("tilted edge weights overflow")
+    native = getattr(_NATIVE, "tilt_weights_valid", None)
+    if native is not None:
+        valid = native(prior.log_weights.reshape(-1), np.ascontiguousarray(factors))
+    else:
+        valid = True
+        for state, symbol in np.argwhere(finite & (np.abs(weights) >= 67108864.0)):
+            try:
+                _partition_log_product(float(prior.log_weights[state, symbol]),
+                                       float(factors[symbol]), "tilt")
+            except _PartitionArithmeticError:
+                valid = False
+                break
+    if not valid:
+        raise ValueError("tilted edge weights lose precision")
     return ArityPrior(prior.alphabet, prior.transitions, weights, prior.log_final, prior.start)
 
 
