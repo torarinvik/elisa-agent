@@ -636,16 +636,20 @@ class Rung:
         elif reading is not None and (not isinstance(reading, torch.Tensor)
                                       or reading.shape != log.shape):
             raise ValueError("reused reading must match the observation's shape")
-        elif reading is not None and reading.is_complex():
+        elif reading is not None and (reading.is_complex() or reading.is_quantized):
             raise ValueError("reused reading must be finite and nonnegative")
         if log.ndim != 1:
             raise ValueError("decision risk requires a one-dimensional logit vector")
         union = list(range(len(log))) if key is None else _layout(key)[0]
         probabilities = (self.reading(log) if reading is None else reading) if ranked is None else None
+        integral_reading = ranked is None and not probabilities.is_floating_point()
+        if integral_reading and (probabilities.is_complex() or probabilities.is_quantized):
+            raise ValueError("reused reading must be finite and nonnegative")
         native_reading = getattr(_NATIVE, "calibrated_risk_for_reading_checked", None)
         if native_reading is None and reading is None and ranked is None:
             native_reading = getattr(_NATIVE, "calibrated_risk_for_reading", None)
-        if (native_reading is not None and log.device.type == "cpu" and not log.requires_grad
+        if (native_reading is not None and not integral_reading
+                and log.device.type == "cpu" and not log.requires_grad
                 and (ranked is not None or (probabilities.device.type == "cpu"
                                             and not probabilities.requires_grad))):
             native_key = key if key is not None else tuple(range(len(log)))
@@ -668,12 +672,17 @@ class Rung:
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
-            if reading is not None:
+            if reading is not None or integral_reading:
                 selected_reading = probabilities[union]
-                if (not bool(torch.isfinite(selected_reading).all())
-                        or bool((selected_reading < 0).any())):
+                checked = selected_reading.double() if integral_reading else selected_reading
+                if not bool(torch.isfinite(checked).all()) or bool((checked < 0).any()):
                     raise ValueError("reused reading must be finite and nonnegative")
-            selected = int(probabilities[union].argmax())
+            if integral_reading:
+                selected = (int(selected_reading.detach().cpu().numpy().argmax())
+                            if selected_reading.dtype == torch.uint64 else
+                            int(selected_reading.to(torch.int64).argmax()))
+            else:
+                selected = int(probabilities[union].argmax())
         native = getattr(_NATIVE, "calibrated_risk_at", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
             native_key = key if key is not None else tuple(range(len(log)))

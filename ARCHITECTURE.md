@@ -919,6 +919,8 @@ binary64. Callers may supply original binary64 ordering weights to
 `risk_batch` when consumers use that same ranking; otherwise it selects from
 the numerical reading. Ordering weights must have a floating-point dtype;
 reading and ordering inputs are mutually exclusive.
+An individual reused reading can also use a boolean or integer representation;
+its selected class is determined before any floating-point conversion.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.

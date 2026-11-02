@@ -107,7 +107,9 @@ callers may supply the original weights for selection when numerical readings
 have lost distinctions, provided the consumer uses that same ordering.
 When a numerical reading is reused to select a class, its selected entries
 must be finite and nonnegative; all-zero restricted entries are allowed and
-tie in class order. This representation check cannot establish that a cached
+tie in class order. Boolean and integer representations of a valid reading
+are selected in their original representation; complex and quantized readings
+are rejected. This representation check cannot establish that a cached
 reading came from the same observation and calibration, which remains a caller
 obligation.
 Ranked selection applies the same finite, nonnegative requirement to the

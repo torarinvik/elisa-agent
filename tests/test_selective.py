@@ -2956,6 +2956,45 @@ def test_reused_risk_reading_is_checked_with_legacy_kernel(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype", [torch.bool, torch.uint64, torch.int64])
+def test_reused_integer_reading_matches_floating_reading(native, dtype, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_at", None) is None:
+        pytest.skip("native risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([0.0, -1000.0], dtype=torch.float64)
+    rung = Rung(None)
+    assert rung.reading(logits).tolist() == [1.0, 0.0]
+    reading = torch.tensor([1, 0], dtype=dtype)
+    assert rung.risk(logits, reading=reading) == rung.risk(logits)
+
+    class IntegerReadingRung(Rung):
+        def reading(self, log):
+            return reading
+
+    assert IntegerReadingRung(None).risk(logits) == rung.risk(logits)
+
+
+def test_reused_risk_rejects_quantized_reading() -> None:
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        reading = torch.quantize_per_tensor(torch.tensor([1.0, 0.0]), 0.1, 0, torch.quint8)
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        Rung(None).risk(torch.tensor([0.0, -1000.0]), reading=reading)
+
+    class InvalidReadingRung(Rung):
+        def reading(self, log):
+            return torch.tensor([1 + 2j, 0j])
+
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        InvalidReadingRung(None).risk(torch.tensor([0.0, -1000.0]))
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("scale", [1e-320, 1.0, 1e308])
 def test_decision_risk_is_invariant_to_weight_scale(native, scale, monkeypatch) -> None:
     from nca import ladder as ladder_module
