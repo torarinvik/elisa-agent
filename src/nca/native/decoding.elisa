@@ -438,8 +438,7 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
         arity: i64 = alphabet[choice[k * width + trace[0]]]
         result[k] <- arity.f64()
         trace[0] <- trace[0] + 1 - arity
-    backward: darray[f64] = [0.0 if i == (m % 2) * width else unreachable for i in 0..<(2 * width)]
-    marginal: darray[f64] = [unreachable for _ in 0..<(m * alphabet_size)]
+    backward: mutable darray[f64] = [0.0 if i == (m % 2) * width else unreachable for i in 0..<(2 * width)]
     for step in 0..<m:
         k: i64 = m - 1 - step
         backward_here: i64 = (k % 2) * width
@@ -450,18 +449,19 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
             arity: i64 = alphabet[j]
             continue if arity >= m - k
             reading: f64 = log_probs[k * alphabet_size + j]
-            for state in 1..<(m - k - arity + 1):
-                target: i64 = state - 1 + arity
-                source: f64 = forward[k * width + state]
-                continue if source == unreachable
-                suffix: f64 = backward[backward_next + target]
-                through: f64 = reading + suffix
-                return [log(-1.0)] if reading != unreachable and suffix != unreachable and (through == unreachable or through == -unreachable or through != through)
-                backward[backward_here + state] <- log_add(backward[backward_here + state], through)
-                weighted: f64 = source + through
-                return [log(-1.0)] if source != unreachable and through != unreachable and (weighted == unreachable or weighted == -unreachable or weighted != weighted)
-                marginal[k * alphabet_size + j] <- log_add(marginal[k * alphabet_size + j], weighted)
-            result[1 + m + k * alphabet_size + j] <- exp(marginal[k * alphabet_size + j] - log_z)
+            marginal: f64 =
+                for state in 1..<(m - k - arity + 1) |backward, total: f64 = unreachable| -> total:
+                    target: i64 = state - 1 + arity
+                    source: f64 = forward[k * width + state]
+                    continue if source == unreachable
+                    suffix: f64 = backward[backward_next + target]
+                    through: f64 = reading + suffix
+                    return [log(-1.0)] if reading != unreachable and suffix != unreachable and (through == unreachable or through == -unreachable or through != through)
+                    backward[backward_here + state] <- log_add(backward[backward_here + state], through)
+                    weighted: f64 = source + through
+                    return [log(-1.0)] if source != unreachable and through != unreachable and (weighted == unreachable or weighted == -unreachable or weighted != weighted)
+                    total <- log_add(total, weighted)
+            result[1 + m + k * alphabet_size + j] <- exp(marginal - log_z)
     return result
 
 # Sum-product only, retaining two state rows; no maximum or marginal tables.
