@@ -41,6 +41,7 @@ run the Python tests with `uv run pytest`.
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
 | [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
+| [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -311,6 +312,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [29.1](theory/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
 | [29.3](theory/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
+| [30.1](theory/30-selection-by-evidence.md) | `audit_family_le` (the union bound; the sign test's validity is assumed) | `Calibration` |
+| [30.2](theory/30-selection-by-evidence.md) | `plan_rename`, `planShallow_rename`, `planShallowStable_rename`, `WellTyped.rename` | `Selection` |
 
 ## Native kernels
 
@@ -1654,3 +1657,26 @@ core's `seq`, `pair`, `either` and `unit`. Domains share a type by stating
 its constructor with identical contents, which gives it one reference: both
 domains state the same `BOOLEAN`, and a test checks that their references
 agree.
+
+## 30. Selection by evidence
+
+`evidence` implements §30. `benchmark(samples)` identifies a benchmark by
+the `cache.value_digest` of its samples. `evaluation(identity, bench,
+outcomes, issuer)` is an `evaluation` attestation whose claim holds the
+expert's identity, the benchmark and its outcomes as a string of `0` and
+`1`; its subject is the stored object the identity names, the composite for
+an export (`ref#index`). `outcomes` reads the outcomes that a given set of
+issuers attest and refuses disagreeing ones.
+
+`promote(modules, store, bench, issuers, alpha)` goes through the library
+in order. For each contract the first expert is the incumbent; every later
+expert with the same contract and a trusted evaluation is tested against it
+with `router.sign_test` at `stats.family_audit_alpha(alpha, k)`, and the
+accepted challenger with the smallest p-value exchanges places with the
+incumbent. It returns the new library and a `Promotion` record (wins,
+losses, p-value, level) per change. An exchange is a signature-preserving
+renaming, so `planShallowStable_rename` gives the effect on routes:
+the challenger takes the incumbent's place in each route that used it, and
+nothing else changes. Promotion compares experts one contract at a time; a
+deployment promoting along several contracts at once divides `alpha` among
+them itself.

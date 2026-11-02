@@ -1,0 +1,117 @@
+"""Selection among substitutes by attested evaluations (THEORY §30).
+
+An *evaluation* is an attestation that an expert, identified by its content
+identity, was right or wrong on each sample of a benchmark, a labeled
+sample sequence identified by its digest. ``promote`` reads the
+evaluations of trusted issuers and, for each contract, tests every
+substitute with evidence against the incumbent (the first expert with that
+contract) by the exact sign test of §8 at level ``α / k``; the challenger
+with the smallest p-value among those accepted exchanges places with the
+incumbent. Planning commutes with that exchange (``NCA.planShallowStable_rename``),
+so every route through the incumbent then uses the challenger and no other
+route changes.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+from nca.abi import Module
+from nca.cache import value_digest
+from nca.objects import Attestation, Ref, Store
+from nca.router import sign_test
+from nca.stats import family_audit_alpha
+
+EVALUATION = "evaluation"
+
+
+def benchmark(samples: Sequence[Any]) -> Ref:
+    """The identity of a benchmark: the digest of its samples, in order."""
+    found = value_digest(list(samples))
+    if found is None:
+        raise ValueError("benchmark samples have no canonical encoding")
+    return found
+
+
+def evaluation(identity: str, bench: Ref, outcomes: Sequence[bool],
+               issuer: str = "") -> Attestation:
+    """An attestation that the expert ``identity`` was right (``True``) or
+    wrong on each sample of ``bench``. Its subject is the stored object the
+    identity names: the expert, or the composite an export belongs to."""
+    subject = identity.partition("#")[0]
+    claim = {"identity": identity, "benchmark": bench,
+             "outcomes": "".join("1" if o else "0" for o in outcomes)}
+    return Attestation(subject, EVALUATION, claim, issuer)
+
+
+def outcomes(store: Store, identity: str, bench: Ref,
+             issuers: Collection[str]) -> tuple[bool, ...] | None:
+    """The outcomes of ``identity`` on ``bench`` that ``issuers`` attest, or
+    ``None`` if none do; trusted evaluations that disagree are an error."""
+    found = {a.claim["outcomes"] for a in store.attestations(identity.partition("#")[0], EVALUATION)
+             if a.issuer in issuers and a.claim.get("identity") == identity
+             and a.claim.get("benchmark") == bench}
+    if len(found) > 1:
+        raise ValueError(f"trusted evaluations of {identity} on {bench} disagree")
+    return tuple(c == "1" for c in found.pop()) if found else None
+
+
+@dataclass(frozen=True)
+class Promotion:
+    incumbent: Module
+    challenger: Module
+    wins: int
+    """Samples only the challenger got right."""
+    losses: int
+    """Samples only the incumbent got right."""
+    p_value: float
+    level: float
+    """The level the test was run at: ``α`` over the number of challengers."""
+
+
+def promote(modules: Sequence[Module], store: Store, bench: Ref, issuers: Collection[str],
+            alpha: float = 0.05) -> tuple[list[Module], list[Promotion]]:
+    """``modules`` with each contract's incumbent exchanged for the best
+    challenger the evidence supports, and the promotions made. Experts
+    without an identity or without a trusted evaluation on ``bench`` are
+    neither tested nor tested against."""
+    library = list(modules)
+    promotions: list[Promotion] = []
+    decided = set()
+    for i, incumbent in enumerate(library):
+        contract = incumbent.manifest.contract
+        if contract in decided:
+            continue
+        decided.add(contract)
+        base = _outcomes(incumbent, store, bench, issuers)
+        if base is None:
+            continue
+        challengers = [(j, m, found) for j, m in enumerate(library[i + 1:], i + 1)
+                       if m.manifest.contract == contract
+                       and (found := _outcomes(m, store, bench, issuers)) is not None]
+        if any(len(found) != len(base) for _, _, found in challengers):
+            raise ValueError(f"evaluations on {bench} have different lengths")
+        if not challengers:
+            continue
+        level = family_audit_alpha(alpha, len(challengers))
+        best: tuple[float, int, tuple[bool, ...]] | None = None
+        for j, _, found in challengers:
+            accepted, p_value = sign_test(base, found, level)
+            if accepted and (best is None or p_value < best[0]):
+                best = (p_value, j, found)
+        if best is None:
+            continue
+        p_value, j, found = best
+        promotions.append(Promotion(
+            incumbent, library[j], sum(c and not o for o, c in zip(base, found)),
+            sum(o and not c for o, c in zip(base, found)), p_value, level))
+        library[i], library[j] = library[j], library[i]
+    return library, promotions
+
+
+def _outcomes(module: Module, store: Store, bench: Ref,
+              issuers: Collection[str]) -> tuple[bool, ...] | None:
+    identity = getattr(module, "identity", None)
+    return None if identity is None else outcomes(store, identity, bench, issuers)

@@ -54,3 +54,4 @@ link for its definitions, arguments, and results.
 
 - [28. Packages as experts](theory/28-packages-as-experts.md)
 - [29. Types as objects](theory/29-types-as-objects.md)
+- [30. Selection by evidence](theory/30-selection-by-evidence.md)
