@@ -14,7 +14,7 @@ from nca.objects import Constructor, canonical
 
 def _observation(value: Any) -> float:
     if type(value) is not float or not math.isfinite(value):
-        raise ValueError("numeric partition observations must be finite floats")
+        raise ValueError("numeric observations must be finite floats")
     return value
 
 

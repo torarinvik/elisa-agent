@@ -359,3 +359,22 @@ source/teacher may retain the incumbent's external slots and inputs. Costs
 add and effects are conservatively combined. New persisted heads have
 content-derived residency identifiers so different fitted bridges can coexist;
 previous scalar-head artifacts remain readable through their default loader id.
+
+## 36.18 Continuous interface fitters
+
+Bridge acquisition may accept any supplied fitter returning exactly the
+requested unary adapter contract. It receives only paired training values;
+end-to-end held-out selection is unchanged. The categorical fitter remains
+the default, not a fixed catalog of possible interface learners.
+
+One continuous instance fits `a x + b` by centered scalar least squares.
+Set `a = Sxy/Sxx` and `b = mean(y) - a mean(x)` when the centered input
+sum of squares is positive. Constant input uses the mean target. Finite
+observations whose intermediate statistics or predictions exceed floating-point
+range are rejected, not clipped or silently treated as constant.
+
+**Proposition 36.12 (centered slope optimum).** For `Sxx ≥ 0`, any slope
+satisfying `Sxx a = Sxy` minimizes `Sxx c² - 2 Sxy c`: the difference from
+its value is `Sxx (c-a)² ≥ 0`. Lean proves this real-valued normal-equation
+statement; it does not verify floating-point statistics or global interface
+alignment. Independent outcomes must justify retaining the fitted bridge.

@@ -2173,3 +2173,13 @@ alignment; finite-data alignment is not a universal equivalence proof.
 New `decoder_object` artifacts derive residency ids from model contents; their
 loader defaults preserve legacy saved-head compatibility. Coexistence, effects,
 typed planner composition and absence of held-out teacher calls are tested.
+
+`propose_adapter(fit=...)` (§36.18) accepts a fitter obeying `AdapterFitter`;
+its returned contract must exactly match the requested bridge. The default
+categorical fitter is unchanged. `affine_learning.fit_affine` is a continuous
+scalar instance using centered least squares, rejecting unrepresentable
+statistics/predictions and using a mean target for constant inputs. The generic
+runtime and `affine_object` store only parameters and contracts, without a
+teacher implementation. `affine_slope_optimal` proves the ideal real quadratic
+minimum from a normal equation, not Python numerical fidelity or global
+alignment. Tests cover fresh inputs, persistence, numeric limits and contracts.

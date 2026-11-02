@@ -2,6 +2,7 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Finset.Max
+import Mathlib.Tactic.Linarith
 
 /-!
 # Promoting a trained challenger
@@ -117,5 +118,14 @@ theorem adapter_composition_eq {X A B Y : Type*} (source : X → A) (teacher : X
     (fun x => consumer (adapter (source x))) = (fun x => consumer (teacher x)) := by
   funext x
   exact congrArg consumer (aligned x)
+
+/-- Ideal centered least squares: the normal equation gives the minimum
+of the scalar quadratic. This is not a floating-point implementation proof. -/
+theorem affine_slope_optimal (xx xy estimate other : ℝ) (nonneg : 0 ≤ xx)
+    (normal : xx * estimate = xy) :
+    xx * estimate ^ 2 - 2 * xy * estimate ≤ xx * other ^ 2 - 2 * xy * other := by
+  have h := mul_nonneg nonneg (sq_nonneg (other - estimate))
+  rw [← normal]
+  nlinarith
 
 end NCA
