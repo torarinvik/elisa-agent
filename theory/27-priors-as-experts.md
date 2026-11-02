@@ -316,6 +316,8 @@ failure.
 
 Evidence accumulation retains TwoSum residuals in a separate correction, so
 small contributions can accumulate until they are representable in the score.
+In exact arithmetic the running total plus correction changes by exactly the
+new contribution; floating-point correction updates may still round.
 A final addition or correction update that loses at least `1.01 × 10⁻⁸` is
 reported; smaller errors can still accumulate, so this is not an overall
 selection-accuracy bound.

@@ -268,7 +268,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
 | [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
 | [27.15](theory/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |
-| [27.16](theory/27-priors-as-experts.md) | `risk_from_other_mass`, `partition_risk_common_factor`, `prior_common_factors`, `equal_positive_mass_increases`, `two_sum_residual_identity` | `Product` |
+| [27.16](theory/27-priors-as-experts.md) | `risk_from_other_mass`, `partition_risk_common_factor`, `prior_common_factors`, `equal_positive_mass_increases`, `two_sum_residual_identity`, `compensated_evidence_step` | `Product` |
 | [27.17](theory/27-priors-as-experts.md) | `partitionCompose_assoc`, `partitionCompose_identity`, `partitionCompose_nonneg` | `Product` |
 | [27.18](theory/27-priors-as-experts.md) | `partitionBoundary_total`, `partitionBoundary_nonneg`, `partitionBoundary_assoc`, `partitionBoundary_identity` | `Product` |
 | [27.19](theory/27-priors-as-experts.md) | `partition_prefix_reuse` | `Product` |

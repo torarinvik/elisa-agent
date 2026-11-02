@@ -291,6 +291,13 @@ theorem two_sum_residual_identity (x y result : ℝ) :
     (x - (result - (result - x))) + (y - (result - x)) = x + y - result := by
   ring
 
+/-- Adding the TwoSum residual to a correction preserves the exact total. -/
+theorem compensated_evidence_step (total correction value result : ℝ) :
+    result + (correction + ((total - (result - (result - total))) +
+      (value - (result - total)))) = total + correction + value := by
+  rw [two_sum_residual_identity]
+  ring
+
 /-- Combine selected and alternative mass from independent segments. -/
 def partitionCompose (left right : ℝ × ℝ) : ℝ × ℝ :=
   (left.1 * right.1, left.2 * (right.1 + right.2) + left.1 * right.2)
