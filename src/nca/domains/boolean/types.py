@@ -1,15 +1,18 @@
 """The constructors of noisy prefix formulas' types (THEORY §29.1).
 
 Each module names its types by these constructors' references, and the
-package puts them into the store with its members. Truth values are the
-shared ``nca.prelude.BOOLEAN``.
+package puts them into the store with its members. ``BOOLEAN`` is stated
+with the same contents in every domain that answers with truth values, so
+it has one reference and those domains share the type without importing
+each other.
 """
 
 from __future__ import annotations
 
 from nca.objects import Constructor
-from nca.prelude import BOOLEAN
 
+BOOLEAN = Constructor("nca.boolean", "1", 0,
+                      "A truth value: a Python bool, or None when the producer has no answer.")
 FORMULA_TEXT = Constructor("nca.boolean.formula-text", "1", 0,
                            "A prefix formula as str: words separated by single spaces.")
 NOISY_WORD = Constructor("nca.boolean.noisy-word", "1", 0,

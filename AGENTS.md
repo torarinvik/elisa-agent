@@ -28,7 +28,9 @@ its native kernels. It must work unchanged for tasks nobody has written yet.
   Domains depend on the core and never on each other, and the core never
   imports a domain. `tests/test_layout.py` enforces this; extend the check
   rather than weaken it. Domains share types only by naming the same type
-  identifier.
+  identifier: each states the shared constructor object with identical
+  contents, so it has one reference. The core defines no value types at all,
+  not even general-purpose ones such as truth values or integers.
 - Build a capability generically in the core, with the domain as one instance
   of it. If a second domain would have to copy code to get the same
   capability, that code belongs in the core. Never fork a generic algorithm

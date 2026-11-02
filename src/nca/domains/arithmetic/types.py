@@ -1,14 +1,21 @@
 """The constructors of handwritten arithmetic's types (THEORY §29.1).
 
 Each module names its types by these constructors' references, and the
-package puts them into the store with its members.
+package puts them into the store with its members. ``BOOLEAN`` is stated
+with the same contents in every domain that answers with truth values, so
+it has one reference and those domains share the type without importing
+each other.
 """
 
 from __future__ import annotations
 
 from nca.objects import Constructor
-from nca.prelude import BOOLEAN, INTEGER
 
+BOOLEAN = Constructor("nca.boolean", "1", 0,
+                      "A truth value: a Python bool, or None when the producer has no answer.")
+INTEGER = Constructor("nca.arithmetic.integer", "1", 0,
+                      "An integer of any size: a Python int, or None when the expression "
+                      "has no value.")
 GLYPH = Constructor("nca.arithmetic.glyph", "1", 0,
                     "A handwritten glyph: torch.Tensor of shape (28, 28), float in [0, 1], "
                     "white ink on black.")

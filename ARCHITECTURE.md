@@ -40,7 +40,7 @@ run the Python tests with `uv run pytest`.
 | [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
 | [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
-| [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `prelude`, `domains.*.types` |
+| [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -539,8 +539,8 @@ run is cropped and translated so that its center of ink mass is at the center
 of a 28×28 canvas, the MNIST normalization convention.
 
 Fusion, parsing and the recognizers are parameterized by an operator
-vocabulary: arithmetic (`+ − ×`, value type `prelude.INTEGER`) and comparison
-(`< > =`, value type `prelude.BOOLEAN`) use separate module ids and semantic types,
+vocabulary: arithmetic (`+ − ×`, value type `types.INTEGER`) and comparison
+(`< > =`, value type `types.BOOLEAN`) use separate module ids and semantic types,
 so installing one family cannot satisfy or alter the other's contracts.
 
 ## 7. Measuring accumulation
@@ -1645,11 +1645,12 @@ returning it.
 
 The Lean evaluator of Theorem 29.2 (`Plan.eval`) is a model: modules are
 functions of their arguments' values and a map body reads only its element.
-`nca.prelude` holds the constructors of domain-free values that domains
-share, a truth value and an integer, since domains cannot import each other.
-Each domain defines the constructors of its own types in its `types` module
+The core defines no value types. Each domain defines the constructors of its own types in its `types` module
 (`domains.arithmetic.types`, `domains.boolean.types`); its modules take their
 type ids from them, and its package puts them into the store as members, so
 installing a package brings its types. `tests/test_layout.py` checks that
 every contract of a discovered package names only constructor objects or the
-core's `seq`, `pair`, `either` and `unit`.
+core's `seq`, `pair`, `either` and `unit`. Domains share a type by stating
+its constructor with identical contents, which gives it one reference: both
+domains state the same `BOOLEAN`, and a test checks that their references
+agree.

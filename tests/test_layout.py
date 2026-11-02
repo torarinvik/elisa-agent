@@ -81,3 +81,10 @@ def test_domain_packages_name_their_types_by_constructor_objects() -> None:
             # Installing the package brings every type it names.
             assert set(constructors(contracts)) <= set(store.walk(ref))
     assert offending == {}
+
+
+def test_domains_share_truth_values_by_identical_constructors() -> None:
+    from nca.domains.arithmetic import types as arithmetic
+    from nca.domains.boolean import types as boolean
+
+    assert arithmetic.BOOLEAN.ref == boolean.BOOLEAN.ref
