@@ -549,3 +549,21 @@ No held-out coverage, actual perfect alignment, arbitrary feature discovery or
 optimal allocation is implied. A generated partition may be imperfect, so
 whole-task independent selection remains essential. The routing type and the
 specialist's new constructors travel together in each in-memory proposal.
+
+## 36.28 Multi-interval failure routing and refinement ties
+
+A routing-region budget allows the same greedy interval refinement as §36.14
+to fit incumbent failure indicators, followed by §36.26 regional task training.
+A narrow internal error region can require two cuts although no single cut
+improves modal accuracy. Choosing the first tied boundary may waste the budget.
+An optional label-agnostic secondary score can choose among equally accurate
+cuts; weighted purity is `Σ labels left_count²/left_size + right_count²/right_size`.
+This is a supplied modeling preference, not domain knowledge or a global optimum.
+
+The primary score remains modal successes. For binary counts a,b in one child
+and c,d in another, `max(a+c,b+d) ≤ max(a,b)+max(c,d)`; Lean proves this integer
+refinement bound without a premise about chosen modal labels. It does not prove
+that executable histograms are correct, that greedy ties find the best future
+cuts, or that held-out errors decrease. Empty/pure intervals and explicit region
+budgets retain their existing behavior. The original first-boundary tie rule
+remains the default. Independent whole-task outcomes must compare routing policies.

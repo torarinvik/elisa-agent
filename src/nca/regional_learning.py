@@ -7,7 +7,7 @@ from typing import Any
 
 from nca.abi import Module
 from nca.discovery import Proposal, _total_calls
-from nca.numeric_learning import fit_partition_encoder
+from nca.numeric_learning import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
 
 class RegionalExpert:
@@ -85,7 +85,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         rows: Sequence[tuple[Any, ...]], labels: Sequence[Any],
         correct: Callable[[Any, Any], bool], *, max_measurements: int, max_regions: int,
         encoding_cost: float, overhead_cost: float,
-        place_boundary: Callable[[float, float], float] | None = None) -> list[Proposal]:
+        place_boundary: Callable[[float, float], float] | None = None,
+        routing_regions: int = 2, tie_break: SplitTieBreak | None = None) -> list[Proposal]:
     """Learn routing cuts from training failures, then acquire task specialists (§36.27).
 
     Measurements are finite-float experts with the original external inputs.
@@ -93,9 +94,11 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     task targets in their assigned regions. Constant failure indicators yield no
     proposals. Use inside discover's training callback. Inputs/models/scoring
     must remain stable; training may invoke the incumbent/measurements repeatedly.
-    This family learns scalar cuts, not measurement implementations.
+    This family learns scalar cuts, not measurement implementations. An explicit
+    routing_regions budget permits interval refinement (§36.28); tie_break is a
+    pure secondary score over read-only label histograms, with modal accuracy primary.
     """
-    if any(type(n) is not int or n < 1 for n in (max_measurements, max_regions)):
+    if any(type(n) is not int or n < 1 for n in (max_measurements, max_regions, routing_regions)):
         raise ValueError("measurement and region budgets must be positive integers")
     if len(rows) < 2 or len(rows) != len(labels):
         raise ValueError("failure partition training needs at least two aligned rows")
@@ -113,8 +116,14 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         return []
     proposals = []
     for measurement in measurements:
-        encoder = fit_partition_encoder(measurement, rows, failures,
-                                        encoding_cost=encoding_cost, place_boundary=place_boundary)
+        if routing_regions == 2:
+            encoder = fit_partition_encoder(measurement, rows, failures,
+                        encoding_cost=encoding_cost, place_boundary=place_boundary,
+                        tie_break=tie_break)
+        else:
+            encoder = fit_regions_encoder(measurement, rows, failures, max_regions=routing_regions,
+                        encoding_cost=encoding_cost, place_boundary=place_boundary,
+                        tie_break=tie_break)
         if encoder is None:
             continue
         local = propose_regional_experts(incumbent, encoder, propose, rows, labels, correct,

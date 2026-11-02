@@ -122,3 +122,20 @@ def test_midpoint_float_extremes_and_adjacent_values() -> None:
         assert lower < midpoint_boundary(lower, upper) <= upper
     with pytest.raises(ValueError):
         midpoint_boundary(1.0, 1.0)
+
+
+def test_purity_breaks_zero_gain_ties_without_reducing_modal_training_score() -> None:
+    from nca.numeric_learning import propose_regions, purity_tiebreak
+
+    rows = [(float(i),) for i in range(12)]
+    labels = ["a"] * 5 + ["b"] * 3 + ["a"] * 4
+    kwargs = dict(max_regions=3, encoding_cost=0, decoder_cost=0)
+    plain = propose_regions(Incumbent(), Measurement(), rows, labels, **kwargs)[0]
+    guided = propose_regions(Incumbent(), Measurement(), rows, labels,
+                             tie_break=purity_tiebreak, **kwargs)[0]
+    assert sum(plain.expert.invoke(*r) == y for r, y in zip(rows, labels)) == 9
+    assert sum(guided.expert.invoke(*r) == y for r, y in zip(rows, labels)) == 12
+    assert guided.expert.feature.boundaries == (5.0, 8.0)
+    with pytest.raises(ValueError, match="tie score must be finite"):
+        propose_regions(Incumbent(), Measurement(), rows, labels,
+                         tie_break=lambda left, right: float("nan"), **kwargs)

@@ -218,4 +218,12 @@ theorem failure_partition_covers {X : Type*} (rows : List X) (route success : X 
     (failed : success x = false) : route x = true := by
   simpa [failed] using aligned x member
 
+/-- Splitting a binary histogram cannot reduce attainable empirical successes.
+This does not assert optimal future cuts or executable histogram correctness. -/
+theorem binary_modal_split_le (a b c d : ℕ) :
+    max (a + c) (b + d) ≤ max a b + max c d := by
+  apply max_le
+  · exact Nat.add_le_add (le_max_left _ _) (le_max_left _ _)
+  · exact Nat.add_le_add (le_max_right _ _) (le_max_right _ _)
+
 end NCA

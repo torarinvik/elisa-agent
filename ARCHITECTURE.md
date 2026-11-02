@@ -2254,3 +2254,11 @@ encoder, so auxiliary labels never masquerade as the task's output type.
 Measurement and region budgets are explicit; constant error signals yield no
 proposal from this family. `failure_partition_covers` proves training coverage
 conditional on exact alignment, without asserting learned or held-out coverage.
+
+`fit_regions_encoder` (§36.28) shares interval-refinement parameters with the
+existing task-head fitter. `propose_failure_partitions(routing_regions=...)`
+can acquire multi-interval routers; binary defaults preserve the original path.
+An optional pure `tie_break` scores read-only label histograms only after modal
+accuracy. `purity_tiebreak` supplies weighted child purity without label semantics.
+`binary_modal_split_le` proves the binary empirical split bound, not greedy
+lookahead optimality or executable/native verification.

@@ -3,13 +3,22 @@
 import math
 from bisect import bisect_left, bisect_right
 from collections import Counter
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
 from nca.abi import Contract, Module
 from nca.discovery import Decoded, Decoder, Proposal
 from nca.objects import Constructor, canonical
+
+
+SplitTieBreak = Callable[[Mapping[Hashable, int], Mapping[Hashable, int]], float]
+
+
+def purity_tiebreak(left: Mapping[Hashable, int], right: Mapping[Hashable, int]) -> float:
+    """Weighted child purity; labels are opaque and both children must be nonempty."""
+    return sum(count * count for count in left.values()) / sum(left.values()) + (
+        sum(count * count for count in right.values()) / sum(right.values()))
 
 
 def _observation(value: Any) -> float:
@@ -112,9 +121,9 @@ def _observations(measurement: Module, rows: Sequence[tuple[Any, ...]],
 
 
 def _fitted_split(ordered: Sequence[tuple[float, Hashable]],
-                  place_boundary: Callable[[float, float], float] | None
-                  ) -> tuple[float, Hashable, Hashable] | None:
-    best, _ = _best_split(ordered)
+                  place_boundary: Callable[[float, float], float] | None,
+                  tie_break: SplitTieBreak | None = None) -> tuple[float, Hashable, Hashable] | None:
+    best, _ = _best_split(ordered, tie_break)
     if best is None:
         return None
     boundary, lower_label, upper_label = best
@@ -126,21 +135,22 @@ def _fitted_split(ordered: Sequence[tuple[float, Hashable]],
 
 def fit_partition_encoder(measurement: Module, rows: Sequence[tuple[Any, ...]],
                           labels: Sequence[Hashable], *, encoding_cost: float,
-                          place_boundary: Callable[[float, float], float] | None = None
-                          ) -> PartitionEncoder | None:
+                          place_boundary: Callable[[float, float], float] | None = None,
+                          tie_break: SplitTieBreak | None = None) -> PartitionEncoder | None:
     """Fit only the representation; labels supervise fitting without becoming an output type."""
     if not math.isfinite(encoding_cost) or encoding_cost < 0:
         raise ValueError("encoding cost must be finite and nonnegative")
-    best = _fitted_split(_observations(measurement, rows, labels), place_boundary)
+    best = _fitted_split(_observations(measurement, rows, labels), place_boundary, tie_break)
     return None if best is None else PartitionEncoder(measurement, best[0], encoding_cost)
 
 
-def _best_split(ordered: Sequence[tuple[float, Hashable]]) -> tuple[
+def _best_split(ordered: Sequence[tuple[float, Hashable]],
+                tie_break: SplitTieBreak | None = None) -> tuple[
         tuple[float, Hashable, Hashable] | None, int]:
     left: Counter[Hashable] = Counter()
     right = Counter(label for _, label in ordered)
     best: tuple[float, Hashable, Hashable] | None = None
-    best_score = -1
+    best_score, best_secondary = -1, 0.0
     for i in range(1, len(ordered)):
         label = ordered[i - 1][1]
         left[label] += 1
@@ -151,8 +161,12 @@ def _best_split(ordered: Sequence[tuple[float, Hashable]]) -> tuple[
             continue
         lower, upper = left.most_common(1)[0], right.most_common(1)[0]
         score = lower[1] + upper[1]
-        if score > best_score:
+        secondary = 0.0 if tie_break is None else tie_break(left, right)
+        if not math.isfinite(secondary):
+            raise ValueError("split tie score must be finite")
+        if (score, secondary) > (best_score, best_secondary):
             best, best_score = (ordered[i][0], lower[0], upper[0]), score
+            best_secondary = secondary
     return best, best_score
 
 
@@ -177,17 +191,30 @@ class RegionsEncoder:
 def propose_regions(incumbent: Module, measurement: Module,
                     rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
                     max_regions: int, encoding_cost: float, decoder_cost: float,
-                    place_boundary: Callable[[float, float], float] | None = None) -> list[Proposal]:
+                    place_boundary: Callable[[float, float], float] | None = None,
+                    tie_break: SplitTieBreak | None = None) -> list[Proposal]:
     """Greedily refine numeric intervals using training data alone (§36.14).
 
     Pure intervals are not split. Zero-gain refinements remain eligible, up to
     the explicit region budget. This is not a globally optimal segmentation.
     Features remain fixed; modal scan costs depend on label cardinality.
     Optional placement changes only thresholds inside empty observed gaps.
+    A pure read-only histogram tie score may rank equally accurate cuts (§36.28).
     """
     if type(max_regions) is not int or max_regions < 1:
         raise ValueError("maximum regions must be a positive integer")
     ordered = _ordered(incumbent, measurement, rows, labels, encoding_cost, decoder_cost)
+    boundaries, table = _region_parameters(ordered, max_regions, place_boundary, tie_break)
+    encoder = RegionsEncoder(measurement, boundaries, encoding_cost)
+    decoder = Decoder(Contract((encoder.constructor.type(),), incumbent.manifest.contract.output),
+                      table, table[0], decoder_cost)
+    return [Proposal(Decoded(encoder, decoder, incumbent.manifest.contract), (encoder.constructor,))]
+
+
+def _region_parameters(ordered: Sequence[tuple[float, Hashable]], max_regions: int,
+                       place_boundary: Callable[[float, float], float] | None,
+                       tie_break: SplitTieBreak | None
+                       ) -> tuple[tuple[float, ...], dict[int, Hashable]]:
     values = [value for value, _ in ordered]
     regions = [(0, len(ordered))]
     while len(regions) < max_regions:
@@ -197,7 +224,7 @@ def propose_regions(incumbent: Module, measurement: Module,
             count = Counter(label for _, label in ordered[start:end])
             if len(count) == 1:
                 continue
-            split, score = _best_split(ordered[start:end])
+            split, score = _best_split(ordered[start:end], tie_break)
             if split is not None:
                 gain = score - count.most_common(1)[0][1]
                 if gain > best_gain:
@@ -210,9 +237,20 @@ def propose_regions(incumbent: Module, measurement: Module,
         regions[index:index + 1] = [(start, middle), (middle, end)]
     boundaries = tuple(_placed_boundary(values[start - 1], values[start], place_boundary)
                        for start, _ in regions[1:])
-    encoder = RegionsEncoder(measurement, boundaries, encoding_cost)
     table = {index: Counter(label for _, label in ordered[start:end]).most_common(1)[0][0]
              for index, (start, end) in enumerate(regions)}
-    decoder = Decoder(Contract((encoder.constructor.type(),), incumbent.manifest.contract.output),
-                      table, table[0], decoder_cost)
-    return [Proposal(Decoded(encoder, decoder, incumbent.manifest.contract), (encoder.constructor,))]
+    return boundaries, table
+
+
+def fit_regions_encoder(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                        labels: Sequence[Hashable], *, max_regions: int, encoding_cost: float,
+                        place_boundary: Callable[[float, float], float] | None = None,
+                        tie_break: SplitTieBreak | None = None) -> RegionsEncoder:
+    """Fit only the bounded representation, with optional pure read-only histogram tie scores."""
+    if type(max_regions) is not int or max_regions < 1:
+        raise ValueError("maximum regions must be a positive integer")
+    if not math.isfinite(encoding_cost) or encoding_cost < 0:
+        raise ValueError("encoding cost must be finite and nonnegative")
+    boundaries, _ = _region_parameters(_observations(measurement, rows, labels), max_regions,
+                                       place_boundary, tie_break)
+    return RegionsEncoder(measurement, boundaries, encoding_cost)

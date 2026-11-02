@@ -149,3 +149,30 @@ def test_failure_partition_degenerate_signal_and_measurement_budget() -> None:
                                       lambda a, b: a == b, **kwargs) == []
     assert propose_failure_partitions(incumbent, [constant, unusable], acquire, rows, [-1.0, 3.0],
                                       lambda a, b: a == b, **kwargs) == []
+
+
+def test_multi_interval_failure_routing_isolates_an_interior_specialist() -> None:
+    from nca.numeric_learning import midpoint_boundary, purity_tiebreak
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
+    measurement = Expert(Manifest("measurement", "1", replace(CONTRACT, output="reading")),
+                         lambda x: x)
+    rows = [(i / 100,) for i in range(-100, 101)]
+    labels = [2 * x + 0.7 if -0.25 <= x < 0.35 else x for x, in rows]
+    seen = []
+
+    def acquire(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        seen.append(tuple(train))
+        return [Proposal(fit_affine(CONTRACT, [r[0] for r in train], targets, cost=1))]
+
+    proposals = propose_failure_partitions(incumbent, [measurement], acquire, rows, labels,
+                    lambda a, b: abs(a - b) < 1e-9, max_measurements=1, max_regions=1,
+                    encoding_cost=0, overhead_cost=0, place_boundary=midpoint_boundary,
+                    routing_regions=3, tie_break=purity_tiebreak)
+    assert len(proposals) == 1
+    regional = proposals[0].expert
+    assert seen == [tuple(row for row in rows if -0.25 <= row[0] < 0.35)]
+    assert len(regional.feature.boundaries) == 2
+    assert regional.invoke(-0.7) == -0.7 and regional.invoke(0.9) == 0.9
+    assert regional.invoke(0.1) == pytest.approx(0.9)
