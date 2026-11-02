@@ -363,3 +363,20 @@ retained in the feature. A categorical head may exploit the finer partition;
 other head families may not. Screening sees training data only, and independent
 whole-task selection decides retention. Finite sample gains can reflect noise;
 this learner combines supplied capabilities rather than inventing their bodies.
+
+
+## 36.46 Retaining learned structural products
+
+Retain both ordered child bindings and the explicit pairing overhead of a known
+structural-product runtime. Reconstruct from those children without evaluating
+or copying their implementations. Shared children reuse one binding, nested
+products preserve association, and changed metadata other than derived names
+fails retention. Unsupported runtime subclasses remain opaque. Conditional on
+each child function being restored exactly, the ordered pair function is restored
+exactly; Lean proves this pointwise statement, not codecs, factories or provenance.
+
+The pairing overhead is stored directly rather than recovered by floating-point
+subtraction from total cost. External implementations still require verified
+bindings. Sizes are declarations and mutable-state snapshots are not provided.
+This extends graph retention to the representations acquired in §36.45; it does
+not grant a semantic or risk certificate to a paired feature.

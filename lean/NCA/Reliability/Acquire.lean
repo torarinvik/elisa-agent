@@ -342,4 +342,11 @@ theorem joint_key_refines_seed {X A B : Type*} (f : X → A) (g : X → B)
     (x y : X) (same : (f x, g x) = (f y, g y)) : f x = f y := by
   exact congrArg Prod.fst same
 
+/-- Restoring both children restores the ordered structural product. -/
+theorem joint_reloaded_eq {X A B : Type*} (f0 f1 : X → A) (g0 g1 : X → B)
+    (hf : ∀ x, f0 x = f1 x) (hg : ∀ x, g0 x = g1 x) :
+    (fun x => (f0 x, g0 x)) = (fun x => (f1 x, g1 x)) := by
+  funext x
+  rw [hf x, hg x]
+
 end NCA

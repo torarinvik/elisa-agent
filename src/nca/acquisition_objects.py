@@ -6,7 +6,7 @@ from typing import Any
 
 from nca.abi import Module
 from nca.affine_learning import AffineAdapter, affine_object
-from nca.discovery import Decoded, Decoder, decoder_object
+from nca.discovery import Decoded, Decoder, JointFeature, decoder_object
 from nca.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
 from nca.objects import Primitive, Ref, Store, contract_data, contract_from, digest, manifest_data
 from nca.packages import install, resolve_binding
@@ -24,13 +24,15 @@ def _children(model: Module) -> tuple[Module, ...]:
         return (model.incumbent, model.feature, *model.specialists.values())
     if kind is Decoded:
         return model.feature, model.decoder
+    if kind is JointFeature:
+        return model.left, model.right
     if kind in _ENCODERS:
         return (model.measurement,)
     return ()
 
 
-def load_composition(manifest: dict[str, Any], indices: list[int],
-                     dependencies: tuple[tuple[Module, ...], ...]) -> Decoded:
+def _binary_children(indices: list[int], dependencies: tuple[tuple[Module, ...], ...]
+                     ) -> tuple[Module, Module]:
     if len(dependencies) != 2 or len(indices) != 2:
         raise ValueError("composition needs two scopes and export positions")
     selected = []
@@ -38,7 +40,21 @@ def load_composition(manifest: dict[str, Any], indices: list[int],
         if type(index) is not int or not 0 <= index < len(scope):
             raise ValueError("invalid composition export position")
         selected.append(scope[index])
-    model = Decoded(selected[0], selected[1], contract_from(manifest["contract"]))
+    return selected[0], selected[1]
+
+
+def load_composition(manifest: dict[str, Any], indices: list[int],
+                     dependencies: tuple[tuple[Module, ...], ...]) -> Decoded:
+    left, right = _binary_children(indices, dependencies)
+    model = Decoded(left, right, contract_from(manifest["contract"]))
+    model.manifest = replace(model.manifest, module_id=manifest["module_id"])
+    return model
+
+
+def load_joint(manifest: dict[str, Any], indices: list[int], pair_cost: float,
+               dependencies: tuple[tuple[Module, ...], ...]) -> JointFeature:
+    left, right = _binary_children(indices, dependencies)
+    model = JointFeature(left, right, pair_cost)
     model.manifest = replace(model.manifest, module_id=manifest["module_id"])
     return model
 
@@ -83,6 +99,17 @@ def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
             snapshot = policy_object
         _metadata(model, rebuilt)
         return snapshot(store, rebuilt, bindings, size=size)
+    if kind is JointFeature:
+        rebuilt = JointFeature(children[0], children[1], model.pair_cost)
+        _metadata(model, rebuilt)
+        references = tuple(ref for ref, _ in bindings)
+        indices = [index for _, index in bindings]
+        identity = digest({"pair_cost": model.pair_cost, "indices": indices,
+                           "dependencies": references})
+        manifest = replace(rebuilt.manifest, module_id=f"learned-joint/{identity}")
+        return Primitive(manifest, "nca.acquisition_objects:load_joint",
+                         {"manifest": manifest_data(manifest), "indices": indices,
+                          "pair_cost": model.pair_cost}, size=size, dependencies=references)
     if kind is Decoded:
         rebuilt = Decoded(children[0], children[1], model.manifest.contract)
         _metadata(model, rebuilt)
@@ -101,8 +128,8 @@ def store_acquired_model(store: Store, model: Module, bind: Callable[[Module], B
                          size: Callable[[Module], int]) -> Binding:
     """Retain supported learned runtimes; bind other experts without inspecting bodies.
 
-    Supports regional policies, feature/head composition, numeric encoders and
-    categorical/scalar/vector fitted heads. Other leaves must already be
+    Supports regional policies, feature/head composition, structural products,
+    numeric encoders and categorical/scalar/vector fitted heads. Other leaves must already be
     content-identified. Byte sizes apply per
     learned node and exclude its dependencies. Sizes/factories must remain
     faithful, and models must remain stable throughout traversal. Writes are
@@ -111,7 +138,7 @@ def store_acquired_model(store: Store, model: Module, bind: Callable[[Module], B
     saved: dict[int, tuple[Binding, Module]] = {}
     active: set[int] = set()
     pending = [(model, False)]
-    known = (*_ENCODERS, RegionalExpert, RegionalPolicy, Decoded,
+    known = (*_ENCODERS, RegionalExpert, RegionalPolicy, Decoded, JointFeature,
              Decoder, AffineAdapter, VectorAffineAdapter)
     while pending:
         node, leaving = pending.pop()

@@ -1,13 +1,13 @@
 """Acquired graph retention preserves hierarchy and opaque expert provenance."""
 
 from bisect import bisect_right
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from nca.abi import Contract, Manifest, Module
+from nca.abi import Calls, Contract, Manifest, Module
 from nca.acquisition_objects import store_acquired_model
 from nca.affine_learning import AffineAdapter, affine_object, fit_affine
 from nca.discovery import Decoded, Decoder, Proposal
@@ -156,3 +156,107 @@ def test_retention_derives_names_without_accepting_other_metadata_changes() -> N
     model.manifest = replace(model.manifest, effects=frozenset({"unknown-effect"}))
     with pytest.raises(ValueError, match="model metadata"):
         store_acquired_model(store, model, lambda m: (reference, 0), size=lambda m: 16)
+
+
+class PairedSlotSource:
+    manifest = Manifest("slot-source", "1",
+        Contract(("input",), "output", slots=((("input",), "output"),)),
+        calls=(Calls(1),), effects=frozenset({"read"}), cost=0.7)
+
+    def invoke(self, filling: Callable[[float], float], value: float) -> float:
+        return filling(value)
+
+
+@pytest.mark.parametrize("slotted", [False, True])
+def test_nested_joint_retention_preserves_sharing_metadata_and_order(
+        tmp_path: Path, slotted: bool) -> None:
+    from nca.discovery import JointFeature
+
+    store = Store()
+    if slotted:
+        ref = store.put(Primitive(PairedSlotSource.manifest,
+                                 f"{__name__}:PairedSlotSource", size=8))
+        source = other = install(store, ref)[0]
+        args = (lambda x: 2 * x, 0.37)
+    else:
+        source, other, _ = sources(store)
+        args = (0.37,)
+    model = JointFeature(source, JointFeature(source, other, 0.3), 0.1)
+    bound = []
+
+    def bind(module: Module) -> tuple[str, int]:
+        bound.append(module.identity)
+        return module.identity, 0
+
+    reference, index = store_acquired_model(store, model, bind, size=lambda m: 16)
+    assert len(bound) == (1 if slotted else 2)
+    assert list(store.walk(reference)).count(source.identity) == 1
+    assert store_acquired_model(store, model, bind, size=lambda m: 16) == (reference, index)
+    store.save(tmp_path)
+    resident = ExpertStore(budget=128)
+    restored = install(Store.open(tmp_path), reference, experts=resident)[index]
+    assert resident.stats.loads == 0
+    assert restored.invoke(*args) == model.invoke(*args)
+    assert resident.stats.loads == (3 if slotted else 4)
+    assert restored.manifest.contract == model.manifest.contract
+    assert restored.manifest.cost == model.manifest.cost
+    assert restored.manifest.calls == model.manifest.calls
+    assert restored.manifest.effects == model.manifest.effects
+    obj = store.get(reference)
+    assert obj.arguments["pair_cost"] == 0.1
+    assert store.get(obj.dependencies[1]).arguments["pair_cost"] == 0.3
+    malformed = replace(obj, arguments={**obj.arguments, "indices": [False, 0]})
+    with pytest.raises(ValueError, match="export position"):
+        malformed.load(lambda ref: install(store, ref))
+
+
+def test_joint_retention_rejects_cycles_subclasses_and_invalid_pairing_cost() -> None:
+    from nca.discovery import JointFeature
+
+    store = Store()
+    source = sources(store)[0]
+    model = JointFeature(source, source, 0)
+    reference, _ = store_acquired_model(store, model, lambda m: (m.identity, 0), size=lambda m: 8)
+
+    class Different(JointFeature):
+        def invoke(self, *args: object) -> object:
+            return None
+
+    with pytest.raises(ValueError, match="content identity"):
+        store_acquired_model(store, Different(source, source, 0),
+                             lambda m: (reference, 0), size=lambda m: 8)
+    model.left = model
+    with pytest.raises(ValueError, match="cycle"):
+        store_acquired_model(store, model, lambda m: (m.identity, 0), size=lambda m: 8)
+    with pytest.raises(ValueError, match="pair cost"):
+        JointFeature(source, source, -1)
+
+
+class CoordinateFeature:
+    def __init__(self, index: int) -> None:
+        self.index = index
+        self.manifest = Manifest(f"coordinate-{index}", "1",
+            Contract(("input",), f"coordinate-{index}"), effects=frozenset(), cost=1)
+
+    def invoke(self, value: tuple[int, ...]) -> int:
+        return value[self.index]
+
+
+def test_joint_head_graph_retains_opaque_features(tmp_path: Path) -> None:
+    from nca.discovery import JointFeature
+
+    store = Store()
+    children = []
+    for i in range(2):
+        ref = store.put(Primitive(CoordinateFeature(i).manifest,
+                    f"{__name__}:CoordinateFeature", {"index": i}, size=8))
+        children.append(install(store, ref)[0])
+    joint = JointFeature(*children, 0.25)
+    head = Decoder(Contract((joint.manifest.contract.output,), "target"),
+                   {(0, 0): "a", (0, 1): "b", (1, 0): "c", (1, 1): "d"}, "unknown", 1)
+    model = Decoded(joint, head, Contract(("input",), "target"))
+    reference, index = store_acquired_model(store, model, lambda m: (m.identity, 0), size=lambda m: 16)
+    store.save(tmp_path)
+    restored = install(Store.open(tmp_path), reference)[index]
+    assert [restored.invoke(v) for v in [(0, 0), (0, 1), (1, 0), (1, 1), (2, 2)]] == (
+        [model.invoke(v) for v in [(0, 0), (0, 1), (1, 0), (1, 1), (2, 2)]])

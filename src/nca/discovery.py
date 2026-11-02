@@ -143,10 +143,12 @@ class JointFeature:
     """An ordered structural product of two features over the same inputs."""
 
     def __init__(self, left: Module, right: Module, pair_cost: float) -> None:
+        if not math.isfinite(pair_cost) or pair_cost < 0:
+            raise ValueError("pair cost must be finite and nonnegative")
         a, b = left.manifest, right.manifest
         if replace(a.contract, output=b.contract.output) != b.contract:
             raise ValueError("joint features must share inputs, slots and relevance")
-        self.left, self.right = left, right
+        self.left, self.right, self.pair_cost = left, right, pair_cost
 
         effects = None if a.effects is None or b.effects is None else a.effects | b.effects
         self.manifest = Manifest(
