@@ -167,6 +167,132 @@ def test_calibration_fits_temperature() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype", [torch.uint8, torch.uint64, torch.int8, torch.int64])
+def test_batched_integer_readings_shift_each_row(native, dtype, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "shifted_integer_rows_into", None) is None:
+        pytest.skip("native integer row kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    maximum = torch.iinfo(dtype).max
+    logits = torch.tensor([[[maximum, maximum - 1], [0, 1]],
+                           [[1, 0], [maximum - 1, maximum]]], dtype=dtype)
+    scores = torch.tensor([[[0.0, -1.0], [0.0, 1.0]],
+                           [[1.0, 0.0], [-1.0, 0.0]]], dtype=torch.float64)
+    rung = Rung(None)
+    assert torch.allclose(rung.reading(logits).double(), scores.softmax(dim=-1), atol=1e-7)
+    assert torch.allclose(rung.log_distribution(logits), scores.log_softmax(dim=-1), atol=1e-7)
+
+
+@pytest.mark.parametrize("unsigned", [False, True])
+def test_native_integer_row_shifts_match_exact_differences(unsigned) -> None:
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "shifted_integer_rows_into", None)
+    if kernel is None:
+        pytest.skip("native integer row kernel is not built")
+    rng = np.random.default_rng(182)
+    if unsigned:
+        values = rng.integers(0, 2**64, size=(30, 13), dtype=np.uint64)
+    else:
+        values = rng.integers(-(2**63), 2**63, size=(30, 13), dtype=np.int64)
+    expected = np.array([[float(int(value) - max(map(int, row))) for value in row]
+                         for row in values])
+    output = np.empty(values.size, dtype=np.float64)
+    assert kernel(values.view(np.int64).reshape(-1), output, 13, unsigned) == 0
+    assert np.allclose(output.reshape(values.shape), expected, rtol=3e-16, atol=0.0)
+    assert kernel(values.view(np.int64).reshape(-1), output, 14, unsigned) == -1
+
+
+def test_batched_float_readings_shift_each_row_and_validate_mass() -> None:
+    rung = Rung(None)
+    logits = torch.tensor([[1e308, 1e308], [-1e308, -1e308]], dtype=torch.float64)
+    expected = torch.full((2, 2), 0.5, dtype=torch.float64)
+    assert torch.equal(rung.reading(logits), expected)
+    assert torch.allclose(rung.log_distribution(logits), expected.log())
+    rung.temperatures[None] = 1e308
+    logits = torch.tensor([[1e308, -1e308], [-1e308, 1e308]], dtype=torch.float64)
+    expected = torch.tensor([[1.0, -1.0], [-1.0, 1.0]], dtype=torch.float64).softmax(dim=-1)
+    assert torch.allclose(rung.reading(logits), expected)
+    invalid = torch.tensor([[0.0, 1.0], [-math.inf, -math.inf]], dtype=torch.float64)
+    with pytest.raises(ValueError, match="positive mass"):
+        rung.reading(invalid)
+
+
+def test_native_batched_float_scaling_matches_individual_rows(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    kernel = getattr(ladder_module._NATIVE, "scaled_logit_rows_into", None)
+    if kernel is None:
+        pytest.skip("native float row kernel is not built")
+    calls = []
+    def measured(*args):
+        calls.append(True)
+        return kernel(*args)
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(scaled_logit_rows_into=measured))
+    logits = torch.tensor([[1e308, -1e308], [-1e308, -1e308], [0.0, -math.inf]],
+                          dtype=torch.float64)
+    rung = Rung(None)
+    rung.temperatures[None] = 1e308
+    expected = torch.stack([rung.reading(row) for row in logits])
+    assert torch.allclose(rung.reading(logits), expected)
+    assert len(calls) == 1
+    rung.reading(torch.zeros((2, 257), dtype=torch.float64))
+    assert len(calls) == 1  # Large batches retain the tensor path.
+    for values in ([[0.0, math.nan], [1.0, 2.0]],
+                   [[0.0, math.inf], [1.0, 2.0]],
+                   [[0.0, 1.0], [-math.inf, -math.inf]]):
+        with pytest.raises(ValueError, match="positive mass"):
+            rung.reading(torch.tensor(values, dtype=torch.float64))
+
+
+def test_native_batched_float_readings_match_tensor_reference(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "scaled_logit_rows_into", None) is None:
+        pytest.skip("native float row kernel is not built")
+    logits = torch.tensor(np.random.default_rng(19).normal(size=(8, 4, 7)), dtype=torch.float64)
+    rung = Rung(None)
+    results = []
+    for temperature in (0.1, 1.0, 100.0):
+        rung.temperatures[None] = temperature
+        results.append((rung.reading(logits), rung.log_distribution(logits)))
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    for temperature, (reading, logs) in zip((0.1, 1.0, 100.0), results):
+        rung.temperatures[None] = temperature
+        assert torch.allclose(reading, rung.reading(logits), rtol=1e-13, atol=1e-15)
+        assert torch.allclose(logs, rung.log_distribution(logits), rtol=1e-13, atol=1e-15)
+
+
+def test_batched_readings_preserve_gradients() -> None:
+    logits = torch.tensor([[0.3, -0.2], [-1.0, 2.0]], dtype=torch.float64, requires_grad=True)
+    actual = Rung(None).reading(logits)[:, 0].sum()
+    actual.backward()
+    expected = logits.detach().clone().requires_grad_()
+    expected.softmax(dim=-1)[:, 0].sum().backward()
+    assert logits.grad is not None and expected.grad is not None
+    assert torch.allclose(logits.grad, expected.grad)
+
+
+@pytest.mark.parametrize("device", ["mps", "cuda"])
+def test_accelerator_batched_readings_shift_each_row(device) -> None:
+    available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
+    if not available:
+        pytest.skip(f"{device} is unavailable")
+    maximum = torch.iinfo(torch.int64).max
+    logits = torch.tensor([[maximum, maximum - 1], [0, 1]], dtype=torch.int64, device=device)
+    expected = torch.tensor([[0.0, -1.0], [0.0, 1.0]], dtype=torch.float64).softmax(dim=-1)
+    assert torch.allclose(Rung(None).reading(logits).cpu().double(), expected, atol=1e-7)
+    rung = Rung(None)
+    rung.temperatures[None] = 1e39
+    logits = torch.tensor([[3e38, -3e38], [-3e38, 3e38]], dtype=torch.float32, device=device)
+    expected = torch.tensor([[0.3, -0.3], [-0.3, 0.3]], dtype=torch.float64).softmax(dim=-1)
+    assert torch.allclose(rung.reading(logits).cpu().double(), expected, atol=1e-7)
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64,
                                   torch.int8, torch.int16, torch.int32, torch.int64])
 def test_integer_logit_calibration_preserves_order_and_group_probabilities(native, dtype, monkeypatch) -> None:

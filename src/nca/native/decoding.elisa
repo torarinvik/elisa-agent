@@ -1683,26 +1683,47 @@ def calibrated_difference(value: f64, anchor: f64, temperature: f64) -> f64:
     difference: f64 = value - anchor
     return value / temperature - anchor / temperature if temperature > 1.0 and difference == log(0.0) and value != log(0.0) else difference / temperature
 
+# Scale finite-or-negative-infinite rows into caller-owned binary64 storage.
+def scaled_logit_rows_into(values: view[f64], output: mutable view[f64], width: i64, temperature: f64) -> i64 can[Abort.Panic]:
+    return -1 if width <= 0 or values.len.i64() == 0 or output.len.i64() != values.len.i64() or values.len.i64() % width != 0
+    return -1 if temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
+    for row in 0..<(values.len.i64() / width):
+        base: i64 = row * width
+        maximum: f64 =
+            for j in 0..<width |maximum: f64 = log(0.0)| -> maximum:
+                value: f64 = values[base + j]
+                return -1 if value != value or value == -log(0.0)
+                maximum <- value if value > maximum else maximum
+        return -1 if maximum == log(0.0)
+        for j in 0..<width:
+            output[base + j] <- calibrated_difference(values[base + j], maximum, temperature)
+    return 0
+
 # Shift integer logits by their maximum before converting to binary64.
 # Unsigned inputs are passed as their bitwise-identical signed representation.
-def shifted_integer_logits_into(values: view[i64], output: mutable view[f64], unsigned: bool) -> i64 can[Abort.Panic]:
-    return -1 if values.len.i64() == 0 or output.len.i64() != values.len.i64()
-    maximum: i64 =
-        for i in 1..<values.len.i64() |maximum: i64 = values[0]| -> maximum:
-            value: i64 = values[i]
-            larger: bool = (value < 0 and maximum >= 0) or ((value < 0) == (maximum < 0) and value > maximum) if unsigned else value > maximum
-            maximum <- value if larger else maximum
+def shifted_integer_rows_into(values: view[i64], output: mutable view[f64], width: i64, unsigned: bool) -> i64 can[Abort.Panic]:
+    return -1 if width <= 0 or values.len.i64() == 0 or output.len.i64() != values.len.i64() or values.len.i64() % width != 0
     minimum: i64 = -9223372036854775807 - 1
-    for i in 0..<values.len.i64():
-        value: i64 = values[i]
-        if unsigned and maximum < 0 and value >= 0:
-            distance: f64 = (maximum - minimum).f64() + (9223372036854775807 - value).f64() + 1.0
-            output[i] <- 0.0 - distance
-        elif not unsigned and maximum > 0 and value < minimum + maximum:
-            output[i] <- value.f64() - maximum.f64()
-        else:
-            output[i] <- (value - maximum).f64()
+    for row in 0..<(values.len.i64() / width):
+        base: i64 = row * width
+        maximum: i64 =
+            for j in 1..<width |maximum: i64 = values[base]| -> maximum:
+                value: i64 = values[base + j]
+                larger: bool = (value < 0 and maximum >= 0) or ((value < 0) == (maximum < 0) and value > maximum) if unsigned else value > maximum
+                maximum <- value if larger else maximum
+        for j in 0..<width:
+            value: i64 = values[base + j]
+            if unsigned and maximum < 0 and value >= 0:
+                distance: f64 = (maximum - minimum).f64() + (9223372036854775807 - value).f64() + 1.0
+                output[base + j] <- 0.0 - distance
+            elif not unsigned and maximum > 0 and value < minimum + maximum:
+                output[base + j] <- value.f64() - maximum.f64()
+            else:
+                output[base + j] <- (value - maximum).f64()
     return 0
+
+def shifted_integer_logits_into(values: view[i64], output: mutable view[f64], unsigned: bool) -> i64 can[Abort.Panic]:
+    return shifted_integer_rows_into(values, output, values.len.i64(), unsigned)
 
 # Find the group of a label in a small validated class list.
 def calibration_small_group(label: i64, classes: view[i64], groups: view[i64]) -> i64 can[Abort.Panic]:
@@ -1903,7 +1924,9 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn scaled_logit_rows_into
     fn shifted_integer_logits_into
+    fn shifted_integer_rows_into
     fn calibration_subset
     fn calibration_loss_grid
     fn weighted_decision_risk

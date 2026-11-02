@@ -413,4 +413,20 @@ theorem sum_row_shift (scores shifts : X → ℝ) :
 theorem row_shift_order (a b shift : ℝ) : a - shift ≤ b - shift ↔ a ≤ b := by
   constructor <;> intro h <;> linarith
 
+omit [Fintype X] in
+/-- Each row may use its own shift without changing that row's order. -/
+theorem rowwise_shift_order (a b shift : X → ℝ) :
+    (∀ x, a x - shift x ≤ b x - shift x) ↔ ∀ x, a x ≤ b x := by
+  constructor
+  · intro h x
+    exact (row_shift_order (a x) (b x) (shift x)).mp (h x)
+  · intro h x
+    exact (row_shift_order (a x) (b x) (shift x)).mpr (h x)
+
+/-- A common shift preserves ratios of exponentiated scores. -/
+theorem exp_shift_ratio (a b shift : ℝ) :
+    Real.exp (a - shift) / Real.exp (b - shift) = Real.exp a / Real.exp b := by
+  rw [Real.exp_sub, Real.exp_sub]
+  exact risk_scale_invariant _ _ _ (ne_of_gt (Real.exp_pos shift))
+
 end NCA

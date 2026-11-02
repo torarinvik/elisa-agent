@@ -150,7 +150,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `rowwise_shift_order`, `exp_shift_ratio`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
@@ -899,6 +899,11 @@ to floating point. On CPU, Elisa `shifted_integer_logits_into` writes the
 shifted values into a caller-owned array; other devices and missing kernels
 use the reference path. Integer inputs return ordinary probabilities in the
 default floating dtype, and log probabilities in binary64 where supported.
+Unrestricted readings and log distributions accept leading batch dimensions
+and shift each final-dimension row independently; integer batches can use
+Elisa `shifted_integer_rows_into`. Small CPU binary64 batches without
+gradients can use Elisa `scaled_logit_rows_into`; larger batches retain the
+tensor path based on local timings. Grouped decisions and risk remain per item.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.

@@ -76,6 +76,9 @@ exact integer arithmetic. The implementation shifts before conversion to
 floating point, avoiding fixed-width wraparound and retaining differences
 between adjacent large integers. Differences too large for exact binary64
 representation are still rounded.
+For a batch, each row can use its own common shift: within that row the
+ordering and ratios of exponentiated scores are unchanged. A shift shared
+across rows is unnecessary and can erase an entire row numerically.
 The scaled difference `(a - b) / T` equals `a / T - b / T` in real
 arithmetic. With finite floating-point logits of opposite sign, the
 subtraction can overflow even when the scaled difference is representable.

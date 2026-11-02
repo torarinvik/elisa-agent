@@ -295,22 +295,26 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
     if not log.is_floating_point():
         if log.is_complex() or log.is_quantized:
             raise ValueError("log weights must be real numeric values")
-        native = getattr(_NATIVE, "shifted_integer_logits_into", None)
+        rows = log.ndim > 1 and log.numel() != log.shape[-1]
+        native = getattr(_NATIVE, "shifted_integer_rows_into" if rows else "shifted_integer_logits_into", None)
         if native is not None and log.device.type == "cpu" and log.numel():
             unsigned = log.dtype == torch.uint64
             values = (log.contiguous().numpy().view(np.int64) if unsigned else
                       log.to(torch.int64).contiguous().numpy())
             shifted = np.empty(values.size, dtype=np.float64)
-            if native(values.reshape(-1), shifted, unsigned) == 0:
+            status = (native(values.reshape(-1), shifted, log.shape[-1], unsigned) if rows else
+                      native(values.reshape(-1), shifted, unsigned))
+            if status == 0:
                 return torch.from_numpy(shifted).reshape(log.shape) / temperature
         if log.dtype == torch.uint64:
             values = log.detach().cpu().numpy()
-            offsets = np.max(values) - values
+            maximum = np.max(values, axis=-1, keepdims=True) if rows else np.max(values)
+            offsets = maximum - values
             differences = torch.from_numpy(offsets.astype(np.float64)).to(
                 device=log.device, dtype=torch.float32 if log.device.type == "mps" else torch.float64)
             return -differences / temperature
         values = log.to(torch.int64)
-        maximum = values.max()
+        maximum = values.max(dim=-1, keepdim=True).values if rows else values.max()
         difference = values - maximum
         floating = difference.to(torch.float64 if log.device.type != "mps" else torch.float32)
         # A positive difference indicates signed subtraction wrapped below i64 minimum.
@@ -323,6 +327,24 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
             and (0 < temperature < torch.finfo(log.dtype).tiny
                  or temperature > torch.finfo(log.dtype).max)):
         log = log.float() if log.device.type == "mps" else log.double()
+    if log.ndim > 1 and log.numel() != log.shape[-1]:
+        native = getattr(_NATIVE, "scaled_logit_rows_into", None)
+        if (native is not None and log.device.type == "cpu" and log.dtype == torch.float64
+                and not log.requires_grad and 0 < log.numel() <= 512):
+            values = log.contiguous().numpy()
+            scaled = np.empty(values.size, dtype=np.float64)
+            if native(values.reshape(-1), scaled, log.shape[-1], temperature) != 0:
+                raise ValueError("calibrated decision requires finite log weights with positive mass")
+            return torch.from_numpy(scaled).reshape(log.shape)
+        maximum = log.amax(dim=-1, keepdim=True)
+        if not bool(torch.isfinite(maximum).all()):
+            raise ValueError("calibrated decision requires finite log weights with positive mass")
+        difference = log - maximum
+        if temperature > 1:
+            return torch.where(torch.isneginf(difference) & torch.isfinite(log),
+                               log / temperature - maximum / temperature,
+                               difference / temperature)
+        return difference / temperature
     maximum = log.max()
     maximum_value = maximum.item()
     if not math.isfinite(maximum_value):
