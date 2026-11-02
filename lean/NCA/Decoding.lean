@@ -73,6 +73,18 @@ theorem split_support_intersection (n arity left_first left_last right_first rig
   simp only [max_le_iff, le_min_iff]
   omega
 
+/-- Increasing an arity cannot restore a predecessor below the allowed interval. -/
+theorem trace_predecessor_monotone (before lower arity later : ℤ)
+    (ordered : arity ≤ later) (outside : before + 1 - arity < lower) :
+    before + 1 - later < lower := by
+  omega
+
+/-- Increasing an arity cannot restore a successor above the allowed interval. -/
+theorem trace_successor_monotone (after upper arity later : ℤ)
+    (ordered : arity ≤ later) (outside : upper < after - 1 + arity) :
+    upper < after - 1 + later := by
+  omega
+
 /-- Keep the earlier alphabet index when two candidates have equal score. -/
 def tiedChoice (current candidate : ℕ) : ℕ :=
   if candidate < current then candidate else current

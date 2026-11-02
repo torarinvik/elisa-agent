@@ -212,6 +212,11 @@ interval may include unreachable holes; it is a conservative envelope, not an
 assumption that reachable states are contiguous. Scoring a replacement row
 and locating the traceback junction intersect the prefix envelope with the
 suffix envelope translated back through the transition for each arity.
+During traceback, an ascending arity list makes candidate predecessor states
+decrease and candidate successor states increase. Once a candidate passes the
+relevant interval boundary, later arities cannot re-enter it; unordered lists
+are scanned without this early stop. The original alphabet order is retained
+for ties.
 
 After a climb at `p`, every `F_i` with `i ≤ p` and every `B_i` with `i > p`
 stays valid. The next climb at `k` needs `F_k`, which costs recomputing the

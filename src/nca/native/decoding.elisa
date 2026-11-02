@@ -880,6 +880,11 @@ def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view
 def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     m: i64 = low.len.i64() - 1
+    ordered: bool =
+        for j in 1..<arities |ordered: bool = true| -> ordered:
+            if alphabet[j] < alphabet[j - 1]:
+                ordered <- false
+                break
     left: (first: i64, last: i64) = support_envelope(forward_max, forward_max, offsets, low, high, k)
     right: (first: i64, last: i64) = support_envelope(backward_max, backward_max, offsets, low, high, k + 1)
     log_x, state, choice =
@@ -914,7 +919,10 @@ def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: vie
         best, source, arity =
             for j in 0..<arities |best: f64 = log(0.0), source: i64 = 1, arity: i64 = 0| -> (best, source, arity):
                 n: i64 = before + 1 - alphabet[j]
-                continue if n < 1 or n < low[i] or n > high[i]
+                if n < 1 or n < low[i]:
+                    break if ordered
+                    continue
+                continue if n > high[i]
                 candidate: f64 = forward_max[offsets[i] + n - low[i]] + log_probs[i * arities + j]
                 if candidate > best:
                     best <- candidate
@@ -925,9 +933,15 @@ def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: vie
     for i in (k + 1)..<m |after: i64 = state - 1 + alphabet[choice]|:
         best, target, arity =
             for j in 0..<arities |best: f64 = log(0.0), target: i64 = 0, arity: i64 = 0| -> (best, target, arity):
-                continue if after < 1 or alphabet[j] > high[i + 1]
+                continue if after < 1
+                if alphabet[j] > high[i + 1]:
+                    break if ordered
+                    continue
                 n: i64 = after - 1 + alphabet[j]
-                continue if n < low[i + 1] or n > high[i + 1]
+                if n > high[i + 1]:
+                    break if ordered
+                    continue
+                continue if n < low[i + 1]
                 candidate: f64 = log_probs[i * arities + j] + backward_max[offsets[i + 1] + n - low[i + 1]]
                 if candidate > best:
                     best <- candidate

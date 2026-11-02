@@ -1350,6 +1350,30 @@ def test_ragged_split_trace_preserves_junction_tie_order(
         assert rank(path) == min(map(rank, paths))
 
 
+@pytest.mark.parametrize("alphabet", [(0, 1, 3, 10**100), (10**100, 3, 0, 1)])
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_ragged_trace_handles_sorted_and_permuted_generic_arities(
+        alphabet: tuple[int, ...], reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(288)
+    for _ in range(25):
+        m = int(rng.integers(1, 10))
+        rows = rng.choice([-np.inf, -1000.0, -5.0, 0.0], size=(m, len(alphabet)))
+        cursor = decoding.Split(rows, alphabet)
+        expected = decoding.decode_reference(rows, alphabet)
+        for k in {0, m // 2, m - 1}:
+            actual_z, best = cursor.scores(k, rows[k])
+            weight, path = cursor.best(k)
+            if expected is None:
+                assert actual_z == best == weight == -math.inf and path == ()
+            else:
+                assert actual_z == pytest.approx(expected.log_z, abs=1e-12)
+                assert weight == pytest.approx(best, abs=1e-12)
+                assert parse(path) is not None
+                assert expected.log_weight(rows, alphabet, path) == pytest.approx(weight, abs=1e-12)
+
+
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_split_packs_rows_around_nonzero_states(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
