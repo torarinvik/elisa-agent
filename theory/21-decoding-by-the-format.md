@@ -101,6 +101,8 @@ completion bound `m − k` gives the state range needed by the exact decoder;
 the smaller `k + 1` bound applies only when arities are at most two.
 The log decoder stores each forward, completion-support, and traceback row
 only through this bound; rolling maximum and backward rows use the same range.
+An accepted sequence of `m` words cannot contain an arity of `m` or more,
+so such arities do not contribute to the maximum `A` used for this bound.
 
 **Marginals.** Forward sums `F_k(n)` and backward sums `B_k(n)` over the
 same states give each word's posterior arity distribution:

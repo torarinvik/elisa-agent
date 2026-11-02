@@ -2099,6 +2099,24 @@ def test_native_decode_retries_when_normal_weights_have_underflowing_product() -
     np.testing.assert_allclose(actual.marginals, reference.marginals, rtol=1e-12, atol=0)
 
 
+@pytest.mark.parametrize("kernel, row", [("decode", np.log([0.2, 0.3, 0.5])),
+                                         ("decode_log", np.full(3, -1000.0))])
+def test_native_decoder_ignores_impossible_arity_in_state_bound(kernel, row) -> None:
+    native = getattr(decoding._NATIVE, kernel, None)
+    if native is None:
+        pytest.skip("native decoder is not built")
+    length = 128
+    rows = np.tile(row, (length, 1))
+    actual = np.asarray(native(rows.ravel(), np.array([0, 1, length], dtype=np.int64)))
+    expected = decode_reference(rows[:, :2], (0, 1))
+    assert expected is not None
+    assert actual[0] == pytest.approx(expected.log_z, abs=1e-10)
+    np.testing.assert_array_equal(actual[1:length + 1], expected.arities)
+    marginals = actual[length + 1:].reshape(rows.shape)
+    np.testing.assert_allclose(marginals[:, :2], expected.marginals, atol=1e-10)
+    np.testing.assert_array_equal(marginals[:, 2], np.zeros(length))
+
+
 def test_native_log_decoder_long_unary_alphabet() -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
     if native is None:

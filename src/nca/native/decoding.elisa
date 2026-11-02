@@ -132,13 +132,13 @@ def live(k: i64, m: i64, max_arity: i64) -> i64:
 def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
     return [FLOOR] if width == 0 or log_probs.len.i64() % width != 0
+    m: i64 = log_probs.len.i64() / width
+    return [FLOOR] if m == 0
     for j in 0..<width:
         return [FLOOR] if alphabet[j] < 0
     max_arity: i64 =
         for j in 0..<width |largest: i64 = 0| -> largest:
-            largest <- alphabet[j] if alphabet[j] > largest else largest
-    m: i64 = log_probs.len.i64() / width
-    return [FLOOR] if m == 0
+            largest <- alphabet[j] if alphabet[j] > largest and alphabet[j] < m else largest
     row_size: i64 = m + 1
     offsets: darray[i64] =
         for k in 0..<(m + 1) |offsets: darray[i64] = [0 for _ in 0..<(m + 2)]| -> offsets:
@@ -391,7 +391,7 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
     max_arity: i64 =
         for j in 0..<alphabet_size |largest: i64 = 0| -> largest:
             return [] if alphabet[j] < 0
-            largest <- alphabet[j] if alphabet[j] > largest else largest
+            largest <- alphabet[j] if alphabet[j] > largest and alphabet[j] < m else largest
     offsets: darray[i64] =
         for k in 0..<(m + 1) |offsets: darray[i64] = [0 for _ in 0..<(m + 2)]| -> offsets:
             offsets[k + 1] <- offsets[k] + live(k, m, max_arity) + 1
