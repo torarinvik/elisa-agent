@@ -96,6 +96,11 @@ operators, never "not an operator". With `C` the classes it ranges over, the
 item's risk becomes the error probability of that restricted decision,
 `1 − max_C p / Σ_C p`. When the most probable class lies in `C` this never
 exceeds `1 − max p` (Theorem 16.4), so the bound only tightens.
+The denominator must be positive: a restriction containing only zero-mass
+classes has no conditional distribution. Individual classes may have zero
+mass when the restriction as a whole has positive mass. The implementation
+rejects an undefined restriction and invalid log weights rather than returning
+NaNs; this is a representation check, not a calibration guarantee.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs

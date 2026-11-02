@@ -1656,9 +1656,12 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
 
 # Stable temperature-scaled softmax, summed into caller-declared groups.
 def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return [] if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64() or entries <= 0 or temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
     largest: f64 =
         for k in 0..<logits.len.i64() |largest: f64 = log(0.0)| -> largest:
+            return [] if logits[k] != logits[k] or logits[k] == -log(0.0) or groups[k] < 0 or groups[k] >= entries
             largest <- logits[k] if logits[k] > largest else largest
+    return [] if largest == log(0.0)
     weights: darray[f64] = [exp((logits[k] - largest) / temperature) for k in 0..<logits.len.i64()]
     total: f64 =
         for k in 0..<weights.count |total: f64 = 0.0| -> total:
@@ -1669,12 +1672,12 @@ def calibrated_groups(logits: view[f64], groups: view[i64], entries: i64, temper
 
 # Group probabilities in log space, preserving finite underflowed masses.
 def calibrated_log_groups(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
-    return [] if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64() or entries <= 0 or temperature <= 0.0
+    return [] if logits.len.i64() == 0 or groups.len.i64() != logits.len.i64() or entries <= 0 or temperature <= 0.0 or temperature != temperature or temperature == -log(0.0)
     maxima: darray[f64] = [log(0.0) for _ in 0..<entries]
     state: darray[f64] = [log(0.0), 0.0]
     for k in 0..<logits.len.i64():
         group: i64 = groups[k]
-        return [] if group < 0 or group >= entries
+        return [] if group < 0 or group >= entries or logits[k] != logits[k] or logits[k] == -log(0.0)
         maxima[group] <- logits[k] if logits[k] > maxima[group] else maxima[group]
         state[0] <- logits[k] if logits[k] > state[0] else state[0]
     largest: f64 = state[0]

@@ -155,7 +155,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
-| [16.4](theory/16-knowing-when-to-be-unsure.md) | `restricted_risk_le` | `Selective` |
+| [16.4](theory/16-knowing-when-to-be-unsure.md) | `restricted_risk_le`, `zero_total_no_positive_entry` | `Selective` |
 | [16.5](theory/16-knowing-when-to-be-unsure.md) | `queued_value` | `Practice` |
 | [16.6](theory/16-knowing-when-to-be-unsure.md) | `unqueued_errors` | `Practice` |
 | [16.7](theory/16-knowing-when-to-be-unsure.md) | `queued_captures` | `Practice` |
@@ -873,6 +873,10 @@ and returns the original tensor dtype. Temperature fitting is unchanged.
 Reading, risk, and distribution paths require positive finite temperatures
 for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.
+Calibrated decisions reject NaN or positive-infinite log weights and selected
+groups with zero total mass; negative infinity is valid for individual
+zero-mass entries. The fallback checks the maximum on the host, which entails
+a device synchronization for accelerator tensors.
 PyTorch remains the fallback for gradients, other devices, nonpartitioned
 groups and missing kernels. Double intermediates may differ from PyTorch's
 float32 arithmetic by rounding, requiring outcome checks on full runs.

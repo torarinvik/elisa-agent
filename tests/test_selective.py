@@ -1437,6 +1437,68 @@ def test_calibration_paths_reject_invalid_temperature(native, temperature, monke
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("case", ["empty_full", "empty_restricted", "nan", "positive_inf"])
+def test_calibration_rejects_undefined_decision_mass(native, case, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and ladder_module._NATIVE is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("undefined-decision", (0.3, 0.3, 0.4), 1.0))
+    decision = None if case == "empty_full" else ((1,), (2,))
+    values = {
+        "empty_full": [-math.inf, -math.inf, -math.inf],
+        "empty_restricted": [0.0, -math.inf, -math.inf],
+        "nan": [0.0, math.nan, -1.0],
+        "positive_inf": [0.0, math.inf, -1.0],
+    }[case]
+    logits = torch.tensor(values, dtype=torch.float64)
+    ranked = ladder_module.RankedObservation(logits, (1.0, 0.5, 0.25))
+    for observation in (logits, ranked):
+        for call in (lambda: rung.risk(observation, decision),
+                     lambda: rung.distribution(observation, decision),
+                     lambda: rung.log_distribution(observation, decision)):
+            with pytest.raises(ValueError, match="positive mass"):
+                call()
+        if decision is None:
+            with pytest.raises(ValueError, match="positive mass"):
+                rung.reading(observation)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_calibration_allows_zero_mass_entries_when_decision_has_mass(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and ladder_module._NATIVE is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("partly-empty-decision", (0.3, 0.3, 0.4), 1.0))
+    logits = torch.tensor([0.0, -math.inf, -2.0], dtype=torch.float64)
+    decision = ((1,), (2,))
+    assert rung.risk(logits, decision) == 0.0
+    assert rung.distribution(logits, decision).tolist() == [0.0, 1.0]
+    assert rung.log_distribution(logits, decision).tolist() == [-math.inf, 0.0]
+
+
+def test_calibration_rejects_nonfinite_legacy_kernel_results(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    legacy = SimpleNamespace(
+        calibrated_groups=lambda *args: [math.nan, math.nan],
+        calibrated_log_groups=lambda *args: [-math.inf, math.nan],
+    )
+    monkeypatch.setattr(ladder_module, "_NATIVE", legacy)
+    rung = Rung(constant("legacy-invalid", (0.5, 0.5), 1.0))
+    logits = torch.tensor([0.0, -1.0], dtype=torch.float64)
+    for call in (rung.distribution, rung.log_distribution):
+        with pytest.raises(ValueError, match="positive mass"):
+            call(logits, ((0,), (1,)))
+
+
+@pytest.mark.parametrize("native", [False, True])
 def test_legacy_risk_follows_numerical_reading_when_temperature_merges_order(native, monkeypatch) -> None:
     from nca import ladder as ladder_module
 

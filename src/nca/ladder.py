@@ -241,7 +241,16 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
     if (log.is_floating_point() and log.dtype != torch.float64
             and 0 < temperature < torch.finfo(log.dtype).tiny):
         log = log.double()
-    return (log - log.max()) / temperature
+    maximum = log.max()
+    if not math.isfinite(maximum.item()):
+        raise ValueError("calibrated decision requires finite log weights with positive mass")
+    return (log - maximum) / temperature
+
+
+def _checked_calibrated_risk(value: float) -> float:
+    if not math.isfinite(value):
+        raise ValueError("calibrated decision requires finite log weights with positive mass")
+    return value
 
 
 @dataclass
@@ -420,8 +429,8 @@ class Rung:
             else:
                 indices = _native_indices(key)
                 logits, ordering = logits[indices], ordering[indices]
-            return float(native_reading(logits, ordering, groups, len(positions),
-                                        temperature))
+            return _checked_calibrated_risk(float(native_reading(
+                logits, ordering, groups, len(positions), temperature)))
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
@@ -431,15 +440,15 @@ class Rung:
             native_key = key if key is not None else tuple(range(len(log)))
             union, positions = _layout(native_key)
             groups = _group_ids(native_key)
-            return float(native(log[union].double().numpy(), groups, len(positions),
-                                temperature, selected))
+            return _checked_calibrated_risk(float(native(
+                log[union].double().numpy(), groups, len(positions), temperature, selected)))
         if classes is None:
             values, positions = log, None
         else:
             union, positions = _layout(key)
             values = log[union]
-        result = risk(torch.softmax(_temperature_scores(values, temperature), dim=-1),
-                      positions, _top=selected)
+        result = _checked_calibrated_risk(risk(
+            torch.softmax(_temperature_scores(values, temperature), dim=-1), positions, _top=selected))
         if result != 0.0:
             return result
         # A float32 softmax can erase probabilities that fit in binary64.
@@ -477,6 +486,8 @@ class Rung:
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
             values = native(log[union].double().numpy(), groups,
                             len(positions), temperature)
+            if not values or not all(math.isfinite(value) for value in values):
+                raise ValueError("calibrated decision requires finite log weights with positive mass")
             return torch.tensor(values, dtype=log.dtype)
         values = log[union]
         reading = torch.softmax(_temperature_scores(values, temperature), dim=-1)
@@ -500,8 +511,10 @@ class Rung:
         native = getattr(_NATIVE, "calibrated_log_groups", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
             values = native(log[union].double().numpy(), _group_ids(key), len(positions), temperature)
-            if values:
+            if (values and all(not math.isnan(value) and value != math.inf for value in values)
+                    and any(math.isfinite(value) for value in values)):
                 return torch.tensor(values, dtype=torch.float64)
+            raise ValueError("calibrated decision requires finite log weights with positive mass")
         scores = _temperature_scores(log[union].double(), temperature)
         normalizer = torch.logsumexp(scores, dim=-1)
         return torch.stack([torch.logsumexp(scores[part], dim=-1) - normalizer

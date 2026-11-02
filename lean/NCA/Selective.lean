@@ -33,6 +33,16 @@ the decision never chooses.
 
 namespace NCA
 
+/-- A nonnegative finite family with zero total has no positive entry. -/
+theorem zero_total_no_positive_entry {ι : Type*} [Fintype ι]
+    (mass : ι → ℝ) (nonneg : ∀ x, 0 ≤ mass x)
+    (zero : ∑ x, mass x = 0) (x : ι) : mass x = 0 := by
+  classical
+  have bound : mass x ≤ ∑ y, mass y :=
+    Finset.single_le_sum (fun y _ => nonneg y) (Finset.mem_univ x)
+  rw [zero] at bound
+  exact le_antisymm bound (nonneg x)
+
 open Finset
 
 variable {X : Type} [Fintype X]
