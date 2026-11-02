@@ -124,3 +124,74 @@ def test_gap_policy_reaches_nonlinear_partition_without_runtime_callback() -> No
     assert proposal.expert.invoke((0.2, -0.3)) is False
     assert proposal.expert.invoke((0.2, 0.3)) is True
     assert len(calls) == 1
+
+
+def test_reuse_preserves_models_and_avoids_repeated_training_measurements() -> None:
+    from nca.projection_learning import propose_polynomial_partitions
+
+    class Counting(Measurement):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def invoke(self, value: Any) -> tuple[float, ...]:
+            self.calls += 1
+            return tuple(value)
+
+    source = Counting()
+    # Lists make the rows unhashable: reuse is by training position, not input keys.
+    rows = [([float(i), float(i % 2)],) for i in range(6)]
+    labels = [i // 2 for i in range(6)]
+    kwargs = dict(degrees=(2,), max_terms=5, limit=3, lifting_cost=1,
+                  projection_cost=1, encoding_cost=1, decoder_cost=1)
+    reference = propose_polynomial_partitions(Baseline(), source, rows, labels, **kwargs)
+    assert source.calls == 25
+    source.calls = 0
+    reused = propose_polynomial_partitions(Baseline(), source, rows, labels,
+                                          reuse_observations=True, **kwargs)
+    assert source.calls == 7
+    assert len(reused) == len(reference) == 3
+    for before, after in zip(reference, reused, strict=True):
+        assert before.constructors == after.constructors
+        assert before.expert.manifest == after.expert.manifest
+        assert after.expert.feature.measurement.measurement.measurement is source
+        count = source.calls
+        assert after.expert.invoke([0.37, 0.62]) == before.expert.invoke([0.37, 0.62])
+        assert source.calls == count + 2
+
+
+@pytest.mark.parametrize("effects", [None, frozenset({"external"})])
+def test_reuse_rejects_unknown_or_nonempty_effects_before_invocation(effects: Any) -> None:
+    from dataclasses import replace
+
+    from nca.projection_learning import propose_polynomial_partitions
+
+    class Unusable(Measurement):
+        manifest = replace(Measurement.manifest, effects=effects)
+
+        def invoke(self, value: Any) -> Any:
+            pytest.fail("unsafe measurement must be rejected before invocation")
+
+    kwargs = dict(limit=1, projection_cost=0, encoding_cost=0, decoder_cost=0,
+                  reuse_observations=True)
+    rows = [((0.0,),), ((1.0,),)]
+    with pytest.raises(ValueError, match="known empty effects"):
+        propose_projections(Baseline(), Unusable(), rows, [True, False], **kwargs)
+    with pytest.raises(ValueError, match="known empty effects"):
+        propose_polynomial_partitions(Baseline(), Unusable(), rows, [True, False],
+                                      degrees=(2,), max_terms=2, lifting_cost=0, **kwargs)
+
+
+def test_reuse_rejects_slots_even_with_empty_declared_effects() -> None:
+    from dataclasses import replace
+
+    slots = ((("input",), "slot-output"),)
+    source = Measurement()
+    source.manifest = replace(source.manifest,
+                              contract=replace(source.manifest.contract, slots=slots))
+    baseline = Baseline()
+    baseline.manifest = replace(baseline.manifest,
+                                contract=replace(baseline.manifest.contract, slots=slots))
+    with pytest.raises(ValueError, match="no slots"):
+        propose_projections(baseline, source, [(None, (0.0,)), (None, (1.0,))],
+                            [True, False], limit=1, projection_cost=0, encoding_cost=0,
+                            decoder_cost=0, reuse_observations=True)

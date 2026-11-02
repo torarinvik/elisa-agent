@@ -2213,3 +2213,10 @@ Numeric partition/region fitting and projection acquisition accept an optional
 by existing encoder artifacts. `midpoint_boundary` is an opt-in policy with an
 upper-edge fallback for float rounding. `gap_boundary_preserves` proves the real
 comparison invariant and `midpoint_inside_gap` the exact real midpoint bound.
+
+Projection acquisition's `reuse_observations=True` (§36.23) snapshots finite
+training tuples per row and uses the shared `_partition_from_ordered` fitter
+across candidate directions. Reuse requires known empty effects, no slots and
+caller-assumed determinism/stability. Proposed routes retain original measurement
+modules and inference metadata; no training cache enters runtime or artifacts.
+`training_projection_fusion` proves the pure list identity, not executable purity.

@@ -455,3 +455,21 @@ real midpoint lies inside the gap, not floating-point midpoint accuracy.
 Midpoint placement expresses a modeling preference, not universally better
 extrapolation. Independent outcomes compare policies as distinct candidates;
 no held-out labels enter policy fitting or threshold placement.
+
+## 36.23 Reusing training observations
+
+For a deterministic, stable measurement f and projection p, mapping p over
+materialized training values `map f rows` equals `map (p∘f) rows`. Lean proves
+this pure list identity. It does not prove external modules deterministic or
+verify executable snapshots. Numeric tuple snapshots are immutable; their
+storage is local to fitting, never part of the proposed inference route.
+
+An opt-in reuse mode requires a known empty effect declaration and no slots,
+and the caller additionally assumes deterministic measurements and stable rows.
+These checks alone do not establish determinism. Unknown/effectful measurements
+and slot-bearing measurements cannot use this optimization. The normal path
+continues repeated invocation. In reuse mode each measurement is evaluated once
+per training row per projection-search call, then all centroid directions and
+threshold fits consume those values. Inference still invokes the original
+measurement. Contracts, declared inference costs and effect metadata are unchanged.
+The scalar threshold learner is shared between both paths, not reimplemented.

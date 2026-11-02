@@ -8,7 +8,7 @@ from typing import Any
 
 from nca.abi import Module
 from nca.discovery import Proposal
-from nca.numeric_learning import propose_partition
+from nca.numeric_learning import _partition_from_ordered, propose_partition
 from nca.objects import Constructor, canonical
 from nca.vector_learning import _vector
 
@@ -32,6 +32,10 @@ class ProjectionEncoder:
         value = _vector(self.measurement.invoke(*inputs))
         if len(value) != len(self.direction):
             raise ValueError("projection input dimension differs from training")
+        return self.project(value)
+
+    def project(self, value: tuple[float, ...]) -> float:
+        """Project an already validated immutable training observation."""
         result = math.fsum(a * b for a, b in zip(value, self.direction, strict=True))
         if not math.isfinite(result):
             raise ValueError("projection exceeds finite range")
@@ -42,12 +46,15 @@ def propose_projections(incumbent: Module, measurement: Module,
                         rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
                         limit: int, projection_cost: float, encoding_cost: float,
                         decoder_cost: float,
-                        place_boundary: Callable[[float, float], float] | None = None) -> list[Proposal]:
+                        place_boundary: Callable[[float, float], float] | None = None,
+                        reuse_observations: bool = False) -> list[Proposal]:
     """Fit centroid-difference projections and threshold heads on training rows only.
 
     Target order determines budgeted pair order. No direction is proposed for
     equal centroids. Stable observations/models and independent selection are
-    required. This family can miss nonlinear distinctions entirely.
+    required. This family can miss nonlinear distinctions entirely. Opt-in reuse
+    additionally asserts determinism, requires known empty effects and no slots,
+    and never retains training snapshots in the proposed inference route.
     """
     if type(limit) is not int or limit < 1:
         raise ValueError("projection limit must be a positive integer")
@@ -61,6 +68,10 @@ def propose_projections(incumbent: Module, measurement: Module,
     if any(not math.isfinite(c) or c < 0
            for c in (projection_cost, encoding_cost, decoder_cost)):
         raise ValueError("costs must be finite and nonnegative")
+    if reuse_observations and (measurement.manifest.effects != frozenset()
+                               or measurement.manifest.contract.slots):
+        raise ValueError("observation reuse requires known empty effects and no slots")
+    observations = []
     groups: dict[Hashable, list[tuple[float, ...]]] = {}
     dimension = None
     for row, label in zip(rows, labels, strict=True):
@@ -68,6 +79,8 @@ def propose_projections(incumbent: Module, measurement: Module,
         if dimension is not None and len(value) != dimension:
             raise ValueError("inconsistent vector dimensions")
         dimension = len(value)
+        if reuse_observations:
+            observations.append((value, label))
         groups.setdefault(label, []).append(value)
     centroids = [tuple(math.fsum(x[i] / len(group) for x in group)
                        for i in range(dimension or 0)) for group in groups.values()]
@@ -79,9 +92,16 @@ def propose_projections(incumbent: Module, measurement: Module,
         if not any(direction):
             continue
         projection = ProjectionEncoder(measurement, direction, projection_cost)
-        for proposal in propose_partition(incumbent, projection, rows, labels,
-                                         encoding_cost=encoding_cost, decoder_cost=decoder_cost,
-                                         place_boundary=place_boundary):
+        if reuse_observations:
+            ordered = sorted(((projection.project(value), label) for value, label in observations),
+                             key=lambda item: item[0])
+            fitted = _partition_from_ordered(incumbent, projection, ordered, encoding_cost,
+                                             decoder_cost, place_boundary)
+        else:
+            fitted = propose_partition(incumbent, projection, rows, labels,
+                                       encoding_cost=encoding_cost, decoder_cost=decoder_cost,
+                                       place_boundary=place_boundary)
+        for proposal in fitted:
             proposals.append(replace(proposal,
                                     constructors=(projection.constructor,) + proposal.constructors))
     return proposals
@@ -125,8 +145,8 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
                                   degrees: Sequence[int], max_terms: int, limit: int,
                                   lifting_cost: float, projection_cost: float,
                                   encoding_cost: float, decoder_cost: float,
-                                  place_boundary: Callable[[float, float], float] | None = None
-                                  ) -> list[Proposal]:
+                                  place_boundary: Callable[[float, float], float] | None = None,
+                                  reuse_observations: bool = False) -> list[Proposal]:
     """Propose polynomial decompositions using training observations only (§36.21).
 
     Caller-selected degrees define the search family; each degree gets at most
@@ -140,6 +160,9 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
         raise ValueError("polynomial fitting needs aligned observations")
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("training row arity differs from contract")
+    if reuse_observations and (measurement.manifest.effects != frozenset()
+                               or measurement.manifest.contract.slots):
+        raise ValueError("observation reuse requires known empty effects and no slots")
     dimension = len(_vector(measurement.invoke(*rows[0])))
     proposals = []
     for degree in degrees:
@@ -147,7 +170,8 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
                                  max_terms=max_terms, cost=lifting_cost)
         for proposal in propose_projections(incumbent, lift, rows, labels, limit=limit,
                 projection_cost=projection_cost, encoding_cost=encoding_cost,
-                decoder_cost=decoder_cost, place_boundary=place_boundary):
+                decoder_cost=decoder_cost, place_boundary=place_boundary,
+                reuse_observations=reuse_observations):
             proposals.append(replace(proposal,
                                     constructors=(lift.constructor,) + proposal.constructors))
     return proposals

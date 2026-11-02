@@ -69,6 +69,16 @@ def propose_partition(incumbent: Module, measurement: Module,
     No persistence, calibration or unrestricted feature discovery is claimed.
     """
     ordered = _ordered(incumbent, measurement, rows, labels, encoding_cost, decoder_cost)
+    return _partition_from_ordered(incumbent, measurement, ordered, encoding_cost,
+                                   decoder_cost, place_boundary)
+
+
+def _partition_from_ordered(incumbent: Module, measurement: Module,
+                            ordered: Sequence[tuple[float, Hashable]], encoding_cost: float,
+                            decoder_cost: float,
+                            place_boundary: Callable[[float, float], float] | None
+                            ) -> list[Proposal]:
+    """Build a proposal from validated observations sorted by measured value."""
     best, _ = _best_split(ordered)
     if best is None:
         return []

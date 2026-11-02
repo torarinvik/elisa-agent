@@ -176,4 +176,11 @@ theorem midpoint_inside_gap (lower upper : ℝ) (gap : lower < upper) :
     lower < lower / 2 + upper / 2 ∧ lower / 2 + upper / 2 ≤ upper := by
   constructor <;> linarith
 
+/-- Reusing pure training observations preserves projection values. Determinism
+of an external executable measurement is an assumption, not verified here. -/
+theorem training_projection_fusion {X V Y : Type*} (rows : List X)
+    (measure : X → V) (project : V → Y) :
+    (rows.map measure).map project = rows.map (fun x => project (measure x)) := by
+  simp only [List.map_map, Function.comp_def]
+
 end NCA
