@@ -150,6 +150,9 @@ factor leaves the outside-mass ratio unchanged. If their sum overflows, the
 implementation uses this identity to rescale; when the outside sum remains
 finite it is accumulated before rescaling so individually tiny terms can
 still contribute. Floating-point rounding remains possible.
+For integer weights, the selected class is determined before conversion to
+floating point, which can merge distinct large integers; group masses and
+their ratio can still be rounded after conversion.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs

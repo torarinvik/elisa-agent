@@ -967,11 +967,17 @@ def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = 
     the share outside the entry holding the most probable class listed."""
     if reading.ndim != 1 or not len(reading):
         raise ValueError("decision weights must be a nonempty vector")
+    if reading.is_complex() or reading.is_quantized:
+        raise ValueError("decision weights must be real numeric values")
     key = decision_key(classes)
     native_key = key if key is not None else tuple(range(len(reading)))
     union, positions = _layout(native_key)
     mass = reading if key is None else reading[union]
     top = None if _top is None else union.index(_top)
+    if top is None and not mass.is_floating_point():
+        # Choose before conversion: adjacent large integers can tie in binary64.
+        top = (int(mass.detach().cpu().numpy().argmax()) if mass.dtype == torch.uint64 else
+               int(mass.to(torch.int64).argmax()))
     native = getattr(_NATIVE, "weighted_decision_risk", None)
     if native is not None and mass.device.type == "cpu" and not mass.requires_grad:
         value = float(native(mass.double().contiguous().numpy(), _group_ids(native_key),
@@ -979,9 +985,9 @@ def risk(reading: torch.Tensor, classes: Decision = None, *, _top: int | None = 
         if value < 0:
             raise ValueError("decision weights must be finite, nonnegative and have positive mass")
         return value
+    mass = mass.to(torch.float32 if mass.device.type == "mps" else torch.float64)
     if not bool(torch.isfinite(mass).all()) or bool((mass < 0).any()):
         raise ValueError("decision weights must be finite, nonnegative and have positive mass")
-    mass = mass.to(torch.float32 if mass.device.type == "mps" else torch.float64)
     largest = mass.max()
     if not bool(largest > 0):
         raise ValueError("decision weights must be finite, nonnegative and have positive mass")

@@ -3026,6 +3026,38 @@ def test_decision_risk_rejects_invalid_weights(native, weights, monkeypatch) -> 
         ladder_module.risk(torch.tensor(weights, dtype=torch.float64))
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype,large", [(torch.int64, 2**60), (torch.uint64, 2**63)])
+def test_decision_risk_selects_large_integers_before_float_conversion(
+        native, dtype, large, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
+        pytest.skip("native weighted-risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    weights = torch.tensor([large, large + 1, large // 2], dtype=dtype)
+    assert ladder_module.risk(weights, ((0, 2), (1,))) == pytest.approx(0.6)
+    assert ladder_module.risk(weights, ((1,), (0, 2))) == pytest.approx(0.6)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_decision_risk_rejects_complex_and_quantized_weights(native, monkeypatch) -> None:
+    import warnings
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
+        pytest.skip("native weighted-risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        quantized = torch.quantize_per_tensor(torch.tensor([0.5, 0.5]), 0.1, 0, torch.quint8)
+    for weights in (torch.tensor([1 + 2j, 1 + 0j]), quantized):
+        with pytest.raises(ValueError, match="real numeric"):
+            ladder_module.risk(weights)
+
+
 def test_decision_accepts_nonbuiltin_integral_indices_without_cache_aliasing() -> None:
     from nca.ladder import decision_key, risk
 

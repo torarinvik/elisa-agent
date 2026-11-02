@@ -922,6 +922,8 @@ reading and ordering inputs are mutually exclusive.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.
+Integer inputs are ranked before conversion to floating point, though their
+subsequent masses and ratios can still round.
 Both return the smallest positive binary64 value if positive outside mass
 would otherwise yield zero, without claiming a general upward error bound.
 For a large temperature, scaled differences that overflow before division
