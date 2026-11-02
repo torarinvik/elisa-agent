@@ -276,6 +276,26 @@ def test_batched_readings_preserve_gradients() -> None:
     assert torch.allclose(logits.grad, expected.grad)
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_grouped_decisions_and_risk_reject_batched_logits(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and ladder_module._NATIVE is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.zeros((2, 2), dtype=torch.float64)
+    rung = Rung(None)
+    assert rung.reading(logits).shape == (2, 2)
+    assert rung.distribution(logits).shape == (2, 2)
+    assert rung.log_distribution(logits).shape == (2, 2)
+    for call in (lambda: rung.risk(logits),
+                 lambda: rung.distribution(logits, ((0,), (1,))),
+                 lambda: rung.log_distribution(logits, ((0,), (1,)))):
+        with pytest.raises(ValueError, match="one-dimensional"):
+            call()
+
+
 @pytest.mark.parametrize("device", ["mps", "cuda"])
 def test_accelerator_batched_readings_shift_each_row(device) -> None:
     available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())

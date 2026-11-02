@@ -583,7 +583,7 @@ class Rung:
 
     def risk(self, log: torch.Tensor | RankedObservation, classes: Decision = None, *,
              reading: torch.Tensor | None = None) -> float:
-        """Calibrated error probability of the decision over ``classes``.
+        """Calibrated error probability for one observation over ``classes``.
 
         A ranked observation chooses the winning class by its original weights;
         a tensor chooses from its numerical reading. Consumers must use the
@@ -604,6 +604,8 @@ class Rung:
             raise ValueError("reused reading must match the observation's shape")
         elif reading is not None and reading.is_complex():
             raise ValueError("reused reading must be finite and nonnegative")
+        if log.ndim != 1:
+            raise ValueError("decision risk requires a one-dimensional logit vector")
         union = list(range(len(log))) if key is None else _layout(key)[0]
         probabilities = (self.reading(log) if reading is None else reading) if ranked is None else None
         native_reading = getattr(_NATIVE, "calibrated_risk_for_reading_checked", None)
@@ -675,7 +677,9 @@ class Rung:
 
     def distribution(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> torch.Tensor:
         """Calibrated probabilities of the decision's entries: each entry's
-        share of the classes it ranges over, under the decision's temperature."""
+        share of the classes it ranges over, under the decision's temperature.
+        Grouped decisions accept one vector; unrestricted readings can be batched.
+        """
         temperature = self.temperature(classes)
         if not math.isfinite(temperature) or temperature <= 0:
             name = "ranked distribution" if isinstance(log, RankedObservation) else "distribution"
@@ -684,6 +688,8 @@ class Rung:
             log = log.logits
         if classes is None:
             return self.reading(log)
+        if log.ndim != 1:
+            raise ValueError("grouped distribution requires a one-dimensional logit vector")
         output_dtype = log.dtype if log.is_floating_point() else torch.get_default_dtype()
         union, positions = _layout(decision_key(classes))
         values = _selected_logits(log, union)
@@ -700,7 +706,7 @@ class Rung:
 
     def log_distribution(self, log: torch.Tensor | RankedObservation,
                          classes: Decision = None) -> torch.Tensor:
-        """Log probabilities for decision entries, retaining underflowed mass."""
+        """Log probabilities retaining underflowed mass; unrestricted inputs can be batched."""
         temperature = self.temperature(classes)
         if not math.isfinite(temperature) or temperature <= 0:
             name = "ranked distribution" if isinstance(log, RankedObservation) else "distribution"
@@ -712,6 +718,8 @@ class Rung:
                 # MPS lacks binary64, which this interface uses for log probabilities.
                 log = log.cpu()
             return torch.log_softmax(_temperature_scores(_binary64_logits(_selected_logits(log, None)), temperature), dim=-1)
+        if log.ndim != 1:
+            raise ValueError("grouped log distribution requires a one-dimensional logit vector")
         key = decision_key(classes)
         union, positions = _layout(key)
         if log.device.type == "mps":

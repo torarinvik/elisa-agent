@@ -904,6 +904,7 @@ and shift each final-dimension row independently; integer batches can use
 Elisa `shifted_integer_rows_into`. Small CPU binary64 batches without
 gradients can use Elisa `scaled_logit_rows_into`; larger batches retain the
 tensor path based on local timings. Grouped decisions and risk remain per item.
+They reject batched logits explicitly instead of passing them to per-item kernels.
 Standalone decision risk accepts finite nonnegative unnormalized weights with
 positive total mass in the decision. Its Elisa path checks and sums the weights, rescaling
 when the total overflows; PyTorch supplies the fallback.
