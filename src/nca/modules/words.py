@@ -682,9 +682,12 @@ class FormulaEvaluator:
         revision = getattr(distribution, "revision", None)
         source = getattr(distribution, "source", distribution)
         versions = tuple(revision(k) for k in range(n)) if revision is not None else None
-        invalidated = tuple(k for k in range(n) if state is None or versions is None
-                            or state.distribution_source is not source or state.revisions is None
-                            or len(state.revisions) != n or versions[k] != state.revisions[k])
+        if (state is None or versions is None or state.distribution_source is not source
+                or state.revisions is None or len(state.revisions) != n):
+            invalidated = tuple(range(n))
+        else:
+            invalidated = tuple(k for k, (current, previous) in enumerate(
+                zip(versions, state.revisions, strict=True)) if current != previous)
         cached = None
         if state is not None:
             if invalidated:
