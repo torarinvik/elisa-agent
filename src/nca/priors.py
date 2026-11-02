@@ -841,6 +841,7 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
     model remains invalid rather than zero evidence.
     Supplying score_clip B and alpha clips each log evidence to [-B,B] and
     derives B*sqrt(2*n*log(2*K/alpha)) as the simultaneous total-score error.
+    Its outward rounding assumes the platform logarithm is within one ulp.
     This requires IID observations, fixed models/base/B/K, and valid base
     normalizers wherever a provider supplies a model. It bounds clipped-score means, not raw evidence
     or answer errors. Each reading is copied before provider callbacks so all
@@ -927,7 +928,17 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
         raise ValueError("requires observations and at least one finite-evidence candidate")
     if score_clip is not None:
         assert alpha is not None
-        score_error = score_clip * math.sqrt(2 * count * (math.log(2 * len(candidates)) - math.log(alpha)))
+        # Outward steps cover binary64 rounding; log accuracy remains a libm assumption.
+        log_upper = math.nextafter(math.log(2 * len(candidates)), math.inf)
+        log_lower = math.nextafter(math.log(alpha), -math.inf)
+        log_ratio = math.nextafter(log_upper - log_lower, math.inf)
+        sample_count = float(count)
+        if sample_count < count:
+            sample_count = math.nextafter(sample_count, math.inf)
+        scale = math.nextafter(2.0 * sample_count, math.inf)
+        variance = math.nextafter(scale * log_ratio, math.inf)
+        root = math.nextafter(math.sqrt(variance), math.inf)
+        score_error = math.nextafter(score_clip * root, math.inf)
         if not math.isfinite(score_error):
             raise ValueError("derived score error overflow")
     best = max(range(len(scores)), key=scores.__getitem__)

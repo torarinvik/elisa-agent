@@ -410,6 +410,10 @@ For `K` candidates, with probability at least `1 − α`, simultaneously
 
 > `|S_e − n μ_e| ≤ ε_n = B sqrt(2 n log(2K/α))`.
 
+The implementation rounds its binary64 bound upward at each arithmetic stage.
+Its conservatism assumes the platform logarithm is within one binary64 ulp;
+the logarithm and concentration inequality are not formally enclosed in Lean.
+
 Each score lies in `[−B,B]`. Hoeffding gives failure probability at most
 `2 exp(−ε_n²/(2 n B²))` for each total; a union bound over K gives α.
 Combining this event with Theorem 27.9 bounds the selected expected clipped

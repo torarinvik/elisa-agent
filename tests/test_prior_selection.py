@@ -1,6 +1,7 @@
 import itertools
 import math
 from typing import Any
+from decimal import Decimal, localcontext
 
 import numpy as np
 import pytest
@@ -347,6 +348,19 @@ def test_clipped_prior_selection_derives_uniform_total_score_error(
     unavailable = formulas.select_prior([lambda length: None], [rows], base,
                                         score_clip=2, alpha=0.1)
     assert unavailable.scores == (-2.0,) and unavailable.index == 0
+
+def test_clipped_prior_selection_bounds_subnormal_error_upward() -> None:
+    least = math.nextafter(0.0, 1.0)
+    rows = np.array([[0.0]])
+    result = priors.select_prior([lambda _: None], [rows], np.array([0.0]),
+                                 alphabet=(0,), score_clip=least, alpha=0.9)
+    with localcontext() as context:
+        context.prec = 100
+        alpha = Decimal.from_float(0.9)
+        expected = Decimal.from_float(least) * (2 * (Decimal(2) / alpha).ln()).sqrt()
+    assert Decimal.from_float(result.score_error) >= expected
+    assert result.score_error > least
+
 
 def test_logic_prior_fit_consumes_texts_with_separate_calibration_labels() -> None:
     from nca.logic import choose_prior
