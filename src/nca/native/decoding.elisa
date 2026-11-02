@@ -388,10 +388,9 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
             return [] if arity < 0
-            continue if arity >= width or log_probs[k * alphabet_size + j] == unreachable
-            for state in 1..<(m - k + 1):
+            continue if arity >= m - k or log_probs[k * alphabet_size + j] == unreachable
+            for state in 1..<(m - k - arity + 1):
                 target: i64 = state - 1 + arity
-                continue if target > m - k - 1
                 if completable[(k + 1) * width + target] != 0:
                     completable[k * width + state] <- 1
     return [] if completable[1] == 0
@@ -402,11 +401,10 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
             return [] if arity < 0
-            continue if arity >= width
+            continue if arity >= m - k
             step: f64 = log_probs[k * alphabet_size + j]
-            for state in 1..<(m - k + 1):
+            for state in 1..<(m - k - arity + 1):
                 target: i64 = state - 1 + arity
-                continue if target > m - k - 1
                 continue if completable[(k + 1) * width + target] == 0
                 cell: i64 = (k + 1) * width + target
                 source: f64 = forward[k * width + state]
@@ -434,11 +432,10 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
         k: i64 = m - 1 - step
         for j in 0..<alphabet_size:
             arity: i64 = alphabet[j]
-            continue if arity >= width
+            continue if arity >= m - k
             reading: f64 = log_probs[k * alphabet_size + j]
-            for state in 1..<(m - k + 1):
+            for state in 1..<(m - k - arity + 1):
                 target: i64 = state - 1 + arity
-                continue if target > m - k - 1
                 source: f64 = forward[k * width + state]
                 continue if source == unreachable
                 suffix: f64 = backward[(k + 1) * width + target]

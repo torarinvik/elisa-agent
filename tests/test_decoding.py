@@ -2099,7 +2099,8 @@ def test_native_decode_retries_when_normal_weights_have_underflowing_product() -
     np.testing.assert_allclose(actual.marginals, reference.marginals, rtol=1e-12, atol=0)
 
 
-@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0), (0, 3), (0, 2**63 - 1)])
+@pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0), (0, 3),
+                                      (6, 0, 3, 1, 2), (0, 2**63 - 1)])
 def test_native_log_decoder_matches_reference_on_extreme_tied_rows(alphabet) -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
     if native is None:

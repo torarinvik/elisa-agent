@@ -64,6 +64,11 @@ theorem support_shift_bounds (n arity first last : ℤ) :
       (first + 1 - arity ≤ n ∧ n ≤ last + 1 - arity) := by
   omega
 
+/-- The remaining-length bound can be applied directly to each source. -/
+theorem completion_transition_bound (state arity remaining : ℤ) :
+    state - 1 + arity ≤ remaining - 1 ↔ state ≤ remaining - arity := by
+  omega
+
 /-- A scored transition must lie in both the prefix and shifted suffix support. -/
 theorem split_support_intersection (n arity left_first left_last right_first right_last : ℤ) :
     (left_first ≤ n ∧ n ≤ left_last ∧

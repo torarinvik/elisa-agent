@@ -207,7 +207,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [21.3](theory/21-decoding-by-the-format.md) | `await_balance`, `accepted_arity_sum`, `accepted_arity_lt_length` | `Decoding` |
 | [21.4](theory/21-decoding-by-the-format.md) | `dpSum_eq` | `Decoding` |
 | [21.5](theory/21-decoding-by-the-format.md) | `dpMax_ge` | `Decoding` |
-| [21.6](theory/21-decoding-by-the-format.md) | `dpMax_attained`, `tiedChoice_eq_min`, `tiedChoice_comm`, `arity_exceeds_state_bound`, `counter_growth_bound` | `Decoding` |
+| [21.6](theory/21-decoding-by-the-format.md) | `dpMax_attained`, `tiedChoice_eq_min`, `tiedChoice_comm`, `arity_exceeds_state_bound`, `completion_transition_bound`, `counter_growth_bound` | `Decoding` |
 | [21.7](theory/21-decoding-by-the-format.md) | `exact_risk_le_union` | `Decoding` |
 | [21.7](theory/21-decoding-by-the-format.md) | `one_sub_prod_le_sum` | `Decoding` |
 | [22.1](theory/22-abstaining-early.md) | `detection_account_mono` | `Detection` |
