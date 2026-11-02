@@ -166,6 +166,65 @@ def test_calibration_fits_temperature() -> None:
     assert rung.reading(rung.observe(0))[1].item() == pytest.approx(0.7, abs=0.02)
 
 
+def test_native_calibration_subset_matches_label_mapping() -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_subset", None)
+    if native is None:
+        pytest.skip("native calibration subset kernel is not built")
+    labels = np.array([3, 5, 4, 0, 2], dtype=np.int64)
+    classes = np.array([5, 0, 2, 3], dtype=np.int64)
+    groups = np.array([0, 0, 1, 1], dtype=np.int64)
+    assert native(labels, classes, groups, 6, 2) == [0, 1, 3, 4, 1, 0, 0, 1]
+    assert native(np.array([4], dtype=np.int64), classes, groups, 6, 2) == []
+    assert native(labels, np.array([7], dtype=np.int64), np.array([0], dtype=np.int64), 6, 2) == [-1]
+    assert native(labels, np.array([0, 0], dtype=np.int64), np.array([0, 1], dtype=np.int64), 6, 2) == [-1]
+    rng = np.random.default_rng(412)
+    for _ in range(30):
+        labels = rng.integers(-2, 34, size=100, dtype=np.int64)
+        classes = rng.choice(32, size=20, replace=False).astype(np.int64)
+        groups = rng.integers(0, 4, size=20, dtype=np.int64)
+        mapping = dict(zip(classes.tolist(), groups.tolist()))
+        rows = [i for i, label in enumerate(labels) if int(label) in mapping]
+        expected = rows + [mapping[int(labels[i])] for i in rows]
+        assert native(labels, classes, groups, 32, 4) == expected
+
+
+def test_restricted_calibration_subset_matches_reference(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    native = ladder_module._NATIVE
+    if getattr(native, "calibration_subset", None) is None:
+        pytest.skip("native calibration subset kernel is not built")
+    rng = np.random.default_rng(638)
+    logits = torch.tensor(rng.normal(size=(100, 8)), dtype=torch.float64)
+    labels = torch.tensor(rng.integers(0, 8, size=100), dtype=torch.int64)
+    decision = ((7, 0, 4), (2, 3))
+    first = Rung(None)
+    first.held_out = (logits, labels)
+    actual = first.temperature(decision)
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(
+        calibration_loss_grid=getattr(native, "calibration_loss_grid", None)))
+    second = Rung(None)
+    second.held_out = (logits, labels)
+    assert actual == second.temperature(decision)
+
+
+def test_restricted_calibration_subset_falls_back_for_out_of_range_classes(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "calibration_subset", None) is None:
+        pytest.skip("native calibration subset kernel is not built")
+    rung = Rung(None)
+    rung.held_out = (torch.zeros((2, 3), dtype=torch.float64), torch.tensor([0, 1]))
+    with pytest.raises(IndexError):
+        rung.temperature(((0,), (7,)))
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    with pytest.raises(IndexError):
+        rung.temperature(((0,), (7,)))
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 def test_native_temperature_fit_matches_reference(grouped, monkeypatch) -> None:
     from nca import ladder as ladder_module

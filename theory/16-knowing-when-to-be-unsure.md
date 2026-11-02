@@ -134,7 +134,9 @@ still contribute. Floating-point rounding remains possible.
 Renormalizing the full output's calibrated probabilities does not calibrate
 the restricted decision, which can be over-confident. Each rung therefore
 fits a separate temperature per restricted decision, on the held-out inputs
-whose label is among its classes. For positive total mass `Z` and labeled
+whose label is among its classes. Each included label maps to the entry that
+contains it; excluded labels contribute no observation to that fit. For
+positive total mass `Z` and labeled
 group mass `G`, each observation's negative log-likelihood is
 `−log(G/Z) = log Z − log G`. The implementation factors out a separate
 maximum from each sum before evaluating this difference and selects the best

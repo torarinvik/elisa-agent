@@ -434,15 +434,36 @@ class Rung:
                 return 1.0
             log, labels = self.held_out
             union, positions = _layout(key)
-            entry = {union[i]: k for k, part in enumerate(positions) for i in part}
-            inside = torch.isin(labels, torch.tensor(union, device=labels.device))
-            if not bool(inside.any()):
+            subset = getattr(_NATIVE, "calibration_subset", None)
+            packed = None
+            if (subset is not None and log.device.type == "cpu" and log.ndim == 2
+                    and labels.device.type == "cpu" and labels.dtype == torch.int64
+                    and labels.ndim == 1):
+                try:
+                    packed = subset(labels.contiguous().numpy(), _native_indices(key),
+                                    _group_ids(key), log.shape[1], len(positions))
+                except OverflowError:
+                    pass  # The reference path handles out-of-range class indices.
+            if packed is not None and len(packed) % 2 == 0:
+                count = len(packed) // 2
+                if count:
+                    mapped = np.asarray(packed, dtype=np.int64)
+                    rows = torch.from_numpy(mapped[:count])
+                    targets = torch.from_numpy(mapped[count:])
+                    selected_log = log[rows][:, union]
+            else:
+                entry = {union[i]: k for k, part in enumerate(positions) for i in part}
+                inside = torch.isin(labels, torch.tensor(union, device=labels.device))
+                count = int(inside.sum())
+                if count:
+                    targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long,
+                                           device=labels.device)
+                    selected_log = log[inside][:, union]
+            if not count:
                 if len(positions) == 1:
                     return 1.0  # A single entry has no decision ambiguity.
                 raise MissingCalibrationError("cannot fit decision temperature without matching held-out labels")
-            targets = torch.tensor([entry[int(y)] for y in labels[inside]], dtype=torch.long,
-                                   device=labels.device)
-            self.temperatures[key] = self._fit(log[inside][:, union], targets, positions)
+            self.temperatures[key] = self._fit(selected_log, targets, positions)
         return self.temperatures[key]
 
     def reading(self, log: torch.Tensor | RankedObservation) -> torch.Tensor:

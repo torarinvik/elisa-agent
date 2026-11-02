@@ -1683,6 +1683,30 @@ def calibrated_difference(value: f64, anchor: f64, temperature: f64) -> f64:
     difference: f64 = value - anchor
     return value / temperature - anchor / temperature if temperature > 1.0 and difference == log(0.0) and value != log(0.0) else difference / temperature
 
+# Match held-out labels to decision groups, returning row indices followed by
+# their group labels. A single -1 reports invalid mapping metadata.
+def calibration_subset(labels: view[i64], classes: view[i64], groups: view[i64], width: i64, entries: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    return [-1] if width <= 0 or entries <= 0 or classes.len.i64() != groups.len.i64()
+    lookup: darray[i64] = [-1 for _ in 0..<width]
+    for i in 0..<classes.len.i64():
+        index: i64 = classes[i]
+        return [-1] if index < 0 or index >= width or groups[i] < 0 or groups[i] >= entries
+        return [-1] if lookup[index] >= 0
+        lookup[index] <- groups[i]
+    count: i64 =
+        for i in 0..<labels.len.i64() |count: i64 = 0| -> count:
+            label: i64 = labels[i]
+            count += 1 if label >= 0 and label < width and lookup[label] >= 0 else 0
+    return [-1] if count > 4611686018427387903
+    result: darray[i64] = [0 for _ in 0..<(count * 2)]
+    for i in 0..<labels.len.i64() |next: i64 = 0|:
+        label: i64 = labels[i]
+        if label >= 0 and label < width and lookup[label] >= 0:
+            result[next] <- i
+            result[count + next] <- lookup[label]
+            next += 1
+    return result
+
 # Mean grouped negative log-likelihood for each supplied temperature.
 # An empty result asks the caller to use its reference implementation.
 def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64], entries: i64, temperatures: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
@@ -1832,6 +1856,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn calibration_subset
     fn calibration_loss_grid
     fn weighted_decision_risk
     fn changed_rows

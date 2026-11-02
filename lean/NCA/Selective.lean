@@ -180,6 +180,12 @@ theorem ranked_restriction_ext {ι α : Type*} (indices : List ι) (a b : ι →
         intro j hj
         exact same j (List.mem_cons_of_mem _ hj)
 
+/-- A mapped calibration label appears exactly when an input label maps to it. -/
+theorem calibration_subset_membership {α β : Type*} (labels : List α)
+    (group : α → Option β) (target : β) :
+    target ∈ labels.filterMap group ↔ ∃ label ∈ labels, group label = some target := by
+  simp
+
 /-- The negative log likelihood of a group is the difference of log masses. -/
 theorem grouped_negative_log_likelihood {total group : ℝ}
     (htotal : 0 < total) (hgroup : 0 < group) :
