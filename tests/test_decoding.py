@@ -18,7 +18,7 @@ from nca.domains.boolean.words import (ARITY_ORDER)
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_arity_validation_accepts_integer_arrays_without_changing_semantics(reference, monkeypatch) -> None:
+def test_arity_validation_accepts_integer_arrays_without_changing_semantics(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     for values in (np.array([0, 1, 2], dtype=np.int32),
@@ -104,7 +104,7 @@ def test_banded_decoder_is_certified(slack: float) -> None:
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 3), (0, 3), (0, 1, 3, 2**63 - 1)])
-def test_banded_decoder_supports_general_arities(alphabet) -> None:
+def test_banded_decoder_supports_general_arities(alphabet: Any) -> None:
     rng = np.random.default_rng(238)
     for m in range(1, 9):
         for _ in range(10):
@@ -121,7 +121,7 @@ def test_banded_decoder_supports_general_arities(alphabet) -> None:
 
 @pytest.mark.parametrize("alphabet, slack", [((), 1e-4), ((0, -1), 1e-4), ((0, 0), 1e-4),
                                               ((0, 1), 0.0), ((0, 1), 1.0)])
-def test_banded_decoder_rejects_invalid_parameters(alphabet, slack) -> None:
+def test_banded_decoder_rejects_invalid_parameters(alphabet: Any, slack: float) -> None:
     with pytest.raises(ValueError):
         decode_banded(np.zeros((1, len(alphabet))), alphabet, slack)
 
@@ -129,7 +129,7 @@ def test_banded_decoder_rejects_invalid_parameters(alphabet, slack) -> None:
 @pytest.mark.parametrize("rows", [np.array([[np.inf, -np.inf]]),
                                   np.array([[np.nan, -np.inf]]),
                                   np.array([[0.0, 0.0]])])
-def test_banded_decoder_rejects_invalid_probability_rows(rows) -> None:
+def test_banded_decoder_rejects_invalid_probability_rows(rows: Any) -> None:
     with pytest.raises(ValueError, match="log probabilities"):
         decode_banded(rows, (0, 1))
     with pytest.raises(ValueError, match="log-probability"):
@@ -389,7 +389,7 @@ def test_banded_risk_retains_alternative_below_float_range(
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (0, 1, 3), (0, 1, 3, 2**63 - 1)])
-def test_native_format_partition_matches_reference(alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_native_format_partition_matches_reference(alphabet: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(decoding._NATIVE, "format_partition", None) is None:
         pytest.skip("native format partition is not built")
     rng = np.random.default_rng(240)
@@ -407,7 +407,7 @@ def test_native_format_partition_matches_reference(alphabet, monkeypatch: pytest
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(reference, monkeypatch) -> None:
+def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.zeros((5, 3))
@@ -420,7 +420,7 @@ def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(referenc
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_partition_filters_sparse_wide_alphabet(reference, monkeypatch) -> None:
+def test_format_partition_filters_sparse_wide_alphabet(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     alphabet = tuple(range(64))
@@ -434,7 +434,7 @@ def test_format_partition_filters_sparse_wide_alphabet(reference, monkeypatch) -
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_partition_handles_holes_in_state_support(reference, monkeypatch) -> None:
+def test_format_partition_handles_holes_in_state_support(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.zeros((7, 2))
@@ -443,7 +443,7 @@ def test_format_partition_handles_holes_in_state_support(reference, monkeypatch)
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_partition_excludes_early_completed_state(reference, monkeypatch) -> None:
+def test_format_partition_excludes_early_completed_state(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.array([[0.0, 0.0, -np.inf], [-np.inf, 0.0, -np.inf],
@@ -453,7 +453,7 @@ def test_format_partition_excludes_early_completed_state(reference, monkeypatch)
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3)])
-def test_format_partition_matches_enumerated_paths(alphabet) -> None:
+def test_format_partition_matches_enumerated_paths(alphabet: Any) -> None:
     rng = np.random.default_rng(241)
     for m in range(1, 7):
         rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
@@ -483,7 +483,7 @@ def test_generic_decoded_risk_survives_log_weight_shift(
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 3), (3, 0, 1, 2**63 - 1)])
-def test_generic_decoded_risk_is_stable_under_row_shifts(alphabet) -> None:
+def test_generic_decoded_risk_is_stable_under_row_shifts(alphabet: Any) -> None:
     rng = np.random.default_rng(248)
     for m in range(1, 8):
         for _ in range(10):
@@ -503,7 +503,7 @@ def test_generic_decoded_risk_is_stable_under_row_shifts(alphabet) -> None:
      (0, 1, 3), (1, 1, 1, 0)),
 ])
 def test_generic_format_risk_rejects_log_arithmetic_overflow(
-        reference_only: bool, rows, alphabet, selected, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference_only: bool, rows: Any, alphabet: Any, selected: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(priors, "_NATIVE", None)
     with pytest.raises(ValueError, match="format partition arithmetic is not finite"):
@@ -512,7 +512,7 @@ def test_generic_format_risk_rejects_log_arithmetic_overflow(
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
 @pytest.mark.parametrize("value", [-1e308, 1e308])
-def test_format_decoder_rejects_finite_log_weight_overflow(decoder, value) -> None:
+def test_format_decoder_rejects_finite_log_weight_overflow(decoder: Any, value: Any) -> None:
     rows = np.array([[-np.inf, value, -np.inf], [value, -np.inf, -np.inf]])
     with pytest.raises(ValueError, match="format decoding arithmetic is not finite"):
         decoder(rows)
@@ -572,7 +572,7 @@ def test_banded_pass_handles_extreme_numpy_centres(
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 3)])
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_pass_matches_enumeration_with_arbitrary_bands(
-        alphabet, reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+        alphabet: Any, reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(253)
@@ -609,7 +609,7 @@ def test_banded_pass_matches_enumeration_with_arbitrary_bands(
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3), (0, 3, 2**63 - 1)])
-def test_native_banded_pass_matches_reference(alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_native_banded_pass_matches_reference(alphabet: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(decoding._NATIVE, "banded_format", None) is None:
         pytest.skip("native banded decoder is not built")
     rng = np.random.default_rng(255)
@@ -630,7 +630,7 @@ def test_native_banded_pass_matches_reference(alphabet, monkeypatch: pytest.Monk
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (0, 1, 3)])
-def test_native_banded_pass_matches_sparse_ties(alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_native_banded_pass_matches_sparse_ties(alphabet: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(decoding._NATIVE, "banded_format", None) is None:
         pytest.skip("native banded decoder is not built")
     rng = np.random.default_rng(258)
@@ -917,7 +917,7 @@ def test_band_tail_accounts_for_excess_after_cursor_update(
 @pytest.mark.parametrize("reference", [[0.5, 1], [0.0, 1.0], [-1, 1], [0, 2],
                                         [0, 10**100], np.array([[0], [1]])])
 def test_band_changes_rejects_invalid_reference_indices(
-        reference_only: bool, reference, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference_only: bool, reference: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rows = np.log(np.array([[0.8, 0.2], [0.6, 0.4]]))
@@ -926,7 +926,7 @@ def test_band_changes_rejects_invalid_reference_indices(
 
 
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.uint64])
-def test_band_changes_accepts_integer_reference_arrays(dtype) -> None:
+def test_band_changes_accepts_integer_reference_arrays(dtype: Any) -> None:
     rows = np.log(np.array([[0.8, 0.2], [0.6, 0.4]]))
     assert decoding.band_changes(rows, np.array([0, 1], dtype=dtype), 0.1) == \
         decoding.band_changes(rows, [0, 1], 0.1)
@@ -1037,7 +1037,7 @@ def test_split_matches_full_decoding() -> None:
 @pytest.mark.parametrize("reference_only", [False, True])
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3), (0, 1, 3, 2**63 - 1)])
 def test_split_reachable_bounds_preserve_general_arity_updates(
-        reference_only: bool, alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference_only: bool, alphabet: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(251)
@@ -1182,7 +1182,7 @@ def test_split_rejects_invalid_rows_and_indices_before_native_calls(
                                              (np.zeros((2, 1)), (0, 1)),
                                              (np.zeros((2, 1)), (-1,)),
                                              (np.full((2, 1), np.nan), (0,))])
-def test_split_rejects_invalid_construction(rows, alphabet) -> None:
+def test_split_rejects_invalid_construction(rows: Any, alphabet: Any) -> None:
     with pytest.raises(ValueError, match="requires rows"):
         Split(rows, alphabet)
 
@@ -1190,7 +1190,7 @@ def test_split_rejects_invalid_construction(rows, alphabet) -> None:
 @pytest.mark.parametrize("centre, half", [(None, 1), (np.zeros(4, dtype=int), None),
                                            (np.zeros(3, dtype=int), 1),
                                            (np.zeros(4), 1), (np.zeros(4, dtype=int), -1)])
-def test_split_rejects_invalid_band(centre, half) -> None:
+def test_split_rejects_invalid_band(centre: Any, half: Any) -> None:
     with pytest.raises(ValueError, match="band requires"):
         Split(np.zeros((3, 3)), centre=centre, half=half)
 
@@ -1735,7 +1735,7 @@ def test_parse_accepts_exactly_the_automaton_language() -> None:
             set(parseable(m))
 
 @pytest.mark.parametrize("dtype", [np.int64, np.uint64, object])
-def test_array_parser_matches_reference_for_generic_and_invalid_sequences(dtype) -> None:
+def test_array_parser_matches_reference_for_generic_and_invalid_sequences(dtype: Any) -> None:
     for length in range(1, 6):
         for values in itertools.product(range(4), repeat=length):
             arities = np.array(values, dtype=dtype)
@@ -1747,7 +1747,7 @@ def test_array_parser_matches_reference_for_generic_and_invalid_sequences(dtype)
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_long_tuple_parser_preserves_general_and_large_arities(reference, monkeypatch) -> None:
+def test_long_tuple_parser_preserves_general_and_large_arities(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     unary = (1,) * 40 + (0,)
@@ -1813,7 +1813,7 @@ def test_certified_cursor_rejects_invalid_weights_and_handles_zero_mass() -> Non
 @pytest.mark.parametrize("alphabet", [(0,), (1,), (0, 3), (0, 1, 3),
                                       (0, 1, 3, 2**63 - 1)])
 def test_certified_cursor_supports_general_arities(
-        reference_only: bool, alphabet, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference_only: bool, alphabet: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
         monkeypatch.setattr(decoding, "_NATIVE", None)
     rng = np.random.default_rng(247)
@@ -1960,7 +1960,7 @@ def test_normalizer_only_updates_bound_risk_without_tracing(
         cursor.sequence_risk(selected)
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_certified_sequence_risk_reports_weight_precision_loss(reference, monkeypatch) -> None:
+def test_certified_sequence_risk_reports_weight_precision_loss(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(decoding, "_NATIVE", None)
         monkeypatch.setattr(priors, "_NATIVE", None)
@@ -2032,7 +2032,7 @@ def test_native_accepted_log_weight_generic_arity_and_counter_bound() -> None:
 @pytest.mark.parametrize("alphabet, expected", [([0, 1, 2], 17.0),
                                                 ([2, 0, 1], 11.0),
                                                 ([2, 0, 2], 11.0)])
-def test_native_accepted_log_weight_preserves_alphabet_lookup(alphabet, expected) -> None:
+def test_native_accepted_log_weight_preserves_alphabet_lookup(alphabet: Any, expected: float) -> None:
     native = getattr(decoding._NATIVE, "accepted_log_weight", None)
     if native is None:
         pytest.skip("native accepted sequence weight is not built")
@@ -2116,7 +2116,7 @@ def test_native_decode_ties_match_log_space_order() -> None:
 
 @pytest.mark.parametrize("alphabet", [(0, 2**63 - 1), (0, 1, 2, 2**63 - 1),
                                       np.array([0, 1, 2, 2**63 - 1], dtype=np.int64)])
-def test_decode_accepts_arities_larger_than_any_possible_state(alphabet) -> None:
+def test_decode_accepts_arities_larger_than_any_possible_state(alphabet: Any) -> None:
     rows = np.zeros((5, len(alphabet)))
     actual, expected = decode(rows, alphabet), decode_reference(rows, alphabet)
     assert (actual is None) == (expected is None)
@@ -2151,7 +2151,7 @@ def test_native_decode_keeps_ternary_paths_alongside_unary_paths() -> None:
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 3), (3, 0, 1), (0, 2, 4),
                                       (0, 1, 2, 2**63 - 1)])
-def test_native_decode_matches_reference_for_general_arities(alphabet) -> None:
+def test_native_decode_matches_reference_for_general_arities(alphabet: Any) -> None:
     rng = np.random.default_rng(242)
     for m in range(1, 11):
         for _ in range(20):
@@ -2166,13 +2166,13 @@ def test_native_decode_matches_reference_for_general_arities(alphabet) -> None:
 
 @pytest.mark.parametrize("alphabet", [(), (0, -1), (0, 1.5), (0, 1.0), (0, 0)])
 @pytest.mark.parametrize("decoder", [decode, decode_reference, decode_banded])
-def test_decode_rejects_invalid_arity_alphabet(decoder, alphabet) -> None:
+def test_decode_rejects_invalid_arity_alphabet(decoder: Any, alphabet: Any) -> None:
     with pytest.raises(ValueError, match="nonnegative arities"):
         decoder(np.zeros((2, len(alphabet))), alphabet)
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch) -> None:
+def test_format_risk_recovers_lost_equal_alternative_mass(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.full((5, 3), 1e307)
@@ -2183,7 +2183,7 @@ def test_format_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("offsets", [[1e308, 1e308, -1e308, -1e308, 0.0],
                                       [1e308, 1e308, 1e308, 1e308, 1e308]])
-def test_format_risk_cancels_row_offsets_without_summing_them(reference, offsets, monkeypatch) -> None:
+def test_format_risk_cancels_row_offsets_without_summing_them(reference: bool, offsets: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.repeat(np.array(offsets)[:, None], 3, axis=1)
@@ -2194,14 +2194,14 @@ def test_format_risk_cancels_row_offsets_without_summing_them(reference, offsets
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_absolute_format_normalizer_still_rejects_unrepresentable_offsets(decoder) -> None:
+def test_absolute_format_normalizer_still_rejects_unrepresentable_offsets(decoder: Any) -> None:
     rows = np.full((5, 3), 1e308)
     with pytest.raises(ValueError, match="arithmetic is not finite"):
         decoder(rows, (0, 1, 3))
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_general_format_risk_centered_retry_matches_enumeration(reference, monkeypatch) -> None:
+def test_general_format_risk_centered_retry_matches_enumeration(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     alphabet = (0, 1, 3)
@@ -2219,7 +2219,7 @@ def test_general_format_risk_centered_retry_matches_enumeration(reference, monke
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_risk_preserves_error_when_centering_is_unsafe(reference, monkeypatch) -> None:
+def test_format_risk_preserves_error_when_centering_is_unsafe(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.full((5, 3), 1e307)
@@ -2230,7 +2230,7 @@ def test_format_risk_preserves_error_when_centering_is_unsafe(reference, monkeyp
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_recovers_unnormalized_marginals_from_precision_loss(decoder) -> None:
+def test_decode_recovers_unnormalized_marginals_from_precision_loss(decoder: Any) -> None:
     rows = np.full((3, 3), 1e307)
     result = decoder(rows)
     assert result is not None
@@ -2240,7 +2240,7 @@ def test_decode_recovers_unnormalized_marginals_from_precision_loss(decoder) -> 
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_centered_retry_matches_enumeration(decoder) -> None:
+def test_decode_centered_retry_matches_enumeration(decoder: Any) -> None:
     rng = np.random.default_rng(881)
     candidates = list(parseable(5))
     for _ in range(30):
@@ -2261,7 +2261,7 @@ def test_decode_centered_retry_matches_enumeration(decoder) -> None:
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_skips_overflow_in_unreachable_suffix(decoder) -> None:
+def test_decode_skips_overflow_in_unreachable_suffix(decoder: Any) -> None:
     rows = np.array([[-np.inf, 0.0], [-1e308, 0.0], [-1e308, -np.inf]])
     result = decoder(rows, (0, 1))
     assert result is not None
@@ -2271,7 +2271,7 @@ def test_decode_skips_overflow_in_unreachable_suffix(decoder) -> None:
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_skips_overflow_in_prefix_without_supported_completion(decoder) -> None:
+def test_decode_skips_overflow_in_prefix_without_supported_completion(decoder: Any) -> None:
     rows = np.array([[-np.inf, 0.0, -1e308], [-np.inf, -1e308, -np.inf],
                      [-np.inf, 0.0, -np.inf], [0.0, -np.inf, -np.inf]])
     result = decoder(rows)
@@ -2283,13 +2283,13 @@ def test_decode_skips_overflow_in_prefix_without_supported_completion(decoder) -
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_returns_none_when_overflowing_prefix_cannot_finish(decoder) -> None:
+def test_decode_returns_none_when_overflowing_prefix_cannot_finish(decoder: Any) -> None:
     rows = np.array([[-np.inf, -1e308], [-np.inf, -1e308], [-np.inf, 0.0]])
     assert decoder(rows, (0, 1)) is None
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_rejects_overflow_on_reachable_path(decoder) -> None:
+def test_decode_rejects_overflow_on_reachable_path(decoder: Any) -> None:
     rows = np.array([[-np.inf, 0.0, 0.0], [-1e308, 0.0, -np.inf],
                      [-1e308, -np.inf, -np.inf]])
     with pytest.raises(ValueError, match="arithmetic is not finite"):
@@ -2299,19 +2299,19 @@ def test_decode_rejects_overflow_on_reachable_path(decoder) -> None:
 @pytest.mark.parametrize("decoder", [decode, decode_reference, decode_banded])
 @pytest.mark.parametrize("rows", [np.zeros(3), np.zeros((2, 2)), np.full((2, 3), np.nan),
                                   np.full((2, 3), np.inf)])
-def test_decode_rejects_malformed_rows(decoder, rows) -> None:
+def test_decode_rejects_malformed_rows(decoder: Any, rows: Any) -> None:
     with pytest.raises(ValueError, match="rows must"):
         decoder(rows, (0, 1, 2))
 
 
 @pytest.mark.parametrize("parser", [parse, decoding.parse_reference])
 @pytest.mark.parametrize("arities", [(-1,), (0.0,), (1.5, 0), (1, -1)])
-def test_parse_rejects_noninteger_or_negative_arities(parser, arities) -> None:
+def test_parse_rejects_noninteger_or_negative_arities(parser: Any, arities: Any) -> None:
     assert parser(arities) is None
 
 
 @pytest.mark.parametrize("parser", [parse, decoding.parse_reference])
-def test_parse_handles_deep_general_arity_without_recursion(parser) -> None:
+def test_parse_handles_deep_general_arity_without_recursion(parser: Any) -> None:
     depth = 1500
     arities = np.array([1] * depth + [3, 0, 0, 0], dtype=np.int64)
     children = parser(arities)
@@ -2341,7 +2341,7 @@ def test_generic_parser_handles_unbounded_impossible_arity(
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (2, 0, 1), (2, 1, 0)])
-def test_native_decode_ties_match_reference_across_alphabet_orders(alphabet) -> None:
+def test_native_decode_ties_match_reference_across_alphabet_orders(alphabet: Any) -> None:
     rng = np.random.default_rng(920)
     for length in range(2, 9):
         for _ in range(100):
@@ -2353,7 +2353,7 @@ def test_native_decode_ties_match_reference_across_alphabet_orders(alphabet) -> 
 
 
 @pytest.mark.parametrize("extreme", [-1000.0, 1000.0])
-def test_native_decode_ignores_extreme_weights_for_impossible_arities(extreme) -> None:
+def test_native_decode_ignores_extreme_weights_for_impossible_arities(extreme: Any) -> None:
     native = getattr(decoding._NATIVE, "decode", None)
     if native is None:
         pytest.skip("native decoder is not built")
@@ -2411,7 +2411,7 @@ def test_native_decode_skips_unreachable_backward_states() -> None:
 
 @pytest.mark.parametrize("kernel, row", [("decode", np.log([0.2, 0.3, 0.5])),
                                          ("decode_log", np.full(3, -1000.0))])
-def test_native_decoder_ignores_impossible_arity_in_state_bound(kernel, row) -> None:
+def test_native_decoder_ignores_impossible_arity_in_state_bound(kernel: str, row: Any) -> None:
     native = getattr(decoding._NATIVE, kernel, None)
     if native is None:
         pytest.skip("native decoder is not built")
@@ -2443,7 +2443,7 @@ def test_native_log_decoder_long_unary_alphabet() -> None:
 
 @pytest.mark.parametrize("alphabet", [(0,), (0, 1), (0, 1, 2), (2, 0, 1), (2, 1, 0), (0, 3),
                                       (6, 0, 3, 1, 2), (0, 2**63 - 1)])
-def test_native_log_decoder_matches_reference_on_extreme_tied_rows(alphabet) -> None:
+def test_native_log_decoder_matches_reference_on_extreme_tied_rows(alphabet: Any) -> None:
     native = getattr(decoding._NATIVE, "decode_log", None)
     if native is None:
         pytest.skip("native log decoder is not built")

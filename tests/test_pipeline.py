@@ -271,7 +271,7 @@ def test_parser_preserves_order_when_positive_fusion_scale_rounds_to_a_tie() -> 
     assert ExpressionParser().invoke([fused]) == ("1",)
 
 
-def test_batched_ranked_symbol_choices_match_fallback(monkeypatch) -> None:
+def test_batched_ranked_symbol_choices_match_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.domains.arithmetic.symbols as symbols
     from nca.ladder import RankedReading
 
@@ -293,7 +293,7 @@ def test_batched_ranked_symbol_choices_match_fallback(monkeypatch) -> None:
     assert batched == parser.invoke(entries)
 
 
-def test_batched_ranked_symbol_choices_reject_short_weight_vectors(monkeypatch) -> None:
+def test_batched_ranked_symbol_choices_reject_short_weight_vectors(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.domains.arithmetic.symbols as symbols
     from nca.ladder import RankedReading
 

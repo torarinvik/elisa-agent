@@ -17,7 +17,7 @@ from nca.domains.boolean.words import (ARITY_DECISION, EditReader)
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("location", ["edge", "final"])
-def test_prior_evidence_and_selection_ignore_large_common_weight(reference, location, monkeypatch) -> None:
+def test_prior_evidence_and_selection_ignore_large_common_weight(reference: bool, location: str, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     large = float(2**52)
@@ -40,7 +40,7 @@ def test_prior_evidence_and_selection_ignore_large_common_weight(reference, loca
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_evidence_ignores_forbidden_edge_weight_when_shifting(reference, monkeypatch) -> None:
+def test_prior_evidence_ignores_forbidden_edge_weight_when_shifting(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     large = -float(2**52)
@@ -53,7 +53,7 @@ def test_prior_evidence_ignores_forbidden_edge_weight_when_shifting(reference, m
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_evidence_rejects_large_normalizers_hidden_by_unreachable_final(reference, monkeypatch) -> None:
+def test_prior_evidence_rejects_large_normalizers_hidden_by_unreachable_final(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0], [-1, -1]]),
@@ -89,7 +89,7 @@ def test_support_matches_positive_normalizers() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_evidence_rejects_unrepresentable_prior_shift(reference, monkeypatch) -> None:
+def test_prior_evidence_rejects_unrepresentable_prior_shift(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.array([[1e308, -1e308]]),
@@ -262,7 +262,7 @@ def test_priority_score_comparison_handles_overflowing_gap() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_selection_distinguishes_subnormal_score_gaps(reference, monkeypatch) -> None:
+def test_prior_selection_distinguishes_subnormal_score_gaps(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     alphabet = (0, 1, 2)
@@ -278,7 +278,7 @@ def test_prior_selection_distinguishes_subnormal_score_gaps(reference, monkeypat
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_selection_rejects_lost_evidence_contribution(reference, monkeypatch) -> None:
+def test_prior_selection_rejects_lost_evidence_contribution(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, -1]]), np.zeros((1, 2)), np.zeros(1))
@@ -291,7 +291,7 @@ def test_prior_selection_rejects_lost_evidence_contribution(reference, monkeypat
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_selection_recovers_repeated_small_evidence(reference, monkeypatch) -> None:
+def test_prior_selection_recovers_repeated_small_evidence(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, -1]]), np.zeros((1, 2)), np.zeros(1))
@@ -383,7 +383,7 @@ def test_clipped_prior_selection_bounds_subnormal_error_upward() -> None:
     (1e300, 1e-300),
     (1e-307, 1e-320),
 ])
-def test_clipped_prior_error_bound_covers_high_precision_extremes(clip, alpha) -> None:
+def test_clipped_prior_error_bound_covers_high_precision_extremes(clip: Any, alpha: Any) -> None:
     result = priors.select_prior([lambda _: None], [np.array([[0.0]])], np.array([0.0]),
                                  alphabet=(0,), score_clip=clip, alpha=alpha)
     with localcontext() as context:

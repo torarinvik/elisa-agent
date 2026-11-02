@@ -168,7 +168,7 @@ def test_calibration_fits_temperature() -> None:
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint64, torch.int8, torch.int64])
-def test_batched_integer_readings_shift_each_row(native, dtype, monkeypatch) -> None:
+def test_batched_integer_readings_shift_each_row(native: bool, dtype: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "shifted_integer_rows_into", None) is None:
@@ -186,7 +186,7 @@ def test_batched_integer_readings_shift_each_row(native, dtype, monkeypatch) -> 
 
 
 @pytest.mark.parametrize("unsigned", [False, True])
-def test_native_integer_row_shifts_match_exact_differences(unsigned) -> None:
+def test_native_integer_row_shifts_match_exact_differences(unsigned: bool) -> None:
     from nca import ladder as ladder_module
 
     kernel = getattr(ladder_module._NATIVE, "shifted_integer_rows_into", None)
@@ -220,7 +220,7 @@ def test_batched_float_readings_shift_each_row_and_validate_mass() -> None:
         rung.reading(invalid)
 
 
-def test_native_batched_float_scaling_matches_individual_rows(monkeypatch) -> None:
+def test_native_batched_float_scaling_matches_individual_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -228,7 +228,7 @@ def test_native_batched_float_scaling_matches_individual_rows(monkeypatch) -> No
     if kernel is None:
         pytest.skip("native float row kernel is not built")
     calls = []
-    def measured(*args):
+    def measured(*args: Any) -> Any:
         calls.append(True)
         return kernel(*args)
     monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(scaled_logit_rows_into=measured))
@@ -248,7 +248,7 @@ def test_native_batched_float_scaling_matches_individual_rows(monkeypatch) -> No
             rung.reading(torch.tensor(values, dtype=torch.float64))
 
 
-def test_native_batched_float_readings_match_tensor_reference(monkeypatch) -> None:
+def test_native_batched_float_readings_match_tensor_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "scaled_logit_rows_into", None) is None:
@@ -358,7 +358,7 @@ def test_batched_risk_uses_reading_ties_with_restricted_temperature(
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype,large", [(torch.int64, 2**60), (torch.uint64, 2**63)])
 def test_batched_integer_readings_preserve_selection_before_conversion(
-        native, dtype, large, monkeypatch) -> None:
+        native: bool, dtype: Any, large: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
@@ -379,7 +379,7 @@ def test_batched_integer_readings_preserve_selection_before_conversion(
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_batched_integer_reading_checks_only_selected_values(native, monkeypatch) -> None:
+def test_batched_integer_reading_checks_only_selected_values(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_rows_into", None) is None:
@@ -395,7 +395,7 @@ def test_batched_integer_reading_checks_only_selected_values(native, monkeypatch
 
 
 @pytest.mark.parametrize("dtype", [torch.bool, torch.uint8, torch.uint16, torch.uint32, torch.uint64])
-def test_batched_integer_reading_accepts_valid_one_hot_values(dtype) -> None:
+def test_batched_integer_reading_accepts_valid_one_hot_values(dtype: Any) -> None:
     logits = torch.tensor([[0.0, -1000.0], [-1000.0, 0.0]], dtype=torch.float64)
     reading = torch.tensor([[1, 0], [0, 1]], dtype=dtype)
     rung = Rung(None)
@@ -542,7 +542,7 @@ def test_native_batched_risk_kernel_validates_shape_and_metadata() -> None:
 
 
 @pytest.mark.parametrize("unsigned", [False, True])
-def test_native_batched_integer_risk_preserves_order_and_validates(unsigned) -> None:
+def test_native_batched_integer_risk_preserves_order_and_validates(unsigned: bool) -> None:
     from nca import ladder as ladder_module
 
     kernel = getattr(ladder_module._NATIVE, "calibrated_integer_risk_rows_into", None)
@@ -833,7 +833,7 @@ def test_mps_batched_grouped_unsigned_logits_keep_local_order() -> None:
 
 
 @pytest.mark.parametrize("device", ["mps", "cuda"])
-def test_accelerator_batched_readings_shift_each_row(device) -> None:
+def test_accelerator_batched_readings_shift_each_row(device: str) -> None:
     available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
     if not available:
         pytest.skip(f"{device} is unavailable")
@@ -851,7 +851,7 @@ def test_accelerator_batched_readings_shift_each_row(device) -> None:
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64,
                                   torch.int8, torch.int16, torch.int32, torch.int64])
-def test_integer_logit_calibration_preserves_order_and_group_probabilities(native, dtype, monkeypatch) -> None:
+def test_integer_logit_calibration_preserves_order_and_group_probabilities(native: bool, dtype: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
@@ -873,7 +873,7 @@ def test_integer_logit_calibration_preserves_order_and_group_probabilities(nativ
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint64, torch.int8, torch.int64])
-def test_integer_logit_restriction_preserves_local_differences(native, dtype, monkeypatch) -> None:
+def test_integer_logit_restriction_preserves_local_differences(native: bool, dtype: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
@@ -891,7 +891,7 @@ def test_integer_logit_restriction_preserves_local_differences(native, dtype, mo
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_unsigned_integer_logits_across_signed_boundary(native, monkeypatch) -> None:
+def test_unsigned_integer_logits_across_signed_boundary(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "shifted_integer_logits_into", None) is None:
@@ -907,7 +907,7 @@ def test_unsigned_integer_logits_across_signed_boundary(native, monkeypatch) -> 
 
 
 @pytest.mark.parametrize("unsigned", [False, True])
-def test_native_integer_shift_matches_exact_integer_differences(unsigned) -> None:
+def test_native_integer_shift_matches_exact_integer_differences(unsigned: bool) -> None:
     from nca import ladder as ladder_module
 
     kernel = getattr(ladder_module._NATIVE, "shifted_integer_logits_into", None)
@@ -928,7 +928,7 @@ def test_native_integer_shift_matches_exact_integer_differences(unsigned) -> Non
 
 
 @pytest.mark.parametrize("device", ["mps", "cuda"])
-def test_accelerator_integer_logit_reading_preserves_adjacent_values(device) -> None:
+def test_accelerator_integer_logit_reading_preserves_adjacent_values(device: str) -> None:
     available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
     if not available:
         pytest.skip(f"{device} is unavailable")
@@ -941,7 +941,7 @@ def test_accelerator_integer_logit_reading_preserves_adjacent_values(device) -> 
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.int64, torch.uint64])
-def test_mps_calibration_handles_temperature_below_device_range(dtype) -> None:
+def test_mps_calibration_handles_temperature_below_device_range(dtype: Any) -> None:
     if not torch.backends.mps.is_available():
         pytest.skip("mps is unavailable")
     rung = Rung(None)
@@ -998,7 +998,7 @@ def test_mps_log_distribution_preserves_gradients_across_cpu_copy() -> None:
 
 
 @pytest.mark.parametrize("dtype", [torch.int64, torch.uint64])
-def test_mps_restricted_log_distribution_preserves_large_integer_differences(dtype) -> None:
+def test_mps_restricted_log_distribution_preserves_large_integer_differences(dtype: Any) -> None:
     if not torch.backends.mps.is_available():
         pytest.skip("mps is unavailable")
     maximum = torch.iinfo(dtype).max
@@ -1019,7 +1019,7 @@ def test_mps_wide_sparse_log_distribution() -> None:
 
 
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.uint16, torch.uint32, torch.uint64])
-def test_calibration_accepts_unsigned_integer_labels(dtype) -> None:
+def test_calibration_accepts_unsigned_integer_labels(dtype: Any) -> None:
     rung = Rung(constant("unsigned-labels", (0.4, 0.6), 1.0))
     rung.calibrate([0, 1, 2, 3], torch.tensor([0, 1, 0, 1], dtype=dtype))
     assert rung.held_out is not None
@@ -1078,7 +1078,7 @@ def test_native_sparse_calibration_subset_matches_dense_and_validates() -> None:
     assert native(labels, np.array([], dtype=np.int64), np.array([], dtype=np.int64), 1_000_000, 2) == []
 
 
-def test_restricted_calibration_subset_matches_reference(monkeypatch) -> None:
+def test_restricted_calibration_subset_matches_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -1099,7 +1099,7 @@ def test_restricted_calibration_subset_matches_reference(monkeypatch) -> None:
     assert actual == second.temperature(decision)
 
 
-def test_restricted_calibration_subset_falls_back_for_out_of_range_classes(monkeypatch) -> None:
+def test_restricted_calibration_subset_falls_back_for_out_of_range_classes(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "calibration_subset", None) is None:
@@ -1113,7 +1113,7 @@ def test_restricted_calibration_subset_falls_back_for_out_of_range_classes(monke
         rung.temperature(((0,), (7,)))
 
 
-def test_missing_restricted_calibration_is_cached_and_invalidated(monkeypatch) -> None:
+def test_missing_restricted_calibration_is_cached_and_invalidated(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -1121,7 +1121,7 @@ def test_missing_restricted_calibration_is_cached_and_invalidated(monkeypatch) -
     if kernel is None:
         pytest.skip("native calibration subset kernel is not built")
     calls = []
-    def measured(*args):
+    def measured(*args: Any) -> Any:
         calls.append(True)
         return kernel(*args)
     monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(calibration_subset=measured))
@@ -1219,7 +1219,7 @@ def test_pre_cache_serialized_rung_state_restores_missing_calibration() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_restricted_calibration_gathers_only_requested_columns(native, monkeypatch) -> None:
+def test_restricted_calibration_gathers_only_requested_columns(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibration_subset", None) is None:
@@ -1228,7 +1228,7 @@ def test_restricted_calibration_gathers_only_requested_columns(native, monkeypat
         monkeypatch.setattr(ladder_module, "_NATIVE", None)
 
     class CaptureRung(Rung):
-        def _fit(self, log, labels, entries=None):
+        def _fit(self, log: Any, labels: Any, entries: Any=None) -> Any:
             self.captured = (log, labels, entries)
             return 1.0
 
@@ -1249,13 +1249,13 @@ def test_restricted_calibration_gathers_only_requested_columns(native, monkeypat
 
 
 @pytest.mark.parametrize("device", ["mps", "cuda"])
-def test_accelerator_restricted_calibration_gather(device) -> None:
+def test_accelerator_restricted_calibration_gather(device: str) -> None:
     available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
     if not available:
         pytest.skip(f"{device} is unavailable")
 
     class CaptureRung(Rung):
-        def _fit(self, log, labels, entries=None):
+        def _fit(self, log: Any, labels: Any, entries: Any=None) -> Any:
             self.captured = (log, labels)
             return 1.0
 
@@ -1270,7 +1270,7 @@ def test_accelerator_restricted_calibration_gather(device) -> None:
 
 
 @pytest.mark.parametrize("grouped", [False, True])
-def test_native_temperature_fit_matches_reference(grouped, monkeypatch) -> None:
+def test_native_temperature_fit_matches_reference(grouped: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
@@ -1300,7 +1300,7 @@ def test_native_temperature_fit_matches_reference(grouped, monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_temperature_fit_respects_permuted_singleton_entries(native, monkeypatch) -> None:
+def test_temperature_fit_respects_permuted_singleton_entries(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
@@ -1323,7 +1323,7 @@ def test_temperature_fit_respects_permuted_singleton_entries(native, monkeypatch
     (torch.float64, 1e308, -1e308),
     (torch.float32, 3e38, 2e38),
 ])
-def test_temperature_fit_stabilizes_large_finite_logits(native, grouped, rows, dtype, high, low, monkeypatch) -> None:
+def test_temperature_fit_stabilizes_large_finite_logits(native: bool, grouped: bool, rows: int, dtype: Any, high: float, low: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
@@ -1340,7 +1340,7 @@ def test_temperature_fit_stabilizes_large_finite_logits(native, grouped, rows, d
         assert rung.temperature(((0, 2), (1,))) == 8.0
 
 
-def test_extreme_grouped_fit_allows_zero_mass_in_other_groups(monkeypatch) -> None:
+def test_extreme_grouped_fit_allows_zero_mass_in_other_groups(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
@@ -1350,7 +1350,7 @@ def test_extreme_grouped_fit_allows_zero_mass_in_other_groups(monkeypatch) -> No
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_grouped_fit_handles_unused_empty_entry(native, monkeypatch) -> None:
+def test_grouped_fit_handles_unused_empty_entry(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
@@ -1363,7 +1363,7 @@ def test_grouped_fit_handles_unused_empty_entry(native, monkeypatch) -> None:
         Rung._fit(logits, torch.tensor([1]), ((1,), ()))
 
 
-def test_extreme_grouped_fit_preserves_overlapping_entries(monkeypatch) -> None:
+def test_extreme_grouped_fit_preserves_overlapping_entries(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
@@ -1372,7 +1372,7 @@ def test_extreme_grouped_fit_preserves_overlapping_entries(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("bad", [-100, -1, 2])
-def test_grouped_fit_rejects_invalid_labels(bad, monkeypatch) -> None:
+def test_grouped_fit_rejects_invalid_labels(bad: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     monkeypatch.setattr(ladder_module, "_NATIVE", None)
@@ -1383,7 +1383,7 @@ def test_grouped_fit_rejects_invalid_labels(bad, monkeypatch) -> None:
         Rung._fit(torch.zeros((2, 3)), torch.tensor([bad, 1]), ((0, 2), (1,)))
 
 
-def test_native_calibration_grid_stabilizes_overflowing_means(monkeypatch) -> None:
+def test_native_calibration_grid_stabilizes_overflowing_means(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     native = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
@@ -1403,7 +1403,7 @@ def test_native_calibration_grid_stabilizes_overflowing_means(monkeypatch) -> No
     assert mixed_losses == pytest.approx([2e307, 2e306, 1e306, 2.5e305], rel=1e-14)
     assert native(logits.numpy().reshape(-1), labels.numpy()[:1], groups, 2, temperatures) == []
 
-    def unexpected_fallback(*args):
+    def unexpected_fallback(*args: Any) -> Any:
         raise AssertionError("stable native grid should handle this fit")
 
     monkeypatch.setattr(ladder_module, "_temperature_scores", unexpected_fallback)
@@ -1536,7 +1536,7 @@ def test_native_calibration_preserves_tied_row_maxima() -> None:
 
 
 @pytest.mark.parametrize("grouped", [False, True])
-def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
+def test_native_calibration_grid_matches_reference_losses(grouped: bool) -> None:
     from nca import ladder as ladder_module
 
     native = getattr(ladder_module._NATIVE, "calibration_loss_grid", None)
@@ -1564,7 +1564,7 @@ def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
 
 
 @pytest.mark.parametrize("grouped,small_rows,large_rows", [(False, 100, 300), (True, 100, 2100)])
-def test_temperature_fit_routes_large_cpu_batches_to_reference(grouped, small_rows, large_rows, monkeypatch) -> None:
+def test_temperature_fit_routes_large_cpu_batches_to_reference(grouped: bool, small_rows: int, large_rows: int, monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -1572,7 +1572,7 @@ def test_temperature_fit_routes_large_cpu_batches_to_reference(grouped, small_ro
     if kernel is None:
         pytest.skip("native calibration kernel is not built")
     calls = []
-    def measured(*args):
+    def measured(*args: Any) -> Any:
         calls.append(True)
         return kernel(*args)
     monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(calibration_loss_grid=measured))
@@ -1594,7 +1594,7 @@ def test_observation_preserves_small_positive_probabilities() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_ranked_observation_retains_original_restricted_order(native, monkeypatch) -> None:
+def test_ranked_observation_retains_original_restricted_order(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
@@ -1605,7 +1605,7 @@ def test_ranked_observation_retains_original_restricted_order(native, monkeypatc
     class Expert:
         manifest = Manifest("ranked", "1", Contract(("x",), "dist"))
         calls = 0
-        def invoke(self, value):
+        def invoke(self, value: Any) -> Any:
             self.calls += 1
             return (1.0, 1e-300, math.nextafter(1e-300, math.inf))
 
@@ -1631,7 +1631,7 @@ def test_ranked_observation_retains_original_restricted_order(native, monkeypatc
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf, -0.1])
-def test_ranked_selection_rejects_invalid_weights(native, bad, monkeypatch) -> None:
+def test_ranked_selection_rejects_invalid_weights(native: bool, bad: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "ranked_argmax_checked", None) is None:
@@ -1650,7 +1650,7 @@ def test_ranked_selection_rejects_invalid_weights(native, bad, monkeypatch) -> N
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_ranked_selection_preserves_zero_weight_ties(native, monkeypatch) -> None:
+def test_ranked_selection_preserves_zero_weight_ties(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "ranked_argmax_checked", None) is None:
@@ -1662,7 +1662,7 @@ def test_ranked_selection_preserves_zero_weight_ties(native, monkeypatch) -> Non
     assert Rung(None).risk(observation, ((2,), (1,))) == pytest.approx(0.5)
 
 
-def test_ranked_selection_validates_with_legacy_kernel(monkeypatch) -> None:
+def test_ranked_selection_validates_with_legacy_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -1673,7 +1673,7 @@ def test_ranked_selection_validates_with_legacy_kernel(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_large_restricted_ranked_selection_preserves_contract(native, monkeypatch) -> None:
+def test_large_restricted_ranked_selection_preserves_contract(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
@@ -1696,7 +1696,7 @@ def test_large_restricted_ranked_selection_preserves_contract(native, monkeypatc
     assert invalid.top(tuple(i for i in indices if i != 7)) == 19
 
 
-def test_native_restricted_ranked_selection_matches_reference(monkeypatch) -> None:
+def test_native_restricted_ranked_selection_matches_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
@@ -1714,7 +1714,7 @@ def test_native_restricted_ranked_selection_matches_reference(monkeypatch) -> No
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("outside", [10**400, "not-a-weight"])
-def test_restricted_ranked_selection_ignores_unconvertible_outside_weights(native, outside, monkeypatch) -> None:
+def test_restricted_ranked_selection_ignores_unconvertible_outside_weights(native: bool, outside: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
@@ -1749,7 +1749,7 @@ def test_ranked_index_cache_respects_identity_and_mutable_lists() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
+def test_ranked_risk_uses_original_winner_group(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_at", None) is None:
@@ -1788,7 +1788,7 @@ def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
 @pytest.mark.parametrize("weights", [(), (0.0, 0.0), (-0.1, 1.0),
                                       (float("nan"), 1.0), (float("inf"), 1.0),
                                       (float("-inf"), 1.0), ((0.1, 0.9),), 1.0])
-def test_observation_rejects_invalid_weights(weights, native, monkeypatch) -> None:
+def test_observation_rejects_invalid_weights(weights: Any, native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
@@ -1800,7 +1800,7 @@ def test_observation_rejects_invalid_weights(weights, native, monkeypatch) -> No
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_observation_accepts_unnormalized_positive_weights(native, monkeypatch) -> None:
+def test_observation_accepts_unnormalized_positive_weights(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
@@ -1813,7 +1813,7 @@ def test_observation_accepts_unnormalized_positive_weights(native, monkeypatch) 
     assert large.reading(large.observe(None)).tolist() == pytest.approx([0.5, 0.5])
 
 
-def test_native_observation_logs_match_fallback(monkeypatch) -> None:
+def test_native_observation_logs_match_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "observation_logs", None) is None:
@@ -1852,14 +1852,14 @@ def test_native_observation_logs_into_matches_legacy_and_validates() -> None:
         np.testing.assert_array_equal(sentinel, np.full_like(invalid, -42.0))
 
 
-def test_observation_supports_older_native_kernel(monkeypatch) -> None:
+def test_observation_supports_older_native_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     native = ladder_module._NATIVE
     if getattr(native, "observation_logs", None) is None:
         pytest.skip("native observation preparation is not built")
     class LegacyNative:
-        def __getattr__(self, name):
+        def __getattr__(self, name: Any) -> Any:
             if name == "observation_logs_into":
                 raise AttributeError(name)
             return getattr(native, name)
@@ -1870,7 +1870,7 @@ def test_observation_supports_older_native_kernel(monkeypatch) -> None:
                                   native.observation_logs(np.array([1.0, 0.0, 1e-300])))
 
 
-def test_observation_decisions_match_across_cpu_paths(monkeypatch) -> None:
+def test_observation_decisions_match_across_cpu_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "observation_logs", None) is None:
@@ -1885,7 +1885,7 @@ def test_observation_decisions_match_across_cpu_paths(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_observation_accepts_tensor_containing_sequence(native, monkeypatch) -> None:
+def test_observation_accepts_tensor_containing_sequence(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import warnings
     from nca import ladder as ladder_module
 
@@ -2148,7 +2148,7 @@ def test_risk_preserves_tiny_alternative_mass(reference: bool,
 
 @pytest.mark.parametrize("decision", [((0, 1), (1, 2)), ((0, 0), (1,)),
                                       ((), (0,)), (), ((-1,), (0,)), ((True,), (0,))])
-def test_grouped_decision_rejects_invalid_partitions(decision) -> None:
+def test_grouped_decision_rejects_invalid_partitions(decision: Any) -> None:
     from nca.ladder import risk
 
     reading = torch.tensor([0.6, 0.4, 0.0], dtype=torch.float64)
@@ -2289,7 +2289,7 @@ def test_predictive_stopping_can_split_by_open_charge() -> None:
                                                     (0.1, float("inf"), 0.25),
                                                     (0.1, 0.1, 0),
                                                     (0.1, 0.1, float("nan"))])
-def test_predictive_stopping_rejects_invalid_parameters(target, weight, width) -> None:
+def test_predictive_stopping_rejects_invalid_parameters(target: Any, weight: Any, width: Any) -> None:
     from nca.ladder import stopping_rule
 
     with pytest.raises(ValueError):
@@ -2308,7 +2308,7 @@ def test_risk_allocation_uses_current_bound(priorities: list[float]) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_risk_allocation_accepts_numpy_vectors(native, monkeypatch) -> None:
+def test_risk_allocation_accepts_numpy_vectors(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "risk_shares_covering", None) is None:
@@ -2331,7 +2331,7 @@ def test_risk_allocation_rejects_invalid_inputs(bound: float, priorities: list[f
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_risk_allocation_covers_bound_as_exact_binary64_sum(reference, monkeypatch) -> None:
+def test_risk_allocation_covers_bound_as_exact_binary64_sum(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if reference:
@@ -2349,7 +2349,7 @@ def test_risk_allocation_covers_bound_as_exact_binary64_sum(reference, monkeypat
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_risk_allocation_rejects_priorities_lost_by_binary64_conversion(reference, monkeypatch) -> None:
+def test_risk_allocation_rejects_priorities_lost_by_binary64_conversion(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if reference:
@@ -2763,13 +2763,13 @@ def test_solve_stops_preserves_certificate_and_floor_endpoints() -> None:
     class Consumer:
         manifest = Manifest("certified", "1.0.0", Contract(("seq[dist]",), "out"))
 
-        def certificate(self, readings, risk, distribution):
+        def certificate(self, readings: Any, risk: Any, distribution: Any) -> Any:
             return {i: risk(i, None) for i in range(len(readings))}
 
-        def floor(self, readings, risk, fixed):
+        def floor(self, readings: Any, risk: Any, fixed: Any) -> Any:
             return sum(risk(i, None) for i in fixed)
 
-        def invoke(self, readings):
+        def invoke(self, readings: Any) -> Any:
             return tuple(int(np.argmax(row)) for row in readings)
 
     cheap = constant("cheap-cert", (0.4, 0.6), 1.0, Contract(("ch",), "dist"))
@@ -2858,11 +2858,11 @@ def test_ranked_consumer_uses_same_order_for_answer_and_certificate() -> None:
         manifest = Manifest("ranked-consumer", "1", Contract(("seq[dist]",), "out"))
         ranked_readings = True
 
-        def certificate(self, readings, risk, distribution):
+        def certificate(self, readings: Any, risk: Any, distribution: Any) -> Any:
             assert readings[0].top([1, 2, 3]) == 2
             return {0: risk(0, ((1, 3), (2,)))}
 
-        def invoke(self, readings):
+        def invoke(self, readings: Any) -> Any:
             return readings[0].top([1, 2, 3])
 
     low = 1e-300
@@ -2883,10 +2883,10 @@ def test_ranked_shared_paths_keep_each_observation_snapshot() -> None:
         manifest = Manifest("ranked-snapshot-consumer", "1", Contract(("seq[dist]",), "out"))
         ranked_readings = True
 
-        def certificate(self, readings, risk, distribution):
+        def certificate(self, readings: Any, risk: Any, distribution: Any) -> Any:
             return {0: risk(0, ((1, 3), (2,)))}
 
-        def invoke(self, readings):
+        def invoke(self, readings: Any) -> Any:
             return readings[0].top([1, 2, 3])
 
     low = 1e-300
@@ -2913,16 +2913,16 @@ def test_ranked_fuser_and_legacy_fuser_match_their_risk_decisions() -> None:
         manifest = Manifest("ranked-fuser", "1", Contract(("dist",), "read"))
         ranked_readings = True
 
-        def decision_classes(self, index, demand):
+        def decision_classes(self, index: Any, demand: Any) -> Any:
             return ((1, 3), (2,))
 
-        def invoke(self, reading):
+        def invoke(self, reading: Any) -> Any:
             return reading.top([1, 3, 2])
 
     class LegacyFuser(Fuser):
         ranked_readings = False
 
-        def invoke(self, reading):
+        def invoke(self, reading: Any) -> Any:
             return max((1, 3, 2), key=reading.__getitem__)
 
     low = 1e-300
@@ -2968,7 +2968,7 @@ def test_symbol_fuser_hands_ranked_order_to_parser() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_extreme_temperature_preserves_tied_calibrated_readings(native, monkeypatch) -> None:
+def test_extreme_temperature_preserves_tied_calibrated_readings(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_groups", None) is None:
@@ -2988,7 +2988,7 @@ def test_extreme_temperature_preserves_tied_calibrated_readings(native, monkeypa
 
 @pytest.mark.parametrize("decision", [None, ((0,), (1,))])
 @pytest.mark.parametrize("temperature", [0.0, -1.0, math.inf, math.nan])
-def test_ranked_distribution_rejects_invalid_temperature(decision, temperature) -> None:
+def test_ranked_distribution_rejects_invalid_temperature(decision: Any, temperature: Any) -> None:
     from nca.ladder import decision_key
 
     rung = Rung(constant("bad-distribution-temperature", (0.4, 0.6), 1.0))
@@ -3000,7 +3000,7 @@ def test_ranked_distribution_rejects_invalid_temperature(decision, temperature) 
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("temperature", [0.0, -1.0, math.inf, math.nan])
-def test_calibration_paths_reject_invalid_temperature(native, temperature, monkeypatch) -> None:
+def test_calibration_paths_reject_invalid_temperature(native: bool, temperature: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and ladder_module._NATIVE is None:
@@ -3026,7 +3026,7 @@ def test_calibration_paths_reject_invalid_temperature(native, temperature, monke
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("case", ["empty_full", "empty_restricted", "nan", "positive_inf"])
-def test_calibration_rejects_undefined_decision_mass(native, case, monkeypatch) -> None:
+def test_calibration_rejects_undefined_decision_mass(native: bool, case: str, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and ladder_module._NATIVE is None:
@@ -3055,7 +3055,7 @@ def test_calibration_rejects_undefined_decision_mass(native, case, monkeypatch) 
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_calibration_allows_zero_mass_entries_when_decision_has_mass(native, monkeypatch) -> None:
+def test_calibration_allows_zero_mass_entries_when_decision_has_mass(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and ladder_module._NATIVE is None:
@@ -3072,7 +3072,7 @@ def test_calibration_allows_zero_mass_entries_when_decision_has_mass(native, mon
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype,scale", [(torch.float32, 3e38), (torch.float64, 1e308)])
-def test_calibration_rescales_before_overflow(native, dtype, scale, monkeypatch) -> None:
+def test_calibration_rescales_before_overflow(native: bool, dtype: Any, scale: float, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and ladder_module._NATIVE is None:
@@ -3108,7 +3108,7 @@ def test_calibration_overflow_rescaling_preserves_gradients() -> None:
     (torch.float16, 60000.0, 200000.0),
     (torch.float32, 3e38, 1e39),
 ])
-def test_calibration_temperature_above_dtype_range(native, dtype, scale, temperature, monkeypatch) -> None:
+def test_calibration_temperature_above_dtype_range(native: bool, dtype: Any, scale: float, temperature: float, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and ladder_module._NATIVE is None:
@@ -3140,7 +3140,7 @@ def test_calibration_large_temperature_keeps_float32_gradients() -> None:
     assert logits.grad[1].item() == pytest.approx(-expected_gradient, rel=1e-5, abs=0)
 
 
-def test_calibration_rejects_nonfinite_legacy_kernel_results(monkeypatch) -> None:
+def test_calibration_rejects_nonfinite_legacy_kernel_results(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -3157,7 +3157,7 @@ def test_calibration_rejects_nonfinite_legacy_kernel_results(monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_legacy_risk_follows_numerical_reading_when_temperature_merges_order(native, monkeypatch) -> None:
+def test_legacy_risk_follows_numerical_reading_when_temperature_merges_order(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_at", None) is None:
@@ -3178,10 +3178,10 @@ def test_legacy_consumer_does_not_understate_risk_after_reading_tie() -> None:
     class Consumer:
         manifest = Manifest("warm-consumer", "1", Contract(("seq[dist]",), "out"))
 
-        def certificate(self, readings, risk, distribution):
+        def certificate(self, readings: Any, risk: Any, distribution: Any) -> Any:
             return {0: risk(0, ((0,), (1, 2)))}
 
-        def invoke(self, readings):
+        def invoke(self, readings: Any) -> Any:
             return max(range(3), key=readings[0].__getitem__)
 
     reader = constant("warm-reader", (1.0, 2.0, 1.0), 1.0, Contract(("ch",), "dist"))
@@ -3195,7 +3195,7 @@ def test_legacy_consumer_does_not_understate_risk_after_reading_tie() -> None:
     assert answer.abstained
 
 
-def test_native_risk_from_reading_matches_fallback_for_restricted_ties(monkeypatch) -> None:
+def test_native_risk_from_reading_matches_fallback_for_restricted_ties(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
@@ -3205,7 +3205,7 @@ def test_native_risk_from_reading_matches_fallback_for_restricted_ties(monkeypat
              for temperature in (0.01, 1.0, 1e308) for _ in range(12)]
     decisions = (None, ((4, 2), (0,), (3, 1)), ((0,), (1, 2, 3, 4)))
 
-    def calculate():
+    def calculate() -> Any:
         results = []
         for weights, temperature in cases:
             rung = Rung(constant("reading-risk", weights, 1.0))
@@ -3221,7 +3221,7 @@ def test_native_risk_from_reading_matches_fallback_for_restricted_ties(monkeypat
     assert np.allclose(native, calculate(), rtol=1e-13, atol=1e-15)
 
 
-def test_native_unrestricted_risk_accepts_noncontiguous_readings(monkeypatch) -> None:
+def test_native_unrestricted_risk_accepts_noncontiguous_readings(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
@@ -3237,7 +3237,7 @@ def test_native_unrestricted_risk_accepts_noncontiguous_readings(monkeypatch) ->
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("bad", [float('nan'), float('inf'), float('-inf'), -0.1])
-def test_reused_risk_reading_rejects_invalid_values(native, bad, monkeypatch) -> None:
+def test_reused_risk_reading_rejects_invalid_values(native: bool, bad: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
@@ -3256,7 +3256,7 @@ def test_reused_risk_reading_rejects_invalid_values(native, bad, monkeypatch) ->
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_reused_risk_reading_allows_zero_mass_restricted_ties(native, monkeypatch) -> None:
+def test_reused_risk_reading_allows_zero_mass_restricted_ties(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
@@ -3269,7 +3269,7 @@ def test_reused_risk_reading_allows_zero_mass_restricted_ties(native, monkeypatc
     assert rung.risk(logits, ((1,), (2,)), reading=reading) == pytest.approx(1 / (1 + math.e))
 
 
-def test_reused_risk_reading_is_checked_with_legacy_kernel(monkeypatch) -> None:
+def test_reused_risk_reading_is_checked_with_legacy_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -3283,7 +3283,7 @@ def test_reused_risk_reading_is_checked_with_legacy_kernel(monkeypatch) -> None:
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype", [torch.bool, torch.uint64, torch.int64])
-def test_reused_integer_reading_matches_floating_reading(native, dtype, monkeypatch) -> None:
+def test_reused_integer_reading_matches_floating_reading(native: bool, dtype: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_risk_at", None) is None:
@@ -3297,7 +3297,7 @@ def test_reused_integer_reading_matches_floating_reading(native, dtype, monkeypa
     assert rung.risk(logits, reading=reading) == rung.risk(logits)
 
     class IntegerReadingRung(Rung):
-        def reading(self, log):
+        def reading(self, log: Any) -> Any:
             return reading
 
     assert IntegerReadingRung(None).risk(logits) == rung.risk(logits)
@@ -3313,7 +3313,7 @@ def test_reused_risk_rejects_quantized_reading() -> None:
         Rung(None).risk(torch.tensor([0.0, -1000.0]), reading=reading)
 
     class InvalidReadingRung(Rung):
-        def reading(self, log):
+        def reading(self, log: Any) -> Any:
             return torch.tensor([1 + 2j, 0j])
 
     with pytest.raises(ValueError, match="finite.*nonnegative"):
@@ -3322,7 +3322,7 @@ def test_reused_risk_rejects_quantized_reading() -> None:
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("scale", [1e-320, 1.0, 1e308])
-def test_decision_risk_is_invariant_to_weight_scale(native, scale, monkeypatch) -> None:
+def test_decision_risk_is_invariant_to_weight_scale(native: bool, scale: float, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
@@ -3336,7 +3336,7 @@ def test_decision_risk_is_invariant_to_weight_scale(native, scale, monkeypatch) 
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_decision_risk_retains_small_summed_tail_when_total_overflows(native, monkeypatch) -> None:
+def test_decision_risk_retains_small_summed_tail_when_total_overflows(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
@@ -3351,7 +3351,7 @@ def test_decision_risk_retains_small_summed_tail_when_total_overflows(native, mo
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_decision_risk_preserves_positive_alternatives(native, monkeypatch) -> None:
+def test_decision_risk_preserves_positive_alternatives(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
@@ -3367,7 +3367,7 @@ def test_decision_risk_preserves_positive_alternatives(native, monkeypatch) -> N
 
 
 @pytest.mark.parametrize("device", ["mps", "cuda"])
-def test_accelerator_decision_risk_preserves_half_precision_tail(device) -> None:
+def test_accelerator_decision_risk_preserves_half_precision_tail(device: str) -> None:
     from nca.ladder import risk
 
     available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
@@ -3380,7 +3380,7 @@ def test_accelerator_decision_risk_preserves_half_precision_tail(device) -> None
 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("weights", [[0.0, 0.0], [-1.0, 2.0], [float('nan'), 1.0], [float('inf'), 1.0]])
-def test_decision_risk_rejects_invalid_weights(native, weights, monkeypatch) -> None:
+def test_decision_risk_rejects_invalid_weights(native: bool, weights: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
@@ -3394,7 +3394,7 @@ def test_decision_risk_rejects_invalid_weights(native, weights, monkeypatch) -> 
 @pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("dtype,large", [(torch.int64, 2**60), (torch.uint64, 2**63)])
 def test_decision_risk_selects_large_integers_before_float_conversion(
-        native, dtype, large, monkeypatch) -> None:
+        native: bool, dtype: Any, large: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "weighted_decision_risk", None) is None:
@@ -3407,7 +3407,7 @@ def test_decision_risk_selects_large_integers_before_float_conversion(
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_decision_risk_rejects_complex_and_quantized_weights(native, monkeypatch) -> None:
+def test_decision_risk_rejects_complex_and_quantized_weights(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import warnings
     from nca import ladder as ladder_module
 
@@ -3485,7 +3485,7 @@ def test_decision_metadata_cache_eviction_preserves_results() -> None:
     assert np.array_equal(_native_indices(first), expected_indices)
 
 
-def test_native_partition_group_ids_match_reference(monkeypatch) -> None:
+def test_native_partition_group_ids_match_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     native = getattr(ladder_module._NATIVE, "partition_group_ids", None)
@@ -3514,11 +3514,11 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
         risk_calls = 0
         distribution_calls = 0
 
-        def risk(self, log, classes=None, *, reading=None):
+        def risk(self, log: Any, classes: Any=None, *, reading: Any=None) -> Any:
             self.risk_calls += 1
             return super().risk(log, classes, reading=reading)
 
-        def distribution(self, log, classes=None):
+        def distribution(self, log: Any, classes: Any=None) -> Any:
             self.distribution_calls += 1
             return super().distribution(log, classes)
 
@@ -3526,7 +3526,7 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
     high = CountingRung(constant("cache-high", (0.99, 0.01), 2.0))
     seen = []
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         first = risk(0, None)
         assert risk(0, None) == first
         assert distribution(0, None) is distribution(0, None)
@@ -3546,8 +3546,8 @@ def test_refinement_reuses_current_rung_account_and_refreshes_after_climb() -> N
 @pytest.mark.parametrize("ranked", [False, True])
 @pytest.mark.parametrize("decision", [None, ((0, 2), (1, 3))])
 @pytest.mark.parametrize("heterogeneous", [False, True])
-def test_batched_default_account_matches_individual_refinement(monkeypatch, ranked, decision,
-                                                               heterogeneous) -> None:
+def test_batched_default_account_matches_individual_refinement(monkeypatch: pytest.MonkeyPatch, ranked: bool, decision: Any,
+                                                               heterogeneous: bool) -> None:
     import nca.ladder as ladder_module
 
     native = ladder_module._NATIVE
@@ -3556,15 +3556,15 @@ def test_batched_default_account_matches_individual_refinement(monkeypatch, rank
         pytest.skip("native risk kernels unavailable")
 
     class NativeProxy:
-        def __init__(self, batch):
+        def __init__(self, batch: Any) -> None:
             self.batch = batch
             self.calls = 0
 
-        def __getattr__(self, name):
+        def __getattr__(self, name: Any) -> Any:
             if name == "calibrated_risk_rows_into":
                 if not self.batch:
                     raise AttributeError(name)
-                def measured(*args):
+                def measured(*args: Any) -> Any:
                     self.calls += 1
                     return native.calibrated_risk_rows_into(*args)
                 return measured
@@ -3578,7 +3578,7 @@ def test_batched_default_account_matches_individual_refinement(monkeypatch, rank
         bottom = low if i % 2 else (Rung(other.module) if heterogeneous else other)
         ladders.append([bottom, high])
 
-    def run(batch):
+    def run(batch: Any) -> Any:
         proxy = NativeProxy(batch)
         monkeypatch.setattr(ladder_module, "_NATIVE", proxy)
         trace, snapshots = [], []
@@ -3597,7 +3597,7 @@ def test_batched_default_account_matches_individual_refinement(monkeypatch, rank
 
 def test_batched_default_account_preserves_custom_risk() -> None:
     class CustomRung(Rung):
-        def risk(self, log, classes=None, *, reading=None):
+        def risk(self, log: Any, classes: Any=None, *, reading: Any=None) -> Any:
             return 0.125
 
     rung = CustomRung(constant("custom-batch", (0.5, 0.5), 1.0))
@@ -3605,7 +3605,7 @@ def test_batched_default_account_preserves_custom_risk() -> None:
     assert result.bound == 4.0
 
 
-def test_batched_refinement_preserves_ranked_selection_after_log_tie(monkeypatch) -> None:
+def test_batched_refinement_preserves_ranked_selection_after_log_tie(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.ladder as ladder_module
 
     native = ladder_module._NATIVE
@@ -3615,9 +3615,9 @@ def test_batched_refinement_preserves_ranked_selection_after_log_tie(monkeypatch
 
     calls = []
     class NativeProxy:
-        def __getattr__(self, name):
+        def __getattr__(self, name: Any) -> Any:
             if name == "calibrated_risk_rows_into":
-                def measured(*args):
+                def measured(*args: Any) -> Any:
                     calls.append(True)
                     return kernel(*args)
                 return measured
@@ -3669,7 +3669,7 @@ def test_decision_tuple_with_mutable_groups_is_not_stale() -> None:
 @pytest.mark.parametrize("ranked", [False, True])
 @pytest.mark.parametrize("with_floor", [False, True])
 @pytest.mark.parametrize("with_stop", [False, True])
-def test_incremental_default_account_matches_explicit_decisions(ranked, with_floor, with_stop) -> None:
+def test_incremental_default_account_matches_explicit_decisions(ranked: bool, with_floor: bool, with_stop: bool) -> None:
     from nca.ladder import charge_per_cost
 
     low = Rung(constant("incremental-low", (0.55, 0.45), 1.0))
@@ -3678,7 +3678,7 @@ def test_incremental_default_account_matches_explicit_decisions(ranked, with_flo
     floor = (lambda readings, risk, fixed: sum(risk(i, None) for i in fixed)) if with_floor else None
     stop = (lambda state: state.cost >= 9.0) if with_stop else None
 
-    def run(classes):
+    def run(classes: Any) -> Any:
         snapshots, trace = [], []
         result = refine([0] * 5, ladders, 0.01, classes=classes, floor=floor,
                         stop=stop, trace=trace, observe=snapshots.append,
@@ -3691,12 +3691,12 @@ def test_incremental_default_account_matches_explicit_decisions(ranked, with_flo
 
 
 @pytest.mark.parametrize("classes,ladders", [([None], 2), ([None] * 3, 2), (None, 1), (None, 3)])
-def test_refinement_rejects_mismatched_inputs_before_invocation(classes, ladders) -> None:
+def test_refinement_rejects_mismatched_inputs_before_invocation(classes: Any, ladders: int) -> None:
     class CountingExpert:
         manifest = Manifest("length-validation", "1", Contract(("x",), "dist"))
         calls = 0
 
-        def invoke(self, value):
+        def invoke(self, value: Any) -> Any:
             self.calls += 1
             return (0.5, 0.5)
 
@@ -3714,12 +3714,12 @@ def test_refinement_rejects_empty_ladder_before_invocation() -> None:
 
 
 @pytest.mark.parametrize("decision", [(0, 1), range(2), ((0,), (1,))])
-def test_incremental_fixed_decisions_match_mutable_reference(decision) -> None:
+def test_incremental_fixed_decisions_match_mutable_reference(decision: Any) -> None:
     low = Rung(constant("fixed-low", (0.55, 0.45), 1.0))
     high = Rung(constant("fixed-high", (0.9, 0.1), 2.0))
     ladders = [[low, high]] * 4
 
-    def run(decisions):
+    def run(decisions: Any) -> Any:
         trace = []
         result = refine([0] * 4, ladders, 0.01, classes=decisions, trace=trace)
         return result.cost, result.bound, result.abstained, trace
@@ -3733,7 +3733,7 @@ def test_refinement_rechecks_mutable_decision_after_observer_change() -> None:
     mutable = [0]
     bounds = []
 
-    def observe(state):
+    def observe(state: Any) -> Any:
         bounds.append(state.bound)
         if len(bounds) == 1:
             mutable.append(1)
@@ -3756,7 +3756,7 @@ def test_restricted_temperature_requires_matching_held_out_labels() -> None:
     assert rung.distribution(rung.observe(None), ((1, 2),)).tolist() == [1.0]
 
 
-def test_failed_recalibration_preserves_state_and_snapshots_labels(monkeypatch) -> None:
+def test_failed_recalibration_preserves_state_and_snapshots_labels(monkeypatch: pytest.MonkeyPatch) -> None:
     rung = Rung(constant("calibration-state", (0.6, 0.4), 1.0))
     labels = torch.tensor([0, 1], dtype=torch.int32)
     rung.calibrate([0, 1], labels)
@@ -3773,7 +3773,7 @@ def test_failed_recalibration_preserves_state_and_snapshots_labels(monkeypatch) 
         assert rung.held_out is previous
         assert rung.temperatures == previous_temperatures
 
-    def fail_fit(*args):
+    def fail_fit(*args: Any) -> Any:
         raise RuntimeError("fit failed")
 
     monkeypatch.setattr(rung, "_fit", fail_fit)
@@ -3789,7 +3789,7 @@ def test_calibration_snapshots_labels_before_invoking_expert() -> None:
     class MutatingExpert:
         manifest = Manifest("label-mutator", "1", Contract(("x",), "dist"))
 
-        def invoke(self, value):
+        def invoke(self, value: Any) -> Any:
             labels[1] = 0
             return (0.6, 0.4)
 
@@ -3806,7 +3806,7 @@ def test_calibration_snapshots_value_sequence_before_invoking_expert() -> None:
     class MutatingExpert:
         manifest = Manifest("value-list-mutator", "1", Contract(("x",), "dist"))
 
-        def invoke(self, value):
+        def invoke(self, value: Any) -> Any:
             values[1] = 0
             return (0.9, 0.1) if value == 0 else (0.1, 0.9)
 
@@ -3818,7 +3818,7 @@ def test_calibration_snapshots_value_sequence_before_invoking_expert() -> None:
 
 
 @pytest.mark.parametrize("device", ["mps", "cuda"])
-def test_accelerator_expert_can_fit_restricted_temperature(device) -> None:
+def test_accelerator_expert_can_fit_restricted_temperature(device: str) -> None:
     available = (torch.backends.mps.is_available() if device == "mps" else torch.cuda.is_available())
     if not available:
         pytest.skip(f"{device} is unavailable")
@@ -3826,7 +3826,7 @@ def test_accelerator_expert_can_fit_restricted_temperature(device) -> None:
     class AcceleratorExpert:
         manifest = Manifest("accelerator-calibration", "1", Contract(("x",), "dist"))
 
-        def invoke(self, value):
+        def invoke(self, value: Any) -> Any:
             return torch.tensor([0.6, 0.3, 0.1], device=device)
 
     rung = Rung(AcceleratorExpert())
@@ -3849,7 +3849,7 @@ def test_accelerator_expert_can_fit_restricted_temperature(device) -> None:
     [torch.tensor(1 + 2j), torch.tensor(1 + 0j)],
     torch.tensor([1 + 2j, 1 + 0j]),
 ])
-def test_observation_rejects_complex_weights(output) -> None:
+def test_observation_rejects_complex_weights(output: Any) -> None:
     rung = Rung(constant("complex-weights", output, 1.0))
     with pytest.raises(ValueError, match="real-valued"):
         rung.observe(None)
@@ -3863,7 +3863,7 @@ def test_observation_rejects_complex_weights(output) -> None:
     np.array(["0.9", 0.1], dtype=object),
     np.array([b"0.9", 0.1], dtype=object),
 ])
-def test_observation_rejects_text_weights(output) -> None:
+def test_observation_rejects_text_weights(output: Any) -> None:
     rung = Rung(constant("text-weights", output, 1.0))
     for observe in (rung.observe, rung.observe_ranked):
         with pytest.raises(ValueError, match="real-valued"):
@@ -3877,7 +3877,7 @@ def test_observation_accepts_numeric_object_weights() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_observation_rejects_masked_weights(native, monkeypatch) -> None:
+def test_observation_rejects_masked_weights(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "observation_logs", None) is None:
@@ -3894,14 +3894,14 @@ def test_observation_rejects_masked_weights(native, monkeypatch) -> None:
 
 @pytest.mark.parametrize("mode", ["default", "risk-certificate", "distribution-certificate"])
 @pytest.mark.parametrize("ranked", [False, True])
-def test_refinement_climbs_past_missing_restricted_calibration(mode, ranked) -> None:
+def test_refinement_climbs_past_missing_restricted_calibration(mode: str, ranked: bool) -> None:
     low = Rung(constant("missing-calibration", (0.8, 0.15, 0.05), 1.0))
     high = Rung(constant("usable-calibration", (0.05, 0.9, 0.05), 2.0))
     low.calibrate([0, 1], torch.tensor([0, 0]))
     high.calibrate(list(range(10)), torch.tensor([1] * 9 + [2]))
     decision = (1, 2)
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         if mode == "distribution-certificate":
             distribution(0, decision)
         return {0: risk(0, decision)}
@@ -3925,11 +3925,11 @@ def test_solve_many_preserves_unavailable_calibration_until_usable_rung() -> Non
     class Consumer:
         manifest = Manifest("calibration-consumer", "1", Contract(("seq[dist]",), "out"))
 
-        def certificate(self, readings, risk, distribution):
+        def certificate(self, readings: Any, risk: Any, distribution: Any) -> Any:
             distribution(0, (1, 2))
             return {0: risk(0, (1, 2))}
 
-        def invoke(self, readings):
+        def invoke(self, readings: Any) -> Any:
             return max((1, 2), key=readings[0].__getitem__)
 
     low = constant("missing-rung", (0.8, 0.15, 0.05), 1.0, Contract(("ch",), "dist"))
@@ -3951,7 +3951,7 @@ def test_unavailable_floor_does_not_stop_usable_account() -> None:
     low.temperatures[None] = 1.0
     high.temperatures[None] = 1.0
 
-    def floor(readings, risk, fixed):
+    def floor(readings: Any, risk: Any, fixed: Any) -> Any:
         return risk(0, (1, 2))
 
     result = refine([0], [[low, high]], 0.02, floor=floor)
@@ -3960,13 +3960,13 @@ def test_unavailable_floor_does_not_stop_usable_account() -> None:
 
 
 @pytest.mark.parametrize("ranked", [False, True])
-def test_unavailable_fixed_item_can_become_irrelevant_after_another_climb(ranked) -> None:
+def test_unavailable_fixed_item_can_become_irrelevant_after_another_climb(ranked: bool) -> None:
     unavailable = Rung(constant("fixed-unavailable", (0.8, 0.15, 0.05), 1.0))
     unavailable.calibrate([0, 1], torch.tensor([0, 0]))
     low = Rung(constant("switch-low", (0.5, 0.5), 1.0))
     high = Rung(constant("switch-high", (0.99, 0.01), 2.0))
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         if readings[1][0] < 0.9:
             return {0: risk(0, (1, 2)), 1: risk(1, None)}
         return {1: risk(1, None)}
@@ -3981,11 +3981,11 @@ def test_unavailable_fixed_item_can_become_irrelevant_after_another_climb(ranked
 
 
 @pytest.mark.parametrize("operation", ["risk", "distribution"])
-def test_missing_calibration_is_reused_until_item_changes(operation) -> None:
+def test_missing_calibration_is_reused_until_item_changes(operation: str) -> None:
     class CountingRung(Rung):
         missing_checks = 0
 
-        def temperature(self, classes=None):
+        def temperature(self, classes: Any=None) -> Any:
             if classes == (1, 2):
                 self.missing_checks += 1
             return super().temperature(classes)
@@ -3995,7 +3995,7 @@ def test_missing_calibration_is_reused_until_item_changes(operation) -> None:
     low = Rung(constant("many-low", (0.5, 0.5), 1.0))
     high = Rung(constant("many-high", (0.99, 0.01), 1.0))
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         if readings[1][0] < 0.9:
             if operation == "distribution":
                 distribution(0, (1, 2))
@@ -4010,16 +4010,16 @@ def test_missing_calibration_is_reused_until_item_changes(operation) -> None:
 
 
 @pytest.mark.parametrize("missing_operation", ["risk", "distribution"])
-def test_missing_calibration_cache_is_scoped_to_query_type(missing_operation) -> None:
+def test_missing_calibration_cache_is_scoped_to_query_type(missing_operation: str) -> None:
     from nca.ladder import MissingCalibrationError
 
     class PartialRung(Rung):
-        def risk(self, log, classes=None, *, reading=None):
+        def risk(self, log: Any, classes: Any=None, *, reading: Any=None) -> Any:
             if classes == (0, 1) and missing_operation == "risk":
                 raise MissingCalibrationError("risk unavailable")
             return super().risk(log, classes, reading=reading)
 
-        def distribution(self, log, classes=None):
+        def distribution(self, log: Any, classes: Any=None) -> Any:
             if classes == (0, 1) and missing_operation == "distribution":
                 raise MissingCalibrationError("distribution unavailable")
             return super().distribution(log, classes)
@@ -4028,7 +4028,7 @@ def test_missing_calibration_cache_is_scoped_to_query_type(missing_operation) ->
     low = Rung(constant("query-low", (0.5, 0.5), 1.0))
     high = Rung(constant("query-high", (0.99, 0.01), 1.0))
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         if readings[1][0] < 0.9:
             (risk if missing_operation == "risk" else distribution)(0, (0, 1))
         else:
@@ -4041,7 +4041,7 @@ def test_missing_calibration_cache_is_scoped_to_query_type(missing_operation) ->
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_log_distribution_retains_underflowed_group_mass(native, monkeypatch) -> None:
+def test_log_distribution_retains_underflowed_group_mass(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "calibrated_log_groups", None) is None:
@@ -4069,13 +4069,13 @@ def test_log_distribution_keeps_gradients() -> None:
 
 def test_log_distribution_respects_custom_probability_override() -> None:
     class CustomRung(Rung):
-        def distribution(self, log, classes=None):
+        def distribution(self, log: Any, classes: Any=None) -> Any:
             return torch.tensor([0.8, 0.2], dtype=torch.float64)
 
     rung = CustomRung(constant("custom-probabilities", (0.1, 0.9), 1.0))
     captured = []
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         captured.append((distribution(0, None), distribution.log(0, None)))
         return {0: 0.0}
 
@@ -4086,7 +4086,7 @@ def test_log_distribution_respects_custom_probability_override() -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_risk_allocation_preserves_smallest_positive_bound(native, monkeypatch) -> None:
+def test_risk_allocation_preserves_smallest_positive_bound(native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if native and getattr(ladder_module._NATIVE, "risk_shares", None) is None:
@@ -4098,7 +4098,7 @@ def test_risk_allocation_preserves_smallest_positive_bound(native, monkeypatch) 
     assert shares == [0.0, smallest, 0.0]
 
 
-def test_risk_allocation_preserves_positive_bound_with_older_native_kernel(monkeypatch) -> None:
+def test_risk_allocation_preserves_positive_bound_with_older_native_kernel(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
 
@@ -4107,7 +4107,7 @@ def test_risk_allocation_preserves_positive_bound_with_older_native_kernel(monke
     assert allocate_risk(smallest, [1.0, 2.0, 1.0]) == [0.0, smallest, 0.0]
 
 
-def test_native_log_groups_match_reference_across_extreme_rows(monkeypatch) -> None:
+def test_native_log_groups_match_reference_across_extreme_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
 
     if getattr(ladder_module._NATIVE, "calibrated_log_groups", None) is None:

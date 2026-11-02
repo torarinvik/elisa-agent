@@ -26,7 +26,7 @@ def one_hot(words: list[str]) -> list[tuple[float, ...]]:
     return [tuple(float(w == v) for v in VOCABULARY) for w in words]
 
 
-def test_batched_word_argmax_matches_reference(monkeypatch) -> None:
+def test_batched_word_argmax_matches_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.domains.boolean.words as words
 
     native = getattr(prefix._NATIVE, "row_argmax", None)
@@ -47,7 +47,7 @@ def test_batched_word_argmax_matches_reference(monkeypatch) -> None:
     assert prefix.most_likely(rows, words.FORMULA) == expected
 
 
-def test_word_argmax_preserves_higher_precision_inputs(monkeypatch) -> None:
+def test_word_argmax_preserves_higher_precision_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.domains.boolean.words as words
 
     decimal_row = [Decimal(0)] * len(VOCABULARY)
@@ -63,31 +63,31 @@ def test_word_argmax_preserves_higher_precision_inputs(monkeypatch) -> None:
         assert prefix.most_likely([row], words.FORMULA) == [VOCABULARY[1]]
 
 
-def test_premise_diagnostic_handles_zero_expected_pairs(monkeypatch, capsys) -> None:
+def test_premise_diagnostic_handles_zero_expected_pairs(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     from types import SimpleNamespace
     import nca.domains.boolean.logic as logic
 
     class Dataset:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def __len__(self):
+        def __len__(self) -> int:
             return 1
 
-        def sample(self, index):
+        def sample(self, index: Any) -> Any:
             return SimpleNamespace(text="true", words=["true"])
 
     class Reader:
-        def observe(self, word):
+        def observe(self, word: Any) -> Any:
             return None
 
-        def reading(self, log):
+        def reading(self, log: Any) -> Any:
             return torch.tensor(one_hot(["true"])[0])
 
-        def distribution(self, log, classes):
+        def distribution(self, log: Any, classes: Any) -> Any:
             return torch.tensor([1.0, 0.0, 0.0])
 
-        def risk(self, log, classes):
+        def risk(self, log: Any, classes: Any) -> Any:
             return 0.0
 
     monkeypatch.setattr(logic, "FormulaDataset", Dataset)
@@ -294,7 +294,6 @@ def test_detection_accounts() -> None:
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_pair_shares_preserve_tiny_risks(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.domains.boolean import words as word_module
 
     if reference:
         monkeypatch.setattr(share_module, "_NATIVE", None)
@@ -321,7 +320,6 @@ def test_pair_shares_preserve_tiny_risks(reference: bool, monkeypatch: pytest.Mo
 def test_pair_risk_upper_avoids_cancellation_and_underflow(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
-    from nca.domains.boolean import words as word_module
 
     if reference:
         monkeypatch.setattr(share_module, "_NATIVE", None)
@@ -345,7 +343,6 @@ def test_pair_risk_upper_avoids_cancellation_and_underflow(
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_detection_shares_round_up_at_boundaries(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.domains.boolean import words as word_module
 
     if reference:
         monkeypatch.setattr(share_module, "_NATIVE", None)
@@ -374,7 +371,6 @@ def test_detection_shares_round_up_at_boundaries(reference: bool, monkeypatch: p
 @pytest.mark.parametrize("mixed", [False, True])
 def test_combine_shares_preserves_precise_mixed_inputs(reference: bool, mixed: bool,
                                                       monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.domains.boolean import words as word_module
 
     if reference:
         monkeypatch.setattr(share_module, "_NATIVE", None)
@@ -429,7 +425,6 @@ def test_unconstrained_formula_floor_rounds_down(short_circuit: bool) -> None:
 def test_detection_floors_round_down(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     """Both detection floors bound their exact values from below, keeping tiny
     risks and inputs that need rounding to binary64."""
-    from nca.domains.boolean import words as word_module
 
     if reference:
         monkeypatch.setattr(share_module, "_NATIVE", None)
@@ -583,8 +578,7 @@ def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_changed_rows_matches_numpy_for_layouts_and_special_values(reference, monkeypatch) -> None:
-    from nca.domains.boolean import words as word_module
+def test_changed_rows_matches_numpy_for_layouts_and_special_values(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
 
     if reference:
         monkeypatch.setattr(prefix, "_NATIVE", None)
@@ -817,7 +811,6 @@ def test_raw_arity_grouping_preserves_sums_and_inputs(
 
 
 def test_native_grouped_masses_handles_empty_and_reordered_groups() -> None:
-    from nca.domains.boolean import words as word_module
 
     native = getattr(prefix._NATIVE, "grouped_masses", None)
     if native is None:
@@ -847,7 +840,7 @@ def test_solve_formula_preserves_weight_order_when_logs_tie(decode: bool) -> Non
 
     class Reader:
         manifest = Manifest("tie-reader", "1", READER, cost=1.0)
-        def invoke(self, value):
+        def invoke(self, value: Any) -> Any:
             return tuple(weights)
 
     reader = Reader()
@@ -981,7 +974,7 @@ def test_refinement_carries_underflowed_log_masses_to_formula_correction() -> No
     from nca.ladder import decision_key
     from nca.selective import element_certificate
 
-    def weights(**entries):
+    def weights(**entries: Any) -> Any:
         return tuple(entries.get(word, 0.0) for word in VOCABULARY)
 
     rows = [weights(**{"not": 1.0, "and": 1e-250}),
@@ -994,7 +987,7 @@ def test_refinement_carries_underflowed_log_masses_to_formula_correction() -> No
     adapted = element_certificate(evaluator, [(0, 0), (1, 0), (2, 0)], 3)
     assert adapted is not None
 
-    def certificate(readings, risk, distribution):
+    def certificate(readings: Any, risk: Any, distribution: Any) -> Any:
         return adapted(readings, lambda i, decision: 0.0, distribution)
 
     result = refine([0, 0, 0], [[rung] for rung in rungs], 1.0,

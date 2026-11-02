@@ -133,7 +133,7 @@ def test_general_arity_prefix_prior_matches_format_decoder(
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("selected", [(1.5, 0), (1.0, 0)])
 def test_prior_and_format_risks_reject_noninteger_selection(
-        reference: bool, selected, monkeypatch: pytest.MonkeyPatch) -> None:
+        reference: bool, selected: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
         monkeypatch.setattr(decoding, "_NATIVE", None)
@@ -152,7 +152,7 @@ def test_prior_and_format_risks_reject_noninteger_selection(
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1.0), (-1, 0)])
-def test_prior_rejects_invalid_arity_alphabet(alphabet) -> None:
+def test_prior_rejects_invalid_arity_alphabet(alphabet: Any) -> None:
     with pytest.raises(ValueError, match="invalid weighted"):
         priors.ArityPrior(alphabet, np.zeros((1, 2), dtype=np.int64), np.zeros((1, 2)), np.zeros(1))
 
@@ -248,7 +248,7 @@ def test_prior_partition_matches_exhaustive_paths(
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("order", ["indexed", "reversed", "sorted_gapped"])
-def test_prior_partition_wide_alphabet_selected_path(reference, order, monkeypatch) -> None:
+def test_prior_partition_wide_alphabet_selected_path(reference: bool, order: str, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     width, length = 32, 20
@@ -302,7 +302,7 @@ def test_native_symbol_membership_sorted_boundaries_and_duplicates() -> None:
 
 
 @pytest.mark.parametrize("selected", [(0, 2**64, 1), (0, 2**64 + 1, 1), ()])
-def test_prior_partition_membership_matches_legacy_fallback(selected, monkeypatch) -> None:
+def test_prior_partition_membership_matches_legacy_fallback(selected: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     native = priors._NATIVE
     if getattr(native, "symbols_in_alphabet", None) is None:
         pytest.skip("native symbol membership is not built")
@@ -329,7 +329,7 @@ def test_prior_risk_preserves_tiny_alternative_mass(
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_recovers_lost_log_weight_addition(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_lost_log_weight_addition(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -349,7 +349,7 @@ def test_prior_risk_recovers_lost_log_weight_addition(reference, monkeypatch) ->
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_recovers_partly_rounded_log_sum(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_partly_rounded_log_sum(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -367,7 +367,7 @@ def test_prior_risk_recovers_partly_rounded_log_sum(reference, monkeypatch) -> N
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_recovers_lost_unequal_alternative_mass(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_lost_unequal_alternative_mass(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -386,7 +386,7 @@ def test_prior_risk_recovers_lost_unequal_alternative_mass(reference, monkeypatc
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch) -> None:
+def test_prior_risk_recovers_lost_equal_alternative_mass(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
@@ -403,7 +403,7 @@ def test_prior_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch)
     (0.0, 0.0, [1e308] * 4),
     (1e308, 1e308, [0.0] * 4),
 ])
-def test_prior_risk_cancels_unrepresentable_common_offsets(reference, edge, final, offsets, monkeypatch) -> None:
+def test_prior_risk_cancels_unrepresentable_common_offsets(reference: bool, edge: float, final: float, offsets: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
@@ -415,7 +415,7 @@ def test_prior_risk_cancels_unrepresentable_common_offsets(reference, edge, fina
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_evidence_cancels_unrepresentable_prior_offset(reference, monkeypatch) -> None:
+def test_evidence_cancels_unrepresentable_prior_offset(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     transitions = np.array([[0, -1]])
@@ -435,7 +435,7 @@ def test_evidence_cancels_unrepresentable_prior_offset(reference, monkeypatch) -
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_preserves_error_when_centering_is_unsafe(reference, monkeypatch) -> None:
+def test_prior_risk_preserves_error_when_centering_is_unsafe(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1, 2), np.zeros((1, 3), dtype=np.int64),
@@ -446,7 +446,7 @@ def test_prior_risk_preserves_error_when_centering_is_unsafe(reference, monkeypa
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_centered_retry_matches_small_weights(reference, monkeypatch) -> None:
+def test_prior_risk_centered_retry_matches_small_weights(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rng = np.random.default_rng(874)
@@ -461,7 +461,7 @@ def test_prior_risk_centered_retry_matches_small_weights(reference, monkeypatch)
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_weighted_prior_retry_restores_edge_and_final_scale(reference, monkeypatch) -> None:
+def test_weighted_prior_retry_restores_edge_and_final_scale(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
@@ -475,7 +475,7 @@ def test_weighted_prior_retry_restores_edge_and_final_scale(reference, monkeypat
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_weighted_prior_centered_retry_matches_enumeration(reference, monkeypatch) -> None:
+def test_weighted_prior_centered_retry_matches_enumeration(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rng = np.random.default_rng(913)
@@ -502,7 +502,7 @@ def test_weighted_prior_centered_retry_matches_enumeration(reference, monkeypatc
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_centers_weighted_prior(reference, monkeypatch) -> None:
+def test_prior_risk_centers_weighted_prior(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
@@ -512,7 +512,7 @@ def test_prior_risk_centers_weighted_prior(reference, monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_preserves_error_for_unsafe_edge_shift(reference, monkeypatch) -> None:
+def test_prior_risk_preserves_error_for_unsafe_edge_shift(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
@@ -522,7 +522,7 @@ def test_prior_risk_preserves_error_for_unsafe_edge_shift(reference, monkeypatch
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_risk_preserves_error_for_unsafe_final_shift(reference, monkeypatch) -> None:
+def test_prior_risk_preserves_error_for_unsafe_final_shift(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 1], [0, 1]]), np.zeros((2, 2)),
@@ -603,7 +603,7 @@ def test_partition_cursor_tracks_independent_reading_and_selection_changes() -> 
 
 @pytest.mark.parametrize("contiguous", [False, True])
 @pytest.mark.parametrize("reference_change", [False, True])
-def test_partition_cursor_keeps_private_row_snapshot(contiguous, reference_change, monkeypatch) -> None:
+def test_partition_cursor_keeps_private_row_snapshot(contiguous: bool, reference_change: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     native = incremental._NATIVE
@@ -628,7 +628,7 @@ def test_partition_cursor_keeps_private_row_snapshot(contiguous, reference_chang
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_partition_cursor_supports_large_symbols_and_revisions(reference, monkeypatch) -> None:
+def test_partition_cursor_supports_large_symbols_and_revisions(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -719,7 +719,7 @@ def test_partition_cursor_recovers_after_overflow() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_partition_cursor_recovers_after_lost_equal_mass(reference, monkeypatch) -> None:
+def test_partition_cursor_recovers_after_lost_equal_mass(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -818,7 +818,7 @@ def test_partition_cursor_matches_full_sparse_automata() -> None:
 
 @pytest.mark.parametrize("width", [3, 16, 64])
 @pytest.mark.parametrize("pattern", ["sparse", "sparse_sampled", "dense"])
-def test_partition_cursor_sparse_reading_columns_match_full_partition(width, pattern) -> None:
+def test_partition_cursor_sparse_reading_columns_match_full_partition(width: int, pattern: str) -> None:
     from nca.partition import PartitionCursor
 
     rng = np.random.default_rng(213 + width)
@@ -843,7 +843,7 @@ def test_partition_cursor_sparse_reading_columns_match_full_partition(width, pat
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("order", ["indexed", "reversed", "sorted_gapped"])
-def test_partition_cursor_wide_selected_path_after_edits(reference, order, monkeypatch) -> None:
+def test_partition_cursor_wide_selected_path_after_edits(reference: bool, order: str, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -894,7 +894,7 @@ def test_native_incremental_sparse_lookup_keeps_first_duplicate() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_partition_cursor_recovers_after_an_empty_prefix(reference, monkeypatch) -> None:
+def test_partition_cursor_recovers_after_an_empty_prefix(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if reference:
@@ -1009,7 +1009,7 @@ def test_partition_cursor_wide_alphabet_membership_and_cache_budget() -> None:
     assert limited._symbols is None and limited._alternatives is None
 
 
-def test_partition_cursor_rejects_uncacheable_input_before_building_membership(monkeypatch) -> None:
+def test_partition_cursor_rejects_uncacheable_input_before_building_membership(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
 
     if incremental._NATIVE is None:
@@ -1020,7 +1020,7 @@ def test_partition_cursor_rejects_uncacheable_input_before_building_membership(m
     rows = np.zeros((2, len(alphabet)))
     selected = (0, 255)
     expected = prior.partition(rows, selected)
-    def unexpected_set(_):
+    def unexpected_set(_: Any) -> Any:
         raise AssertionError("membership set should not be built")
     monkeypatch.setattr(incremental, "frozenset", unexpected_set, raising=False)
     cursor = incremental.PartitionCursor(prior, max_cache_bytes=128)
@@ -1086,7 +1086,7 @@ def test_restored_prior_preserves_immutable_arrays(restore: Any) -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_sequence_log_weight_detects_loss_but_preserves_zero_mass(reference, monkeypatch) -> None:
+def test_sequence_log_weight_detects_loss_but_preserves_zero_mass(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     with pytest.raises(ValueError, match="sequence log weight.*precision"):
@@ -1100,11 +1100,11 @@ def test_sequence_log_weight_detects_loss_but_preserves_zero_mass(reference, mon
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_decoded_combines_weights_safely(reference, monkeypatch) -> None:
+def test_decoded_combines_weights_safely(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
 
-    def decoded(edge, length=1):
+    def decoded(edge: Any, length: Any=1) -> Any:
         prior = priors.ArityPrior((0,), np.array([[0]]), np.array([[edge]]), np.zeros(1))
         return priors.Decoded((0,) * length, 0.0, np.ones((length, 1)), prior)
 
@@ -1124,7 +1124,7 @@ def test_decoded_combines_weights_safely(reference, monkeypatch) -> None:
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("invalid", [np.nan, np.inf])
 def test_sequence_log_weight_rejects_invalid_inputs_even_on_zero_paths(
-        reference, invalid, monkeypatch) -> None:
+        reference: bool, invalid: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
@@ -1141,7 +1141,7 @@ def test_sequence_log_weight_rejects_invalid_inputs_even_on_zero_paths(
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64, np.uint64, object])
-def test_native_format_symbols_preserves_inputs_and_large_integers(reference, dtype, monkeypatch) -> None:
+def test_native_format_symbols_preserves_inputs_and_large_integers(reference: bool, dtype: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     values = np.arange(64, dtype=dtype)
@@ -1163,7 +1163,7 @@ def test_native_format_symbols_preserves_inputs_and_large_integers(reference, dt
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_log_weight_supports_dense_and_reordered_alphabets(reference, monkeypatch) -> None:
+def test_prior_log_weight_supports_dense_and_reordered_alphabets(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     transitions = np.array([[0, 0, 0]])
@@ -1178,7 +1178,7 @@ def test_prior_log_weight_supports_dense_and_reordered_alphabets(reference, monk
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("reverse", [False, True])
-def test_prior_log_weight_wide_gapped_alphabet(reference, reverse, monkeypatch) -> None:
+def test_prior_log_weight_wide_gapped_alphabet(reference: bool, reverse: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     alphabet = tuple(1000 + k * 100 for k in range(32))
@@ -1206,7 +1206,7 @@ def test_native_prior_log_weight_sorted_duplicates_use_first_column() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference, monkeypatch) -> None:
+def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.array([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]])
@@ -1218,7 +1218,7 @@ def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("large", [False, True])
-def test_sequence_log_weight_wide_alphabet_preserves_arbitrary_symbols(reference, large, monkeypatch) -> None:
+def test_sequence_log_weight_wide_alphabet_preserves_arbitrary_symbols(reference: bool, large: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     extra = 2**64 + 1 if large else 2**62
@@ -1231,7 +1231,7 @@ def test_sequence_log_weight_wide_alphabet_preserves_arbitrary_symbols(reference
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_sequence_log_weight_sorted_alphabet_uses_first_duplicate(reference, monkeypatch) -> None:
+def test_sequence_log_weight_sorted_alphabet_uses_first_duplicate(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     minimum, maximum = np.iinfo(np.int64).min, np.iinfo(np.int64).max
@@ -1245,7 +1245,7 @@ def test_sequence_log_weight_sorted_alphabet_uses_first_duplicate(reference, mon
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("outside", [2**63, 2**64 - 1])
-def test_mixed_signed_and_large_symbols_do_not_alias(reference, outside, monkeypatch) -> None:
+def test_mixed_signed_and_large_symbols_do_not_alias(reference: bool, outside: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     alphabet = (-1, 2**63 - 1)
@@ -1277,7 +1277,7 @@ def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -
 @pytest.mark.parametrize("row, valid", [([0.25, 0.75], True), ([0.0, 0.0], False),
                                          ([-0.1, 1.1], False), ([np.nan, 1.0], False),
                                          ([np.inf, 0.0], False)])
-def test_decoded_checks_marginal_rows(reference, row, valid, monkeypatch) -> None:
+def test_decoded_checks_marginal_rows(reference: bool, row: Any, valid: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     if valid:
@@ -1288,7 +1288,7 @@ def test_decoded_checks_marginal_rows(reference, row, valid, monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_decoded_checks_marginal_shape(reference, monkeypatch) -> None:
+def test_decoded_checks_marginal_shape(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
@@ -1303,7 +1303,7 @@ def test_decoded_checks_marginal_shape(reference, monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_unit_prior_decode_recovers_marginals_from_precision_loss(reference, monkeypatch) -> None:
+def test_unit_prior_decode_recovers_marginals_from_precision_loss(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
@@ -1315,7 +1315,7 @@ def test_unit_prior_decode_recovers_marginals_from_precision_loss(reference, mon
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_weighted_prior_decode_recovers_precision(reference, monkeypatch) -> None:
+def test_weighted_prior_decode_recovers_precision(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
@@ -1329,7 +1329,7 @@ def test_weighted_prior_decode_recovers_precision(reference, monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_weighted_prior_decode_recovers_normalized_but_inaccurate_marginals(reference, monkeypatch) -> None:
+def test_weighted_prior_decode_recovers_normalized_but_inaccurate_marginals(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     weights = np.array([[2.5583011308519303, 0.7653156869269757, 1.1481474912947576]])
@@ -1569,7 +1569,7 @@ def test_prior_decoder_handles_gaps_and_moving_state_envelopes() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_log_weight_detects_loss_but_preserves_zero_mass(reference, monkeypatch) -> None:
+def test_prior_log_weight_detects_loss_but_preserves_zero_mass(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1, 2), np.array([[0, 0, -1]]),
@@ -1653,7 +1653,7 @@ def test_height_prior_posterior_matches_enumerated_shapes(
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("location", ["edge", "final"])
-def test_prior_best_recovers_lost_weight_preference(reference, location, monkeypatch) -> None:
+def test_prior_best_recovers_lost_weight_preference(reference: bool, location: str, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     if location == "edge":
@@ -1695,7 +1695,7 @@ def test_prior_best_matches_full_decoder_ties_and_zero_support(
         prior.best(np.ones((3, 2)))
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_decode_preserves_sparse_wide_marginals_and_ties(reference, monkeypatch) -> None:
+def test_prior_decode_preserves_sparse_wide_marginals_and_ties(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     width = 64
@@ -1720,7 +1720,7 @@ def test_prior_decode_preserves_sparse_wide_marginals_and_ties(reference, monkey
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_best_preserves_sparse_wide_ties(reference, monkeypatch) -> None:
+def test_prior_best_preserves_sparse_wide_ties(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     alphabet = tuple(reversed(range(64)))
@@ -1769,7 +1769,7 @@ def test_normalizer_matches_full_decoder_for_sparse_weighted_automata() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_normalizer_handles_changing_sparse_symbol_support(reference, monkeypatch) -> None:
+def test_normalizer_handles_changing_sparse_symbol_support(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rng = np.random.default_rng(914)
@@ -1787,7 +1787,7 @@ def test_normalizer_handles_changing_sparse_symbol_support(reference, monkeypatc
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_partition_handles_sparse_wide_symbol_rows(reference, monkeypatch) -> None:
+def test_prior_partition_handles_sparse_wide_symbol_rows(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     width = 64
@@ -1804,7 +1804,7 @@ def test_prior_partition_handles_sparse_wide_symbol_rows(reference, monkeypatch)
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_prior_partition_stops_only_when_both_parts_are_absent(reference, monkeypatch) -> None:
+def test_prior_partition_stops_only_when_both_parts_are_absent(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
@@ -1820,7 +1820,7 @@ def test_prior_partition_stops_only_when_both_parts_are_absent(reference, monkey
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_normalizer_stops_after_empty_support_without_hiding_earlier_failure(reference, monkeypatch) -> None:
+def test_normalizer_stops_after_empty_support_without_hiding_earlier_failure(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, -1]]),
@@ -1991,7 +1991,7 @@ def test_native_tilt_validation_rejects_invalid_dimensions() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_symbol_tilt_rejects_lost_finite_adjustments(reference, monkeypatch) -> None:
+def test_symbol_tilt_rejects_lost_finite_adjustments(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     prior = priors.ArityPrior((0, 1), np.array([[0, 0]]),
@@ -2004,7 +2004,7 @@ def test_symbol_tilt_rejects_lost_finite_adjustments(reference, monkeypatch) -> 
 
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("reverse", [False, True])
-def test_symbol_tilt_prioritizes_overflow_over_precision_loss(reference, reverse, monkeypatch) -> None:
+def test_symbol_tilt_prioritizes_overflow_over_precision_loss(reference: bool, reverse: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     weights = [float(2**54), 1e308]

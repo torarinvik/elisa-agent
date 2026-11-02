@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 
 from nca.stats import paired_difference, wilson
@@ -26,26 +27,26 @@ def test_paired_difference() -> None:
 @pytest.mark.parametrize("first, second", [([], []), ([False], [True]),
                                            ([False, False, False], [True]),
                                            ([False, False], [True, False, True])])
-def test_paired_difference_requires_matched_sample_pairs(first, second) -> None:
+def test_paired_difference_requires_matched_sample_pairs(first: Any, second: Any) -> None:
     with pytest.raises(ValueError, match="equal lengths of at least two"):
         paired_difference(first, second)
 
 
 @pytest.mark.parametrize("successes, n", [(1, -1), (2, 1), (-1, 2), (1.5, 3), (1, 2.5)])
-def test_wilson_rejects_invalid_counts(successes, n) -> None:
+def test_wilson_rejects_invalid_counts(successes: Any, n: Any) -> None:
     with pytest.raises(ValueError, match="integer counts"):
         wilson(successes, n)
 
 
 @pytest.mark.parametrize("z", [-1, float("nan"), float("inf")])
-def test_intervals_reject_invalid_normal_quantiles(z) -> None:
+def test_intervals_reject_invalid_normal_quantiles(z: Any) -> None:
     with pytest.raises(ValueError, match="z must"):
         wilson(1, 2, z)
     with pytest.raises(ValueError, match="z must"):
         paired_difference([False, True], [True, True], z)
 
 
-def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch) -> None:
+def test_poisson_binomial_matches_enumeration_and_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     import itertools
     import math
 
@@ -89,7 +90,7 @@ def test_native_poisson_binomial_matches_reference() -> None:
         np.testing.assert_allclose(actual, expected, rtol=1e-14, atol=1e-300)
 
 
-def test_poisson_binomial_preserves_input_precision(monkeypatch) -> None:
+def test_poisson_binomial_preserves_input_precision(monkeypatch: pytest.MonkeyPatch) -> None:
     import numpy as np
     import nca.stats as stats
 
@@ -106,7 +107,7 @@ def test_poisson_binomial_preserves_input_precision(monkeypatch) -> None:
             assert stats.poisson_binomial_tails(n // 3, probabilities) == reference
 
 
-def test_poisson_binomial_promotes_reduced_precision_probabilities(monkeypatch) -> None:
+def test_poisson_binomial_promotes_reduced_precision_probabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     import numpy as np
     import nca.stats as stats
 
@@ -132,7 +133,7 @@ def test_poisson_binomial_nan_propagates_at_support_edges() -> None:
         assert all(math.isnan(p) for p in poisson_binomial_tails(observed, [float("nan")]))
 
 
-def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch) -> None:
+def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch: pytest.MonkeyPatch) -> None:
     import math
     from fractions import Fraction
 
@@ -180,7 +181,7 @@ def test_poisson_binomial_upper_bound_against_exact_fractions(monkeypatch) -> No
             assert stats.poisson_binomial_upper_bound(2, [1e-200, 1e-200]) > 0.0
 
 
-def test_upper_bound_with_many_deterministic_events(monkeypatch) -> None:
+def test_upper_bound_with_many_deterministic_events(monkeypatch: pytest.MonkeyPatch) -> None:
     from fractions import Fraction
     import nca.stats as stats
 
@@ -216,7 +217,7 @@ def test_format_upper_bound_never_rounds_down() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_pair_gap_sum_avoids_cancellation(reference: bool, monkeypatch) -> None:
+def test_pair_gap_sum_avoids_cancellation(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     import numpy as np
     import nca.stats as stats
 
@@ -303,7 +304,7 @@ def test_clopper_pearson_numerically_bounds_exact_limit(
             stats.clopper_pearson_upper(k, n, alpha)
 
 
-def test_zero_error_native_bound_matches_fallback(monkeypatch) -> None:
+def test_zero_error_native_bound_matches_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.stats as stats
 
     native = stats._NATIVE
@@ -317,7 +318,7 @@ def test_zero_error_native_bound_matches_fallback(monkeypatch) -> None:
             assert stats.clopper_pearson_upper(0, n, alpha) == expected
 
 
-def test_nonzero_native_bound_matches_fallback(monkeypatch) -> None:
+def test_nonzero_native_bound_matches_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.stats as stats
 
     native = stats._NATIVE

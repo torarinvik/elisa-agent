@@ -604,14 +604,14 @@ def test_single_pattern_input_preserves_answers_and_order() -> None:
     assert list(planner._solve_inputs(index, index.size, (), (Var("x"),), {}, 1, memo)) == []
 
 
-def test_pattern_sequence_at_one_depth_needs_no_map_candidates(monkeypatch) -> None:
+def test_pattern_sequence_at_one_depth_needs_no_map_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import planner
 
     seed = fn("seed-sequence", [], f"seq[{INT}]", lambda: [])
     index = ProducerIndex([seed])
     memo = index.memo(index.size)
 
-    def unexpected(*args):
+    def unexpected(*args: Any) -> Any:
         raise AssertionError("a map cannot be planned at depth one")
 
     monkeypatch.setattr(index, "element_candidates", unexpected)

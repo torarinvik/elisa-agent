@@ -104,9 +104,8 @@ def test_format_evaluator_retains_tiny_risk_with_and_without_session(
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("use_state", [False, True])
 def test_corrected_account_retains_tiny_sequence_risk_with_larger_within_risk(
-        reference, use_state, monkeypatch) -> None:
+        reference: bool, use_state: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import ladder as ladder_module
-    from nca.domains.boolean import words as word_module
     from nca.prefix import CorrectionState
 
     if reference:
@@ -132,8 +131,7 @@ def test_corrected_account_retains_tiny_sequence_risk_with_larger_within_risk(
 @pytest.mark.parametrize("words", [["and", "true", "false"], ["not", "true"],
                                   ["true", "true"], ["and", "true"]])
 @pytest.mark.parametrize("use_state", [False, True])
-def test_uncut_correction_prefix_check_matches_certificate(words, use_state, monkeypatch) -> None:
-    from nca.domains.boolean import words as word_module
+def test_uncut_correction_prefix_check_matches_certificate(words: Any, use_state: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.prefix import CorrectionState
 
     native = prefix._NATIVE
@@ -141,8 +139,12 @@ def test_uncut_correction_prefix_check_matches_certificate(words, use_state, mon
         pytest.skip("native prefix validation is not built")
     evaluator = FormulaEvaluator(decode=True, short_circuit=False)
     probabilities = torch.tensor([0.5, 0.3, 0.2], dtype=torch.float64)
-    risk = lambda k, d: 0.001
-    distribution = lambda k, d: probabilities
+    def risk(k: int, d: Any) -> float:
+        return 0.001
+
+    def distribution(k: int, d: Any) -> torch.Tensor:
+        return probabilities
+
     fast = evaluator.corrected(words, None, risk, distribution,
                                CorrectionState() if use_state else None)
     monkeypatch.setattr(native, "valid_prefix", None)
@@ -174,6 +176,7 @@ def test_partition_cache_tracks_readings_selected_arities_and_prior(
     monkeypatch.setattr(PartitionCursor, "partition", partition)
     def risk(k: int, d: Decision) -> float:
         return 0.0
+
     first = evaluator.certificate(readings, risk, distribution, state)
     assert first is not None and calls == 1
     cached_rows = state.prior_log_probs
@@ -221,7 +224,9 @@ def test_format_session_reuses_unchanged_normalizer_check(monkeypatch: pytest.Mo
     versions = [0, 0, 0]
     distribution = Distribution(lambda k, d: torch.tensor(masses[k]), versions.__getitem__)
     evaluator = FormulaEvaluator(decode=True, short_circuit=False)
-    risk = lambda k, d: 0.0
+    def risk(k: int, d: Any) -> float:
+        return 0.0
+
     first = evaluator.certificate(readings, risk, distribution, state)
     assert first is not None
     before = calls
@@ -599,6 +604,7 @@ def test_priorities_track_prior_when_partition_fails(monkeypatch: pytest.MonkeyP
     state = CorrectionState()
     def risk(k: int, d: Decision) -> float:
         return 0.0
+
     first = evaluator.certificate(readings, risk, distribution, state)
     assert first is not None
     original = PartitionCursor.partition
