@@ -88,7 +88,7 @@ Prefer improving existing files over introducing unnecessary new files, director
 
 The user-authorized research diary is an exception to the general prohibition on agent diaries. Record scientific predictions, experiments, and measurements in `diary/diary-DD_MM_YY.md`, using the Europe/Oslo calendar date (for example, `diary/diary-01_11_26.md`). Append to that day's file; start a new file on a new date. Keep these entries focused on research evidence, not agent progress logs or session summaries. Preserve existing historical entries when reorganizing diary files.
 
-Maintain mathematical theory in topic chapters under `theory/`, with `THEORY.md` as the navigation index. Keep existing section and theorem numbers stable. Extend the relevant chapter instead of restoring a monolithic theory document or using dated theory files. Add new chapters to the index and update the architecture mappings when appropriate. Keep theory focused on mathematics and model assumptions; code/proof mappings belong in `ARCHITECTURE.md`, and experiments belong in the dated research diary.
+Maintain mathematical theory in topic chapters under `theory/<theme>/`, with `THEORY.md` as the navigation index; the Lean proofs under `lean/NCA/<Theme>/` follow the same grouping. Keep existing section and theorem numbers stable. Extend the relevant chapter instead of restoring a monolithic theory document or using dated theory files. Add new chapters to the index and update the architecture mappings when appropriate. Keep theory focused on mathematics and model assumptions; code/proof mappings belong in `ARCHITECTURE.md`, and experiments belong in the dated research diary.
 
 ### 5. Clean, Focused Changes
 

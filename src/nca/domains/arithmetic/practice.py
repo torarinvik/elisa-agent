@@ -13,7 +13,7 @@ Practice happens offline: a copy of the recognizer is fine-tuned on the queued
 glyphs mixed with replayed MNIST training digits, so the normal style is not
 forgotten. The result is a new version, adopted only if it beats the current
 one by a one-sided sign test on ``validation`` expressions of both styles
-(the upgrade rule of ``lean/NCA/Upgrade.lean``). Never trained on its own
+(the upgrade rule of ``lean/NCA/Planning/Upgrade.lean``). Never trained on its own
 unverified answers, the system cannot reinforce its errors.
 
 Compared, at each label budget, with practicing on as many glyphs drawn with

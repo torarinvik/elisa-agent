@@ -12,45 +12,45 @@ run the Python tests with `uv run pytest`.
 
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
 |---|---|---|
-| [§1 Types and contracts](theory/01-types-and-contracts.md) | `Contract`, `Terms` | `abi`, `registry` |
-| [§2 Planning](theory/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification`, `PatternSearch` | `planner.plan`, `router.infer` |
-| [§3 Routing stability](theory/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
-| [§4 Compositional reliability](theory/04-compositional-reliability.md) | `Reliability` | |
-| [§5 Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md) | `Shift` | `domains.arithmetic.pipeline` |
-| [§6 Handwritten-arithmetic pipeline](theory/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `domains.arithmetic.segmenter`, `domains.arithmetic.symbols`, `domains.arithmetic.digit_recognizer`, `domains.arithmetic.operator_recognizer` |
-| [§7 Measuring accumulation](theory/07-measuring-accumulation.md) | `Routing` | `domains.arithmetic.accumulation` |
-| [§8 Explicit route upgrades](theory/08-explicit-route-upgrades.md) | `Upgrade` | `router.Router`, `router.sign_test` |
-| [§9 Module substitution](theory/09-module-substitution.md) | `Substitution` | `domains.arithmetic.substitution` |
-| [§10 Complementarity](theory/10-complementarity.md) | | `domains.arithmetic.complementarity` |
-| [§11 Evaluation methodology](theory/11-evaluation-methodology.md) | | `domains.arithmetic.expressions`, `stats` |
-| [§12 Lazy loading and discovery](theory/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `domains.arithmetic.scaling` |
-| [§13 Efficiency](theory/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `domains.arithmetic.efficiency`, `workspace` |
-| [§14 Kernel-mediated requests](theory/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `domains.arithmetic.cascade` |
-| [§15 Normalization against shift](theory/15-normalization-against-shift.md) | `Normalize` | `domains.arithmetic.normalizer`, `domains.arithmetic.baseline` |
-| [§16 Knowing when to be unsure](theory/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `domains.arithmetic.practice` |
-| [§17 Calibration under shift](theory/17-calibration-under-distribution-shift.md) | `Calibration` | `domains.arithmetic.certify` |
-| [§18 Noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `prefix`, `modules.edit`, `domains.boolean.logic`, `domains.boolean.formulas`, `domains.boolean.words` |
-| [§19 Error detection by the format](theory/19-error-detection-by-the-format.md) | `Detection` | `prefix`, `shares`, `domains.boolean.logic`, `domains.boolean.formulas` |
-| [§20 Higher-order experts, budgets](theory/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation`, `Relevance` | `modules.combinators`, `optimize`, `kernel`, `runtime` |
-| [§21 Decoding by the format](theory/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `prefix.PrefixEvaluator` (`decode`), `native.decoding` |
-| [§22 Abstaining early](theory/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `prefix.PrefixEvaluator.floor`, `ladder` |
-| [§23 Efficient decoding](theory/23-efficient-decoding.md) | `Banding` | `decoding.decode_banded`, `decoding.Split` (references), `native.decoding` (exact passes) |
-| [§24 When the prior is wrong](theory/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
-| [§25 Climbing order and stopping](theory/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
-| [§26 Composing cascades](theory/26-composing-cascades.md) | `Composition` | not implemented |
-| [§27 Priors as experts](theory/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
-| [§28 Packages as experts](theory/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
-| [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
-| [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
-| [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
-| [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
-| [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
-| [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
-| [§35 Calibration audits](theory/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
-| [§36 Acquiring experts](theory/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
-| [§37 Calibration by groups of inputs](theory/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
-| [§38 In-situ audits](theory/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
-| [§39 Answering over alternatives](theory/39-alternatives.md) | `Alternatives` | `alternatives.answer_over_alternatives`, `alternatives.Choice`, `alternatives.Tabled`, `alternatives.fit_table` |
+| [§1 Types and contracts](theory/foundations/01-types-and-contracts.md) | `Contract`, `Terms` | `abi`, `registry` |
+| [§2 Planning](theory/foundations/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification`, `PatternSearch` | `planner.plan`, `router.infer` |
+| [§3 Routing stability](theory/foundations/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
+| [§4 Compositional reliability](theory/reliability/04-compositional-reliability.md) | `Reliability` | |
+| [§5 Reliability under distribution shift](theory/reliability/05-reliability-under-distribution-shift.md) | `Shift` | `domains.arithmetic.pipeline` |
+| [§6 Handwritten-arithmetic pipeline](theory/studies/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `domains.arithmetic.segmenter`, `domains.arithmetic.symbols`, `domains.arithmetic.digit_recognizer`, `domains.arithmetic.operator_recognizer` |
+| [§7 Measuring accumulation](theory/studies/07-measuring-accumulation.md) | `Routing` | `domains.arithmetic.accumulation` |
+| [§8 Explicit route upgrades](theory/evidence/08-explicit-route-upgrades.md) | `Upgrade` | `router.Router`, `router.sign_test` |
+| [§9 Module substitution](theory/evidence/09-module-substitution.md) | `Substitution` | `domains.arithmetic.substitution` |
+| [§10 Complementarity](theory/studies/10-complementarity.md) | | `domains.arithmetic.complementarity` |
+| [§11 Evaluation methodology](theory/studies/11-evaluation-methodology.md) | | `domains.arithmetic.expressions`, `stats` |
+| [§12 Lazy loading and discovery](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `domains.arithmetic.scaling` |
+| [§13 Efficiency](theory/foundations/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `domains.arithmetic.efficiency`, `workspace` |
+| [§14 Kernel-mediated requests](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `domains.arithmetic.cascade` |
+| [§15 Normalization against shift](theory/reliability/15-normalization-against-shift.md) | `Normalize` | `domains.arithmetic.normalizer`, `domains.arithmetic.baseline` |
+| [§16 Knowing when to be unsure](theory/reliability/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `domains.arithmetic.practice` |
+| [§17 Calibration under shift](theory/reliability/17-calibration-under-distribution-shift.md) | `Calibration` | `domains.arithmetic.certify` |
+| [§18 Noisy Boolean formulas](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `prefix`, `modules.edit`, `domains.boolean.logic`, `domains.boolean.formulas`, `domains.boolean.words` |
+| [§19 Error detection by the format](theory/decoding/19-error-detection-by-the-format.md) | `Detection` | `prefix`, `shares`, `domains.boolean.logic`, `domains.boolean.formulas` |
+| [§20 Higher-order experts, budgets](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation`, `Relevance` | `modules.combinators`, `optimize`, `kernel`, `runtime` |
+| [§21 Decoding by the format](theory/decoding/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `prefix.PrefixEvaluator` (`decode`), `native.decoding` |
+| [§22 Abstaining early](theory/reliability/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `prefix.PrefixEvaluator.floor`, `ladder` |
+| [§23 Efficient decoding](theory/decoding/23-efficient-decoding.md) | `Banding` | `decoding.decode_banded`, `decoding.Split` (references), `native.decoding` (exact passes) |
+| [§24 When the prior is wrong](theory/decoding/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
+| [§25 Climbing order and stopping](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
+| [§26 Composing cascades](theory/reliability/26-composing-cascades.md) | `Composition` | not implemented |
+| [§27 Priors as experts](theory/decoding/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
+| [§28 Packages as experts](theory/foundations/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
+| [§29 Types as objects](theory/foundations/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
+| [§30 Selection by evidence](theory/evidence/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
+| [§31 Composing uncertainty](theory/reliability/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
+| [§32 Trust](theory/evidence/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
+| [§33 Per-input risk on any route](theory/reliability/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
+| [§34 Compiled routes](theory/foundations/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
+| [§35 Calibration audits](theory/reliability/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
+| [§36 Acquiring experts](theory/evidence/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
+| [§37 Calibration by groups of inputs](theory/reliability/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
+| [§38 In-situ audits](theory/reliability/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
+| [§39 Answering over alternatives](theory/reliability/39-alternatives.md) | `Alternatives` | `alternatives.answer_over_alternatives`, `alternatives.Choice`, `alternatives.Tabled`, `alternatives.fit_table` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -87,261 +87,261 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 
 | THEORY.md | Lean name | File |
 |---|---|---|
-| [1.1](theory/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
-| [1.2](theory/01-types-and-contracts.md) | `WellTyped.subst` | `Terms` |
-| [2.1](theory/02-planning.md) | `plan_sound` | `Planner` |
-| [2.1](theory/02-planning.md) | `planShallow_sound` | `Routing` |
-| [2.2](theory/02-planning.md) | `zero_fuel_nonempty_inputs` | `Planner` |
-| [2.2](theory/02-planning.md) | `traverse_singleton` | `Planner` |
-| [2.2](theory/02-planning.md) | `zero_fuel_map_children` | `Planner` |
-| [2.2](theory/02-planning.md) | `renVar_ne_external`, `renVar_injective` | `PatternSearch` |
-| [2.2](theory/02-planning.md) | `subst_ground` | `PatternSearch` |
-| [2.2](theory/02-planning.md) | `HTypedSlots.has_filling` | `Slots` |
-| [2.2](theory/02-planning.md) | `plan_complete` | `Planner` |
-| [2.3](theory/02-planning.md) | `infer_iff` | `Check` |
-| [2.4](theory/02-planning.md) | `Contract.subst_determined` | `Terms` |
-| [2.5](theory/02-planning.md) | `InstanceOf.subst`, `answer_sound` | `Terms` |
-| [2.6](theory/02-planning.md) | `Term.subst_app_ne` | `Terms` |
-| [2.7](theory/02-planning.md) | `mgu_exists` | `Unification` |
-| [2.8](theory/02-planning.md) | `unifies_eqSubst`, `isMGU_append` | `Unification` |
-| [2.9](theory/02-planning.md) | `Skel.sound`, `Skel.complete`, `Skel.most_general` | `PatternSearch` |
-| [2.10](theory/02-planning.md) | `SeqMGU.isMGU`, `SeqMGU.exists` | `PatternSearch` |
-| [3.1](theory/03-routing-stability.md) | `plan_not_stable` | `Routing` |
-| [3.2](theory/03-routing-stability.md) | `planStable_sound` | `Routing` |
-| [3.2](theory/03-routing-stability.md) | `planStable_complete` | `Routing` |
-| [3.2](theory/03-routing-stability.md) | `planShallow_complete`, `planShallowStable_sound`, `planShallowStable_complete` | `Routing` |
-| [3.3](theory/03-routing-stability.md) | `planStable_append` | `Routing` |
-| [3.3](theory/03-routing-stability.md) | `planShallowStable_append` | `Routing` |
-| [4.1](theory/04-compositional-reliability.md) | `composition_error_le_sum` | `Reliability` |
-| [4.2](theory/04-compositional-reliability.md) | `composition_success_ge_prod` | `Reliability` |
-| [5.1](theory/05-reliability-under-distribution-shift.md) | `composition_error_le_shifted` | `Shift` |
-| [5.2](theory/05-reliability-under-distribution-shift.md) | `offline_rate_insufficient` | `Shift` |
-| [5.3](theory/05-reliability-under-distribution-shift.md) | `shift_ge_gap` | `Shift` |
-| [8.1](theory/08-explicit-route-upgrades.md) | `route_sound` | `Upgrade` |
-| [8.2](theory/08-explicit-route-upgrades.md) | `upgrade_valid` | `Upgrade` |
-| [8.3](theory/08-explicit-route-upgrades.md) | `upgrade_target` | `Upgrade` |
-| [8.4](theory/08-explicit-route-upgrades.md) | `upgrade_local` | `Upgrade` |
-| [8.5](theory/08-explicit-route-upgrades.md) | `upgrade_rollback` | `Upgrade` |
-| [8.6](theory/08-explicit-route-upgrades.md) | `route_append` | `Upgrade` |
-| [8.7](theory/08-explicit-route-upgrades.md) | `PinsValid.append` | `Upgrade` |
-| [9.1](theory/09-module-substitution.md) | `substitution_change_le` | `Substitution` |
-| [9.2](theory/09-module-substitution.md) | `accuracy_transfer` | `Substitution` |
-| [9.3](theory/09-module-substitution.md) | `substitution_accuracy_ge` | `Substitution` |
-| [11](theory/11-evaluation-methodology.md) | `paired_zip_length` | `Calibration` |
-| [12.1](theory/12-lazy-loading-and-scalable-discovery.md) | `WellTyped.contracts_subset` | `Loading` |
-| [12.2](theory/12-lazy-loading-and-scalable-discovery.md) | `route_contracts_append` | `Loading` |
-| [12.3](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_derivable` | `Loading` |
-| [12.4](theory/12-lazy-loading-and-scalable-discovery.md) | `Derivable.mono` | `Loading` |
-| [12.4](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_mono` | `Loading` |
-| [12.5](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_mono` | `Loading` |
-| [12.6](theory/12-lazy-loading-and-scalable-discovery.md) | `planIdx_eq` | `Loading` |
-| [12.7](theory/12-lazy-loading-and-scalable-discovery.md) | `planPruned_eq` | `Pruning` |
-| [12.8](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_closure` | `Pruning` |
-| [12.9](theory/12-lazy-loading-and-scalable-discovery.md) | `closure_oracle_sound` | `Pruning` |
-| [12.10](theory/12-lazy-loading-and-scalable-discovery.md) | `load_lower_bound` | `Eviction` |
-| [12.11](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_load` | `Eviction` |
-| [12.11](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_optimal` | `Eviction` |
-| [12.12](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_switch` | `Eviction` |
-| [12.13](theory/12-lazy-loading-and-scalable-discovery.md) | `routeAware_repeat` | `Eviction` |
-| [12.15](theory/12-lazy-loading-and-scalable-discovery.md) | `demanded_missing_le` | `Eviction` |
-| [12.16](theory/12-lazy-loading-and-scalable-discovery.md) | `pinned_next_fits` | `Eviction` |
-| [12.17](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_seq_source` | `Pruning` |
-| [12.18](theory/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_append` | `Loading` |
-| [12.19](theory/12-lazy-loading-and-scalable-discovery.md) | `HTyped.eclosure`, `ECl.trans` | `Eliminators` |
-| [12.20](theory/12-lazy-loading-and-scalable-discovery.md) | `HTyped.seq_source` | `Eliminators` |
-| [12.21](theory/12-lazy-loading-and-scalable-discovery.md) | `planDepth_eq` | `DepthPruning` |
-| [12.22](theory/12-lazy-loading-and-scalable-discovery.md) | `derivable_within` | `DepthPruning` |
-| [13.1](theory/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
-| [13.2](theory/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
-| [13.3](theory/13-efficiency.md) | `route_cost_append` | `Cost` |
-| [13.4](theory/13-efficiency.md) | `planMin_sound` | `MinCost` |
-| [13.5](theory/13-efficiency.md) | `planMin_optimal` | `MinCost` |
-| [13.6](theory/13-efficiency.md) | `front_cover` | `Pareto` |
-| [13.7](theory/13-efficiency.md) | `planPareto_sound` | `Pareto` |
-| [13.8](theory/13-efficiency.md) | `planPareto_cover` | `Pareto` |
-| [13.9](theory/13-efficiency.md) | `planPareto_within` | `Pareto` |
-| [14.1](theory/14-kernel-mediated-requests-and-refinement.md) | `resolve_sound` | `Request` |
-| [14.2](theory/14-kernel-mediated-requests-and-refinement.md) | `resolve_avoids` | `Request` |
-| [14.3](theory/14-kernel-mediated-requests-and-refinement.md) | `RequestChain.length_le` | `Request` |
-| [14.4](theory/14-kernel-mediated-requests-and-refinement.md) | `cascade_error_eq` | `Cascade` |
-| [14.5](theory/14-kernel-mediated-requests-and-refinement.md) | `cascade_le_fallback` | `Cascade` |
-| [14.6](theory/14-kernel-mediated-requests-and-refinement.md) | `cascade_expected_cost` | `Cascade` |
-| [14.7](theory/14-kernel-mediated-requests-and-refinement.md) | `gated_error_le` | `Cascade` |
-| [14.8](theory/14-kernel-mediated-requests-and-refinement.md) | `gated_error_eq_of_sound` | `Cascade` |
-| [14.9](theory/14-kernel-mediated-requests-and-refinement.md) | `gated_expected_cost` | `Cascade` |
-| [14.10](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.comp` | `Demand` |
-| [14.11](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.pair` | `Demand` |
-| [14.12](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.map` | `Demand` |
-| [14.13](theory/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.exact` | `Demand` |
-| [14.14](theory/14-kernel-mediated-requests-and-refinement.md) | `Safe.run` | `Continuation` |
-| [14.15](theory/14-kernel-mediated-requests-and-refinement.md) | `Safe.bind` | `Continuation` |
-| [14.16](theory/14-kernel-mediated-requests-and-refinement.md) | `Depth.run_le` | `Continuation` |
-| [14.17](theory/14-kernel-mediated-requests-and-refinement.md) | `Depth.bind` | `Continuation` |
-| [14.18](theory/14-kernel-mediated-requests-and-refinement.md) | `positive_scale_preserves_maximum`, `zero_scale_collapses_order` | `Demand` |
-| [15.1](theory/15-normalization-against-shift.md) | `ShiftBound.map` | `Normalize` |
-| [15.2](theory/15-normalization-against-shift.md) | `shift_le_of_invariant_on` | `Normalize` |
-| [15.3](theory/15-normalization-against-shift.md) | `shift_zero_of_invariant` | `Normalize` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `selective_risk_le`, `selective_risk_le_available`, `upper_fold_ge` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_alternative_risk` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_observation_floor` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `batched_monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `rowwise_shift_order`, `exp_shift_ratio`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `grouped_normalization`, `batched_group_mass_ext`, `batched_group_risk_bounds`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `grouped_selection_risk_difference` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `unsigned_bitpattern_order` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `average_calibrated_difference` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `singleton_target_normalizer` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `target_maximum_unit_weight` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `calibration_relabel_normalization` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `positive_target_group_nonempty` | `Selective` |
-| [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
-| [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
-| [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
-| [16.4](theory/16-knowing-when-to-be-unsure.md) | `restricted_risk_le`, `zero_total_no_positive_entry`, `risk_scale_invariant` | `Selective` |
-| [16.5](theory/16-knowing-when-to-be-unsure.md) | `queued_value` | `Practice` |
-| [16.6](theory/16-knowing-when-to-be-unsure.md) | `unqueued_errors` | `Practice` |
-| [16.7](theory/16-knowing-when-to-be-unsure.md) | `queued_captures` | `Practice` |
-| [16.8](theory/16-knowing-when-to-be-unsure.md) | `proportional_value` | `Practice` |
-| [17.1](theory/17-calibration-under-distribution-shift.md) | `selective_risk_le_excess` | `Calibration` |
-| [17.2](theory/17-calibration-under-distribution-shift.md) | `shift_ratio_le` | `Calibration` |
-| [17.3](theory/17-calibration-under-distribution-shift.md) | `horvitz_thompson` | `Calibration` |
-| [17.4](theory/17-calibration-under-distribution-shift.md) | `inflated_answered_mono` | `Calibration` |
-| [17.8](theory/17-calibration-under-distribution-shift.md) | `threshold_trace_prefix` | `Calibration` |
-| [17.9](theory/17-calibration-under-distribution-shift.md) | `audit_family_le` | `Calibration` |
-| [17.7](theory/17-calibration-under-distribution-shift.md) | `audit_rejection_of_completion` | `Calibration` |
-| [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_budget_obstruction` | `Calibration` |
-| [17.6](theory/17-calibration-under-distribution-shift.md) | `audit_cdf_upper_refutes`, `audit_cdf_lower_proves` | `Calibration` |
-| [17.5](theory/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
-| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `grouped_risk_le` | `Certificate` |
-| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `risk_as_alternative_mass` | `Selective` |
-| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_symmetric` | `Edit` |
-| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_empty_left`, `osa_empty_right` | `Edit` |
-| [18.1](theory/18-a-second-domain-noisy-boolean-formulas.md) | `osa_self` | `Edit` |
-| [18.2](theory/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le` | `Certificate` |
-| [18.2](theory/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le_support` | `Certificate` |
-| [18.3](theory/18-a-second-domain-noisy-boolean-formulas.md) | `cert_sound` | `Certificate` |
-| [18.4](theory/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_valid` | `Certificate` |
-| [18.4](theory/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_le` | `Certificate` |
-| [18.5](theory/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_le_full` | `Certificate` |
-| [18.6](theory/18-a-second-domain-noisy-boolean-formulas.md) | `code_prefix` | `Certificate` |
-| [18.7](theory/18-a-second-domain-noisy-boolean-formulas.md) | `alternating_cert_leaves` | `Certificate` |
-| [19.1](theory/19-error-detection-by-the-format.md) | `code_sum` | `Detection` |
-| [19.2](theory/19-error-detection-by-the-format.md) | `code_no_single_change` | `Detection` |
-| [19.3](theory/19-error-detection-by-the-format.md) | `detected_error_le` | `Detection` |
-| [19.4](theory/19-error-detection-by-the-format.md) | `joint_le_restricted` | `Detection` |
-| [19.5](theory/19-error-detection-by-the-format.md) | `two_occur_le_half` | `Detection` |
-| [19.6](theory/19-error-detection-by-the-format.md) | `two_occur_le_pairs` | `Detection` |
-| [19.6](theory/19-error-detection-by-the-format.md) | `pair_share_prefix_suffix_upper` | `Detection` |
-| [19.6](theory/19-error-detection-by-the-format.md) | `detection_share_combine_upper` | `Detection` |
-| [20.1](theory/20-higher-order-experts-and-budgeted-requests.md) | `HTyped.mono` | `Slots` |
-| [20.2](theory/20-higher-order-experts-and-budgeted-requests.md) | `embed_wellTyped` | `Slots` |
-| [20.3](theory/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_le_pow` | `Slots` |
-| [20.4](theory/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_mono` | `Slots` |
-| [20.5](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_sound` | `Continuation` |
-| [20.6](theory/20-higher-order-experts-and-budgeted-requests.md) | `serve_spent` | `Continuation` |
-| [20.7](theory/20-higher-order-experts-and-budgeted-requests.md) | `Prog.runB_le` | `Continuation` |
-| [20.8](theory/20-higher-order-experts-and-budgeted-requests.md) | `choice_cost_le` | `Slots` |
-| [20.9](theory/20-higher-order-experts-and-budgeted-requests.md) | `PTyped.erase`, `WellTyped.positional` | `Relevance` |
-| [20.10](theory/20-higher-order-experts-and-budgeted-requests.md) | `PPlan.uses_apply`, `PPlan.given_not_relevant`, `PTyped.uses_lt` | `Relevance` |
-| [21.1](theory/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
-| [21.2](theory/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
-| [21.3](theory/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
-| [21.3](theory/21-decoding-by-the-format.md) | `await_balance`, `accepted_arity_sum`, `accepted_arity_lt_length` | `Decoding` |
-| [21.4](theory/21-decoding-by-the-format.md) | `dpSum_eq` | `Decoding` |
-| [21.5](theory/21-decoding-by-the-format.md) | `dpMax_ge` | `Decoding` |
-| [21.6](theory/21-decoding-by-the-format.md) | `dpMax_attained`, `tiedChoice_eq_min`, `tiedChoice_comm`, `arity_exceeds_state_bound`, `completion_transition_bound`, `counter_growth_bound`, `foldl_await_zero_nonempty` | `Decoding` |
-| [21.7](theory/21-decoding-by-the-format.md) | `exact_risk_le_union` | `Decoding` |
-| [21.7](theory/21-decoding-by-the-format.md) | `one_sub_prod_le_sum` | `Decoding` |
-| [22.1](theory/22-abstaining-early.md) | `detection_account_mono` | `Detection` |
-| [22.3](theory/22-abstaining-early.md) | `lower_fold_le` | `Selective` |
-| [22.4](theory/22-abstaining-early.md) | `committed_continuation_preferred` | `Stopping` |
-| [22.4](theory/22-abstaining-early.md) | `firstStoppingState_append` | `Stopping` |
-| [22.4](theory/22-abstaining-early.md) | `positive_target_preserves_order` | `Stopping` |
-| [23.1](theory/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
-| [23.2](theory/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
-| [23.3](theory/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length`, `tail_row_scale`, `row_mass_partition`, `anchored_exp_mass`, `rowFactor_normalizes`, `tail_le_row_factors`, `row_summary_append` | `Banding` |
-| [23.3](theory/23-efficient-decoding.md) | `bandPolynomial_recurrence`, `bandPolynomial_threshold_suffix`, `threshold_search_step`, `threshold_search_shrinks`, `searchGap_i64`, `threshold_search_adjacent` | `BandSearch` |
-| [23.4](theory/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval`, `ragged_band_storage_covers` | `Banding` |
-| [23.4](theory/23-efficient-decoding.md) | `sum_filter_support`, `max_filter_support`, `support_shift_bounds`, `split_support_intersection`, `trace_predecessor_monotone`, `trace_successor_monotone`, `ordered_arity_exceeds_envelope`, `scoredChoice_comm`, `scoredChoice_assoc` | `Decoding` |
-| [23.5](theory/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |
-| [23.6](theory/23-efficient-decoding.md) | `banded_risk_slack` | `Banding` |
-| [23.7](theory/23-efficient-decoding.md) | `dpSum_append` | `Banding` |
-| [23.8](theory/23-efficient-decoding.md) | `dpMax_append` | `Banding` |
-| [23.9](theory/23-efficient-decoding.md) | `sum_pair_dist` | `Banding` |
-| [23.10](theory/23-efficient-decoding.md) | `stitch_attains` | `Banding` |
-| [23.15](theory/23-efficient-decoding.md) | `cache_lookup_correct`, `cache_evict_sound`, `cache_store_sound` | `Selective` |
-| [23.14](theory/23-efficient-decoding.md) | `sum_row_shift`, `row_shift_order` | `Selective` |
-| [23.13](theory/23-efficient-decoding.md) | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
-| [23.12](theory/23-efficient-decoding.md) | `revision_cache_eq` | `Selective` |
-| [23.11](theory/23-efficient-decoding.md) | `priority_allocation_sum`, `priority_allocation_nonneg`, `priority_allocation_cover` | `Selective` |
-| [24.1](theory/24-when-the-prior-is-wrong.md) | `reweighted_odds` | `Misspecification` |
-| [24.2](theory/24-when-the-prior-is-wrong.md) | `reweighted_risk_le` | `Misspecification` |
-| [24.3](theory/24-when-the-prior-is-wrong.md) | `reweighted_risk_le_mul` | `Misspecification` |
-| [24.4](theory/24-when-the-prior-is-wrong.md) | `dominated_risk_le` | `Misspecification` |
-| [24.5](theory/24-when-the-prior-is-wrong.md) | `adversarial_prior` | `Misspecification` |
-| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `cost_ge_of_ratio` | `Stopping` |
-| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `fractional_ratio_bound_strict` | `Stopping` |
-| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `selective_risk_le_selected` | `Selective` |
-| [25.1](theory/25-which-word-to-climb-and-when-to-stop.md) | `charge_cost_ratio_order` | `Stopping` |
-| [25.2](theory/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
-| [25.3](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
-| [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
-| [25.4](theory/25-which-word-to-climb-and-when-to-stop.md) | `split_bin_gain_nonneg` | `Stopping` |
-| [25.5](theory/25-which-word-to-climb-and-when-to-stop.md) | `single_climb_account` | `Stopping` |
-| [26.1](theory/26-composing-cascades.md) | `fallback_cost_eq` | `Composition` |
-| [26.2](theory/26-composing-cascades.md) | `fallback_cost_conditional` | `Composition` |
-| [26.3](theory/26-composing-cascades.md) | `fallback_cost_sub_independent` | `Composition` |
-| [26.4](theory/26-composing-cascades.md) | `fallback_cost_ge_independent` | `Composition` |
-| [26.5](theory/26-composing-cascades.md) | `chain_error_eq` | `Composition` |
-| [26.6](theory/26-composing-cascades.md) | `chain_cost_eq` | `Composition` |
-| [26.7](theory/26-composing-cascades.md) | `split_error_eq` | `Composition` |
-| [26.8](theory/26-composing-cascades.md) | `argmin_within` | `Composition` |
-| [26.9](theory/26-composing-cascades.md) | `some_deviates_le` | `Composition` |
-| [27.1](theory/27-priors-as-experts.md) | `pdpSum_eq` | `Product` |
-| [27.2](theory/27-priors-as-experts.md) | `pdpMax_ge` | `Product` |
-| [27.3](theory/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
-| [27.4](theory/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
-| [27.5](theory/27-priors-as-experts.md) | `complete_shape_length` | `Decoding` |
-| [27.6](theory/27-priors-as-experts.md) | `prior_support_sum`, `prior_support_max`, `prior_step_zero_outside`, `prior_prune_zero_readings`, `pdpSum_zero_row`, `pdpMax_zero_row`, `partitionCompose_zero_left` | `Product` |
-| [27.7](theory/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
-| [27.8](theory/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
-| [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret`, `prior_selection_half_gap` | `Product` |
-| [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds`, `clipped_error_bound_mono` (concentration not formalized) | `Product` |
-| [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
-| [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
-| [27.15](theory/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |
-| [27.16](theory/27-priors-as-experts.md) | `risk_from_other_mass`, `partition_risk_common_factor`, `prior_common_factors`, `equal_positive_mass_increases`, `two_sum_residual_identity`, `compensated_evidence_step` | `Product` |
-| [27.17](theory/27-priors-as-experts.md) | `partitionCompose_assoc`, `partitionCompose_identity`, `partitionCompose_nonneg` | `Product` |
-| [27.18](theory/27-priors-as-experts.md) | `partitionBoundary_total`, `partitionBoundary_nonneg`, `partitionBoundary_assoc`, `partitionBoundary_identity` | `Product` |
-| [27.19](theory/27-priors-as-experts.md) | `partition_prefix_reuse` | `Product` |
-| [28.1](theory/28-packages-as-experts.md) | `Pkg.flattenList_append` | `Package` |
-| [28.2](theory/28-packages-as-experts.md) | `install_stable` | `Package` |
-| [28.3](theory/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
-| [28.4](theory/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
-| [29.1](theory/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
-| [29.2](theory/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
-| [29.3](theory/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
-| [30.1](theory/30-selection-by-evidence.md) | `audit_family_le` (the union bound; the sign test's validity is assumed) | `Calibration` |
-| [30.2](theory/30-selection-by-evidence.md) | `plan_rename`, `planShallow_rename`, `planShallowStable_rename`, `WellTyped.rename` | `Selection` |
-| [31.1](theory/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
-| [31.2](theory/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
-| [31.4](theory/31-composing-uncertainty.md) | `audit_family_le` with `risk_le_charges` | `Calibration`, `Risk` |
-| [31.5](theory/31-composing-uncertainty.md) | `risk_le_charges` on relevant counts, with `DemandSound.exact` | `Risk`, `Demand` |
-| [32.1](theory/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
-| [32.2](theory/32-trust.md) | `undetected_le_exp` | `Spot` |
-| [33.1](theory/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
-| [33.2](theory/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
-| [33.4](theory/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
-| [34.2](theory/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
-| [34.3](theory/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
-| [34.4](theory/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
-| [35.1](theory/35-calibration-audits.md) | `count_tail_le`, `audit_tail_le` | `Audit` |
-| [36.1](theory/36-acquisition.md) | `split_test_le` | `Acquire` |
-| [37.1](theory/37-grouped-calibration.md) | `grouped_calibrated` | `Grouped` |
-| [38.1](theory/38-in-situ-audits.md) | `sampled_calibrated` | `Sampling` |
-| [39.1](theory/39-alternatives.md) | `alternatives_le`, `alternatives_lower` | `Alternatives` |
+| [1.1](theory/foundations/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
+| [1.2](theory/foundations/01-types-and-contracts.md) | `WellTyped.subst` | `Terms` |
+| [2.1](theory/foundations/02-planning.md) | `plan_sound` | `Planner` |
+| [2.1](theory/foundations/02-planning.md) | `planShallow_sound` | `Routing` |
+| [2.2](theory/foundations/02-planning.md) | `zero_fuel_nonempty_inputs` | `Planner` |
+| [2.2](theory/foundations/02-planning.md) | `traverse_singleton` | `Planner` |
+| [2.2](theory/foundations/02-planning.md) | `zero_fuel_map_children` | `Planner` |
+| [2.2](theory/foundations/02-planning.md) | `renVar_ne_external`, `renVar_injective` | `PatternSearch` |
+| [2.2](theory/foundations/02-planning.md) | `subst_ground` | `PatternSearch` |
+| [2.2](theory/foundations/02-planning.md) | `HTypedSlots.has_filling` | `Slots` |
+| [2.2](theory/foundations/02-planning.md) | `plan_complete` | `Planner` |
+| [2.3](theory/foundations/02-planning.md) | `infer_iff` | `Check` |
+| [2.4](theory/foundations/02-planning.md) | `Contract.subst_determined` | `Terms` |
+| [2.5](theory/foundations/02-planning.md) | `InstanceOf.subst`, `answer_sound` | `Terms` |
+| [2.6](theory/foundations/02-planning.md) | `Term.subst_app_ne` | `Terms` |
+| [2.7](theory/foundations/02-planning.md) | `mgu_exists` | `Unification` |
+| [2.8](theory/foundations/02-planning.md) | `unifies_eqSubst`, `isMGU_append` | `Unification` |
+| [2.9](theory/foundations/02-planning.md) | `Skel.sound`, `Skel.complete`, `Skel.most_general` | `PatternSearch` |
+| [2.10](theory/foundations/02-planning.md) | `SeqMGU.isMGU`, `SeqMGU.exists` | `PatternSearch` |
+| [3.1](theory/foundations/03-routing-stability.md) | `plan_not_stable` | `Routing` |
+| [3.2](theory/foundations/03-routing-stability.md) | `planStable_sound` | `Routing` |
+| [3.2](theory/foundations/03-routing-stability.md) | `planStable_complete` | `Routing` |
+| [3.2](theory/foundations/03-routing-stability.md) | `planShallow_complete`, `planShallowStable_sound`, `planShallowStable_complete` | `Routing` |
+| [3.3](theory/foundations/03-routing-stability.md) | `planStable_append` | `Routing` |
+| [3.3](theory/foundations/03-routing-stability.md) | `planShallowStable_append` | `Routing` |
+| [4.1](theory/reliability/04-compositional-reliability.md) | `composition_error_le_sum` | `Reliability` |
+| [4.2](theory/reliability/04-compositional-reliability.md) | `composition_success_ge_prod` | `Reliability` |
+| [5.1](theory/reliability/05-reliability-under-distribution-shift.md) | `composition_error_le_shifted` | `Shift` |
+| [5.2](theory/reliability/05-reliability-under-distribution-shift.md) | `offline_rate_insufficient` | `Shift` |
+| [5.3](theory/reliability/05-reliability-under-distribution-shift.md) | `shift_ge_gap` | `Shift` |
+| [8.1](theory/evidence/08-explicit-route-upgrades.md) | `route_sound` | `Upgrade` |
+| [8.2](theory/evidence/08-explicit-route-upgrades.md) | `upgrade_valid` | `Upgrade` |
+| [8.3](theory/evidence/08-explicit-route-upgrades.md) | `upgrade_target` | `Upgrade` |
+| [8.4](theory/evidence/08-explicit-route-upgrades.md) | `upgrade_local` | `Upgrade` |
+| [8.5](theory/evidence/08-explicit-route-upgrades.md) | `upgrade_rollback` | `Upgrade` |
+| [8.6](theory/evidence/08-explicit-route-upgrades.md) | `route_append` | `Upgrade` |
+| [8.7](theory/evidence/08-explicit-route-upgrades.md) | `PinsValid.append` | `Upgrade` |
+| [9.1](theory/evidence/09-module-substitution.md) | `substitution_change_le` | `Substitution` |
+| [9.2](theory/evidence/09-module-substitution.md) | `accuracy_transfer` | `Substitution` |
+| [9.3](theory/evidence/09-module-substitution.md) | `substitution_accuracy_ge` | `Substitution` |
+| [11](theory/studies/11-evaluation-methodology.md) | `paired_zip_length` | `Calibration` |
+| [12.1](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `WellTyped.contracts_subset` | `Loading` |
+| [12.2](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `route_contracts_append` | `Loading` |
+| [12.3](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `plan_derivable` | `Loading` |
+| [12.4](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `Derivable.mono` | `Loading` |
+| [12.4](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `plan_mono` | `Loading` |
+| [12.5](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_mono` | `Loading` |
+| [12.6](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `planIdx_eq` | `Loading` |
+| [12.7](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `planPruned_eq` | `Pruning` |
+| [12.8](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `derivable_closure` | `Pruning` |
+| [12.9](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `closure_oracle_sound` | `Pruning` |
+| [12.10](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `load_lower_bound` | `Eviction` |
+| [12.11](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `routeAware_load` | `Eviction` |
+| [12.11](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `routeAware_optimal` | `Eviction` |
+| [12.12](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `routeAware_switch` | `Eviction` |
+| [12.13](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `routeAware_repeat` | `Eviction` |
+| [12.15](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `demanded_missing_le` | `Eviction` |
+| [12.16](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `pinned_next_fits` | `Eviction` |
+| [12.17](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `derivable_seq_source` | `Pruning` |
+| [12.18](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `plan_prefix_append` | `Loading` |
+| [12.19](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `HTyped.eclosure`, `ECl.trans` | `Eliminators` |
+| [12.20](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `HTyped.seq_source` | `Eliminators` |
+| [12.21](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `planDepth_eq` | `DepthPruning` |
+| [12.22](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `derivable_within` | `DepthPruning` |
+| [13.1](theory/foundations/13-efficiency.md) | `Plan.cost_le_pow` | `Cost` |
+| [13.2](theory/foundations/13-efficiency.md) | `Plan.cost_linear` | `Cost` |
+| [13.3](theory/foundations/13-efficiency.md) | `route_cost_append` | `Cost` |
+| [13.4](theory/foundations/13-efficiency.md) | `planMin_sound` | `MinCost` |
+| [13.5](theory/foundations/13-efficiency.md) | `planMin_optimal` | `MinCost` |
+| [13.6](theory/foundations/13-efficiency.md) | `front_cover` | `Pareto` |
+| [13.7](theory/foundations/13-efficiency.md) | `planPareto_sound` | `Pareto` |
+| [13.8](theory/foundations/13-efficiency.md) | `planPareto_cover` | `Pareto` |
+| [13.9](theory/foundations/13-efficiency.md) | `planPareto_within` | `Pareto` |
+| [14.1](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `resolve_sound` | `Request` |
+| [14.2](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `resolve_avoids` | `Request` |
+| [14.3](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `RequestChain.length_le` | `Request` |
+| [14.4](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `cascade_error_eq` | `Cascade` |
+| [14.5](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `cascade_le_fallback` | `Cascade` |
+| [14.6](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `cascade_expected_cost` | `Cascade` |
+| [14.7](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `gated_error_le` | `Cascade` |
+| [14.8](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `gated_error_eq_of_sound` | `Cascade` |
+| [14.9](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `gated_expected_cost` | `Cascade` |
+| [14.10](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.comp` | `Demand` |
+| [14.11](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.pair` | `Demand` |
+| [14.12](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.map` | `Demand` |
+| [14.13](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `DemandSound.exact` | `Demand` |
+| [14.14](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Safe.run` | `Continuation` |
+| [14.15](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Safe.bind` | `Continuation` |
+| [14.16](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Depth.run_le` | `Continuation` |
+| [14.17](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Depth.bind` | `Continuation` |
+| [14.18](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `positive_scale_preserves_maximum`, `zero_scale_collapses_order` | `Demand` |
+| [15.1](theory/reliability/15-normalization-against-shift.md) | `ShiftBound.map` | `Normalize` |
+| [15.2](theory/reliability/15-normalization-against-shift.md) | `shift_le_of_invariant_on` | `Normalize` |
+| [15.3](theory/reliability/15-normalization-against-shift.md) | `shift_zero_of_invariant` | `Normalize` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `selective_risk_le`, `selective_risk_le_available`, `upper_fold_ge` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `positive_alternative_risk` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `positive_observation_floor` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `batched_monotone_normalized_rank`, `ranked_tie_keeps_first`, `integer_shift_preserves_order`, `rowwise_shift_order`, `exp_shift_ratio`, `ranked_restriction_ext`, `calibration_subset_membership`, `calibration_subset_empty`, `calibration_matrix_restriction_ext`, `grouped_normalization`, `batched_group_mass_ext`, `batched_group_risk_bounds`, `calibrated_difference_rescale`, `grouped_negative_log_likelihood` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `grouped_selection_risk_difference` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `unsigned_bitpattern_order` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `average_calibrated_difference` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `singleton_target_normalizer` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `target_maximum_unit_weight` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `calibration_relabel_normalization` | `Selective` |
+| [16.1](theory/reliability/16-knowing-when-to-be-unsure.md) | `positive_target_group_nonempty` | `Selective` |
+| [16.2](theory/reliability/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
+| [16.3](theory/reliability/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
+| [16.3](theory/reliability/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
+| [16.4](theory/reliability/16-knowing-when-to-be-unsure.md) | `restricted_risk_le`, `zero_total_no_positive_entry`, `risk_scale_invariant` | `Selective` |
+| [16.5](theory/reliability/16-knowing-when-to-be-unsure.md) | `queued_value` | `Practice` |
+| [16.6](theory/reliability/16-knowing-when-to-be-unsure.md) | `unqueued_errors` | `Practice` |
+| [16.7](theory/reliability/16-knowing-when-to-be-unsure.md) | `queued_captures` | `Practice` |
+| [16.8](theory/reliability/16-knowing-when-to-be-unsure.md) | `proportional_value` | `Practice` |
+| [17.1](theory/reliability/17-calibration-under-distribution-shift.md) | `selective_risk_le_excess` | `Calibration` |
+| [17.2](theory/reliability/17-calibration-under-distribution-shift.md) | `shift_ratio_le` | `Calibration` |
+| [17.3](theory/reliability/17-calibration-under-distribution-shift.md) | `horvitz_thompson` | `Calibration` |
+| [17.4](theory/reliability/17-calibration-under-distribution-shift.md) | `inflated_answered_mono` | `Calibration` |
+| [17.8](theory/reliability/17-calibration-under-distribution-shift.md) | `threshold_trace_prefix` | `Calibration` |
+| [17.9](theory/reliability/17-calibration-under-distribution-shift.md) | `audit_family_le` | `Calibration` |
+| [17.7](theory/reliability/17-calibration-under-distribution-shift.md) | `audit_rejection_of_completion` | `Calibration` |
+| [17.6](theory/reliability/17-calibration-under-distribution-shift.md) | `audit_budget_obstruction` | `Calibration` |
+| [17.6](theory/reliability/17-calibration-under-distribution-shift.md) | `audit_cdf_upper_refutes`, `audit_cdf_lower_proves` | `Calibration` |
+| [17.5](theory/reliability/17-calibration-under-distribution-shift.md) | `fixed_sequence_le` | `Calibration` |
+| [18.1](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `grouped_risk_le` | `Certificate` |
+| [18.1](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `risk_as_alternative_mass` | `Selective` |
+| [18.1](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `osa_symmetric` | `Edit` |
+| [18.1](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `osa_empty_left`, `osa_empty_right` | `Edit` |
+| [18.1](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `osa_self` | `Edit` |
+| [18.2](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le` | `Certificate` |
+| [18.2](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `certificate_error_le_support` | `Certificate` |
+| [18.3](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `cert_sound` | `Certificate` |
+| [18.4](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_valid` | `Certificate` |
+| [18.4](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_le` | `Certificate` |
+| [18.5](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `bestCert_le_full` | `Certificate` |
+| [18.6](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `code_prefix` | `Certificate` |
+| [18.7](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `alternating_cert_leaves` | `Certificate` |
+| [19.1](theory/decoding/19-error-detection-by-the-format.md) | `code_sum` | `Detection` |
+| [19.2](theory/decoding/19-error-detection-by-the-format.md) | `code_no_single_change` | `Detection` |
+| [19.3](theory/decoding/19-error-detection-by-the-format.md) | `detected_error_le` | `Detection` |
+| [19.4](theory/decoding/19-error-detection-by-the-format.md) | `joint_le_restricted` | `Detection` |
+| [19.5](theory/decoding/19-error-detection-by-the-format.md) | `two_occur_le_half` | `Detection` |
+| [19.6](theory/decoding/19-error-detection-by-the-format.md) | `two_occur_le_pairs` | `Detection` |
+| [19.6](theory/decoding/19-error-detection-by-the-format.md) | `pair_share_prefix_suffix_upper` | `Detection` |
+| [19.6](theory/decoding/19-error-detection-by-the-format.md) | `detection_share_combine_upper` | `Detection` |
+| [20.1](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `HTyped.mono` | `Slots` |
+| [20.2](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `embed_wellTyped` | `Slots` |
+| [20.3](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_le_pow` | `Slots` |
+| [20.4](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `HPlan.cost_mono` | `Slots` |
+| [20.5](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `serve_sound` | `Continuation` |
+| [20.6](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `serve_spent` | `Continuation` |
+| [20.7](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `Prog.runB_le` | `Continuation` |
+| [20.8](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `choice_cost_le` | `Slots` |
+| [20.9](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `PTyped.erase`, `WellTyped.positional` | `Relevance` |
+| [20.10](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `PPlan.uses_apply`, `PPlan.given_not_relevant`, `PTyped.uses_lt` | `Relevance` |
+| [21.1](theory/decoding/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
+| [21.2](theory/decoding/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
+| [21.3](theory/decoding/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
+| [21.3](theory/decoding/21-decoding-by-the-format.md) | `await_balance`, `accepted_arity_sum`, `accepted_arity_lt_length` | `Decoding` |
+| [21.4](theory/decoding/21-decoding-by-the-format.md) | `dpSum_eq` | `Decoding` |
+| [21.5](theory/decoding/21-decoding-by-the-format.md) | `dpMax_ge` | `Decoding` |
+| [21.6](theory/decoding/21-decoding-by-the-format.md) | `dpMax_attained`, `tiedChoice_eq_min`, `tiedChoice_comm`, `arity_exceeds_state_bound`, `completion_transition_bound`, `counter_growth_bound`, `foldl_await_zero_nonempty` | `Decoding` |
+| [21.7](theory/decoding/21-decoding-by-the-format.md) | `exact_risk_le_union` | `Decoding` |
+| [21.7](theory/decoding/21-decoding-by-the-format.md) | `one_sub_prod_le_sum` | `Decoding` |
+| [22.1](theory/reliability/22-abstaining-early.md) | `detection_account_mono` | `Detection` |
+| [22.3](theory/reliability/22-abstaining-early.md) | `lower_fold_le` | `Selective` |
+| [22.4](theory/reliability/22-abstaining-early.md) | `committed_continuation_preferred` | `Stopping` |
+| [22.4](theory/reliability/22-abstaining-early.md) | `firstStoppingState_append` | `Stopping` |
+| [22.4](theory/reliability/22-abstaining-early.md) | `positive_target_preserves_order` | `Stopping` |
+| [23.1](theory/decoding/23-efficient-decoding.md) | `tail_le_esym` | `Banding` |
+| [23.2](theory/decoding/23-efficient-decoding.md) | `factorial_mul_esym_le` | `Banding` |
+| [23.3](theory/decoding/23-efficient-decoding.md) | `outside_le_tail`, `diff_le_reference_length`, `tail_above_length`, `tail_row_scale`, `row_mass_partition`, `anchored_exp_mass`, `rowFactor_normalizes`, `tail_le_row_factors`, `row_summary_append` | `Banding` |
+| [23.3](theory/decoding/23-efficient-decoding.md) | `bandPolynomial_recurrence`, `bandPolynomial_threshold_suffix`, `threshold_search_step`, `threshold_search_shrinks`, `searchGap_i64`, `threshold_search_adjacent` | `BandSearch` |
+| [23.4](theory/decoding/23-efficient-decoding.md) | `sum_sub_le_diff`, `sum_sub_le_diff_bounded`, `band_covers_interval`, `ragged_band_storage_covers` | `Banding` |
+| [23.4](theory/decoding/23-efficient-decoding.md) | `sum_filter_support`, `max_filter_support`, `support_shift_bounds`, `split_support_intersection`, `trace_predecessor_monotone`, `trace_successor_monotone`, `ordered_arity_exceeds_envelope`, `scoredChoice_comm`, `scoredChoice_assoc` | `Decoding` |
+| [23.5](theory/decoding/23-efficient-decoding.md) | `banded_risk_le` | `Banding` |
+| [23.6](theory/decoding/23-efficient-decoding.md) | `banded_risk_slack` | `Banding` |
+| [23.7](theory/decoding/23-efficient-decoding.md) | `dpSum_append` | `Banding` |
+| [23.8](theory/decoding/23-efficient-decoding.md) | `dpMax_append` | `Banding` |
+| [23.9](theory/decoding/23-efficient-decoding.md) | `sum_pair_dist` | `Banding` |
+| [23.10](theory/decoding/23-efficient-decoding.md) | `stitch_attains` | `Banding` |
+| [23.15](theory/decoding/23-efficient-decoding.md) | `cache_lookup_correct`, `cache_evict_sound`, `cache_store_sound` | `Selective` |
+| [23.14](theory/decoding/23-efficient-decoding.md) | `sum_row_shift`, `row_shift_order` | `Selective` |
+| [23.13](theory/decoding/23-efficient-decoding.md) | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
+| [23.12](theory/decoding/23-efficient-decoding.md) | `revision_cache_eq` | `Selective` |
+| [23.11](theory/decoding/23-efficient-decoding.md) | `priority_allocation_sum`, `priority_allocation_nonneg`, `priority_allocation_cover` | `Selective` |
+| [24.1](theory/decoding/24-when-the-prior-is-wrong.md) | `reweighted_odds` | `Misspecification` |
+| [24.2](theory/decoding/24-when-the-prior-is-wrong.md) | `reweighted_risk_le` | `Misspecification` |
+| [24.3](theory/decoding/24-when-the-prior-is-wrong.md) | `reweighted_risk_le_mul` | `Misspecification` |
+| [24.4](theory/decoding/24-when-the-prior-is-wrong.md) | `dominated_risk_le` | `Misspecification` |
+| [24.5](theory/decoding/24-when-the-prior-is-wrong.md) | `adversarial_prior` | `Misspecification` |
+| [25.1](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `cost_ge_of_ratio` | `Stopping` |
+| [25.1](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `fractional_ratio_bound_strict` | `Stopping` |
+| [25.1](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `selective_risk_le_selected` | `Selective` |
+| [25.1](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `charge_cost_ratio_order` | `Stopping` |
+| [25.2](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `pairs_ge_count` | `Stopping` |
+| [25.3](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_stop_optimal` | `Stopping` |
+| [25.4](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `lookahead_continue_better` | `Stopping` |
+| [25.4](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `split_bin_gain_nonneg` | `Stopping` |
+| [25.5](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `single_climb_account` | `Stopping` |
+| [26.1](theory/reliability/26-composing-cascades.md) | `fallback_cost_eq` | `Composition` |
+| [26.2](theory/reliability/26-composing-cascades.md) | `fallback_cost_conditional` | `Composition` |
+| [26.3](theory/reliability/26-composing-cascades.md) | `fallback_cost_sub_independent` | `Composition` |
+| [26.4](theory/reliability/26-composing-cascades.md) | `fallback_cost_ge_independent` | `Composition` |
+| [26.5](theory/reliability/26-composing-cascades.md) | `chain_error_eq` | `Composition` |
+| [26.6](theory/reliability/26-composing-cascades.md) | `chain_cost_eq` | `Composition` |
+| [26.7](theory/reliability/26-composing-cascades.md) | `split_error_eq` | `Composition` |
+| [26.8](theory/reliability/26-composing-cascades.md) | `argmin_within` | `Composition` |
+| [26.9](theory/reliability/26-composing-cascades.md) | `some_deviates_le` | `Composition` |
+| [27.1](theory/decoding/27-priors-as-experts.md) | `pdpSum_eq` | `Product` |
+| [27.2](theory/decoding/27-priors-as-experts.md) | `pdpMax_ge` | `Product` |
+| [27.3](theory/decoding/27-priors-as-experts.md) | `pdpMax_attained` | `Product` |
+| [27.4](theory/decoding/27-priors-as-experts.md) | `pdpSum_unit` | `Product` |
+| [27.5](theory/decoding/27-priors-as-experts.md) | `complete_shape_length` | `Decoding` |
+| [27.6](theory/decoding/27-priors-as-experts.md) | `prior_support_sum`, `prior_support_max`, `prior_step_zero_outside`, `prior_prune_zero_readings`, `pdpSum_zero_row`, `pdpMax_zero_row`, `partitionCompose_zero_left` | `Product` |
+| [27.7](theory/decoding/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
+| [27.8](theory/decoding/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
+| [27.9](theory/decoding/27-priors-as-experts.md) | `prior_selection_regret`, `prior_selection_half_gap` | `Product` |
+| [27.10](theory/decoding/27-priors-as-experts.md) | `clipped_evidence_bounds`, `clipped_error_bound_mono` (concentration not formalized) | `Product` |
+| [27.11](theory/decoding/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
+| [27.12](theory/decoding/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
+| [27.15](theory/decoding/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |
+| [27.16](theory/decoding/27-priors-as-experts.md) | `risk_from_other_mass`, `partition_risk_common_factor`, `prior_common_factors`, `equal_positive_mass_increases`, `two_sum_residual_identity`, `compensated_evidence_step` | `Product` |
+| [27.17](theory/decoding/27-priors-as-experts.md) | `partitionCompose_assoc`, `partitionCompose_identity`, `partitionCompose_nonneg` | `Product` |
+| [27.18](theory/decoding/27-priors-as-experts.md) | `partitionBoundary_total`, `partitionBoundary_nonneg`, `partitionBoundary_assoc`, `partitionBoundary_identity` | `Product` |
+| [27.19](theory/decoding/27-priors-as-experts.md) | `partition_prefix_reuse` | `Product` |
+| [28.1](theory/foundations/28-packages-as-experts.md) | `Pkg.flattenList_append` | `Package` |
+| [28.2](theory/foundations/28-packages-as-experts.md) | `install_stable` | `Package` |
+| [28.3](theory/foundations/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
+| [28.4](theory/foundations/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
+| [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
+| [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
+| [29.3](theory/foundations/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
+| [30.1](theory/evidence/30-selection-by-evidence.md) | `audit_family_le` (the union bound; the sign test's validity is assumed) | `Calibration` |
+| [30.2](theory/evidence/30-selection-by-evidence.md) | `plan_rename`, `planShallow_rename`, `planShallowStable_rename`, `WellTyped.rename` | `Selection` |
+| [31.1](theory/reliability/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
+| [31.2](theory/reliability/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
+| [31.4](theory/reliability/31-composing-uncertainty.md) | `audit_family_le` with `risk_le_charges` | `Calibration`, `Risk` |
+| [31.5](theory/reliability/31-composing-uncertainty.md) | `risk_le_charges` on relevant counts, with `DemandSound.exact` | `Risk`, `Demand` |
+| [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
+| [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
+| [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
+| [33.2](theory/reliability/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
+| [33.4](theory/reliability/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
+| [34.2](theory/foundations/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
+| [34.3](theory/foundations/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
+| [34.4](theory/foundations/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
+| [35.1](theory/reliability/35-calibration-audits.md) | `count_tail_le`, `audit_tail_le` | `Audit` |
+| [36.1](theory/evidence/36-acquisition.md) | `split_test_le` | `Acquire` |
+| [37.1](theory/reliability/37-grouped-calibration.md) | `grouped_calibrated` | `Grouped` |
+| [38.1](theory/reliability/38-in-situ-audits.md) | `sampled_calibrated` | `Sampling` |
+| [39.1](theory/reliability/39-alternatives.md) | `alternatives_le`, `alternatives_lower` | `Alternatives` |
 
 ## Native kernels
 
@@ -453,7 +453,7 @@ Before expanding a nested candidate, `_solutions` rejects any ground slot
 that cannot be filled at the candidate's remaining depth, including slots
 made ground by output unification.
 
-`NCA.Skel` (`lean/NCA/PatternSearch.lean`) models a plan skeleton and its
+`NCA.Skel` (`lean/NCA/Planning/PatternSearch.lean`) models a plan skeleton and its
 equations, with each node's variables renamed by its path, as
 `index.rename_apart` does with fresh tags. Each input pattern the search
 unifies with a candidate's output is one equation of `Skel.eqs`, solved in
@@ -493,7 +493,7 @@ closure prunes nothing. The planner tries such a contract for a ground goal
 only if `ProducerIndex.may_produce` accepts it: a sequence type, a type in the
 closure, or one a polymorphic producer covers.
 
-`NCA.ECl` (`lean/NCA/Eliminators.lean`) models this closure over plans of
+`NCA.ECl` (`lean/NCA/Planning/Eliminators.lean`) models this closure over plans of
 `HPlan`s whose experts are instances of installed slot contracts or of the
 `map` family, which stands for the planner's built-in `map`. Its rules are
 the cases of `ProducerIndex._open_contributions`; the index computes a
@@ -552,7 +552,7 @@ Available inputs are addressed by position where types do not tell them
 apart (THEORY §20.8): `planner.Given` carries an optional `position`, the
 runtime binds slot and request inputs as an ordered list, and
 `router.infer` checks that a position holds the named type. `NCA.PPlan`
-(`lean/NCA/Relevance.lean`) models positional plans. `abi.Contract.relevant`
+(`lean/NCA/Execution/Relevance.lean`) models positional plans. `abi.Contract.relevant`
 lists, per slot, the inputs every filling must use; `Fold` declares both
 inputs of its step. `planner.uses` computes the positions a plan reads, and
 `router.infer` rejects a filling that misses a relevant one. The planner and

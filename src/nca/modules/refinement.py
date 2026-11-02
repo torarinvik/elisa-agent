@@ -4,12 +4,12 @@ probability distribution.
 ``RequestingExpert`` wraps such an expert: when its most probable class has
 probability at least ``threshold`` it answers; otherwise it returns a
 ``Request`` delegating its output to the kernel, which routes the same inputs
-to another expert with the same contract. ``lean/NCA/Cascade.lean`` gives the
+to another expert with the same contract. ``lean/NCA/Reliability/Cascade.lean`` gives the
 composite's exact error and expected cost.
 
 ``ConsultingExpert`` continues instead of delegating: when unsure it asks the
 kernel for a second opinion on the same inputs and answers with the mixture
-``(1 - w) · own + w · second`` (``lean/NCA/Continuation.lean``).
+``(1 - w) · own + w · second`` (``lean/NCA/Execution/Continuation.lean``).
 
 ``Escalating`` holds a ladder of substitutes that report their risk and
 answers each distinct input at that input's level; ``refine`` raises the

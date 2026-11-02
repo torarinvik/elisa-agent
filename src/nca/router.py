@@ -1,10 +1,10 @@
 """Plan type checking, pinned routes, and evidence-based upgrades.
 
-``infer`` mirrors ``NCA.infer`` (``lean/NCA/Check.lean``), proved to accept
+``infer`` mirrors ``NCA.infer`` (``lean/NCA/Types/Check.lean``), proved to accept
 exactly the well-typed plans; slot fillings are checked against the slots'
 inputs alone, as in ``NCA.HTyped``, and must use the inputs the slot declares
 relevant. ``Router`` mirrors ``NCA.route`` and
-``NCA.upgrade`` (``lean/NCA/Upgrade.lean``): pins override stable planning,
+``NCA.upgrade`` (``lean/NCA/Planning/Upgrade.lean``): pins override stable planning,
 an upgrade pins a checked plan for one goal, and upgrades are proved local,
 reversible, and stable under module installation.
 

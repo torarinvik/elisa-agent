@@ -1,6 +1,6 @@
 """The kernel's request resolver.
 
-Mirrors ``NCA.resolve`` (``lean/NCA/Request.lean``): a request is planned with
+Mirrors ``NCA.resolve`` (``lean/NCA/Execution/Request.lean``): a request is planned with
 the stable planner over the installed modules minus every module in the
 request chain. Resolution is proved well-typed (``resolve_sound``), never
 re-enters the chain (``resolve_avoids``), and nested request chains are no

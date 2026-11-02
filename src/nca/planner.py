@@ -1,6 +1,6 @@
 """Symbolic capability planners.
 
-The depth-bounded search mirrors ``NCA.plan`` (``lean/NCA/Planner.lean``).
+The depth-bounded search mirrors ``NCA.plan`` (``lean/NCA/Planning/Planner.lean``).
 ``plan`` tries increasing depths, as in ``NCA.planShallow``. ``plan_stable``
 uses the earliest successful library prefix, as in ``NCA.planShallowStable``,
 which is proved stable: installing modules never changes the route of an

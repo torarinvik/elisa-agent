@@ -5,7 +5,7 @@ centered, then strokes are thickened (3x3 max) or thinned (3x3 min) until the
 ink fraction lies in ``[LOW, HIGH]``. Recognizers trained on normalized glyphs
 consume ``NORMALIZED_GLYPH``. For styles the normalizer undoes, the shift the
 recognizer sees is removed; in general it is at most the mass of glyphs it
-fails to undo (``lean/NCA/Normalize.lean``).
+fails to undo (``lean/NCA/Reliability/Normalize.lean``).
 """
 
 from __future__ import annotations

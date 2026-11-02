@@ -1,6 +1,6 @@
 """Cost-optimal planning.
 
-``plan_min`` mirrors ``NCA.planMin`` (``lean/NCA/MinCost.lean``): at every type
+``plan_min`` mirrors ``NCA.planMin`` (``lean/NCA/Planning/MinCost.lean``): at every type
 it keeps the cheapest candidate plan, where a plan's cost is the sum of its
 invocations' declared costs and a ``map`` body is charged once per element of
 a sequence of assumed length ``length``. It is proved sound (well-typed, with
@@ -12,7 +12,7 @@ error bound (the union bound of ``NCA.composition_error_le_sum``: a plan's
 error is at most the sum of its invocations' failure rates). It keeps every
 non-dominated (cost, error) pair at each type, so the cheapest plan meeting an
 error target can be selected exactly. It mirrors ``NCA.planPareto``
-(``lean/NCA/Pareto.lean``): every option is a well-typed plan with its reported
+(``lean/NCA/Planning/Pareto.lean``): every option is a well-typed plan with its reported
 cost and error bound, every searchable plan within the depth bound is
 dominated by an option, and so ``cheapest_within`` is exact
 (``NCA.planPareto_sound``, ``NCA.planPareto_cover``, ``NCA.planPareto_within``).

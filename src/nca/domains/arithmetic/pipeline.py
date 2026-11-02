@@ -3,7 +3,7 @@
 Installs independently trained or implemented modules, lets the stable
 planner compose them for the goal ``int.v1`` from an expression image, and
 evaluates on the expression splits alongside the reliability bounds of
-``lean/NCA/Reliability.lean``:
+``lean/NCA/Reliability/Reliability.lean``:
 
 * per-invocation failure rates are measured in situ (segmentation, each
   glyph's symbol);
@@ -16,7 +16,7 @@ evaluates on the expression splits alongside the reliability bounds of
 * each recognizer's in-situ failure rate is compared with its offline rate
   on its own test distribution. By ``NCA.shift_ge_gap`` the excess is a lower
   bound on the shift between the input distribution the composition feeds it
-  and the one it was evaluated on (``lean/NCA/Shift.lean``).
+  and the one it was evaluated on (``lean/NCA/Reliability/Shift.lean``).
 
 At digit positions the parser's restricted argmax equals the digit
 recognizer's argmax, and at operator positions the operator recognizer's

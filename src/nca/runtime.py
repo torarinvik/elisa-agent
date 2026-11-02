@@ -5,7 +5,7 @@ the resolver (the kernel) for a plan producing the requested type from the
 request's inputs, with every module of the current request chain excluded,
 executes it under the same budget, and uses its result as the requester's
 output. Modules never invoke one another; every invocation is planned,
-type-checked, budgeted, and recorded by the kernel (``lean/NCA/Request.lean``).
+type-checked, budgeted, and recorded by the kernel (``lean/NCA/Execution/Request.lean``).
 
 Requests are resolved lazily. A consumer module may declare
 ``relevant(index, provisional) -> bool``: given the provisional values of all
@@ -19,13 +19,13 @@ Evaluation is demand-driven. A consumer may declare ``demand(index, demand)``:
 given the demand on its own output, what it reads of input ``index``. Inputs
 (and map elements) with empty demand are not evaluated at all, so neither the
 modules computing them nor requests raised there run. For demand-sound
-declarations the answer is unchanged (``lean/NCA/Demand.lean``), which makes
+declarations the answer is unchanged (``lean/NCA/Execution/Demand.lean``), which makes
 skipping their requests a sound gate.
 
 A module may also continue with a sub-result: ``invoke`` returns a generator
 that yields ``Request`` objects of any type and receives each resolved value
 before continuing, until it returns its output. Each such request is resolved
-at once, with the requester in the chain (``lean/NCA/Continuation.lean``:
+at once, with the requester in the chain (``lean/NCA/Execution/Continuation.lean``:
 correct answers give correct results, and the number of requests is bounded by
 the program's question depth).
 

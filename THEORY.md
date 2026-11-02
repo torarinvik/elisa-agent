@@ -10,57 +10,57 @@ link for its definitions, arguments, and results.
 
 ## Foundations and composition
 
-- [1. Types and contracts](theory/01-types-and-contracts.md)
-- [2. Planning](theory/02-planning.md)
-- [3. Routing stability](theory/03-routing-stability.md)
-- [4. Compositional reliability](theory/04-compositional-reliability.md)
-- [5. Reliability under distribution shift](theory/05-reliability-under-distribution-shift.md)
+- [1. Types and contracts](theory/foundations/01-types-and-contracts.md)
+- [2. Planning](theory/foundations/02-planning.md)
+- [3. Routing stability](theory/foundations/03-routing-stability.md)
+- [4. Compositional reliability](theory/reliability/04-compositional-reliability.md)
+- [5. Reliability under distribution shift](theory/reliability/05-reliability-under-distribution-shift.md)
 
 ## Evaluation and module growth
 
-- [6. Algorithms of the handwritten-arithmetic pipeline](theory/06-algorithms-of-the-handwritten-arithmetic-pipeline.md)
-- [7. Measuring accumulation](theory/07-measuring-accumulation.md)
-- [8. Explicit route upgrades](theory/08-explicit-route-upgrades.md)
-- [9. Module substitution](theory/09-module-substitution.md)
-- [10. Complementarity](theory/10-complementarity.md)
-- [11. Evaluation methodology](theory/11-evaluation-methodology.md)
+- [6. Algorithms of the handwritten-arithmetic pipeline](theory/studies/06-algorithms-of-the-handwritten-arithmetic-pipeline.md)
+- [7. Measuring accumulation](theory/studies/07-measuring-accumulation.md)
+- [8. Explicit route upgrades](theory/evidence/08-explicit-route-upgrades.md)
+- [9. Module substitution](theory/evidence/09-module-substitution.md)
+- [10. Complementarity](theory/studies/10-complementarity.md)
+- [11. Evaluation methodology](theory/studies/11-evaluation-methodology.md)
 
 ## Runtime, efficiency, and uncertainty
 
-- [12. Lazy loading and scalable discovery](theory/12-lazy-loading-and-scalable-discovery.md)
-- [13. Efficiency](theory/13-efficiency.md)
-- [14. Kernel-mediated requests and refinement](theory/14-kernel-mediated-requests-and-refinement.md)
-- [15. Normalization against shift](theory/15-normalization-against-shift.md)
-- [16. Knowing when to be unsure](theory/16-knowing-when-to-be-unsure.md)
-- [17. Calibration under distribution shift](theory/17-calibration-under-distribution-shift.md)
+- [12. Lazy loading and scalable discovery](theory/foundations/12-lazy-loading-and-scalable-discovery.md)
+- [13. Efficiency](theory/foundations/13-efficiency.md)
+- [14. Kernel-mediated requests and refinement](theory/foundations/14-kernel-mediated-requests-and-refinement.md)
+- [15. Normalization against shift](theory/reliability/15-normalization-against-shift.md)
+- [16. Knowing when to be unsure](theory/reliability/16-knowing-when-to-be-unsure.md)
+- [17. Calibration under distribution shift](theory/reliability/17-calibration-under-distribution-shift.md)
 
 ## Structured reasoning and selective computation
 
-- [18. A second domain: noisy Boolean formulas](theory/18-a-second-domain-noisy-boolean-formulas.md)
-- [19. Error detection by the format](theory/19-error-detection-by-the-format.md)
-- [20. Higher-order experts and budgeted requests](theory/20-higher-order-experts-and-budgeted-requests.md)
-- [21. Decoding by the format](theory/21-decoding-by-the-format.md)
-- [22. Abstaining early](theory/22-abstaining-early.md)
-- [23. Efficient decoding](theory/23-efficient-decoding.md)
-- [24. When the prior is wrong](theory/24-when-the-prior-is-wrong.md)
+- [18. A second domain: noisy Boolean formulas](theory/studies/18-a-second-domain-noisy-boolean-formulas.md)
+- [19. Error detection by the format](theory/decoding/19-error-detection-by-the-format.md)
+- [20. Higher-order experts and budgeted requests](theory/foundations/20-higher-order-experts-and-budgeted-requests.md)
+- [21. Decoding by the format](theory/decoding/21-decoding-by-the-format.md)
+- [22. Abstaining early](theory/reliability/22-abstaining-early.md)
+- [23. Efficient decoding](theory/decoding/23-efficient-decoding.md)
+- [24. When the prior is wrong](theory/decoding/24-when-the-prior-is-wrong.md)
 
 ## Adaptive computation and prior models
 
-- [25. Which word to climb, and when to stop](theory/25-which-word-to-climb-and-when-to-stop.md)
-- [26. Composing cascades](theory/26-composing-cascades.md)
-- [27. Priors as experts](theory/27-priors-as-experts.md)
+- [25. Which word to climb, and when to stop](theory/reliability/25-which-word-to-climb-and-when-to-stop.md)
+- [26. Composing cascades](theory/reliability/26-composing-cascades.md)
+- [27. Priors as experts](theory/decoding/27-priors-as-experts.md)
 
 ## Distribution and composition
 
-- [28. Packages as experts](theory/28-packages-as-experts.md)
-- [29. Types as objects](theory/29-types-as-objects.md)
-- [30. Selection by evidence](theory/30-selection-by-evidence.md)
-- [31. Composing uncertainty](theory/31-composing-uncertainty.md)
-- [32. Trust](theory/32-trust.md)
-- [33. Per-input risk on any route](theory/33-per-input-risk.md)
-- [34. Compiled routes](theory/34-compiled-routes.md)
-- [35. Calibration audits](theory/35-calibration-audits.md)
-- [36. Acquiring experts](theory/36-acquisition.md)
-- [37. Calibration by groups of inputs](theory/37-grouped-calibration.md)
-- [38. In-situ audits](theory/38-in-situ-audits.md)
-- [39. Answering over alternatives](theory/39-alternatives.md)
+- [28. Packages as experts](theory/foundations/28-packages-as-experts.md)
+- [29. Types as objects](theory/foundations/29-types-as-objects.md)
+- [30. Selection by evidence](theory/evidence/30-selection-by-evidence.md)
+- [31. Composing uncertainty](theory/reliability/31-composing-uncertainty.md)
+- [32. Trust](theory/evidence/32-trust.md)
+- [33. Per-input risk on any route](theory/reliability/33-per-input-risk.md)
+- [34. Compiled routes](theory/foundations/34-compiled-routes.md)
+- [35. Calibration audits](theory/reliability/35-calibration-audits.md)
+- [36. Acquiring experts](theory/evidence/36-acquisition.md)
+- [37. Calibration by groups of inputs](theory/reliability/37-grouped-calibration.md)
+- [38. In-situ audits](theory/reliability/38-in-situ-audits.md)
+- [39. Answering over alternatives](theory/reliability/39-alternatives.md)

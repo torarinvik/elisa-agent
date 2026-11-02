@@ -28,7 +28,7 @@ not enumerated and the closure is taken as total."""
 class ProducerIndex:
     """Installed modules indexed by output type, preserving installation order.
 
-    Mirrors the index of ``NCA.planIdx`` (``lean/NCA/Loading.lean``), proved to
+    Mirrors the index of ``NCA.planIdx`` (``lean/NCA/Planning/Loading.lean``), proved to
     yield the same plans as scanning the library (``NCA.planIdx_eq``). A view
     limited to the first ``k`` modules serves layered planning.
     """
