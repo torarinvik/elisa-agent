@@ -489,3 +489,21 @@ head-family sufficiency. Positive tolerances are caller choices. Modal ambiguity
 need not fall with each local clustering run, and training stopping can miss
 better generalizing candidates. Independent whole-task selection remains
 mandatory. Only centers and generated type declarations enter inference artifacts.
+
+
+## 36.53 Allocating prototype growth to remaining errors
+
+Optionally reserve one center allowance per observed category, then fit and score
+modal predictions. Increment only the eligible category with the most training
+mistakes, ties by category occurrence order. Eligibility requires remaining
+mistakes and allowance below the supplied per-category cap. Stop if no category
+is eligible, the total reserved allowance exceeds budget, or error tolerance is
+met. Uniform allocation remains the default. Reservation counts can exceed the
+number of distinct fitted centers because duplicate modes share runtime codes.
+
+Increasing one allowance by one increases its summed reservation by one; Lean
+proves the finite-sum identity. It does not prove this greedy choice optimizes
+accuracy, finds every useful allocation or generalizes. Growing an apparently
+correct category might indirectly improve another, which this heuristic can miss.
+Stable observations and independent whole-task selection remain assumptions.
+Training category names and allocations are not retained by fitted runtimes.

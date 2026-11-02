@@ -391,4 +391,10 @@ theorem zero_failed_observations (outcomes : List Bool)
   | nil => simp
   | cons b bs ih => cases b <;> simp_all
 
+/-- Adding one reserved slot at one category increases total reservation by one. -/
+theorem single_allowance_increment {K : Type*} [Fintype K] [DecidableEq K]
+    (allowance : K → ℕ) (chosen : K) :
+    (∑ k, (allowance k + if k = chosen then 1 else 0)) = (∑ k, allowance k) + 1 := by
+  simp [Finset.sum_add_distrib]
+
 end NCA

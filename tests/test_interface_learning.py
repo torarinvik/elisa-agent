@@ -481,3 +481,53 @@ def test_growing_prototype_types_are_selected_on_independent_rows() -> None:
     assert sizes == [(400, [2, 4])]
     assert result.chosen is not None and sum(result.trials[-1].outcomes) == 400
     assert result.chosen.constructors == (result.chosen.expert.feature.constructor,)
+
+
+def test_error_directed_prototype_growth_uses_an_asymmetric_budget(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import propose_heads
+    import nca.projection_learning as learning
+
+    class Vector:
+        manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())
+
+        def invoke(self, value: Any) -> Any:
+            return value
+
+    rows = [((-4.0, 0.0),)] * 20 + [((2.0, -2.0),)] * 10 + [((2.0, 2.0),)] * 10
+    rows += [((2.0, 0.0),)] * 60
+    labels = ["a"] * 20 + ["b"] * 20 + ["c"] * 60
+    uniform = learning.fit_prototype_features(Vector(), rows, labels, max_per_category=2,
+                    max_centroids=4, max_errors=0, encoding_cost=1)
+    assert len(uniform) == 1
+    original = learning._centroid_training
+    seen = []
+
+    def capture(*args: Any) -> Any:
+        seen.append((tuple(args[1]), tuple(args[2]), dict(args[5])))
+        return original(*args)
+
+    monkeypatch.setattr(learning, "_centroid_training", capture)
+
+    def propose(train: Any, targets: Any) -> Any:
+        features = learning.fit_prototype_features(Vector(), train, targets, max_per_category=2,
+                    max_centroids=4, max_errors=0, encoding_cost=1, allocate_by_errors=True)
+        return propose_heads(Baseline(), features,
+                    lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                    train, targets, max_features=4, max_heads=1)
+
+    result = discover(Baseline(), propose, rows + rows, labels + labels, lambda a, b: a == b)
+    assert result.chosen is not None and [sum(t.outcomes) for t in result.trials] == [80, 100]
+    assert [item[2] for item in seen] == [{"a": 1, "b": 1, "c": 1}, {"a": 1, "b": 2, "c": 1}]
+    assert all(train == tuple(rows) and targets == tuple(labels) for train, targets, _ in seen)
+    assert len(result.chosen.expert.feature.centers) == 4
+    seen.clear()
+    learning.fit_prototype_features(Vector(), [((),)] * 8, ["a"] * 4 + ["b"] * 2 + ["c"] * 2,
+                max_per_category=2, max_centroids=4, max_errors=0,
+                encoding_cost=0, allocate_by_errors=True)
+    assert [item[2] for item in seen] == [{"a": 1, "b": 1, "c": 1}, {"a": 1, "b": 2, "c": 1}]
+    seen.clear()
+    learning.fit_prototype_features(Vector(), rows, labels, max_per_category=1,
+                max_centroids=4, max_errors=0, encoding_cost=0, allocate_by_errors=True)
+    assert len(seen) == 1

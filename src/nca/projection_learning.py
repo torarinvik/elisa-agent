@@ -3,7 +3,7 @@
 import math
 from array import array
 from collections import Counter
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import replace
 from itertools import combinations
 from typing import Any
@@ -84,7 +84,8 @@ def _fit_projections(measurement: Module, rows: Sequence[tuple[Any, ...]],
 
 def _centroid_training(measurement: Module, rows: Sequence[tuple[Any, ...]],
                        labels: Sequence[Hashable], reuse_observations: bool,
-                       max_groups: int | None = None, centers_per_group: int = 1,
+                       max_groups: int | None = None,
+                       centers_per_group: int | Mapping[Hashable, int] = 1,
                        refinement_steps: int = 0
                        ) -> tuple[tuple[tuple[float, ...], ...], list[tuple[tuple[float, ...], Hashable]]]:
     if len(rows) < 2 or len(rows) != len(labels):
@@ -106,8 +107,10 @@ def _centroid_training(measurement: Module, rows: Sequence[tuple[Any, ...]],
             raise ValueError("centroid group budget exceeded")
         groups.setdefault(label, []).append(value)
     centroids = []
-    for group in groups.values():
-        fitted = _group_centers(group, centers_per_group, refinement_steps)
+    for label, group in groups.items():
+        limit = (centers_per_group if isinstance(centers_per_group, int)
+                 else centers_per_group[label])
+        fitted = _group_centers(group, limit, refinement_steps)
         if max_groups is not None and len(centroids) + len(fitted) > max_groups:
             raise ValueError("total centroid budget exceeded")
         centroids.extend(fitted)
@@ -456,10 +459,11 @@ def fit_polynomial_regression_features(measurement: Module,
 
 def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
         labels: Sequence[Hashable], *, max_per_category: int, max_centroids: int,
-        max_errors: int, encoding_cost: float, refinement_steps: int = 3) -> list[Proposal]:
+        max_errors: int, encoding_cost: float, refinement_steps: int = 3,
+        allocate_by_errors: bool = False) -> list[Proposal]:
     """Grow prototype interfaces until empirical categorical ambiguity is small (§36.52).
 
-    Fit allowances 1..max_per_category, scoring modal training labels per code.
+    By default fit allowances 1..max_per_category, scoring modal labels per code.
     Stop at the first candidate with at most max_errors training mistakes, or
     before the conservative complete allocation (categories * allowance) exceeds
     max_centroids. No category is omitted to fit a budget. Duplicate centers can
@@ -468,6 +472,11 @@ def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
     Stable observations and hashable labels are assumed; neither monotonic score
     improvement nor useful generalization is guaranteed. Budgets limit represented
     families, not total runtime/memory. No training samples or labels are retained.
+    Optional allocate_by_errors (§36.53) increments just the eligible category
+    with the most remaining modal training errors, ties by first occurrence.
+    It reserves the sum of per-category allowances and stops if no error-bearing
+    category can grow. This local heuristic can miss indirect improvements from
+    growing a category with no current errors; all candidates still need selection.
     """
     if any(type(n) is not int or n < 1 for n in (max_per_category, max_centroids)):
         raise ValueError("prototype growth budgets must be positive integers")
@@ -480,19 +489,29 @@ def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
     contract = measurement.manifest.contract
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("training row arity differs from contract")
-    categories = len(set(labels))
+    allowances = dict.fromkeys(labels, 1)
     proposals = []
-    for allowance in range(1, max_per_category + 1):
-        if categories * allowance > max_centroids:
-            break
-        encoder = fit_prototype_encoder(measurement, rows, labels, max_centroids=max_centroids,
-                    encoding_cost=encoding_cost, centers_per_category=allowance,
-                    refinement_steps=refinement_steps)
+    while max(allowances.values()) <= max_per_category and sum(allowances.values()) <= max_centroids:
+        centers, _ = _centroid_training(measurement, rows, labels, False, max_centroids,
+                                         allowances, refinement_steps)
+        encoder = PrototypeEncoder(measurement, tuple(dict.fromkeys(centers)), encoding_cost)
         proposals.append(Proposal(encoder, (encoder.constructor,)))
         counts: dict[int, Counter[Hashable]] = {}
-        for row, label in zip(rows, labels, strict=True):
-            counts.setdefault(encoder.invoke(*row), Counter())[label] += 1
-        successes = sum(max(histogram.values()) for histogram in counts.values())
-        if len(rows) - successes <= max_errors:
+        codes = tuple(encoder.invoke(*row) for row in rows)
+        for code, label in zip(codes, labels, strict=True):
+            counts.setdefault(code, Counter())[label] += 1
+        modes = {code: histogram.most_common(1)[0][0] for code, histogram in counts.items()}
+        errors = Counter(label for code, label in zip(codes, labels, strict=True)
+                         if modes[code] != label)
+        if sum(errors.values()) <= max_errors:
             break
+        if allocate_by_errors:
+            eligible = [label for label in allowances
+                        if errors[label] and allowances[label] < max_per_category]
+            if not eligible:
+                break
+            selected = max(eligible, key=lambda label: errors[label])
+            allowances[selected] += 1
+        else:
+            allowances = {label: count + 1 for label, count in allowances.items()}
     return proposals
