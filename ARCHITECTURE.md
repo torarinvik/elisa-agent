@@ -2199,3 +2199,10 @@ two generated constructors plus an encoder/head route for independent selection.
 The current proposals are in-memory; no persistence or unrestricted nonlinear
 feature search is implied. `projection_prototype_gap` proves the finite-real
 prototype separation identity, with no floating-point or generalization claim.
+
+`PolynomialEncoder` and `propose_polynomial_partitions` (§36.21) extend this
+search to caller-selected degrees. A combinatorial term count is checked before
+basis enumeration; each lift has a generated constructor and delegates learning
+to the same projection/partition mechanism. The current artifacts are in-memory.
+`symmetric_interaction_gap` is an expressivity witness for a nonlinear coordinate
+with coincident original centroids, not an accuracy or extrapolation guarantee.

@@ -66,3 +66,40 @@ def test_pair_search_budget() -> None:
     labels = [i // 2 for i in range(6)]
     assert len(propose_projections(Baseline(), Measurement(), rows, labels, limit=2,
                                   projection_cost=0, encoding_cost=0, decoder_cost=0)) == 2
+
+
+def test_polynomial_lift_budget_semantics_and_finiteness() -> None:
+    from nca.projection_learning import PolynomialEncoder
+
+    lift = PolynomialEncoder(Measurement(), 2, 2, max_terms=5, cost=1)
+    assert lift.invoke((2.0, 3.0)) == (2.0, 3.0, 4.0, 6.0, 9.0)
+    assert lift.manifest.contract.output == lift.constructor.type()
+    cubic = PolynomialEncoder(Measurement(), 1, 3, max_terms=3, cost=0)
+    assert cubic.invoke((2.0,)) == (2.0, 4.0, 8.0)
+    assert PolynomialEncoder(Measurement(), 0, 3, max_terms=1, cost=0).invoke(()) == ()
+    with pytest.raises(ValueError, match="term budget"):
+        PolynomialEncoder(Measurement(), 100, 5, max_terms=10, cost=1)
+    with pytest.raises(ValueError, match="finite"):
+        lift.invoke((1e308, 1.0))
+    with pytest.raises(ValueError, match="dimension"):
+        lift.invoke((1.0,))
+
+
+def test_nonlinear_decomposition_overcomes_equal_centroids() -> None:
+    from nca.projection_learning import propose_polynomial_partitions
+
+    rows = [((s * a, t * a),) for a in (0.1, 1.0)
+            for s, t in ((1, 1), (-1, -1), (1, -1), (-1, 1))]
+    targets = [True, True, False, False] * 2
+    kwargs = dict(limit=1, projection_cost=1, encoding_cost=1, decoder_cost=1)
+    assert propose_projections(Baseline(), Measurement(), rows, targets, **kwargs) == []
+    proposals = propose_polynomial_partitions(Baseline(), Measurement(), rows, targets,
+                degrees=(1, 2), max_terms=5, lifting_cost=1, **kwargs)
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert len(proposal.constructors) == 3
+    assert len({c.type() for c in proposal.constructors}) == 3
+    assert proposal.expert.invoke((0.3, 0.7)) is True
+    assert proposal.expert.invoke((0.3, -0.7)) is False
+    assert proposal.expert.invoke((-0.8, -0.2)) is True
+    assert proposal.expert.invoke((-0.8, 0.2)) is False

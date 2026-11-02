@@ -150,4 +150,12 @@ theorem projection_prototype_gap {I : Type*} (indices : Finset I) (a b : I → �
   intro i _
   nlinarith
 
+/-- A quadratic interaction separates symmetric prototype classes with equal
+original centroids. This is an expressivity witness, not learned recovery. -/
+theorem symmetric_interaction_gap (a b : ℝ) (ha : 0 < a) (hb : 0 < b) :
+    (a * b + (-a) * (-b)) / 2 - (a * (-b) + (-a) * b) / 2 = 2 * a * b ∧
+    0 < 2 * a * b := by
+  have h := mul_pos ha hb
+  constructor <;> nlinarith
+
 end NCA

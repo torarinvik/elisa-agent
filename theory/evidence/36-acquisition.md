@@ -414,3 +414,28 @@ or symmetric distinctions can be missed. Candidate order follows first target
 occurrence, and a budget truncates search without a completeness claim.
 Independent end-to-end selection must justify keeping any proposal. This is
 supervised acquisition of one representation family, not unrestricted invention.
+
+## 36.21 Bounded nonlinear representation proposals
+
+A polynomial lift enumerates all nonconstant coordinate monomials through a
+caller-selected positive degree. Dimensions are observed, and the lift is
+rejected before enumeration if `binomial(dimension+degree,degree)−1` exceeds the
+explicit term budget. Candidate degrees and centroid-pair budgets are supplied,
+not domain rules. Applying §36.20 in the lifted space learns a polynomial
+projection and threshold, with generated lift, projection and partition types.
+The polynomial basis is a supplied search family; only degrees retained by
+independent task evidence should be promoted. This is not unrestricted invention.
+
+An honest expressivity witness is the symmetric four-point construction:
+for positive a,b, the mean product coordinate for `(a,b),(-a,-b)` exceeds that
+for `(a,-b),(-a,b)` by `2ab>0`, although original class centroids coincide.
+Lean proves this real identity and strict inequality, not noisy recovery or
+floating-point polynomial accuracy. Reject nonfinite monomial results. Growth
+is combinatorial, and a budget rejection is not evidence of impossibility.
+
+A zero-error empirical split does not locate a boundary inside an unobserved
+gap. The current threshold convention uses the first observation of the upper
+region (§36.13). Even an exact learned interaction can therefore misclassify
+fresh points in that gap. Neither the expressivity witness nor training success
+establishes that this edge is the true boundary; boundary placement needs its
+own justified modeling choice or further observations.
