@@ -308,4 +308,11 @@ theorem measurement_prefix_bound {X : Type*} (xs : List X) (budget : ℕ) :
   simp only [List.length_take]
   exact Nat.min_le_left _ _
 
+/-- An exact shared head cannot distinguish inputs collapsed by its representation. -/
+theorem head_fiber_consistency {X A Y : Type*} (f : X → A) (h : A → Y)
+    (target : X → Y) (x y : X) (same : f x = f y)
+    (hx : target x = h (f x)) (hy : target y = h (f y)) :
+    target x = target y := by
+  rw [hx, hy, same]
+
 end NCA

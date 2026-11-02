@@ -91,3 +91,73 @@ def test_distinct_stored_bridges_coexist_and_legacy_heads_load(tmp_path: Path) -
                        {"contract": contract_data(contract), "table": [["key", "one"]],
                         "fallback": "fallback", "cost": 1})
     assert legacy.load().invoke("key") == "one"
+
+
+def test_acquire_continuous_heads_on_typed_representations() -> None:
+    import random
+
+    from nca.affine_learning import fit_affine
+    from nca.interface_learning import propose_heads
+    from nca.objects import Constructor
+
+    class Feature:
+        def __init__(self, square: bool) -> None:
+            self.square = square
+            self.constructor = Constructor("candidate", "1", 0, str(square))
+            self.manifest = Manifest("feature", "1",
+                Contract(("input",), self.constructor.type()), effects=frozenset())
+
+        def invoke(self, value: float) -> float:
+            return value * value if self.square else value
+
+    baseline = Feature(False)
+    baseline.manifest = replace(baseline.manifest, contract=Contract(("input",), "result"))
+    features = [Feature(False), Feature(True)]
+    rng = random.Random(3643)
+    rows = [(rng.uniform(-1, 1),) for _ in range(400)]
+    labels = [2.3 * x * x - 0.7 for x, in rows]
+    seen = []
+
+    def fit(contract: Any, observations: Any, targets: Any, budget: int) -> Any:
+        seen.append((contract, observations, targets, budget))
+        return [Proposal(fit_affine(contract, observations, targets, cost=1))]
+
+    def propose(train: Any, targets: Any) -> Any:
+        return propose_heads(baseline, [Proposal(f, (f.constructor,)) for f in features],
+                             fit, train, targets, max_features=2, max_heads=1)
+
+    result = discover(baseline, propose, rows, labels, lambda a, b: abs(a - b) < 1e-9)
+    assert result.chosen is not None and sum(result.trials[-1].outcomes) == 200
+    assert result.chosen.expert.feature is features[1]
+    assert result.chosen.constructors == (features[1].constructor,)
+    assert len(seen) == 2
+    for feature, (contract, observations, targets, budget) in zip(features, seen, strict=True):
+        assert contract == Contract((feature.manifest.contract.output,), "result")
+        assert observations == tuple(feature.invoke(*row) for row in rows[:200])
+        assert targets == tuple(labels[:200]) and budget == 1
+
+
+def test_head_acquisition_bounds_and_contract_validation() -> None:
+    from nca.interface_learning import propose_heads
+
+    feature = Source()
+    baseline = Consumer()
+    # Use a neutral external signature matching Source, with Consumer's output.
+    baseline.manifest = replace(feature.manifest, contract=Contract(("input",), "output"))
+    seen = []
+
+    def fit(contract: Any, observations: Any, targets: Any, budget: int) -> Any:
+        seen.append(targets)
+        good = Decoder(contract, {"code-1": targets[0]}, targets[0], 0)
+        bad = Decoder(Contract(("wrong",), "output"), {}, None, 0)
+        return [Proposal(good), Proposal(bad)]
+
+    targets = [{"payload": [1, 2]}]
+    result = propose_heads(baseline, [Proposal(feature)], fit, [(1,)], targets,
+                           max_features=1, max_heads=1)
+    assert result[0].expert.invoke(1) == targets[0] and seen == [tuple(targets)]
+    with pytest.raises(ValueError, match="unary contract"):
+        propose_heads(baseline, [Proposal(feature)], fit, [(1,)], targets,
+                       max_features=1, max_heads=2)
+    with pytest.raises(ValueError, match="budgets"):
+        propose_heads(baseline, [], fit, [(1,)], targets, max_features=0, max_heads=1)

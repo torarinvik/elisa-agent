@@ -47,3 +47,49 @@ def propose_adapter(incumbent: Module, source: Module, teacher: Module, consumer
         raise ValueError("fitted adapter must preserve the requested interface contract")
     bridge = Decoded(source, adapter, teacher.manifest.contract)
     return Proposal(Decoded(bridge, consumer, contract))
+
+
+class HeadProposer(Protocol):
+    def __call__(self, contract: Contract, observations: Sequence[Any], targets: Sequence[Any],
+                 budget: int) -> Sequence[Proposal]: ...
+
+
+def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProposer,
+                  rows: Sequence[tuple[Any, ...]], labels: Sequence[Any], *,
+                  max_features: int, max_heads: int) -> list[Proposal]:
+    """Acquire arbitrary unary heads on candidate representations (§36.40).
+
+    Call within independent discovery's training callback. Each selected feature
+    is observed once per training row; the fitter receives those observations,
+    original targets, the required unary contract and a per-feature head budget.
+    Retain only a bounded prefix of fitted heads and compose each with its feature.
+    Feature/head constructors propagate in dependency order. Their package refs
+    do not identify the resulting composite and are not copied to it.
+
+    Observations/models must remain stable, and callbacks must not mutate shared
+    training payloads. Fitting computation is caller-controlled. This does not
+    learn the feature bodies, guarantee representation sufficiency, retain samples
+    at inference or provide generalization evidence without whole-task selection.
+    """
+    if any(type(n) is not int or n < 1 for n in (max_features, max_heads)):
+        raise ValueError("feature and head budgets must be positive integers")
+    if not rows or len(rows) != len(labels):
+        raise ValueError("head training needs nonempty aligned rows and labels")
+    contract = incumbent.manifest.contract
+    if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
+        raise ValueError("rows must supply slot fillings followed by inputs")
+    features = tuple(features[:max_features])
+    if any(replace(p.expert.manifest.contract, output=contract.output) != contract for p in features):
+        raise ValueError("features must preserve inputs, slots and relevance")
+    targets = tuple(labels)
+    proposals = []
+    for feature in features:
+        observations = tuple(feature.expert.invoke(*row) for row in rows)
+        head_contract = Contract((feature.expert.manifest.contract.output,), contract.output)
+        heads = tuple(fit(head_contract, observations, targets, max_heads)[:max_heads])
+        for head in heads:
+            if head.expert.manifest.contract != head_contract:
+                raise ValueError("fitted heads must preserve the requested unary contract")
+            proposals.append(Proposal(Decoded(feature.expert, head.expert, contract),
+                                      feature.constructors + head.constructors))
+    return proposals

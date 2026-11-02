@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.39) are described in the
+Regional acquisition and composition (§§36.26–36.40) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2348,3 +2348,10 @@ bounded prefix of its measurement proposals, validates external signatures and
 propagates their constructors through router screening and specialist acquisition.
 It never retains the training callback. `measurement_prefix_bound` proves only
 the retained-list length bound, not callback computation or model correctness.
+
+`interface_learning.propose_heads` (§36.40) derives a unary head contract per
+candidate representation, observes training inputs and requests a bounded head
+family through `HeadProposer`. It validates exact head contracts and emits fixed
+`Decoded` compositions with feature/head constructors. Existing graph retention
+supports known heads; unknown experts remain opaque bindings.
+`head_fiber_consistency` proves only the necessary equal-feature target condition.

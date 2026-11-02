@@ -254,3 +254,21 @@ zero remaining slots must not invoke it. No callback or training sample becomes
 part of the inference route. Learned implementations still belong to a supplied
 family; this orchestration does not invent arbitrary executable bodies. Stable
 models, faithful learners and independent whole-task selection remain necessary.
+
+
+## 36.40 Acquiring heads on candidate representations
+
+For a candidate representation f : X → A and original target type Y, request
+a bounded family of heads h : A → Y trained on pairs (f(x_i), y_i). Compose
+each head with its representation and propagate both constructor declarations
+in dependency order. Targets need not be hashable or categorical. External
+slots and relevance belong to f; heads are unary and slot-free. Candidate
+feature/head limits bound retained families, not callback computation.
+
+A necessary condition for exact factorization is: if f(x)=f(x′) and the same
+head realizes targets at both points, then y(x)=y(x′). Lean proves this fiber
+consistency condition. It does not assert a supplied feature is sufficient or
+a head family can fit it. Training observations and original targets are fixed
+before fitting; stable models/payloads and faithful callbacks are assumptions.
+Independent whole-task selection, not training fit, decides retention. This
+learns head parameters and wiring within supplied families, not arbitrary bodies.
