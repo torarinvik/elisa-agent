@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Hashable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 from typing import Any
 
@@ -76,6 +76,17 @@ class Decoded:
         return self.decoder.invoke(self.feature.invoke(*inputs))
 
 
+def _total_calls(manifests: Sequence[Manifest], expected: bool = False) -> tuple[Calls, ...]:
+    if not manifests:
+        return ()
+    counts = [(m.expected_calls if expected and m.expected_calls is not None else m.calls)
+              for m in manifests]
+    if any(len(count) != len(manifests[0].contract.slots) for count in counts):
+        return ()  # Never invent counts for undeclared slot usage.
+    return tuple(Calls(sum(c.fixed for c in group), sum(c.per_element for c in group))
+                 for group in zip(*counts, strict=True))
+
+
 class JointFeature:
     """An ordered structural product of two features over the same inputs."""
 
@@ -85,20 +96,12 @@ class JointFeature:
             raise ValueError("joint features must share inputs, slots and relevance")
         self.left, self.right = left, right
 
-        def calls(expected: bool) -> tuple[Calls, ...]:
-            counts = [(m.expected_calls if expected and m.expected_calls is not None else m.calls)
-                      for m in (a, b)]
-            if any(len(count) != len(a.contract.slots) for count in counts):
-                return ()  # Never invent counts for undeclared slot usage.
-            return tuple(Calls(x.fixed + y.fixed, x.per_element + y.per_element)
-                         for x, y in zip(*counts, strict=True))
-
         effects = None if a.effects is None or b.effects is None else a.effects | b.effects
         self.manifest = Manifest(
             f"joint({a.ref},{b.ref})", "1",
             replace(a.contract, output=f"pair[{a.contract.output},{b.contract.output}]"),
-            cost=a.cost + b.cost + pair_cost, calls=calls(False),
-            expected_calls=calls(True) or None, effects=effects)
+            cost=a.cost + b.cost + pair_cost, calls=_total_calls((a, b)),
+            expected_calls=_total_calls((a, b), True) or None, effects=effects)
 
     def invoke(self, *inputs: Any) -> tuple[Any, Any]:
         return self.left.invoke(*inputs), self.right.invoke(*inputs)
@@ -170,6 +173,99 @@ def propose_decoders(incumbent: Module, features: Sequence[Module],
                           table, fallback, decoder_cost)
         proposals.append(Proposal(Decoded(feature, decoder, contract)))
     return proposals
+
+
+@dataclass
+class _Decision:
+    fallback: Hashable
+    feature: int | None = None
+    children: dict[Hashable, _Decision] = field(default_factory=dict)
+
+
+class FeatureTree:
+    """A learned conditional decomposition with modal fallback on unseen keys."""
+
+    def __init__(self, features: Sequence[Module], root: _Decision, manifest: Manifest) -> None:
+        self.features, self.root, self.manifest = tuple(features), root, manifest
+
+    def invoke(self, *inputs: Any) -> Hashable:
+        node = self.root
+        while node.feature is not None:
+            key = self.features[node.feature].invoke(*inputs)
+            child = node.children.get(key)
+            if child is None:
+                return node.fallback
+            node = child
+        return node.fallback
+
+
+def train_tree(incumbent: Module, features: Sequence[Module],
+               rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
+               max_nodes: int, overhead_cost: float) -> FeatureTree:
+    """Fit a breadth-first categorical feature tree on training data only (§36.6).
+
+    Splits maximize modal training successes, ties in feature order. No gain is
+    required, allowing interactions. Each feature is used at most once per path.
+    The node budget includes leaves; a split is admitted only if all its children
+    fit. No global optimality, generalization, persistence or calibration is
+    claimed. Fixed features and stable, hashable keys/labels are assumptions.
+    Declared cost and slot calls conservatively sum all features used anywhere
+    in the tree, plus the caller's whole-tree overhead bound.
+    """
+    if max_nodes < 1 or not rows or len(rows) != len(labels):
+        raise ValueError("tree training needs a positive node budget and aligned nonempty data")
+    if not math.isfinite(overhead_cost) or overhead_cost < 0:
+        raise ValueError("tree overhead must be finite and nonnegative")
+    contract = incumbent.manifest.contract
+    features, rows, labels = tuple(features), tuple(rows), tuple(labels)
+    if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
+        raise ValueError("rows must supply slot fillings followed by inputs")
+    for feature in features:
+        manifest = feature.manifest
+        if replace(manifest.contract, output=contract.output) != contract:
+            raise ValueError("features must preserve inputs, slots and relevance")
+        if not math.isfinite(manifest.cost) or manifest.cost < 0 or any(
+                not math.isfinite(c.fixed) or not math.isfinite(c.per_element)
+                or c.fixed < 0 or c.per_element < 0 for c in manifest.calls):
+            raise ValueError("feature costs and slot counts must be finite and nonnegative")
+    values = [tuple(feature.invoke(*row) for row in rows) for feature in features]
+    root = _Decision(Counter(labels).most_common(1)[0][0])
+    pending = deque([(root, tuple(range(len(rows))), tuple(range(len(features))))])
+    remaining, used = max_nodes - 1, set()
+    while pending:
+        node, indices, available = pending.popleft()
+        if len({labels[i] for i in indices}) == 1:
+            continue
+        best: tuple[int, dict[Hashable, list[int]]] | None = None
+        best_score = -1
+        for feature in available:
+            groups: dict[Hashable, list[int]] = {}
+            for i in indices:
+                groups.setdefault(values[feature][i], []).append(i)
+            if not 1 < len(groups) <= remaining:
+                continue
+            score = sum(Counter(labels[i] for i in group).most_common(1)[0][1]
+                        for group in groups.values())
+            if score > best_score:
+                best, best_score = (feature, groups), score
+        if best is None:
+            continue
+        feature, groups = best
+        node.feature = feature
+        used.add(feature)
+        remaining -= len(groups)
+        for key, group in groups.items():
+            child = _Decision(Counter(labels[i] for i in group).most_common(1)[0][0])
+            node.children[key] = child
+            pending.append((child, tuple(group), tuple(f for f in available if f != feature)))
+    manifests = [features[i].manifest for i in sorted(used)]
+    effects = (None if any(m.effects is None for m in manifests)
+               else frozenset().union(*(m.effects for m in manifests)))
+    manifest = Manifest("learned-feature-tree", "1", contract,
+                        cost=overhead_cost + sum(m.cost for m in manifests),
+                        calls=(_total_calls(manifests) if manifests else
+                               tuple(Calls() for _ in contract.slots)), effects=effects)
+    return FeatureTree(features, root, manifest)
 
 
 def discover(incumbent: Module,

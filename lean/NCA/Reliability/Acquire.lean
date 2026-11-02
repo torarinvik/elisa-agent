@@ -64,4 +64,12 @@ theorem joint_decoder_simulates {X A B Y : Type*}
     (fun x => (fun ab : A × B => d ab.1) (f x, g x)) = (fun x => d (f x)) := by
   rfl
 
+/-- Refining a modal leaf cannot lose empirical successes: each child can
+retain the parent's label, and its mode does at least as well. -/
+theorem modal_refinement_le {K L : Type*} (children : Finset K)
+    (count : K → L → ℕ) (parent : L) (mode : K → L)
+    (maximal : ∀ k ∈ children, count k parent ≤ count k (mode k)) :
+    ∑ k ∈ children, count k parent ≤ ∑ k ∈ children, count k (mode k) := by
+  exact Finset.sum_le_sum maximal
+
 end NCA

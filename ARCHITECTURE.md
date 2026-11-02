@@ -2002,3 +2002,17 @@ counts per component. Missing counts or effects remain unknown. Feeding these
 features to `propose_decoders` searches decompositions not supplied as complete
 interfaces. `joint_decoder_simulates` proves exact prediction preservation for
 a decoder projecting one component; held-out improvement remains empirical.
+
+`discovery.train_tree` (§36.6) learns a breadth-first conditional feature tree
+with an explicit total-node budget, scoring categorical splits by child modal
+successes. Zero-gain splits are allowed to expose interactions; a feature is
+removed from the remaining choices on each path. `FeatureTree.invoke` evaluates
+only visited nodes and falls back at unseen keys. Manifest costs and known slot
+calls conservatively sum features used anywhere in the tree, adding the supplied
+whole-tree overhead bound; effects are their union or unknown. Features with
+negative/nonfinite costs or worst-case call counts are rejected. Training
+precomputes feature keys and assumes stable feature behavior. The tree is an
+in-memory proposal, without a persisted identity or risk certificate.
+`modal_refinement_le` proves the finite modal-refinement inequality conditional
+on per-child maximal counts. Tests cover conditional calls, interactions,
+node limits, unseen keys, higher-order contracts and conservative metadata.

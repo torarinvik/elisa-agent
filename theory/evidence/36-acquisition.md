@@ -118,3 +118,32 @@ fillings, in order. Declared costs and known slot-call counts add; effects
 are their union when both are declared, otherwise unknown. Stateful features
 need extra care: this construction does not make calls commute or preserve
 a feature's behavior across separate training and evaluation invocations.
+
+## 36.6 Learning conditional decompositions
+
+A finite decision tree may choose a different feature expert at each node.
+On a node's training subset, group examples by each unused feature's key and
+score a split by the sum of its child groups' modal-label counts. Choose the
+highest score, breaking ties in supplied feature order. A pure node, a node
+without a separating feature, or a node whose split exceeds the remaining
+node budget becomes a modal-label leaf. Process nodes breadth first; a feature
+is used at most once along a path. Zero-improvement splits remain eligible,
+since two features can be informative jointly while neither is informative
+alone. Unseen keys return the current node's modal label.
+
+**Proposition 36.6 (modal refinement).** Splitting a node cannot reduce its
+empirical modal successes: for every child, its modal count is at least the
+count of the parent's chosen label in that child. Summing over children gives
+the parent's correct count as a lower bound. Repeating this argument gives
+nondecreasing training accuracy as nodes are refined. The finite sum comparison
+is proved conditional on each child's maximal count; the implementation's
+counting and node-budget behavior are tested separately. Greedy splitting is
+not a globally optimal tree search and implies no held-out improvement.
+
+This learns conditional execution structure from supplied features. It creates
+no new primitive feature meanings. Features and key/label equality must remain
+stable. A conservative runtime bound sums declared costs and known slot counts
+of all features used anywhere in the tree: each appears at most once on a path.
+The supplied tree overhead bound is added to cost; expected calls are not
+estimated from the training frequencies. Node limits are explicit resource
+bounds, not fixed limits on task complexity.

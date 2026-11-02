@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from nca.abi import Calls, Contract, Manifest
-from nca.discovery import (Decoded, JointFeature, Proposal, discover, discover_packages,
-                           joint_features, propose_decoders)
+from nca.discovery import (Decoded, FeatureTree, JointFeature, Proposal, discover, discover_packages,
+                           joint_features, propose_decoders, train_tree)
 from nca.objects import Composite, Constructor, Primitive, Store
 from nca.packages import install
 
@@ -311,3 +311,73 @@ def test_joint_features_sum_slot_usage_and_keep_unknown_declarations_unknown() -
     unknown = JointFeature(left, right, 0)
     assert unknown.manifest.calls == () and unknown.manifest.expected_calls is None
     assert unknown.manifest.effects is None
+
+
+def test_tree_learns_conditional_execution_and_falls_back_for_unseen_keys() -> None:
+    rows = [((i % 2, (i // 2) % 2, (i // 4) % 2),) for i in range(256)]
+    labels = [f"label-{row[0][1 + row[0][0]]}" for row in rows]
+    calls = []
+
+    def feature(index: int, value: tuple[int, ...]) -> int:
+        calls.append(index)
+        return value[index]
+
+    features = [Feature(Contract(("source",), f"part{i}"),
+                        lambda value, index=i: feature(index, value)) for i in range(3)]
+
+    def propose(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        return [Proposal(train_tree(Constant(), features, train, targets,
+                                    max_nodes=15, overhead_cost=0.1))]
+
+    result = discover(Constant(), propose, rows, labels, lambda a, b: a == b)
+    assert result.chosen is not None
+    tree = result.chosen.expert
+    assert isinstance(tree, FeatureTree)
+    assert sum(result.trials[0].outcomes) == 128
+    calls.clear()
+    assert [tree.invoke(*row) for row in rows] == labels
+    assert len(calls) < 3 * len(rows)
+    assert tree.root.feature is not None
+    assert tree.invoke(("unseen", "unseen", "unseen")) == tree.root.fallback
+    assert tree.manifest.cost <= 3.1 and tree.manifest.effects == frozenset()
+
+
+def test_tree_node_budget_zero_gain_splits_and_empty_feature_family() -> None:
+    rows = [((i % 2, (i // 2) % 2),) for i in range(40)]
+    labels = ["same" if row[0][0] == row[0][1] else "different" for row in rows]
+    features = [Feature(Contract(("source",), f"part{i}"),
+                        lambda value, index=i: value[index]) for i in range(2)]
+    for budget in range(1, 8):
+        tree = train_tree(Constant(), features, rows, labels, max_nodes=budget, overhead_cost=0)
+        pending, count = [tree.root], 0
+        while pending:
+            node = pending.pop()
+            count += 1
+            pending.extend(node.children.values())
+        assert count <= budget
+        correct = sum(tree.invoke(*row) == label for row, label in zip(rows, labels))
+        assert correct >= 20
+        if budget == 7:
+            assert correct == 40  # Neither single feature improves on the modal leaf.
+    tree = train_tree(Constant(), [], rows, labels, max_nodes=100, overhead_cost=0.5)
+    assert tree.root.feature is None and tree.manifest.cost == 0.5
+    with pytest.raises(ValueError, match="positive node"):
+        train_tree(Constant(), [], rows, labels, max_nodes=0, overhead_cost=0)
+    with pytest.raises(ValueError, match="preserve inputs"):
+        train_tree(Constant(), [Feature(Contract(("other",), "part"), lambda x: x)],
+                   rows, labels, max_nodes=3, overhead_cost=0)
+
+
+def test_tree_keeps_slot_contract_and_conservative_call_declarations() -> None:
+    contract = Contract(("source",), "result", ((("source",), "source"),))
+    incumbent = Feature(contract, lambda f, x: 0)
+    feature = Feature(replace(contract, output="part"), lambda f, x: f(x))
+    feature.manifest = replace(feature.manifest, calls=(Calls(1),), effects=None)
+    rows = [(lambda x: x, i) for i in range(4)]
+    tree = train_tree(incumbent, [feature], rows, ["a", "b", "a", "b"],
+                      max_nodes=5, overhead_cost=1)
+    assert tree.manifest.contract == contract and tree.manifest.calls == (Calls(1),)
+    assert tree.manifest.effects is None and tree.manifest.expected_calls is None
+    assert tree.invoke(*rows[1]) == "b"
+    leaf = train_tree(incumbent, [feature], rows, ["a"] * 4, max_nodes=1, overhead_cost=0)
+    assert leaf.manifest.calls == (Calls(),) and leaf.manifest.effects == frozenset()
