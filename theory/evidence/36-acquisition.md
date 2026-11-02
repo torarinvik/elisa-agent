@@ -172,3 +172,32 @@ search exhaustion invalidates a claim of complete horizon search. Predictions
 and measured feature calls must distinguish this search heuristic from a
 proof of globally minimal execution cost. Declared tree costs remain the
 conservative bounds of §36.6, not projected training averages.
+
+## 36.8 A learned empirical-state interface
+
+A trained tree partitions invocations into terminal states: leaves and internal
+nodes reached just before an unseen key. Retain each node's training label
+counts and its modal tie choice. Deduplicate equal count/tie records and assign
+codes by canonical record order. A newly generated constructor describes this
+finite codebook and the target type. Its values are codes for these empirical
+records; the codebook is learned from training data, not a fixed label catalog.
+It records empirical counts, with no claim about true probabilities.
+
+Factor the tree into an encoder returning the reached state's code and a head
+returning that record's chosen label. Include every node, so fallback at an
+unseen key is represented as well. Counts with different compositions remain
+different states even if their chosen labels agree.
+
+**Proposition 36.8 (prediction-preserving state factorization).** Let `v(x)`
+be the node at which tree evaluation stops, `c(n)` its code, and `m(n)` its
+chosen label. If the head satisfies `d(c(n)) = m(n)` for every node, then
+`d(c(v(x))) = m(v(x))` for every invocation. This is substitution and includes
+unseen-key fallbacks. It proves prediction preservation, not better accuracy,
+calibration, transfer, or that the state is a sufficient statistic for other
+tasks. Features and the fitted tree must remain fixed after factorization.
+
+The codebook's canonical label encoding must preserve label values. The first
+implementation supports JSON scalar labels explicitly; richer labels need a
+faithful codec, rather than conversion through display strings. The type
+object can be stored independently; persisting the executable encoder and
+training evidence requires additional integration.

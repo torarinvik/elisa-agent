@@ -79,4 +79,13 @@ theorem lookahead_score_mono (shallow deep : Finset ℕ) (included : shallow ⊆
     shallow.max ≤ deep.max := by
   exact Finset.max_mono included
 
+/-- Factoring every stopping state, including fallback states, preserves
+predictions whenever decoding each state code returns its chosen label. -/
+theorem state_factorization_eq {X N S Y : Type*} (visit : X → N)
+    (chosen : N → Y) (code : N → S) (head : S → Y)
+    (decodes : ∀ n, head (code n) = chosen n) :
+    (fun x => head (code (visit x))) = (fun x => chosen (visit x)) := by
+  funext x
+  exact decodes (visit x)
+
 end NCA

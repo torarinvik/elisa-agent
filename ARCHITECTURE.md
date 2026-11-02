@@ -2029,3 +2029,17 @@ budget. `lookahead_score_mono` proves only complete attainable-score set
 inclusion; Python search correctness, exhaustion, costs and actual conditional
 calls are regression-tested. Accuracy-only `discover` does not promote an
 equally accurate candidate solely for saving execution cost.
+
+`discovery.factor_tree` (§36.8) derives a `Constructor` from a trained tree's
+node label counts, modal tie choices and target type. Records are canonicalized,
+deduplicated and sorted to assign stable codes. `TreeStateEncoder` returns the
+reached node's code; a separate decoder returns its chosen label. The resulting
+`Proposal` includes the generated constructor and an ordinary `Decoded` expert.
+Every stopping node is represented, including internal fallback states. Labels
+are currently JSON scalars; unsupported labels fail explicitly, and no repr-based
+identity is used. Counts are empirical records, not calibrated probabilities.
+`state_factorization_eq` proves prediction preservation conditional on decoding
+each node code correctly. Tests verify prediction equality, stable type identity,
+distinct count profiles, type-object store round trips and planner composition.
+The tree/features must remain fixed; executable persistence is not implemented
+by this factory. Encoding and decoding costs are explicit caller declarations.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter, deque
 from collections.abc import Callable, Hashable, Mapping, Sequence
@@ -10,7 +11,7 @@ from itertools import combinations
 from typing import Any
 
 from nca.abi import Calls, Contract, Manifest, Module
-from nca.objects import Constructor, Ref, Store
+from nca.objects import Constructor, Ref, Store, canonical
 from nca.packages import install
 from nca.router import sign_test
 
@@ -175,9 +176,10 @@ def propose_decoders(incumbent: Module, features: Sequence[Module],
     return proposals
 
 
-@dataclass
+@dataclass(eq=False)
 class _Decision:
     fallback: Hashable
+    counts: tuple[tuple[Hashable, int], ...]
     feature: int | None = None
     children: dict[Hashable, _Decision] = field(default_factory=dict)
 
@@ -192,14 +194,68 @@ class FeatureTree:
         self.projection_exhausted = projection_exhausted
 
     def invoke(self, *inputs: Any) -> Hashable:
+        return self._state(*inputs).fallback
+
+    def _state(self, *inputs: Any) -> _Decision:
         node = self.root
         while node.feature is not None:
             key = self.features[node.feature].invoke(*inputs)
             child = node.children.get(key)
             if child is None:
-                return node.fallback
+                return node
             node = child
-        return node.fallback
+        return node
+
+
+class TreeStateEncoder:
+    """A trained tree exposing its learned empirical-state code (§36.8)."""
+
+    def __init__(self, tree: FeatureTree, constructor: Constructor,
+                 codes: Mapping[_Decision, int], cost: float) -> None:
+        self.tree, self.constructor, self._codes = tree, constructor, dict(codes)
+        self.manifest = replace(tree.manifest, module_id=f"{tree.manifest.module_id}/state",
+                                contract=replace(tree.manifest.contract, output=constructor.type()),
+                                cost=tree.manifest.cost + cost)
+
+    def invoke(self, *inputs: Any) -> int:
+        return self._codes[self.tree._state(*inputs)]
+
+
+def factor_tree(tree: FeatureTree, *, encoding_cost: float, decoder_cost: float) -> Proposal:
+    """Derive a learned type and prediction-preserving encoder/head proposal.
+
+    The codebook records each node's counts and tie choice, not calibrated
+    probabilities. Codes follow canonical record order; identical records share
+    a code. Labels must be JSON scalars, faithfully encoded without repr or
+    coercion. Every possible stopping node is covered, including unseen-key
+    fallbacks. The tree and features must remain fixed after factoring.
+    Only the type object is persistable here; the executable proposal remains
+    in memory and is neither installed nor calibrated.
+    """
+    if any(not math.isfinite(cost) or cost < 0 for cost in (encoding_cost, decoder_cost)):
+        raise ValueError("factorization costs must be finite and nonnegative")
+    records: dict[_Decision, bytes] = {}
+    pending = [tree.root]
+    while pending:
+        node = pending.pop()
+        if any(type(label) not in (str, int, float, bool, type(None)) for label, _ in node.counts):
+            raise TypeError("tree state factoring requires JSON scalar labels")
+        counts = sorted(node.counts, key=lambda item: canonical(item[0]))
+        records[node] = canonical({"counts": counts, "chosen": node.fallback})
+        pending.extend(node.children.values())
+    unique = sorted(set(records.values()))
+    positions = {record: index for index, record in enumerate(unique)}
+    meaning = canonical({"format": "empirical-node-counts-v1",
+                         "target": tree.manifest.contract.output,
+                         "states": [json.loads(record) for record in unique]}).decode()
+    constructor = Constructor("learned-tree-states", "1", 0, meaning)
+    encoder = TreeStateEncoder(tree, constructor,
+                               {node: positions[record] for node, record in records.items()},
+                               encoding_cost)
+    table = {positions[record]: node.fallback for node, record in records.items()}
+    decoder = Decoder(Contract((constructor.type(),), tree.manifest.contract.output),
+                      table, tree.root.fallback, decoder_cost)
+    return Proposal(Decoded(encoder, decoder, tree.manifest.contract), (constructor,))
 
 
 def train_tree(incumbent: Module, features: Sequence[Module],
@@ -278,7 +334,8 @@ def train_tree(incumbent: Module, features: Sequence[Module],
         projections[key] = best
         return best
 
-    root = _Decision(Counter(labels).most_common(1)[0][0])
+    root_counts = Counter(labels)
+    root = _Decision(root_counts.most_common(1)[0][0], tuple(root_counts.items()))
     pending = deque([(root, tuple(range(len(rows))), tuple(range(len(features))))])
     remaining, used = max_nodes - 1, set()
     while pending:
@@ -305,7 +362,8 @@ def train_tree(incumbent: Module, features: Sequence[Module],
         used.add(feature)
         remaining -= len(groups)
         for key, group in groups.items():
-            child = _Decision(Counter(labels[i] for i in group).most_common(1)[0][0])
+            counts = Counter(labels[i] for i in group)
+            child = _Decision(counts.most_common(1)[0][0], tuple(counts.items()))
             node.children[key] = child
             pending.append((child, tuple(group), tuple(f for f in available if f != feature)))
     manifests = [features[i].manifest for i in sorted(used)]

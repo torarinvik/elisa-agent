@@ -8,8 +8,9 @@ from typing import Any
 import pytest
 
 from nca.abi import Calls, Contract, Manifest
-from nca.discovery import (Decoded, FeatureTree, JointFeature, Proposal, discover, discover_packages,
-                           joint_features, propose_decoders, train_tree)
+from nca.discovery import (Decoded, FeatureTree, JointFeature, Proposal, TreeStateEncoder,
+                           discover, discover_packages, factor_tree, joint_features,
+                           propose_decoders, train_tree)
 from nca.objects import Composite, Constructor, Primitive, Store
 from nca.packages import install
 
@@ -424,3 +425,73 @@ def test_tree_projection_budget_and_cost_ties_are_explicit_and_deterministic() -
     labels = [row[0][0] for row in rows]
     tree = train_tree(Constant(), [expensive, cheap], rows, labels, max_nodes=3, overhead_cost=0)
     assert tree.root.feature == 1 and tree.manifest.cost == cheap.manifest.cost
+
+
+def test_tree_factorization_learns_a_type_and_preserves_all_stopping_predictions(tmp_path: Path) -> None:
+    import json
+
+    from nca.abi import Message
+    from nca.planner import plan_stable
+    from nca.runtime import execute
+    from nca.workspace import Workspace
+
+    rows = [((i % 2, (i // 2) % 2, (i // 4) % 2),) for i in range(128)]
+    labels = [f"target-{row[0][1 + row[0][0]]}" for row in rows]
+    features = [Feature(Contract(("source",), f"part{i}"),
+                        lambda value, index=i: value[index]) for i in range(3)]
+    tree = train_tree(Constant(), features, rows, labels, max_nodes=15, overhead_cost=0,
+                      lookahead=2, lookahead_budget=1000)
+    proposal = factor_tree(tree, encoding_cost=0.1, decoder_cost=0.2)
+    assert isinstance(proposal.expert, Decoded)
+    encoder = proposal.expert.feature
+    assert isinstance(encoder, TreeStateEncoder)
+    interface = proposal.constructors[0]
+    assert encoder.manifest.contract.output == interface.type()
+    assert proposal.expert.decoder.manifest.contract == Contract((interface.type(),), "result")
+    assert proposal.expert.manifest.contract == tree.manifest.contract
+    assert proposal.expert.manifest.cost == tree.manifest.cost + 0.1 + 0.2
+    check = [*rows, ((9, 9, 9),), ((0, 9, 9),), ((1, 9, 9),)]
+    assert [proposal.expert.invoke(*row) for row in check] == [tree.invoke(*row) for row in check]
+    again = factor_tree(tree, encoding_cost=0.1, decoder_cost=0.2)
+    assert again.constructors == proposal.constructors
+    states = json.loads(interface.meaning)["states"]
+    same_choice = [s for s in states if s["chosen"] == tree.root.fallback]
+    assert len(same_choice) > 1
+    assert len({str(s["counts"]) for s in same_choice}) > 1
+    assert all(0 <= encoder.invoke(*row) < len(states) for row in check)
+    store = Store()
+    store.put(interface)
+    store.save(tmp_path)
+    assert Store.open(tmp_path).get(interface.ref) == interface
+    route = plan_stable([encoder, proposal.expert.decoder], ("source",), "result")
+    assert route is not None
+    for row in check[-3:]:
+        result = execute(route, {"source": Message("source", row[0], "input")}, Workspace(), 100)
+        assert result.payload == tree.invoke(*row)
+
+
+def test_tree_state_factorization_rejects_lossy_labels_and_distinguishes_target_types() -> None:
+    tree = train_tree(Constant(), [], [(1,), (2,)], ["a", "b"], max_nodes=1, overhead_cost=0)
+    first = factor_tree(tree, encoding_cost=0, decoder_cost=0)
+    tree.manifest = replace(tree.manifest, contract=Contract(("source",), "another-target"))
+    second = factor_tree(tree, encoding_cost=0, decoder_cost=0)
+    assert first.constructors[0].ref != second.constructors[0].ref
+    opaque = train_tree(Constant(), [], [(1,), (2,)], [(1,), (2,)],
+                        max_nodes=1, overhead_cost=0)
+    with pytest.raises(TypeError, match="JSON scalar"):
+        factor_tree(opaque, encoding_cost=0, decoder_cost=0)
+    with pytest.raises(ValueError, match="finite"):
+        factor_tree(tree, encoding_cost=float("nan"), decoder_cost=0)
+
+
+@pytest.mark.parametrize("label", [None, True, 1, 1.5, "é"])
+def test_tree_state_scalar_labels_keep_their_values_and_types(label: Any) -> None:
+    import json
+
+    tree = train_tree(Constant(), [], [(1,), (2,)], [label, label],
+                      max_nodes=1, overhead_cost=0)
+    proposal = factor_tree(tree, encoding_cost=0, decoder_cost=0)
+    output = proposal.expert.invoke(3)
+    recorded = json.loads(proposal.constructors[0].meaning)["states"][0]["chosen"]
+    assert output == label and type(output) is type(label)
+    assert recorded == label and type(recorded) is type(label)
