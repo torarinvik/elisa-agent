@@ -256,6 +256,46 @@ def test_ranked_selection_validates_with_legacy_kernel(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("native", [False, True])
+def test_large_restricted_ranked_selection_preserves_contract(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
+        pytest.skip("native indexed ranked selection kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    weights = [0.1] * 32
+    weights[4] = weights[19] = 0.8
+    observation = ladder_module.RankedObservation(torch.zeros(32), tuple(weights))
+    indices = tuple(reversed(range(32)))
+    assert observation.top(indices) == 19
+    assert observation.top(indices + (19,)) == 19
+    for bad in (-1, 32, True, 1.5, 2**100):
+        with pytest.raises(ValueError, match="class indices"):
+            observation.top(indices[:-1] + (bad,))
+    weights[7] = math.nan
+    invalid = ladder_module.RankedObservation(torch.zeros(32), tuple(weights))
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        invalid.top(indices)
+    assert invalid.top(tuple(i for i in indices if i != 7)) == 19
+
+
+def test_native_restricted_ranked_selection_matches_reference(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if getattr(ladder_module._NATIVE, "ranked_argmax_indices_checked", None) is None:
+        pytest.skip("native indexed ranked selection kernel is not built")
+    rng = np.random.default_rng(197)
+    cases = []
+    for _ in range(50):
+        weights = tuple(float(x) for x in rng.integers(0, 8, size=64))
+        indices = tuple(int(i) for i in rng.integers(0, 64, size=40))
+        cases.append((weights, indices))
+    actual = [ladder_module._ranked_top(weights, indices) for weights, indices in cases]
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    assert actual == [ladder_module._ranked_top(weights, indices) for weights, indices in cases]
+
+
+@pytest.mark.parametrize("native", [False, True])
 def test_ranked_risk_uses_original_winner_group(native, monkeypatch) -> None:
     from nca import ladder as ladder_module
 

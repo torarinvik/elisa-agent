@@ -94,7 +94,8 @@ obligation.
 Ranked selection applies the same finite, nonnegative requirement to the
 original weights for the selected classes. Ties, including all-zero restricted
 weights, retain the first supplied class. Weights outside the restriction do
-not participate in that selection.
+not participate in that selection. A scan that replaces its current choice
+only on strict improvement preserves the first choice on equal weights.
 The selective controller passes ranked observations to consumers or fusers
 that opt in to preserving this choice; other consumers use numerical readings.
 

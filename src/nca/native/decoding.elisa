@@ -1446,6 +1446,22 @@ def ranked_argmax_checked(weights: view[f64]) -> i64 can[Abort.Panic]:
             return -1 if value != value or value < 0.0 or value == -log(0.0)
             top <- i if value > weights[top] else top
 
+# Return the first maximum at caller-supplied indices; negative results report
+# invalid indices (-1) or invalid selected weights (-2).
+def ranked_argmax_indices_checked(weights: view[f64], indices: view[i64]) -> i64 can[Abort.Panic]:
+    return -1 if indices.len.i64() == 0
+    for i in 0..<indices.len.i64():
+        return -1 if indices[i] < 0 or indices[i] >= weights.len.i64()
+    best, top =
+        for i in 0..<indices.len.i64() |best: f64 = 0.0, top: i64 = -1| -> (best, top):
+            index: i64 = indices[i]
+            value: f64 = weights[index]
+            return -2 if value != value or value < 0.0 or value == -log(0.0)
+            if top < 0 or value > best:
+                best <- value
+                top <- index
+    return top
+
 # First maximum in each row, matching NumPy's first-NaN behavior as well.
 def row_argmax(scores: view[f64], width: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     return [] if width <= 0 or scores.len.i64() % width != 0
@@ -1823,6 +1839,7 @@ export pymodule decoding:
     fn certificate_words
     fn row_argmax
     fn ranked_argmax_checked
+    fn ranked_argmax_indices_checked
     fn partition_group_ids
     fn grouped_argmax
     fn grouped_masses

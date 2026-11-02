@@ -161,6 +161,11 @@ theorem monotone_normalized_rank (f : ℝ → ℝ) (hf : StrictMono f)
   rw [div_lt_div_iff_of_pos_right ht]
   exact hf.lt_iff_lt
 
+/-- A strict-improvement scan retains the earlier choice on equal weights. -/
+theorem ranked_tie_keeps_first {α : Type*} (first candidate : α) (a b : ℝ)
+    (equal : a = b) : (if b > a then candidate else first) = first := by
+  simp [equal]
+
 /-- Positive temperature preserves logit order; negative temperature reverses it. -/
 theorem temperature_rank (a b temperature : ℝ) :
     (0 < temperature → (a / temperature < b / temperature ↔ a < b)) ∧

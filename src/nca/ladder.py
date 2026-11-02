@@ -205,6 +205,19 @@ class RankedObservation:
 
 def _ranked_top(weights: tuple[float, ...], classes: Sequence[int] | None) -> int:
     indices = None if classes is None else tuple(classes)
+    indexed_native = getattr(_NATIVE, "ranked_argmax_indices_checked", None)
+    if (indexed_native is not None and indices is not None and len(indices) >= 16
+            and len(indices) * 4 >= len(weights) and all(type(i) is int for i in indices)):
+        try:
+            native_indices = np.asarray(indices, dtype=np.int64)
+        except OverflowError as exc:
+            raise ValueError("classes must contain valid class indices") from exc
+        top = int(indexed_native(np.ascontiguousarray(weights, dtype=np.float64), native_indices))
+        if top == -1:
+            raise ValueError("classes must contain valid class indices")
+        if top == -2:
+            raise ValueError("ranked weights must be finite and nonnegative")
+        return top
     if (len(weights) == 0 or (indices is not None and
             (not indices or any(isinstance(i, bool) or not isinstance(i, Integral)
                                 or not 0 <= i < len(weights) for i in indices)))):
