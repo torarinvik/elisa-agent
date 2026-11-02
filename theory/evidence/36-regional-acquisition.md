@@ -145,3 +145,23 @@ regions; Lean proves this special-case identity, not learned-boundary accuracy,
 seed quality or held-out improvement. Existing regional artifacts can represent
 such dependencies after child components are retained. Stable models/samples,
 faithful callbacks and independent whole-task selection remain assumptions.
+
+## 36.34 Retaining an acquired model graph
+
+Visit a known learned-runtime graph in postorder, retaining children before
+parents and memoizing original object identities. Shared children reuse their
+bindings; cycles in the traversed graph fail explicitly. Known runtimes retain
+fitted parameters and reconstruct wiring from installed children without mutating
+the trained graph. Metadata must agree except for content-derived module names.
+External or unrecognized runtime types remain opaque and require a binding that
+matches their original content identity and full manifest. A subclass is not
+silently treated as its base interpreter. This is not arbitrary Python serialization.
+
+For composition nodes, equality of restored feature and head functions implies
+equality of their composition; Lean proves this conditional statement. Existing
+regional restoration lemmas cover the branch case. Neither proves factories,
+FFI, traversal, mutable state equivalence or hidden expert implementations.
+Per-node byte sizes are caller declarations, not measured process memory.
+The iterative visitor introduces no extra recursion-depth limit, but existing
+store/install/runtime resource constraints still apply. Stable functional models
+and faithful factories/dependencies remain assumptions.

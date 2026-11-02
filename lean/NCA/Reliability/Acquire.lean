@@ -268,4 +268,12 @@ theorem nested_refinement_scope {Y : Type*} (outer inner : Prop)
       (if outer ∧ inner then specialist else fallback) := by
   by_cases h : outer <;> simp [h]
 
+/-- Restoring a feature and a head faithfully restores their pure composition.
+This does not verify executable snapshots, traversal, codecs or factories. -/
+theorem decoded_reloaded_eq {X A Y : Type*} (f0 f1 : X → A) (h0 h1 : A → Y)
+    (hf : ∀ x, f0 x = f1 x) (hh : ∀ a, h0 a = h1 a) :
+    (fun x => h0 (f0 x)) = (fun x => h1 (f1 x)) := by
+  funext x
+  rw [hf x, hh (f1 x)]
+
 end NCA

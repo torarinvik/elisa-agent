@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.33) are described in the
+Regional acquisition and composition (§§36.26–36.34) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2305,3 +2305,12 @@ Direct alternatives remain available, and seed constructor declarations propagat
 into refined proposals. Existing regional runtimes support nested results.
 `nested_refinement_scope` proves the pure shared-fallback intersection identity,
 not automatic discovery of a refiner or held-out improvement.
+
+`acquisition_objects.store_acquired_model` (§36.34) traverses supported learned
+runtimes in iterative postorder, memoizes shared objects and reconstructs parent
+wiring from retained children. Regional policies, compositions, numeric encoders
+and fitted categorical/scalar/vector heads use parameter artifacts. Other types
+(including unknown subclasses) remain opaque and require verified original
+bindings. Per-node sizes are caller declarations. `load_composition` reifies
+fixed feature/head wiring; `decoded_reloaded_eq` proves conditional pure
+composition fidelity, not executable serialization or mutable-state equivalence.
