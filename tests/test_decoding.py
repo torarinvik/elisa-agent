@@ -1994,6 +1994,15 @@ def test_decode_rejects_invalid_arity_alphabet(decoder, alphabet) -> None:
         decoder(np.zeros((2, len(alphabet))), alphabet)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_format_risk_rejects_lost_equal_alternative_mass(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.full((5, 3), 1e307)
+    with pytest.raises(ValueError, match="partition.*precision"):
+        priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0))
+
+
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
 def test_decode_rejects_unnormalized_marginals_from_precision_loss(decoder) -> None:
     rows = np.full((3, 3), 1e307)

@@ -97,6 +97,13 @@ def risk_from_partition(chosen: float, alternative: float) -> float:
     return 1.0 / (1.0 + math.exp(-difference))
 
 
+def _partition_log_add(left: float, right: float, context: str) -> float:
+    result = float(np.logaddexp(left, right))
+    if left == right and math.isfinite(left) and result == left:
+        raise ValueError(f"{context} partition arithmetic loses precision")
+    return result
+
+
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
                         selected: Sequence[int]) -> float:
     """Log product of a selected sequence's position-wise weights (§21.5)."""
@@ -257,7 +264,7 @@ class ArityPrior:
                             self.transitions.reshape(-1), self.log_weights.reshape(-1),
                             self.log_final, self.start, encoded)
             if len(result) != 2:
-                raise ValueError("prior partition arithmetic is not finite")
+                raise ValueError("prior partition arithmetic is not finite or loses precision")
             return float(result[0]), float(result[1])
         alternatives = np.full(len(self.log_final), -np.inf)
         state, matched = self.start, 0.0
@@ -282,7 +289,7 @@ class ArityPrior:
                             value = prefix + weight
                             if not math.isfinite(value):
                                 raise ValueError("prior partition arithmetic is not finite")
-                            following[target] = np.logaddexp(following[target], value)
+                            following[target] = _partition_log_add(float(following[target]), value, "prior")
             if matched != -math.inf:
                 j = self.alphabet.index(symbol)
                 target = int(self.transitions[state, j])
@@ -305,7 +312,7 @@ class ArityPrior:
                 weight = float(value) + float(final)
                 if not math.isfinite(weight):
                     raise ValueError("prior partition arithmetic is not finite")
-                other = float(np.logaddexp(other, weight))
+                other = _partition_log_add(other, weight, "prior")
         return chosen, other
 
     def sequence_risk(self, log_probs: np.ndarray, selected: Sequence[int]) -> float:
@@ -479,12 +486,12 @@ def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], sel
                     through = float(alternatives[n]) + reading
                     if not math.isfinite(through):
                         raise ValueError("format partition arithmetic is not finite")
-                    following[target] = np.logaddexp(following[target], through)
+                    following[target] = _partition_log_add(float(following[target]), through, "format")
                 if n == state and arity != selected[k] and matched != -math.inf and reading != -math.inf:
                     through = matched + reading
                     if not math.isfinite(through):
                         raise ValueError("format partition arithmetic is not finite")
-                    following[target] = np.logaddexp(following[target], through)
+                    following[target] = _partition_log_add(float(following[target]), through, "format")
         column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
         if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
             matched = -math.inf

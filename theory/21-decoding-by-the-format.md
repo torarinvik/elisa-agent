@@ -185,6 +185,10 @@ finite nonnegative-arity alphabet. Multiplying every path weight by the same
 positive factor leaves their normalized ratio unchanged; carrying the two
 parts separately avoids losing a small alternative when a common log-weight
 shift makes the rounded total equal the selected weight.
+Adding two equal positive masses must increase their sum. If their computed
+log-sum equals either input, the partition reports precision loss rather than
+silently discarding one. This detects one failure mode, not every inaccurate
+partition or risk.
 If adding two finite log weights overflows the representable log range, the
 general-arity partition reports the calculation as unavailable instead of
 interpreting the resulting infinity as a zero-weight path. This check does

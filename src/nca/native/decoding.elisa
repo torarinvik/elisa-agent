@@ -256,6 +256,12 @@ def log_add(x: f64, y: f64) -> f64:
     return x if y == log(0.0)
     return log_add_present(x, y)
 
+# Two equal finite masses must increase their log sum by log(2).
+def partition_log_add(x: f64, y: f64) -> f64:
+    result: f64 = log_add(x, y)
+    return log(-1.0) if x == y and x != log(0.0) and result == x
+    return result
+
 # Sum off-reference masses and log(max(1, row mass)) without cancellation.
 def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = reference.len.i64()
@@ -377,11 +383,15 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                 if source != missing and reading != missing:
                     through: f64 = source + reading
                     return [] if through == missing or through == -missing or through != through
-                    alternatives[next + target] <- log_add(alternatives[next + target], through)
+                    combined: f64 = partition_log_add(alternatives[next + target], through)
+                    return [] if combined != combined
+                    alternatives[next + target] <- combined
                 if n == state[0] and matched[0] != missing and arity != selected[k] and reading != missing:
                     through: f64 = matched[0] + reading
                     return [] if through == missing or through == -missing or through != through
-                    alternatives[next + target] <- log_add(alternatives[next + target], through)
+                    combined: f64 = partition_log_add(alternatives[next + target], through)
+                    return [] if combined != combined
+                    alternatives[next + target] <- combined
         chosen: i64 =
             for j in 0..<count |found: i64 = -1| -> found:
                 if alphabet[j] == selected[k]:
@@ -578,13 +588,17 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
                     if source != unreachable:
                         through: f64 = source + weight
                         return [] if through == unreachable or through == -unreachable
-                        rows[next + target] <- log_add(rows[next + target], through)
+                        combined: f64 = partition_log_add(rows[next + target], through)
+                        return [] if combined != combined
+                        rows[next + target] <- combined
                     bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
                     bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
                     if same and alphabet[j] != selected[k]:
                         through: f64 = matched + weight
                         return [] if through == unreachable or through == -unreachable
-                        rows[next + target] <- log_add(rows[next + target], through)
+                        combined: f64 = partition_log_add(rows[next + target], through)
+                        return [] if combined != combined
+                        rows[next + target] <- combined
             if matched != unreachable:
                 chosen: i64 =
                     for j in 0..<width |chosen: i64 = -1| -> chosen:
@@ -620,7 +634,9 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
             continue if last == unreachable or final[state] == unreachable
             value: f64 = last + final[state]
             return [] if value == unreachable or value == -unreachable
-            total <- log_add(total, value)
+            combined: f64 = partition_log_add(total, value)
+            return [] if combined != combined
+            total <- combined
     return [selected_weight, alternative]
 
 # Max-product and traceback only. Traversal and strict ties match decode_prior.

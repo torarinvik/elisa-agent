@@ -253,6 +253,17 @@ def test_prior_risk_preserves_tiny_alternative_mass(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_rejects_lost_equal_alternative_mass(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    rows = np.full((4, 2), 1e307)
+    # All 16 sequences have equal weight, so the true risk is 15/16.
+    with pytest.raises(ValueError, match="partition.*precision"):
+        prior.sequence_risk(rows, (0, 0, 0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_partition_handles_missing_paths_and_overflow(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:

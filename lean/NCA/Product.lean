@@ -273,6 +273,11 @@ theorem partition_risk_common_factor (chosen other factor : ℝ) (hf : factor �
   rw [← mul_add]
   exact mul_div_mul_left other (chosen + other) hf
 
+/-- Adding a second positive equal mass strictly increases the partition. -/
+theorem equal_positive_mass_increases (mass : ℝ) (positive : 0 < mass) :
+    mass < mass + mass := by
+  linarith
+
 /-- Combine selected and alternative mass from independent segments. -/
 def partitionCompose (left right : ℝ × ℝ) : ℝ × ℝ :=
   (left.1 * right.1, left.2 * (right.1 + right.2) + left.1 * right.2)

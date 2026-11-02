@@ -269,6 +269,9 @@ would be representable after cancellation.
 Full decoding also checks marginal rows for finite, nonnegative entries and
 approximate unit sum. This detects some loss of precision but is not a
 floating-point error bound and cannot validate every normalized result.
+Partition calculations likewise reject the detectable case where summing two
+equal finite log masses leaves the log sum unchanged; other numerical errors
+can remain undetected.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
