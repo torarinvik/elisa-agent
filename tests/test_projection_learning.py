@@ -515,3 +515,49 @@ def test_multiple_prototypes_resolve_separated_modes_with_shared_category_means(
     with pytest.raises(ValueError, match="per-category budget"):
         fit_prototype_encoder(Measurement(), rows, labels, max_centroids=1, encoding_cost=0,
                               centers_per_category=2)
+
+
+def test_native_prototype_choices_match_reference_and_extremes(monkeypatch: pytest.MonkeyPatch) -> None:
+    import math
+
+    import nca.projection_learning as learning
+
+    native = learning._PROTOTYPE_NATIVE
+    if native is None:
+        pytest.skip("prototype kernel not built or disabled")
+    rng = random.Random(3654)
+    cases = [(tuple(rng.uniform(-3, 3) for _ in range(dimension)),
+              tuple(tuple(rng.uniform(-3, 3) for _ in range(dimension)) for _ in range(5)))
+             for dimension in range(9) for _ in range(60)]
+    cases += [((0.0,), ((-1.0,), (1.0,))),
+              ((0.0,), ((1.0,), (math.nextafter(1.0, math.inf),))),
+              ((5e-324,), ((0.0,), (1e-323,))),
+              ((1e308,), ((-1e308,), (0.0,))),
+              ((1e-300,), ((-1e-300,), (0.0,))),
+              ((0.0, -0.0), ((-0.0, 0.0), (0.0, 0.0)))]
+    for value, centers in cases:
+        model = learning.PrototypeEncoder(Measurement(), centers, 0)
+        results = []
+        for backend in (None, native):
+            monkeypatch.setattr(learning, "_PROTOTYPE_NATIVE", backend)
+            try:
+                results.append(model.invoke(value))
+            except ValueError as error:
+                results.append(str(error))
+        assert results[0] == results[1]
+
+
+def test_native_prototype_packed_shapes_and_ambiguous_cases() -> None:
+    import math
+    from array import array
+
+    import nca.projection_learning as learning
+
+    native = learning._PROTOTYPE_NATIVE
+    if native is None:
+        pytest.skip("prototype kernel not built or disabled")
+    for value, centers in [((), ()), ((1.0, 2.0), (1.0,)), ((1.0,), ()),
+                            ((float("nan"),), (0.0,)), ((0.0,), (-1.0, 1.0)),
+                            ((0.0,), (1.0, math.nextafter(1.0, math.inf)))]:
+        assert native.nearest(array("d", value), array("d", centers)) == -1
+    assert native.nearest(array("d", (1.0, 1.0)), array("d", (0.0, 0.0, 4.0, 4.0))) == 0

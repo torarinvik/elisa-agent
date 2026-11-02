@@ -1,0 +1,39 @@
+# Return -1 when outward distance intervals cannot certify a unique choice.
+extern nextafter(x: f64, y: f64) -> f64
+extern sqrt(x: f64) -> f64
+extern fabs(x: f64) -> f64
+extern log(x: f64) -> f64
+
+def nearest(values: view[f64], centers: view[f64]) -> i64 can[Memory.Allocate, Abort.Panic]:
+    dimension: i64 = values.len.i64()
+    return -1 if dimension == 0 or centers.len.i64() % dimension != 0
+    count: i64 = centers.len.i64() / dimension
+    return -1 if count == 0
+    infinity: f64 = -log(0.0)
+    lower: darray[f64] = [0.0 for _ in 0..<count]
+    upper: darray[f64] = [0.0 for _ in 0..<count]
+    for center in 0..<count:
+        low_bound, high_bound =
+            for j in 0..<dimension |low: f64 = 0.0, high: f64 = 0.0| -> (low, high):
+                delta: f64 = fabs(values[j] - centers[center * dimension + j])
+                return -1 if delta != delta or delta == infinity
+                dl: f64 = 0.0 if delta == 0.0 else nextafter(delta, -infinity)
+                dh: f64 = nextafter(delta, infinity)
+                pl: f64 = nextafter(dl * dl, -infinity)
+                pu: f64 = nextafter(dh * dh, infinity)
+                low <- nextafter(low + (0.0 if pl < 0.0 else pl), -infinity)
+                low <- 0.0 if low < 0.0 else low
+                high <- nextafter(high + pu, infinity)
+                return -1 if high == infinity
+        # Extra norm padding covers reference rounding; overlap uses Python.
+        lower[center] <- nextafter(nextafter(sqrt(low_bound), -infinity), -infinity)
+        upper[center] <- nextafter(nextafter(sqrt(high_bound), infinity), infinity)
+    best: i64 =
+        for center in 1..<count |best: i64 = 0| -> best:
+            best <- center if upper[center] < upper[best] else best
+    for center in 0..<count:
+        return -1 if center != best and lower[center] <= upper[best]
+    return best
+
+export pymodule prototypes:
+    fn nearest

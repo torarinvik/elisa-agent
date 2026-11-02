@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.50) are described in the
+Regional acquisition and composition (§§36.26–36.51) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2417,3 +2417,12 @@ factories and acquired-model graph visitor retain its parameters and constructor
 centers through deterministic farthest-first seeds and Lloyd updates. Total
 center budgets fail explicitly; `PrototypeEncoder` and its factory format remain
 unchanged. `two_point_mean_minimizes` proves only the two-scalar update case.
+
+`native/prototypes.elisa` (§36.51) accelerates interval-separated nearest-center
+inference over packed fitted centers. `PrototypeEncoder` falls back to existing
+`_prototype_distances` for uncertain/overflow/empty-dimensional cases. Native
+and fallback assignments are regression-tested; the float enclosure assumptions
+are not formally verified. `prototype_interval_choice` proves only abstract
+interval ordering. CPython's reference uses its shared vector norm implementation
+([source](https://github.com/python/cpython/blob/3.12/Modules/mathmodule.c));
+platform/compiler/libm fidelity remains an assumption.

@@ -376,4 +376,12 @@ theorem two_point_mean_minimizes (a b c : ℝ) :
     (a - (a+b)/2)^2 + (b - (a+b)/2)^2 ≤ (a-c)^2 + (b-c)^2 := by
   nlinarith [sq_nonneg (c - (a+b)/2)]
 
+/-- Strictly separated enclosing intervals certify the smallest reference score. -/
+theorem prototype_interval_choice {I : Type*} (score low high : I → ℝ) (best : I)
+    (inside : ∀ i, low i ≤ score i ∧ score i ≤ high i)
+    (gap : ∀ i, i ≠ best → high best < low i) :
+    ∀ i, i ≠ best → score best < score i := by
+  intro i hi
+  exact lt_of_le_of_lt (inside best).2 (lt_of_lt_of_le (gap i hi) (inside i).1)
+
 end NCA

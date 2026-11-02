@@ -18,6 +18,7 @@ from nca.vector_learning import _vector
 
 
 _NATIVE = load("polynomial")
+_PROTOTYPE_NATIVE = load("prototypes")
 
 
 def _polynomial_reference(value: tuple[float, ...],
@@ -159,6 +160,7 @@ class PrototypeEncoder:
         if not math.isfinite(cost) or cost < 0:
             raise ValueError("prototype cost must be finite and nonnegative")
         self.measurement, self.centers = measurement, centers
+        self._packed_centers = array("d", (x for center in centers for x in center))
         self.constructor = Constructor("learned-prototype-partition", "1", 0,
             canonical({"source": measurement.manifest.contract.output, "centers": centers,
                        "meaning": "nearest Euclidean center; first center breaks ties"}).decode())
@@ -171,6 +173,12 @@ class PrototypeEncoder:
         value = _vector(self.measurement.invoke(*inputs))
         if len(value) != len(self.centers[0]):
             raise ValueError("prototype input dimension differs from training")
+        if _PROTOTYPE_NATIVE is not None:
+            selected = _PROTOTYPE_NATIVE.nearest(array("d", value), self._packed_centers)
+            if selected >= 0:
+                if selected >= len(self.centers):
+                    raise RuntimeError("native prototype evaluator returned an invalid center")
+                return selected
         distances = _prototype_distances(value, self.centers)
         return min(range(len(distances)), key=lambda i: distances[i])
 

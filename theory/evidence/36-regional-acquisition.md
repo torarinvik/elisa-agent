@@ -453,3 +453,21 @@ floating-point descent or category separation. Initialization and stable ties
 depend on observation order. The fitted runtime still stores only centers, so
 existing type generation and artifact factories apply unchanged. Independent
 whole-task selection remains necessary, and larger prototype families can overfit.
+
+
+## 36.51 Interval-separated nearest-prototype acceleration
+
+A packed numeric kernel may return a center only when its upper distance bound
+is strictly below every other center's lower bound. Outward-rounded subtraction,
+squaring, summation and square root construct conservative intervals; extra norm
+padding accounts for reference rounding. Overflow, unsupported shapes or overlapping
+intervals request the original reference path, preserving first-center ties.
+
+If each reference score lies in its stated interval, strict interval separation
+implies the selected score is strictly smallest. Lean proves this abstract
+implication, not the numerical interval construction, FFI or compiler semantics.
+The enclosure argument assumes ordinary IEEE binary64 rounding, faithful libm
+nextafter/sqrt, and reference norm error within one ulp. These assumptions are
+not formalized or established by testing. Near ties and nonrepresentable squared
+distances deliberately use the robust reference. Models retain original centers;
+packed buffers are derived parameter caches, not training observations.
