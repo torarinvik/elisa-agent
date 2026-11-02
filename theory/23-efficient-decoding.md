@@ -415,6 +415,9 @@ skip those contributions, and may insert the first finite contribution
 directly, without changing the real-arithmetic recurrence.
 Filtering zero-reading symbols once per row also preserves an ordered sum over
 symbols, so the same nonzero column list can be reused across source states.
+If columns can share a symbol, its selected column must be chosen before
+filtering by reading weight; otherwise a later duplicate could replace an
+earlier zero-weight column.
 If every state has zero prefix mass, every later frontier is also zero. A
 cached implementation may stop numeric propagation there, provided it marks
 all retained suffix summaries as empty before accepting later revisions.

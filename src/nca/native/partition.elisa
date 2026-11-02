@@ -75,14 +75,16 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
         bounds[(k + 1) * 2 + 1] <- -1
         # Sampling selects an optimization only; every column remains eligible.
         filtered: bool = width >= 16 and high > low and (log_probs[k * width + width / 2] == unreachable or log_probs[k * width + width - 1] == unreachable)
-        active_count: i64 =
+        active_count, found_column =
             if filtered:
-                for j in 0..<width |count: i64 = 0, active| -> count:
+                for j in 0..<width |count: i64 = 0, column: i64 = -1, active| -> (count, column):
+                    if not indexed and match_weight != unreachable and column < 0 and alphabet[j] == selected[k]:
+                        column <- j
                     if log_probs[k * width + j] != unreachable:
                         active[count] <- j
                         count += 1
             else:
-                width
+                (width, -1)
         for state in low..<(high + 1):
             source: f64 = alternatives[here + state]
             same: bool = state == match_state and match_weight != unreachable
@@ -118,6 +120,8 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
             chosen: i64 =
                 if indexed:
                     selected[k] if selected[k] >= 0 and selected[k] < width else -1
+                elif filtered:
+                    found_column
                 else:
                     for j in 0..<width |found: i64 = -1| -> found:
                         if alphabet[j] == selected[k]:

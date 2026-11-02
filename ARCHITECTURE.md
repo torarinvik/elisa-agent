@@ -1283,7 +1283,9 @@ For changed readings, `PartitionCursor` retains prefix summaries and recomputes
 from the first changed row or selected arity. The Elisa kernel performs the
 numeric update. For sufficiently wide rows that appear sparse, it gathers
 finite reading columns once per row and reuses them across source states;
-their original order is retained. `sum_filter_zero_readings` proves the
+their original order is retained. For nonindexed alphabets, that scan also
+records the first selected column, even if its reading weight is zero.
+`sum_filter_zero_readings` proves the
 corresponding real-arithmetic sum identity, not the floating-point code.
 For sufficiently long updates with an indexed alphabet, the selected symbol
 is also its column; other alphabets retain the general search.

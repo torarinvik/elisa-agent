@@ -843,16 +843,18 @@ def test_partition_cursor_sparse_reading_columns_match_full_partition(width, pat
 
 
 @pytest.mark.parametrize("reference", [False, True])
-@pytest.mark.parametrize("reversed_alphabet", [False, True])
-def test_partition_cursor_wide_selected_path_after_edits(reference, reversed_alphabet, monkeypatch) -> None:
+@pytest.mark.parametrize("order", ["indexed", "reversed", "sorted_gapped"])
+def test_partition_cursor_wide_selected_path_after_edits(reference, order, monkeypatch) -> None:
     import nca.partition as incremental
 
     if reference:
         monkeypatch.setattr(incremental, "_NATIVE", None)
     width, length = 32, 40
     alphabet = tuple(range(width))
-    if reversed_alphabet:
+    if order == "reversed":
         alphabet = alphabet[::-1]
+    elif order == "sorted_gapped":
+        alphabet = tuple(1000 + 100 * k for k in alphabet)
     prior = priors.ArityPrior(alphabet, np.zeros((1, width), dtype=np.int64),
                               np.zeros((1, width)), np.zeros(1))
     rows = np.full((length, width), -np.inf)
@@ -865,6 +867,31 @@ def test_partition_cursor_wide_selected_path_after_edits(reference, reversed_alp
                                    rtol=1e-12, atol=1e-12)
         if incremental._NATIVE is not None and k:
             assert cursor.last_start == k
+
+
+def test_native_incremental_sparse_lookup_keeps_first_duplicate() -> None:
+    import nca.partition as incremental
+
+    native = incremental._NATIVE
+    if native is None:
+        pytest.skip("incremental partition is not built")
+    length, width, states = 20, 16, 2
+    alphabet = np.array([0, 0, *range(1, 15)], dtype=np.int64)
+    transitions = np.tile(np.arange(width, dtype=np.int64) % states, (states, 1))
+    rows = np.full((length, width), -np.inf)
+    rows[:, [0, 1, 3]] = -1.0
+    rows[9, 0] = -np.inf  # The second duplicate is finite, but is not first.
+    selected = np.zeros(length, dtype=np.int64)
+    alternatives = np.full((length + 1, states), -np.inf)
+    bounds = np.tile([states, -1], (length + 1, 1)).astype(np.int64)
+    matched_states = np.zeros(length + 1, dtype=np.int64)
+    matched_weights = np.full(length + 1, -np.inf)
+    matched_weights[0] = 0.0
+    chosen, other = native.update(rows.ravel(), alphabet, transitions.ravel(),
+                                  np.zeros(states * width), np.zeros(states), selected,
+                                  alternatives.ravel(), bounds.ravel(), matched_states,
+                                  matched_weights, 0)
+    assert chosen == -np.inf and np.isfinite(other)
 
 
 @pytest.mark.parametrize("reference", [False, True])
