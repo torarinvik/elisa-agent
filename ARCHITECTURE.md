@@ -2104,3 +2104,11 @@ positions are rejected. Interpreter residency ids derive from model contents
 and dependency references. Scalar keys/labels are supported; the existing
 conditional state-factorization and ranked-dependency proofs supply the abstract
 preservation/acyclicity arguments, while codec behavior is regression-tested.
+
+`value_codec` (§36.11) preserves finite JSON scalars and recursively tagged
+tuples in learned decoder and tree artifacts. Scalar wire data stays unchanged;
+unknown records, unsupported values and nonfinite numbers fail explicitly.
+`pair_codec_roundtrip` proves the componentwise pair special case conditional
+on faithful component codecs; Python structural encoding is regression-tested.
+Joint feature keys and tuple labels can now be persisted through normal loading.
+The empirical-state constructor factory still requires scalar labels.

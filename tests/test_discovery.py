@@ -519,4 +519,4 @@ def test_learned_head_persists_values_fallback_and_canonical_identity(tmp_path: 
     head._table["a"] = 99
     assert restored.invoke("a") == 1.5  # Stored data is a snapshot.
     with pytest.raises(TypeError, match="JSON scalar"):
-        decoder_object(Decoder(contract, {(1, 2): "x"}, "x", 1), size=0)
+        decoder_object(Decoder(contract, {frozenset({1, 2}): "x"}, "x", 1), size=0)

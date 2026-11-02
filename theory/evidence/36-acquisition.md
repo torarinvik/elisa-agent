@@ -232,3 +232,17 @@ The stored interpreter manifest receives a model-content-derived identifier,
 so distinct fitted models do not share a residency key merely because their
 external contracts agree. External feature code and weights remain separate
 versioned dependencies. This persists conditional structure, not online state.
+
+## 36.11 Structural keys for learned models
+
+Learned joint features can produce nested tuples, so their persisted keys need
+a structural codec. Keep JSON scalars unchanged and encode a tuple as a tagged
+record containing the recursively encoded elements. Ordinary strings, including
+tag-like strings, remain distinct from tuple records. Reject unknown records,
+unsupported values and nonfinite numbers rather than coercing them.
+
+For every supported finite value, decoding its encoding returns the same value
+with the same tuple/scalar structure. The tuple case follows componentwise from
+the scalar and smaller-tuple cases. This codec is representation machinery,
+not a declaration of domain value types. Existing scalar model encodings stay
+unchanged; richer key support does not establish generalization or transfer.

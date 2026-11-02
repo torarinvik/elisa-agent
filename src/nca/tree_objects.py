@@ -6,16 +6,10 @@ from typing import Any
 
 from nca.abi import Module
 from nca.discovery import FeatureTree, _Decision
-from nca.objects import (Json, Primitive, Ref, Store, canonical, digest,
+from nca.objects import (Json, Primitive, Ref, Store, digest,
                          manifest_data, manifest_from)
 from nca.packages import install
-
-
-def _scalar(value: Any) -> Json:
-    if type(value) not in (str, int, float, bool, type(None)):
-        raise TypeError("stored tree keys and labels must be JSON scalars")
-    canonical(value)
-    return value
+from nca.value_codec import decode_value, encode_value
 
 
 def load_tree(manifest: dict[str, Any], nodes: list[dict[str, Any]], indices: list[int],
@@ -28,8 +22,8 @@ def load_tree(manifest: dict[str, Any], nodes: list[dict[str, Any]], indices: li
         if type(index) is not int or not 0 <= index < len(scope):
             raise ValueError("invalid feature export position")
         features.append(scope[index])
-    decoded = [_Decision(_scalar(n["chosen"]),
-                         tuple((_scalar(label), count) for label, count in n["counts"]))
+    decoded = [_Decision(decode_value(n["chosen"]),
+                         tuple((decode_value(label), count) for label, count in n["counts"]))
                for n in nodes]
     for position, (data, node) in enumerate(zip(nodes, decoded, strict=True)):
         feature = data["feature"]
@@ -39,7 +33,7 @@ def load_tree(manifest: dict[str, Any], nodes: list[dict[str, Any]], indices: li
         for key, child in data["children"]:
             if type(child) is not int or not position < child < len(nodes):
                 raise ValueError("tree child positions must point forward")
-            key = _scalar(key)
+            key = decode_value(key)
             if key in node.children:
                 raise ValueError("duplicate tree key")
             node.children[key] = decoded[child]
@@ -53,7 +47,7 @@ def tree_object(store: Store, tree: FeatureTree, bindings: Sequence[tuple[Ref, i
     The caller supplies dependency scopes and export positions. Their identities
     and manifests must match the features used for training. Size declares only
     the interpreter's resident bytes; dependency bytes are accounted separately.
-    Scalar keys/labels are supported; no repr conversion or implicit code copy
+    Scalar and tuple keys/labels are supported; no repr conversion or implicit code copy
     is used. Feature code and weights must remain faithful to their artifacts.
     """
     if len(bindings) != len(tree.features):
@@ -77,9 +71,9 @@ def tree_object(store: Store, tree: FeatureTree, bindings: Sequence[tuple[Ref, i
                 raise ValueError("stored structure must be a tree without shared or cyclic nodes")
             positions[child] = len(ordered)
             ordered.append(child)
-            children.append([_scalar(key), positions[child]])
-        nodes.append({"chosen": _scalar(node.fallback), "feature": node.feature,
-                      "counts": [[_scalar(label), count] for label, count in node.counts],
+            children.append([encode_value(key), positions[child]])
+        nodes.append({"chosen": encode_value(node.fallback), "feature": node.feature,
+                      "counts": [[encode_value(label), count] for label, count in node.counts],
                       "children": children})
     arguments = {"manifest": manifest_data(tree.manifest), "nodes": nodes,
                  "indices": [index for _, index in bindings]}

@@ -88,4 +88,12 @@ theorem state_factorization_eq {X N S Y : Type*} (visit : X → N)
   funext x
   exact decodes (visit x)
 
+/-- Structural pair reconstruction follows from faithful component codecs.
+This is the componentwise special case, not verification of the Python codec. -/
+theorem pair_codec_roundtrip {A B U V : Type*} (ea : A → U) (da : U → A)
+    (eb : B → V) (db : V → B) (ha : ∀ a, da (ea a) = a)
+    (hb : ∀ b, db (eb b) = b) (a : A) (b : B) :
+    (da (ea a), db (eb b)) = (a, b) := by
+  rw [ha, hb]
+
 end NCA

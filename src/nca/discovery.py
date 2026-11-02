@@ -15,6 +15,7 @@ from nca.objects import (Constructor, Json, Primitive, Ref, Store, canonical,
                          contract_data, contract_from)
 from nca.packages import install
 from nca.router import sign_test
+from nca.value_codec import decode_value, encode_value
 
 
 @dataclass(frozen=True)
@@ -70,25 +71,22 @@ def _load_decoder(contract: Mapping[str, Any], table: list[list[Json]],
     parsed = contract_from(contract)
     if len(parsed.inputs) != 1 or parsed.slots:
         raise ValueError("a stored decoder needs one input and no slots")
-    values = [fallback, *(value for pair in table for value in pair)]
-    if any(type(value) not in (str, int, float, bool, type(None)) for value in values):
-        raise TypeError("stored decoders require JSON scalar keys and labels")
-    canonical(values)
-    return Decoder(parsed, dict(table), fallback, cost)
+    return Decoder(parsed, {decode_value(key): decode_value(value) for key, value in table},
+                   decode_value(fallback), cost)
 
 
 def decoder_object(decoder: Decoder, *, size: int) -> Primitive:
-    """Snapshot a learned scalar head as data for the generic decoder runtime.
+    """Snapshot a learned structural head as data for the generic decoder runtime.
 
     Its constructors must be stored before admission. Size is declared resident
     bytes, excluding dependencies. This does not install or calibrate the head.
     """
-    table = [[key, value] for key, value in decoder._table.items()]
+    table = [[encode_value(key), encode_value(value)] for key, value in decoder._table.items()]
     _load_decoder(contract_data(decoder.manifest.contract), table,
-                  decoder.fallback, decoder.manifest.cost)
+                  encode_value(decoder.fallback), decoder.manifest.cost)
     table.sort(key=lambda pair: canonical(pair[0]))
     arguments = {"contract": contract_data(decoder.manifest.contract), "table": table,
-                 "fallback": decoder.fallback, "cost": decoder.manifest.cost}
+                 "fallback": encode_value(decoder.fallback), "cost": decoder.manifest.cost}
     return Primitive(decoder.manifest, "nca.discovery:_load_decoder", arguments, size=size)
 
 

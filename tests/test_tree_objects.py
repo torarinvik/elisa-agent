@@ -58,3 +58,28 @@ def test_loader_rejects_backward_child_edges() -> None:
     with pytest.raises(ValueError, match="point forward"):
         load_tree({}, [{"chosen": "x", "counts": [["x", 1]], "feature": None,
                         "children": [[0, 0]]}], [])
+
+
+class JointProjection:
+    manifest = Manifest("joint-projection", "1", Contract(("input",), "joint"), effects=frozenset())
+
+    def invoke(self, value: tuple[int, int]) -> tuple[tuple[int], int]:
+        return (value[0],), value[1]
+
+
+def test_joint_keys_and_tuple_labels_survive_model_reload(tmp_path: Path) -> None:
+    store = Store()
+    ref = store.put(Primitive(JointProjection.manifest, f"{__name__}:JointProjection"))
+    feature = install(store, ref)[0]
+    baseline = Projection(0)
+    baseline.manifest = Manifest("baseline", "1", Contract(("input",), "target"))
+    rows = [((i % 2, (i // 2) % 2),) for i in range(40)]
+    labels = [("equal", x[0][0] == x[0][1]) for x in rows]
+    tree = train_tree(baseline, [feature], rows, labels, max_nodes=5, overhead_cost=0)
+    obj = tree_object(store, tree, [(ref, 0)], size=64)
+    reference = store.put(obj)
+    store.save(tmp_path)
+    restored = install(Store.open(tmp_path), reference)[0]
+    for row in [*rows, ((99, 99),)]:
+        value = restored.invoke(*row)
+        assert type(value) is tuple and value == tree.invoke(*row)
