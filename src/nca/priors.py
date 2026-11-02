@@ -123,12 +123,8 @@ def _partition_log_product(left: float, right: float, context: str) -> float:
     return result
 
 
-def _center_unit_prior_rows(rows: np.ndarray, prior: ArityPrior) -> np.ndarray | None:
-    """Remove common row weights when a unit prior makes that safe to retry."""
-    edges = prior.log_weights[prior.transitions >= 0]
-    if (np.any((edges != 0.0) & (edges != -math.inf))
-            or np.any((prior.log_final != 0.0) & (prior.log_final != -math.inf))):
-        return None
+def _center_log_rows(rows: np.ndarray) -> np.ndarray | None:
+    """Remove common row weights if the shifts retain local precision."""
     offsets = np.max(rows, axis=1)
     if not np.all(np.isfinite(offsets)):
         return None
@@ -146,6 +142,15 @@ def _center_unit_prior_rows(rows: np.ndarray, prior: ArityPrior) -> np.ndarray |
             or np.any(np.abs(residual[finite]) >= 1.01e-8)):
         return None
     return centered
+
+
+def _center_unit_prior_rows(rows: np.ndarray, prior: ArityPrior) -> np.ndarray | None:
+    """Only retry a prior partition when all its supported weights are unity."""
+    edges = prior.log_weights[prior.transitions >= 0]
+    if (np.any((edges != 0.0) & (edges != -math.inf))
+            or np.any((prior.log_final != 0.0) & (prior.log_final != -math.inf))):
+        return None
+    return _center_log_rows(rows)
 
 
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
@@ -507,6 +512,20 @@ def format_prior(length: int) -> ArityPrior:
 
 
 def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
+    """Format risk with a checked rescaling retry after arithmetic failure."""
+    try:
+        return _generic_format_sequence_risk_once(rows, alphabet, selected)
+    except _PartitionArithmeticError as failure:
+        centered = _center_log_rows(rows)
+        if centered is None:
+            raise
+        try:
+            return _generic_format_sequence_risk_once(centered, alphabet, selected)
+        except _PartitionArithmeticError:
+            raise failure from None
+
+
+def _generic_format_sequence_risk_once(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
     """Exact model risk with selected and alternative paths summed separately."""
     native = getattr(_NATIVE, "format_partition", None)
     if native is not None:
@@ -516,6 +535,7 @@ def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], sel
                            _native_format_symbols(selected, m))
         if len(partition) == 2:
             return risk_from_partition(*partition)
+        raise _PartitionArithmeticError("format partition arithmetic is not finite or loses precision")
     m = len(rows)
     alternatives = np.full(m + 2, -np.inf)
     matched, state = 0.0, 1

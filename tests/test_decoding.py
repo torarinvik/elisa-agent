@@ -1995,10 +1995,39 @@ def test_decode_rejects_invalid_arity_alphabet(decoder, alphabet) -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
-def test_format_risk_rejects_lost_equal_alternative_mass(reference, monkeypatch) -> None:
+def test_format_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch) -> None:
     if reference:
         monkeypatch.setattr(priors, "_NATIVE", None)
     rows = np.full((5, 3), 1e307)
+    assert priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(4 / 5)
+    assert decoding._format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(4 / 5)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_general_format_risk_centered_retry_matches_enumeration(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = (0, 1, 3)
+    selected = (1, 1, 1, 1, 0)
+    candidates = [path for path in itertools.product(alphabet, repeat=5) if parse(path) is not None]
+    rng = np.random.default_rng(875)
+    for _ in range(30):
+        rows = rng.integers(-3, 4, size=(5, 3)).astype(float) + float(2**52)
+        centered = rows - rows.max(axis=1, keepdims=True)
+        scores = np.array([sum(centered[k, alphabet.index(a)] for k, a in enumerate(path))
+                           for path in candidates])
+        weights = np.exp(scores - scores.max())
+        expected = 1 - weights[candidates.index(selected)] / weights.sum()
+        assert priors.format_sequence_risk(rows, alphabet, selected) == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_format_risk_preserves_error_when_centering_is_unsafe(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.full((5, 3), 1e307)
+    rows[0, 0] = -1e308
+    rows[0, 1:] = 1e308
     with pytest.raises(ValueError, match="partition.*precision"):
         priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0))
 

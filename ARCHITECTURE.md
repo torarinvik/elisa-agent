@@ -1037,8 +1037,8 @@ backtracking and backward marginals, with a NumPy reference fallback.
 `Decoded` retains the prior so its sequence risks include the edge and final
 weights. Its marginal-row check detects invalid normalization but is not a
 floating-point accuracy certificate. On detected partition arithmetic failure,
-unit-prior sequence risk can retry with checked common row shifts; absolute
-partitions and incremental cursors retain their original scale. The recurrences
+format and unit-prior sequence risk can retry with checked common row shifts;
+absolute partitions and incremental cursors retain their original scale. The recurrences
 correspond to `pdpSum_eq`, `pdpMax_ge` and `pdpMax_attained` in
 `NCA/Product.lean`; the format-only comparison exercises
 the unit-prior specialization of §27.4.

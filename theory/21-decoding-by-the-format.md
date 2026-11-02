@@ -193,6 +193,11 @@ For additions of finite log weights, TwoSum recovers the rounding residual
 under binary64 round-to-nearest arithmetic. A residual at least `1.01 × 10⁻⁸`
 also reports precision loss; smaller errors can accumulate, so this local
 check does not bound the error of the whole calculation.
+On a detected arithmetic failure, format risk can retry after subtracting a
+common log weight from each row. Every complete sequence uses one weight per
+row, so these shifts cancel from the risk. The retry proceeds only if the row
+shifts and their local rounding residuals are representable; it does not make
+an absolute partition or general floating-point accuracy guarantee.
 If adding two finite log weights overflows the representable log range, the
 general-arity partition reports the calculation as unavailable instead of
 interpreting the resulting infinity as a zero-weight path. This check does
