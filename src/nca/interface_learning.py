@@ -1,7 +1,8 @@
 """Acquire typed bridges from paired expert observations (§36.17)."""
 
 import math
-from collections.abc import Sequence
+from collections import deque
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
@@ -54,9 +55,17 @@ class HeadProposer(Protocol):
                  budget: int) -> Sequence[Proposal]: ...
 
 
+class FeatureRefiner(Protocol):
+    def __call__(self, feature: Proposal, head: Module | None,
+                 rows: Sequence[tuple[Any, ...]], targets: Sequence[Any],
+                 budget: int) -> Sequence[Proposal]: ...
+
+
 def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProposer,
                   rows: Sequence[tuple[Any, ...]], labels: Sequence[Any], *,
-                  max_features: int, max_heads: int) -> list[Proposal]:
+                  max_features: int, max_heads: int,
+                  refine: FeatureRefiner | None = None, max_refinements: int = 0,
+                  correct: Callable[[Any, Any], bool] | None = None) -> list[Proposal]:
     """Acquire arbitrary unary heads on candidate representations (§36.40).
 
     Call within independent discovery's training callback. Each selected feature
@@ -65,6 +74,13 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
     Retain only a bounded prefix of fitted heads and compose each with its feature.
     Feature/head constructors propagate in dependency order. Their package refs
     do not identify the resulting composite and are not copied to it.
+    Optional refinement (§36.44) receives the feature, best training head (or
+    None), original training rows/targets and remaining total feature slots.
+    It runs only for unresolved training errors, subject to a call budget.
+    Replacement proposals own their full constructor declarations, including any
+    seed dependencies they actually use. All admitted features, including initial
+    and repeated proposals, consume the same max_features budget. Fitting and
+    refinement callbacks own their internal computation limits.
 
     Observations/models must remain stable, and callbacks must not mutate shared
     training payloads. Fitting computation is caller-controlled. This does not
@@ -73,6 +89,10 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
     """
     if any(type(n) is not int or n < 1 for n in (max_features, max_heads)):
         raise ValueError("feature and head budgets must be positive integers")
+    if type(max_refinements) is not int or max_refinements < 0:
+        raise ValueError("refinement budget must be a nonnegative integer")
+    if max_refinements and (refine is None or correct is None):
+        raise ValueError("feature refinement requires a refiner and correctness predicate")
     if not rows or len(rows) != len(labels):
         raise ValueError("head training needs nonempty aligned rows and labels")
     contract = incumbent.manifest.contract
@@ -83,7 +103,10 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
         raise ValueError("features must preserve inputs, slots and relevance")
     targets = tuple(labels)
     proposals = []
-    for feature in features:
+    pending = deque(features)
+    admitted, refinement_calls = len(features), 0
+    while pending:
+        feature = pending.popleft()
         observations = tuple(feature.expert.invoke(*row) for row in rows)
         head_contract = Contract((feature.expert.manifest.contract.output,), contract.output)
         heads = tuple(fit(head_contract, observations, targets, max_heads)[:max_heads])
@@ -92,4 +115,21 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
                 raise ValueError("fitted heads must preserve the requested unary contract")
             proposals.append(Proposal(Decoded(feature.expert, head.expert, contract),
                                       feature.constructors + head.constructors))
+        remaining = max_features - admitted
+        if refine is not None and correct is not None and remaining and (
+                refinement_calls < max_refinements):
+            scores = [(sum(bool(correct(head.expert.invoke(value), target))
+                           for value, target in zip(observations, targets, strict=True)), head)
+                      for head in heads]
+            successes, seed = (min(scores, key=lambda item: (-item[0], item[1].expert.manifest.cost))
+                               if scores else (0, None))
+            if successes < len(rows):
+                refinement_calls += 1
+                extra = tuple(refine(feature, None if seed is None else seed.expert,
+                                     tuple(rows), targets, remaining)[:remaining])
+                if any(replace(p.expert.manifest.contract, output=contract.output) != contract
+                       for p in extra):
+                    raise ValueError("refined features must preserve inputs, slots and relevance")
+                pending.extend(extra)
+                admitted += len(extra)
     return proposals

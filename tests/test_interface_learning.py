@@ -161,3 +161,99 @@ def test_head_acquisition_bounds_and_contract_validation() -> None:
                        max_features=1, max_heads=2)
     with pytest.raises(ValueError, match="budgets"):
         propose_heads(baseline, [], fit, [(1,)], targets, max_features=0, max_heads=1)
+
+
+def test_head_failures_trigger_training_only_feature_refinement() -> None:
+    import random
+
+    from nca.affine_learning import fit_affine
+    from nca.interface_learning import propose_heads
+    from nca.projection_learning import (ProjectionEncoder,
+                                         fit_polynomial_regression_features)
+
+    class Vector:
+        manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())
+
+        def invoke(self, value: Any) -> Any:
+            return value
+
+    source = Vector()
+    linear = ProjectionEncoder(source, (1.0, 0.0), 0)
+    feature = Proposal(linear, (linear.constructor,))
+    rng = random.Random(3647)
+    rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(400)]
+    targets = [1.7 * x * y - 0.4 * x * x + 0.2 for (x, y), in rows]
+    seen = []
+
+    def refine(seed: Any, head: Any, train: Any, labels: Any, budget: int) -> Any:
+        seen.append((seed, head, train, labels, budget))
+        return fit_polynomial_regression_features(source, train, labels,
+                    max_degree=budget, max_terms=100, max_error=1e-9,
+                    lifting_cost=0, projection_cost=0, reuse_observations=True)
+
+    def correct(a: Any, b: Any) -> bool:
+        return isinstance(a, float) and abs(a - b) < 1e-9
+
+    def propose(train: Any, labels: Any) -> Any:
+        return propose_heads(Baseline(), [feature],
+            lambda contract, values, targets, budget: [
+                Proposal(fit_affine(contract, values, targets, cost=1))],
+            train, labels, max_features=3, max_heads=1, refine=refine,
+            max_refinements=1, correct=correct)
+
+    result = discover(Baseline(), propose, rows, targets, correct)
+    assert result.chosen is not None and sum(result.trials[-1].outcomes) == 200
+    assert len(result.trials) == 3 and len(result.chosen.constructors) == 2
+    assert len(seen) == 1
+    seed, head, train, labels, budget = seen[0]
+    assert seed is feature and head is result.trials[0].proposal.expert.decoder
+    assert train == tuple(rows[:200]) and labels == tuple(targets[:200]) and budget == 2
+
+
+def test_feature_refinement_skips_solved_and_exhausted_searches() -> None:
+    from nca.interface_learning import propose_heads
+
+    def fit(contract: Any, values: Any, targets: Any, budget: int) -> Any:
+        return [Proposal(Decoder(contract, {values[0]: targets[0]}, targets[0], 0))]
+
+    def never(*args: Any) -> Any:
+        pytest.fail("refinement must be skipped")
+
+    for slots, calls, labels, correct in [(2, 1, [1], lambda a, b: a == b),
+                                           (1, 1, [1], lambda a, b: False),
+                                           (2, 0, [1], lambda a, b: False)]:
+        result = propose_heads(Baseline(), [Proposal(Source())], fit, [(1,)], labels,
+                    max_features=slots, max_heads=1, refine=never,
+                    max_refinements=calls, correct=correct)
+        assert len(result) == 1
+
+
+def test_feature_refinement_bootstraps_empty_head_families_with_total_budget() -> None:
+    from nca.interface_learning import propose_heads
+
+    seen, fitted = [], []
+    source = Source()
+
+    def fit(contract: Any, values: Any, targets: Any, budget: int) -> Any:
+        fitted.append(contract)
+        return []
+
+    def refine(seed: Any, head: Any, rows: Any, labels: Any, budget: int) -> Any:
+        seen.append((head, budget))
+        return [Proposal(source)] * 10
+
+    result = propose_heads(Baseline(), [Proposal(source)], fit, [(1,)], [1],
+                max_features=3, max_heads=1, refine=refine, max_refinements=10,
+                correct=lambda a, b: False)
+    assert result == [] and seen == [(None, 2)] and len(fitted) == 3
+    with pytest.raises(ValueError, match="requires"):
+        propose_heads(Baseline(), [Proposal(source)], fit, [(1,)], [1],
+                      max_features=3, max_heads=1, max_refinements=1)
+    with pytest.raises(ValueError, match="refinement budget"):
+        propose_heads(Baseline(), [], fit, [(1,)], [1], max_features=1,
+                      max_heads=1, max_refinements=-1)
+    with pytest.raises(ValueError, match="refined features"):
+        propose_heads(Baseline(), [Proposal(source)], fit, [(1,)], [1],
+                      max_features=3, max_heads=1, max_refinements=1,
+                      correct=lambda a, b: False,
+                      refine=lambda *args: [Proposal(Consumer())])

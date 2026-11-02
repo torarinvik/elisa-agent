@@ -326,3 +326,22 @@ Snapshots are local to acquisition. Returned projections retain the original
 measurement/lift graph, not training caches. Temporary memory increases with
 sample count and basis size; existing degree/term budgets do not bound total
 bytes. Independent head fitting and selection retain their original behavior.
+
+
+## 36.44 Refining representations after head failures
+
+Process a bounded queue of candidate representations. Fit bounded unary heads
+on each and, when a supplied correctness predicate finds unresolved training
+errors, pass the best training head and its feature to a supplied refiner.
+Rank heads by training success, then declared cost and stable order. If no head
+was returned, pass no seed head. Refined features enter the same queue and must
+preserve the original external signature. The refiner supplies the constructors
+of its actual dependencies; replacements need not depend on the seed feature.
+
+Initial and newly admitted features share one total budget B; if U have been
+admitted, retain at most B−U new proposals. Lean proves U+A ≤ B when
+A ≤ B−U and U ≤ B. A separate bound limits refiner calls, not their internal
+computation. Perfect training heads and exhausted budgets skip refinement.
+Models, payloads and scoring must remain stable; independent whole-task
+selection still decides retention. This does not invent the refiner family,
+prove training seed quality or guarantee a useful representation exists.

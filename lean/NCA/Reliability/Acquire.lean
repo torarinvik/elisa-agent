@@ -332,4 +332,9 @@ theorem training_snapshot_map_eq {X A : Type*} (xs : List X) (f g : X → A)
     (same : ∀ x, f x = g x) : xs.map f = xs.map g := by
   rw [show f = g from funext same]
 
+/-- Admitting no more than the remaining slots preserves a total feature budget. -/
+theorem feature_admission_bound (used added budget : ℕ) (hu : used ≤ budget)
+    (ha : added ≤ budget - used) : used + added ≤ budget := by
+  omega
+
 end NCA
