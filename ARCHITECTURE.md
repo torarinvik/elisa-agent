@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.40) are described in the
+Regional acquisition and composition (§§36.26–36.41) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2355,3 +2355,10 @@ family through `HeadProposer`. It validates exact head contracts and emits fixed
 `Decoded` compositions with feature/head constructors. Existing graph retention
 supports known heads; unknown experts remain opaque bindings.
 `head_fiber_consistency` proves only the necessary equal-feature target condition.
+
+`projection_learning.fit_regression_projection` (§36.41) fits centered vector
+observations against continuous training feedback, returning an ordinary
+`ProjectionEncoder` or no candidate for an exactly zero direction. It retains
+no teacher or targets. Existing head/measurement acquisition and numeric graph
+retention can consume its generated interface. `orthogonal_residual_square`
+proves only the scalar orthogonal residual identity, not the NumPy solver.

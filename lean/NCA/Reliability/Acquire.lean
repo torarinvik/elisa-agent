@@ -315,4 +315,9 @@ theorem head_fiber_consistency {X A Y : Type*} (f : X → A) (h : A → Y)
     target x = target y := by
   rw [hx, hy, same]
 
+/-- Scalar special case of the orthogonal least-squares residual identity. -/
+theorem orthogonal_residual_square (r p : ℝ) (h : r * p = 0) :
+    (r + p)^2 = r^2 + p^2 := by
+  nlinarith [sq_nonneg r, sq_nonneg p]
+
 end NCA

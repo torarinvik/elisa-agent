@@ -302,3 +302,53 @@ def test_projection_encoder_fitting_is_label_agnostic_and_bounded() -> None:
                                    limit=1, projection_cost=0) == []
     with pytest.raises(ValueError, match="arity"):
         fit_projection_encoders(Measurement(), [(), ()], [0, 1], limit=1, projection_cost=0)
+
+
+def test_regression_projection_acquires_a_continuous_intermediate_type() -> None:
+    from nca.affine_learning import fit_affine
+    from nca.discovery import Proposal
+    from nca.interface_learning import propose_heads
+    from nca.projection_learning import fit_regression_projection
+
+    rng = random.Random(3644)
+    rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(400)]
+    targets = [2 * v[0] - 3 * v[1] + 0.7 for v, in rows]
+    observed = []
+
+    def propose(train: Any, labels: Any) -> Any:
+        observed.append((tuple(train), tuple(labels)))
+        encoder = fit_regression_projection(Measurement(), train, labels, projection_cost=1)
+        assert encoder is not None
+        assert encoder.direction == pytest.approx((2.0, -3.0))
+        return propose_heads(Baseline(), [Proposal(encoder, (encoder.constructor,))],
+            lambda contract, values, targets, budget: [
+                Proposal(fit_affine(contract, values, targets, cost=1))],
+            train, labels, max_features=1, max_heads=1)
+
+    result = discover(Baseline(), propose, rows, targets, lambda a, b: abs(a - b) < 1e-9)
+    assert result.chosen is not None
+    assert sum(result.trials[0].outcomes) == 200
+    assert len(result.chosen.constructors) == 1
+    assert observed == [(tuple(rows[:200]), tuple(targets[:200]))]
+
+
+def test_regression_projection_finite_data_and_degenerate_design() -> None:
+    from nca.projection_learning import fit_regression_projection
+
+    fit = fit_regression_projection
+    assert fit(Measurement(), [((1.0,),), ((2.0,),)], [1.0, 1.0], projection_cost=0) is None
+    assert fit(Measurement(), [((),), ((),)], [1.0, 2.0], projection_cost=0) is None
+    # Rank deficiency does not identify coefficients individually.
+    model = fit(Measurement(), [((1.0, 1.0),), ((2.0, 2.0),)],
+                [2.0, 4.0], projection_cost=0)
+    assert model is not None and model.direction == pytest.approx((1.0, 1.0))
+    with pytest.raises(ValueError, match="finite"):
+        fit(Measurement(), [((1.0,),), ((2.0,),)], [1.0, float("nan")], projection_cost=0)
+    with pytest.raises(ValueError, match="dimensions"):
+        fit(Measurement(), [((1.0,),), ((2.0, 3.0),)], [1.0, 2.0], projection_cost=0)
+    with pytest.raises(ValueError, match="aligned"):
+        fit(Measurement(), [((1.0,),)], [], projection_cost=0)
+    with pytest.raises(ValueError, match="arity"):
+        fit(Measurement(), [(), ()], [1.0, 2.0], projection_cost=0)
+    with pytest.raises(ValueError, match="cost"):
+        fit(Measurement(), [((1.0,),), ((2.0,),)], [1.0, 2.0], projection_cost=-1)

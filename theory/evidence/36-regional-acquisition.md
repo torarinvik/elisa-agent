@@ -272,3 +272,20 @@ a head family can fit it. Training observations and original targets are fixed
 before fitting; stable models/payloads and faithful callbacks are assumptions.
 Independent whole-task selection, not training fit, decides retention. This
 learns head parameters and wiring within supplied families, not arbitrary bodies.
+
+
+## 36.41 Continuous-feedback projection fitting
+
+For finite vector observations v_i and real feedback z_i, center both and solve
+min_w Σ_i (w · (v_i−v̄) − (z_i−z̄))². Use the minimum-norm solution when the
+design is rank deficient. Propose x ↦ w · v(x), with a generated direction type;
+leave any offset to a separately fitted head. Exactly zero directions emit no
+proposal. Feedback is numerical training evidence, not a task output declaration.
+
+For centered residual r orthogonal to a perturbation p, expanding squares gives
+Σ(r_i+p_i)² = Σr_i² + Σp_i². Lean proves the scalar orthogonal special case
+r*p=0; it does not verify the numerical solver or general vector optimality.
+Floating-point centering, conditioning and finite range can affect results.
+Stable observations and independent whole-task selection remain assumptions.
+No unobserved direction is identified by a minimum-norm fit, and a supplied
+vector measurement or regression family is not invented by this mechanism.

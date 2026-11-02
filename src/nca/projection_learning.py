@@ -7,10 +7,12 @@ from dataclasses import replace
 from itertools import combinations
 from typing import Any
 
+import numpy as np
+
 from nca.abi import Module
 from nca.discovery import Proposal
 from nca.native import load
-from nca.numeric_learning import _partition_from_ordered, propose_partition
+from nca.numeric_learning import _observation, _partition_from_ordered, propose_partition
 from nca.objects import Constructor, canonical
 from nca.vector_learning import _vector
 
@@ -105,6 +107,41 @@ def fit_projection_encoders(measurement: Module, rows: Sequence[tuple[Any, ...]]
     """
     projections, _ = _fit_projections(measurement, rows, labels, limit, projection_cost, False)
     return projections
+
+
+def fit_regression_projection(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                              feedback: Sequence[float], *,
+                              projection_cost: float) -> ProjectionEncoder | None:
+    """Fit a scalar measurement from continuous training feedback (§36.41).
+
+    Center observations/feedback and solve least squares with minimum-norm
+    handling of rank deficiency. Only the direction is retained; a subsequent
+    head can fit an offset. Return no measurement for an exactly zero direction.
+    Stable finite observations are required; floating-point conditioning and
+    generalization are not proved. No task output type is assigned to feedback.
+    """
+    if len(rows) < 2 or len(rows) != len(feedback):
+        raise ValueError("regression projection needs aligned observations")
+    contract = measurement.manifest.contract
+    if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("training row arity differs from contract")
+    if not math.isfinite(projection_cost) or projection_cost < 0:
+        raise ValueError("projection cost must be finite and nonnegative")
+    targets = tuple(map(_observation, feedback))
+    values = tuple(_vector(measurement.invoke(*row)) for row in rows)
+    if any(len(value) != len(values[0]) for value in values):
+        raise ValueError("inconsistent vector dimensions")
+    n = len(rows)
+    means = tuple(math.fsum(value[i] / n for value in values) for i in range(len(values[0])))
+    mean_target = math.fsum(target / n for target in targets)
+    design = np.asarray([_vector(tuple(x - m for x, m in zip(value, means, strict=True)))
+                         for value in values])
+    response = np.asarray([_observation(target - mean_target) for target in targets])
+    try:
+        direction = _vector(tuple(np.linalg.lstsq(design, response, rcond=None)[0].tolist()))
+    except np.linalg.LinAlgError as error:
+        raise ValueError("projection least-squares solver failed") from error
+    return ProjectionEncoder(measurement, direction, projection_cost) if any(direction) else None
 
 
 def propose_projections(incumbent: Module, measurement: Module,
