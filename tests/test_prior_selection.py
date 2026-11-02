@@ -362,6 +362,27 @@ def test_clipped_prior_selection_bounds_subnormal_error_upward() -> None:
     assert result.score_error > least
 
 
+@pytest.mark.parametrize("clip,alpha", [
+    (math.nextafter(0.0, 1.0), math.nextafter(0.0, 1.0)),
+    (1e-200, math.nextafter(1.0, 0.0)),
+    (1e300, 1e-300),
+    (1e-307, 1e-320),
+])
+def test_clipped_prior_error_bound_covers_high_precision_extremes(clip, alpha) -> None:
+    result = priors.select_prior([lambda _: None], [np.array([[0.0]])], np.array([0.0]),
+                                 alphabet=(0,), score_clip=clip, alpha=alpha)
+    with localcontext() as context:
+        context.prec = 120
+        exact = Decimal.from_float(clip) * (2 * (Decimal(2) / Decimal.from_float(alpha)).ln()).sqrt()
+    assert Decimal.from_float(result.score_error) >= exact
+
+
+def test_clipped_prior_error_bound_rejects_unrepresentable_result() -> None:
+    with pytest.raises(ValueError, match="derived score error overflow"):
+        priors.select_prior([lambda _: None], [np.array([[0.0]])], np.array([0.0]),
+                            alphabet=(0,), score_clip=1e308, alpha=0.1)
+
+
 def test_logic_prior_fit_consumes_texts_with_separate_calibration_labels() -> None:
     from nca.logic import choose_prior
 
