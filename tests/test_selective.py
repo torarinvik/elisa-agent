@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from fractions import Fraction
 import math
 import random
@@ -1357,6 +1357,38 @@ def test_native_calibration_grid_stabilizes_overflowing_means(monkeypatch) -> No
 
     monkeypatch.setattr(ladder_module, "_temperature_scores", unexpected_fallback)
     assert Rung._fit(logits, labels) == 8.0
+
+
+def test_native_stable_grid_matches_high_precision_extreme_gaps() -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
+    if native is None:
+        pytest.skip("stable native calibration kernel is not built")
+    rng = np.random.default_rng(901)
+    groups = np.array([0, 1, 0, 1], dtype=np.int64)
+    temperatures = np.array([0.1, 0.5, 1.0, 2.0, 8.0])
+    checked = 0
+    with localcontext() as context:
+        context.prec = 80
+        maximum = Decimal.from_float(float(np.finfo(np.float64).max))
+        for _ in range(30):
+            rows = int(rng.integers(1, 9))
+            logits = rng.uniform(-1, 1, size=(rows, 4)) * 1e308
+            labels = rng.integers(0, 2, size=rows, dtype=np.int64)
+            result = native(logits.reshape(-1), labels, groups, 2, temperatures)
+            gap = sum((Decimal.from_float(float(row.max())) -
+                       Decimal.from_float(float(row[groups == label].max()))
+                       for row, label in zip(logits, labels)), Decimal(0))
+            for actual, temperature in zip(result, temperatures):
+                expected = gap / (Decimal.from_float(float(temperature)) * Decimal(rows))
+                # Log-normalizer corrections are negligible at this scale.
+                if expected > maximum:
+                    assert actual == math.inf
+                elif expected > Decimal("1e300"):
+                    assert math.isclose(actual, float(expected), rel_tol=2e-14)
+                    checked += 1
+    assert checked > 0
 
 
 @pytest.mark.parametrize("grouped", [False, True])

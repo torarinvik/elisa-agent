@@ -1824,16 +1824,24 @@ def calibration_loss_grid_stable(logits: view[f64], labels: view[i64], groups: v
     return result if result.count != temperatures.len.i64()
     rows: i64 = labels.len.i64()
     width: i64 = groups.len.i64()
+    overflowed: bool =
+        for t in 0..<temperatures.len.i64() |found: bool = false| -> found:
+            found <- true if result[t] == -log(0.0) else found
+    return result if not overflowed
+    maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
+    target_maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
+    for row in 0..<rows:
+        for j in 0..<width:
+            value: f64 = logits[row * width + j]
+            maxima[row] <- value if value > maxima[row] else maxima[row]
+            target_maxima[row] <- value if groups[j] == labels[row] and value > target_maxima[row] else target_maxima[row]
     for t in 0..<temperatures.len.i64():
         continue if result[t] != -log(0.0)
         temperature: f64 = temperatures[t]
         mean: f64 =
             for row in 0..<rows |mean: f64 = 0.0| -> mean:
-                maximum, target_max =
-                    for j in 0..<width |maximum: f64 = log(0.0), target: f64 = log(0.0)| -> (maximum, target):
-                        value: f64 = logits[row * width + j]
-                        maximum <- value if value > maximum else maximum
-                        target <- value if groups[j] == labels[row] and value > target else target
+                maximum: f64 = maxima[row]
+                target_max: f64 = target_maxima[row]
                 total, target_total =
                     for j in 0..<width |total: f64 = 0.0, target_total: f64 = 0.0| -> (total, target_total):
                         value: f64 = logits[row * width + j]
