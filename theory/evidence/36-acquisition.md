@@ -335,3 +335,27 @@ conditional on executable feature equivalence, using Proposition 36.8. It does
 not infer equivalence from matching contracts alone. The existing learned-state
 factorization theorem supplies the conditional composition argument; Python
 parameter serialization and binding checks are regression-tested.
+
+## 36.17 Acquiring bridges between contributed interfaces
+
+Suppose a source expert maps external inputs to type `A`, a teacher maps the
+same inputs to type `B`, and a consumer accepts `B`. Fit an `A → B` decoder
+from paired source/teacher outputs on training inputs only. Compose source,
+learned adapter and consumer as a challenger for the original external task.
+Select it by independent end-to-end outcomes, not by claiming `A = B` or that
+matching shapes establish semantic equivalence. The teacher need not be used
+during evaluation or inference. Its quality is an assumption of the training
+signal, not a guarantee inherited by the adapter.
+
+**Proposition 36.11 (conditional adapter composition).** If an adapter maps
+every source output to the corresponding teacher output, then following it
+with the consumer agrees with following the teacher with that consumer.
+Apply the consumer to the assumed equality. Lean proves this conditional
+statement, not universal correctness of an empirically fitted decoder.
+
+The initial learner uses modal categorical decoding, with an empirical mode
+fallback for unseen keys. The consumer and adapter are unary and slot-free;
+source/teacher may retain the incumbent's external slots and inputs. Costs
+add and effects are conservatively combined. New persisted heads have
+content-derived residency identifiers so different fitted bridges can coexist;
+previous scalar-head artifacts remain readable through their default loader id.

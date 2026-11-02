@@ -2161,3 +2161,15 @@ from the measurement and parameters; ordinary primitive loading checks metadata.
 `state_factorization_eq` supplies the conditional executable-equivalence
 composition argument. Parameter fidelity and complete acquired-tree reload are
 regression-tested; external feature code/weight fidelity remains an assumption.
+
+`interface_learning.propose_adapter` (§36.17) pairs source/teacher outputs on
+training rows, fits a categorical `source-type → teacher-type` decoder, and
+proposes source/adapter/consumer composition for the external contract. Exact
+types remain distinct. Selection uses existing independent end-to-end outcomes;
+the teacher is absent from inference. `Decoded` checks unary-head composition
+and unions effects, while `fit_decoder` shares modal fitting across learners.
+`adapter_composition_eq` proves consumer agreement conditional on perfect
+alignment; finite-data alignment is not a universal equivalence proof.
+New `decoder_object` artifacts derive residency ids from model contents; their
+loader defaults preserve legacy saved-head compatibility. Coexistence, effects,
+typed planner composition and absence of held-out teacher calls are tested.

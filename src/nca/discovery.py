@@ -12,7 +12,7 @@ from typing import Any
 
 from nca.abi import Calls, Contract, Manifest, Module
 from nca.objects import (Constructor, Json, Primitive, Ref, Store, canonical,
-                         contract_data, contract_from)
+                         contract_data, contract_from, digest)
 from nca.packages import install
 from nca.router import sign_test
 from nca.value_codec import decode_value, encode_value
@@ -65,14 +65,30 @@ class Decoder:
         return self._table.get(key, self.fallback)
 
 
+def fit_decoder(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable], *,
+                cost: float) -> Decoder:
+    """Fit a modal categorical head with a global training-mode fallback."""
+    if not keys or len(keys) != len(labels) or len(contract.inputs) != 1 or contract.slots:
+        raise ValueError("decoder fitting needs aligned nonempty data and a unary slot-free contract")
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("decoder cost must be finite and nonnegative")
+    counts: dict[Hashable, Counter[Hashable]] = {}
+    for key, label in zip(keys, labels, strict=True):
+        counts.setdefault(key, Counter())[label] += 1
+    table = {key: count.most_common(1)[0][0] for key, count in counts.items()}
+    return Decoder(contract, table, Counter(labels).most_common(1)[0][0], cost)
+
+
 def _load_decoder(contract: Mapping[str, Any], table: list[list[Json]],
-                  fallback: Json, cost: float) -> Decoder:
+                  fallback: Json, cost: float, module_id: str = "learned-decoder") -> Decoder:
     """Interpret a stored finite head, preserving scalar values and equality."""
     parsed = contract_from(contract)
     if len(parsed.inputs) != 1 or parsed.slots:
         raise ValueError("a stored decoder needs one input and no slots")
-    return Decoder(parsed, {decode_value(key): decode_value(value) for key, value in table},
-                   decode_value(fallback), cost)
+    result = Decoder(parsed, {decode_value(key): decode_value(value) for key, value in table},
+                     decode_value(fallback), cost)
+    result.manifest = replace(result.manifest, module_id=module_id)
+    return result
 
 
 def decoder_object(decoder: Decoder, *, size: int) -> Primitive:
@@ -87,20 +103,28 @@ def decoder_object(decoder: Decoder, *, size: int) -> Primitive:
     table.sort(key=lambda pair: canonical(pair[0]))
     arguments = {"contract": contract_data(decoder.manifest.contract), "table": table,
                  "fallback": encode_value(decoder.fallback), "cost": decoder.manifest.cost}
-    return Primitive(decoder.manifest, "nca.discovery:_load_decoder", arguments, size=size)
+    manifest = replace(decoder.manifest, module_id=f"learned-decoder/{digest(arguments)}")
+    arguments["module_id"] = manifest.module_id
+    return Primitive(manifest, "nca.discovery:_load_decoder", arguments, size=size)
 
 
 class Decoded:
-    """A feature expert followed by a learned decoder, with its original slots."""
+    """A feature expert followed by a unary head, with its original slots."""
 
-    def __init__(self, feature: Module, decoder: Decoder, contract: Contract) -> None:
+    def __init__(self, feature: Module, decoder: Module, contract: Contract) -> None:
+        if (replace(feature.manifest.contract, output=contract.output) != contract
+                or decoder.manifest.contract != Contract((feature.manifest.contract.output,),
+                                                          contract.output)):
+            raise ValueError("composition needs matching source inputs and a unary slot-free head")
         self.feature, self.decoder = feature, decoder
+        a, b = feature.manifest.effects, decoder.manifest.effects
+        effects = None if a is None or b is None else a | b
         self.manifest = replace(feature.manifest,
                                 module_id=f"{feature.manifest.module_id}/decoded",
                                 contract=contract,
-                                cost=feature.manifest.cost + decoder.manifest.cost)
+                                cost=feature.manifest.cost + decoder.manifest.cost, effects=effects)
 
-    def invoke(self, *inputs: Any) -> Hashable:
+    def invoke(self, *inputs: Any) -> Any:
         return self.decoder.invoke(self.feature.invoke(*inputs))
 
 
@@ -190,15 +214,11 @@ def propose_decoders(incumbent: Module, features: Sequence[Module],
     if any(replace(feature.manifest.contract, output=contract.output) != contract
            for feature in features):
         raise ValueError("features must preserve inputs, slots and relevance")
-    fallback = Counter(labels).most_common(1)[0][0]
     proposals = []
     for feature in features:
-        counts: dict[Hashable, Counter[Hashable]] = {}
-        for row, label in zip(rows, labels, strict=True):
-            counts.setdefault(feature.invoke(*row), Counter())[label] += 1
-        table = {key: counter.most_common(1)[0][0] for key, counter in counts.items()}
-        decoder = Decoder(Contract((feature.manifest.contract.output,), contract.output),
-                          table, fallback, decoder_cost)
+        decoder = fit_decoder(Contract((feature.manifest.contract.output,), contract.output),
+                              tuple(feature.invoke(*row) for row in rows), labels,
+                              cost=decoder_cost)
         proposals.append(Proposal(Decoded(feature, decoder, contract)))
     return proposals
 

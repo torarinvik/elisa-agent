@@ -109,4 +109,13 @@ theorem threshold_score_le (scores : Finset ℕ) (candidate : ℕ) (member : can
     candidate ≤ scores.max' ⟨candidate, member⟩ := by
   exact Finset.le_max' scores candidate member
 
+/-- Perfect paired alignment suffices for agreement after any consumer.
+This premise is not proved for an empirically learned adapter. -/
+theorem adapter_composition_eq {X A B Y : Type*} (source : X → A) (teacher : X → B)
+    (adapter : A → B) (consumer : B → Y)
+    (aligned : ∀ x, adapter (source x) = teacher x) :
+    (fun x => consumer (adapter (source x))) = (fun x => consumer (teacher x)) := by
+  funext x
+  exact congrArg consumer (aligned x)
+
 end NCA
