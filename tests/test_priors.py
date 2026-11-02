@@ -857,6 +857,32 @@ def test_sequence_log_weight_symbol_lookup_preserves_general_alphabets(reference
 
 
 @pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("large", [False, True])
+def test_sequence_log_weight_wide_alphabet_preserves_arbitrary_symbols(reference, large, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    extra = 2**64 + 1 if large else 2**62
+    alphabet = tuple(range(31, -1, -1)) + (-7, 2**63 - 1, extra, 2, -7)
+    selected = (2, -7, 2**63 - 1, extra, 31, 0)
+    rows = np.arange(len(selected) * len(alphabet), dtype=float).reshape(len(selected), -1)
+    expected = sum(rows[k, alphabet.index(symbol)] for k, symbol in enumerate(selected))
+    assert priors.sequence_log_weight(rows, alphabet, selected) == expected
+    assert priors.sequence_log_weight(rows, alphabet, (*selected[:-1], -8)) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("outside", [2**63, 2**64 - 1])
+def test_mixed_signed_and_large_symbols_do_not_alias(reference, outside, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    alphabet = (-1, 2**63 - 1)
+    selected = (-1, 2**63 - 1, outside)
+    rows = np.zeros((3, 2))
+    assert priors.sequence_log_weight(rows, alphabet, selected) == -np.inf
+    assert priors.sequence_log_weight(rows[:2], alphabet, selected[:2]) == 0.0
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(formulas, "_NATIVE", None)

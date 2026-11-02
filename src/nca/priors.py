@@ -47,6 +47,11 @@ def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
 def _native_symbol_pair(alphabet: tuple[int, ...], selected: Sequence[int]) -> tuple[np.ndarray, np.ndarray]:
     dense = _dense_alphabet_needed(alphabet)
     values = np.asarray(selected)
+    # NumPy may infer float64 for mixed signed and out-of-range integers,
+    # losing their identity before an integer cast. Encode those from the
+    # original Python values instead.
+    if values.size and values.dtype.kind not in "iu":
+        dense = True
     if values.dtype.kind == "u" and np.any(values > np.iinfo(np.int64).max):
         dense = True
     if not dense:
