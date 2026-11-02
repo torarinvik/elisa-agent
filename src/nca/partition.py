@@ -102,7 +102,7 @@ class PartitionCursor:
                                 self._matched_weights, first)
         if len(result) != 2:
             self._valid = False
-            raise ValueError("prior partition arithmetic is not finite")
+            raise ValueError("prior partition arithmetic is not finite or loses precision")
         self._rows, self._selected = rows, chosen
         self._result = float(result[0]), float(result[1])
         self._valid = True

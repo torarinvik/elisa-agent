@@ -387,6 +387,25 @@ def test_partition_cursor_recovers_after_overflow() -> None:
     assert cursor.last_start == 0
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_partition_cursor_recovers_after_lost_equal_mass(reference, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    cursor = incremental.PartitionCursor(prior)
+    selected = (0, 0, 0, 0)
+    normal = np.zeros((4, 2))
+    expected = cursor.partition(normal, selected)
+    assert priors.risk_from_partition(*expected) == pytest.approx(15 / 16)
+    with pytest.raises(ValueError, match="partition.*precision"):
+        cursor.partition(np.full((4, 2), 1e307), selected)
+    assert cursor.partition(normal, selected) == pytest.approx(expected)
+    assert cursor.last_start == 0
+
+
 def test_partition_cursor_discards_mutated_cache_after_native_exception(
         monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental

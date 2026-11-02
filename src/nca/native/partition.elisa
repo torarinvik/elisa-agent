@@ -7,7 +7,9 @@ extern log1p(x: f64) -> f64
 def add_logs(x: f64, y: f64) -> f64:
     return y if x == log(0.0)
     return x if y == log(0.0)
-    return x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))
+    result: f64 = x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))
+    return log(-1.0) if x == y and result == x
+    return result
 
 # Find the earliest changed input row without allocating a comparison array.
 def first_change(rows: view[f64], old_rows: view[f64], selected: view[i64], old_selected: view[i64], width: i64) -> i64:
@@ -18,7 +20,7 @@ def first_change(rows: view[f64], old_rows: view[f64], selected: view[i64], old_
     return selected.len.i64()
 
 # Mutates rows after `start`; the caller must supply a valid prefix at `start`.
-# Empty output signals overflow; otherwise returns selected and other log mass.
+# Empty output signals arithmetic failure; otherwise returns selected and other log mass.
 def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], prior: view[f64], final: view[f64], selected: view[i64], alternatives: mutable view[f64], bounds: mutable view[i64], matched_states: mutable view[i64], matched_weights: mutable view[f64], start: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     width: i64 = alphabet.len.i64()
     states: i64 = final.len.i64()
@@ -53,11 +55,15 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
                 if source != unreachable:
                     through: f64 = source + weight
                     return [] if through == unreachable or through == -unreachable
-                    alternatives[next + target] <- add_logs(alternatives[next + target], through)
+                    combined: f64 = add_logs(alternatives[next + target], through)
+                    return [] if combined != combined
+                    alternatives[next + target] <- combined
                 if same and alphabet[j] != selected[k]:
                     through: f64 = match_weight + weight
                     return [] if through == unreachable or through == -unreachable
-                    alternatives[next + target] <- add_logs(alternatives[next + target], through)
+                    combined: f64 = add_logs(alternatives[next + target], through)
+                    return [] if combined != combined
+                    alternatives[next + target] <- combined
                 bounds[(k + 1) * 2] <- target if target < bounds[(k + 1) * 2] else bounds[(k + 1) * 2]
                 bounds[(k + 1) * 2 + 1] <- target if target > bounds[(k + 1) * 2 + 1] else bounds[(k + 1) * 2 + 1]
         matched_states[k + 1] <- match_state
@@ -95,7 +101,9 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
             continue if prefix == unreachable or final[state] == unreachable
             value: f64 = prefix + final[state]
             return [] if value == unreachable or value == -unreachable
-            total <- add_logs(total, value)
+            combined: f64 = add_logs(total, value)
+            return [] if combined != combined
+            total <- combined
     return [chosen, other]
 
 export pymodule partition:
