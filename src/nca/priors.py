@@ -250,10 +250,18 @@ def _evidence_difference(numerator: float, denominator: float,
     if not math.isfinite(numerator):
         raise ValueError("candidate evidence must be finite or negative infinity")
     if max(abs(numerator), abs(denominator)) >= 16777216.0:
-        if np.array_equal(posterior, base):
-            return 0.0
         raise ValueError("prior evidence normalizers are too large for reliable subtraction")
     return numerator - denominator
+
+
+def _base_normalizer(prior: ArityPrior, base_rows: np.ndarray) -> float:
+    """The finite, positive-mass log normalizer of ``prior`` under the base."""
+    denominator = prior.log_normalizer(base_rows)
+    if denominator == -math.inf:
+        raise ValueError("candidate prior has zero mass under the base")
+    if not math.isfinite(denominator):
+        raise ValueError("candidate base normalizer must be finite")
+    return denominator
 
 
 def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None, *,
@@ -415,12 +423,14 @@ class ArityPrior:
         if np.any(np.isneginf(base) & np.isfinite(posterior)):
             raise ValueError("posterior support must lie within base support")
         evidence_prior = _evidence_prior(base, self)
-        denominator = evidence_prior.log_normalizer(base)
-        if denominator == -math.inf:
-            raise ValueError("candidate prior has zero mass under the base")
-        if not math.isfinite(denominator):
-            raise ValueError("candidate base normalizer must be finite")
-        return _evidence_difference(evidence_prior.log_normalizer(posterior), denominator, posterior, base)
+        if np.array_equal(posterior, base):
+            # Z(base) / Z(base) = 1 at any normalizer magnitude; only positive
+            # mass is needed, and support decides it without arithmetic (§27.8).
+            if not self.supports(base):
+                raise ValueError("candidate prior has zero mass under the base")
+            return 0.0
+        return _evidence_difference(evidence_prior.log_normalizer(posterior),
+                                    _base_normalizer(evidence_prior, base), posterior, base)
 
     def _rows(self, log_probs: np.ndarray) -> np.ndarray:
         rows = np.asarray(log_probs, dtype=np.float64)
@@ -434,6 +444,19 @@ class ArityPrior:
         if not valid:
             raise ValueError("requires finite or -inf log weights over the prior alphabet")
         return rows
+
+    def supports(self, log_probs: np.ndarray) -> bool:
+        """Whether some accepted sequence has positive weight under the rows,
+        decided by reachability alone, without adding or multiplying weights."""
+        rows = self._rows(log_probs)
+        allowed = (self.transitions >= 0) & (self.log_weights > -math.inf)
+        reached = np.zeros(len(self.log_final), dtype=bool)
+        reached[self.start] = True
+        for row in rows:
+            usable = allowed & reached[:, None] & (row > -math.inf)[None, :]
+            reached = np.zeros_like(reached)
+            reached[self.transitions[usable]] = True
+        return bool(np.any(reached & (self.log_final > -math.inf)))
 
     def log_normalizer(self, log_probs: np.ndarray) -> float:
         """Total accepted log weight, using two native state rows when available."""
@@ -880,7 +903,7 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
         raise ValueError("requires candidates and a normalized shared base vector")
     scores = [0.0] * len(candidates)
     corrections = [0.0] * len(candidates)
-    models: dict[tuple[int, int], tuple[ArityPrior, float] | None] = {}
+    models: dict[tuple[int, int], tuple[ArityPrior, float | None] | None] = {}
     count = 0
     for observation in readings:
         # Freeze each reading before invoking providers, which may mutate caller storage.
@@ -908,12 +931,10 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                         raise ValueError("candidate alphabet must match the shared base")
                     base_rows = np.broadcast_to(base, rows.shape)
                     prior = _evidence_prior(base_rows, prior)
-                    denominator = prior.log_normalizer(base_rows)
-                    if denominator == -math.inf:
+                    if not prior.supports(base_rows):
                         raise ValueError("candidate prior has zero mass under the base")
-                    if not math.isfinite(denominator):
-                        raise ValueError("candidate base normalizer must be finite")
-                    models[key] = prior, denominator
+                    # The base normalizer is needed only for readings unlike the base.
+                    models[key] = prior, None
             model = models[key]
             if model is None:
                 if score_clip is None:
@@ -922,8 +943,15 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                 evidence = -score_clip
             else:
                 prior, denominator = model
-                evidence = _evidence_difference(prior.log_normalizer(rows), denominator, rows,
-                                                np.broadcast_to(base, rows.shape))
+                base_rows = np.broadcast_to(base, rows.shape)
+                if np.array_equal(rows, base_rows):
+                    evidence = 0.0
+                else:
+                    if denominator is None:
+                        denominator = _base_normalizer(prior, base_rows)
+                        models[key] = prior, denominator
+                    evidence = _evidence_difference(prior.log_normalizer(rows), denominator,
+                                                    rows, base_rows)
             if math.isnan(evidence) or evidence == math.inf:
                 raise ValueError("candidate evidence must be finite or negative infinity")
             if score_clip is not None:

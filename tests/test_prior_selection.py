@@ -65,8 +65,27 @@ def test_prior_evidence_rejects_large_normalizers_hidden_by_unreachable_final(re
         prior.log_evidence(posterior, base)
     with pytest.raises(ValueError, match="normalizers are too large|normalizer arithmetic.*precision"):
         priors.select_prior([lambda _: prior], [posterior], base[0], alphabet=(0, 1))
-    if not reference:
-        assert prior.log_evidence(base, base) == 0.0
+    # Identical readings need positive mass, never a precise normalizer.
+    assert prior.log_evidence(base, base) == 0.0
+    empty = priors.ArityPrior((0, 1), np.array([[0, 0], [-1, -1]]), np.zeros((2, 2)),
+                              np.array([-np.inf, 0.0]))
+    with pytest.raises(ValueError, match="zero mass"):
+        empty.log_evidence(base, base)
+    selected = priors.select_prior([lambda _: prior], [base], base[0], alphabet=(0, 1))
+    assert selected.scores == (0.0,)
+
+
+def test_support_matches_positive_normalizers() -> None:
+    rng = np.random.default_rng(2211)
+    for _ in range(300):
+        states = int(rng.integers(1, 4))
+        transitions = rng.integers(-1, states, size=(states, 3))
+        weights = np.where(rng.random((states, 3)) < 0.2, -np.inf, rng.normal(size=(states, 3)))
+        final = np.where(rng.random(states) < 0.3, -np.inf, rng.normal(size=states))
+        prior = priors.ArityPrior((0, 1, 2), transitions, weights, final)
+        rows = np.where(rng.random((int(rng.integers(0, 5)), 3)) < 0.2, -np.inf,
+                        rng.normal(size=(1, 3)))
+        assert prior.supports(rows) == (prior.log_normalizer(rows) > -np.inf)
 
 
 @pytest.mark.parametrize("reference", [False, True])

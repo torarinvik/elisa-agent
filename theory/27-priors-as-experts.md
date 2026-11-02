@@ -260,8 +260,10 @@ checks, the calculation reports an error. Smaller common offsets use the
 original prior. Forbidden edges do not determine the common edge shift. If
 either finite normalizer still has magnitude at least `2²⁴`, subtraction is
 rejected unless the two input readings are identical, in which case the
-evidence is exactly zero. Neither path bounds all floating-point error in a
-normalizer.
+evidence is exactly zero. Identical readings need only positive base mass,
+which holds exactly when some accepted sequence has a positive weight on
+every step, so it is decided without normalizer arithmetic. Neither path
+bounds all floating-point error in a normalizer.
 
 The evidence interpretation requires a common observation model, normalized
 rows and posterior support contained in base support. Normalized calibrated

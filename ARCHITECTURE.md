@@ -1324,7 +1324,11 @@ and initialization; sparse intervals reduce subsequent scans, not automaton size
 `log_evidence` calls it for both arguments. The transition recurrence matches
 `pdpSum_eq`; it retains the full decoder as a reference fallback when the
 normalizer export is absent. Empty reading arrays follow the decoder
-convention of no accepted formula.
+convention of no accepted formula. Readings identical to the base have
+evidence exactly zero: `ArityPrior.supports` decides positive mass by
+reachability alone, so neither `log_evidence` nor `select_prior` computes a
+base normalizer for them, and the native and reference paths agree even when
+that normalizer is too large to compute precisely.
 
 `priors.select_prior` sums relative log evidence from unlabeled held-out
 reading matrices under length-indexed candidate providers and one shared base
