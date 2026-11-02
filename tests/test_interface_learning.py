@@ -531,3 +531,48 @@ def test_error_directed_prototype_growth_uses_an_asymmetric_budget(
     learning.fit_prototype_features(Vector(), rows, labels, max_per_category=1,
                 max_centroids=4, max_errors=0, encoding_cost=0, allocate_by_errors=True)
     assert len(seen) == 1
+
+
+def test_bounded_allocation_search_escapes_greedy_growth_and_deduplicates(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import propose_heads
+    import nca.projection_learning as learning
+
+    class Vector:
+        manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())
+
+        def invoke(self, value: Any) -> Any:
+            return value
+
+    rows = [((2.0, -2.0),)] * 30 + [((2.0, 2.0),)] * 30 + [((2.0, 0.0),)] * 40
+    labels = ["b"] * 60 + ["c"] * 40
+    original, seen = learning._centroid_training, []
+
+    def capture(*args: Any) -> Any:
+        seen.append(dict(args[5]))
+        return original(*args)
+
+    monkeypatch.setattr(learning, "_centroid_training", capture)
+
+    def fit(trials: Any, cap: int = 2, budget: int = 3) -> Any:
+        return learning.fit_prototype_features(Vector(), rows, labels, max_per_category=cap,
+                    max_centroids=budget, max_errors=0, encoding_cost=1,
+                    allocate_by_errors=True, max_allocation_trials=trials)
+
+    assert len(fit(None)) == 2
+    seen.clear()
+    assert len(fit(2)) == 2
+    seen.clear()
+    features = fit(3)
+    assert seen == [{"b": 1, "c": 1}, {"b": 1, "c": 2}, {"b": 2, "c": 1}]
+    heads = propose_heads(Baseline(), features,
+                lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                rows, labels, max_features=3, max_heads=1)
+    assert [sum(p.expert.invoke(*r) == t for r, t in zip(rows, labels)) for p in heads] == [60, 60, 100]
+    rows = [((),)] * 100
+    seen.clear()
+    assert len(fit(20, cap=3, budget=6)) == 9
+    assert len({tuple(state.values()) for state in seen}) == len(seen) == 9
+    with pytest.raises(ValueError, match="allocation trial budget"):
+        fit(0)

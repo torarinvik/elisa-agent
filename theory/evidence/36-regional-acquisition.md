@@ -507,3 +507,22 @@ accuracy, finds every useful allocation or generalizes. Growing an apparently
 correct category might indirectly improve another, which this heuristic can miss.
 Stable observations and independent whole-task selection remain assumptions.
 Training category names and allocations are not retained by fitted runtimes.
+
+
+## 36.54 Bounded alternative prototype allocations
+
+Optionally explore alternative incremented allowance vectors, including growth
+of currently correct categories. Fit each state once, retaining all candidate
+representations. Prioritize queued states by their parent's modal error count,
+then the grown category's error count, then insertion order. This is a heuristic
+ordering of unfitted children, not their measured score. Bound total fitted
+states separately from per-category and total-center reservations. Stop at a
+satisfactory training fit, empty frontier or the supplied trial limit.
+
+Incrementing a category changes its allowance vector; Lean proves this pointwise
+special case. Deduplicating signatures avoids fitting states reached by different
+paths more than once. Neither proves global optimality, search completeness or
+generalization. Distinct allocations can produce identical models and still
+consume trials. Frontier memory depends on category count and trial budget;
+callbacks/measurements remain subject to stable-training assumptions. Independent
+whole-task selection remains mandatory.

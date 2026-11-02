@@ -397,4 +397,12 @@ theorem single_allowance_increment {K : Type*} [Fintype K] [DecidableEq K]
     (∑ k, (allowance k + if k = chosen then 1 else 0)) = (∑ k, allowance k) + 1 := by
   simp [Finset.sum_add_distrib]
 
+/-- A one-slot increment cannot leave an allowance state unchanged. -/
+theorem incremented_allowance_distinct {K : Type*} [DecidableEq K]
+    (allowance : K → ℕ) (chosen : K) :
+    allowance ≠ (fun k => allowance k + if k = chosen then 1 else 0) := by
+  intro h
+  have impossible := congrFun h chosen
+  simp at impossible
+
 end NCA

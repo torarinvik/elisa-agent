@@ -5,6 +5,7 @@ from array import array
 from collections import Counter
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import replace
+from heapq import heappop, heappush
 from itertools import combinations
 from typing import Any
 
@@ -460,7 +461,8 @@ def fit_polynomial_regression_features(measurement: Module,
 def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
         labels: Sequence[Hashable], *, max_per_category: int, max_centroids: int,
         max_errors: int, encoding_cost: float, refinement_steps: int = 3,
-        allocate_by_errors: bool = False) -> list[Proposal]:
+        allocate_by_errors: bool = False,
+        max_allocation_trials: int | None = None) -> list[Proposal]:
     """Grow prototype interfaces until empirical categorical ambiguity is small (§36.52).
 
     By default fit allowances 1..max_per_category, scoring modal labels per code.
@@ -477,11 +479,20 @@ def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
     It reserves the sum of per-category allowances and stops if no error-bearing
     category can grow. This local heuristic can miss indirect improvements from
     growing a category with no current errors; all candidates still need selection.
+    Optional max_allocation_trials (§36.54) enables bounded alternative allocation
+    search with allocate_by_errors. Children may grow currently correct categories;
+    frontier order uses parent error count, then grown-category errors and stable
+    insertion order. Each allocation is fitted once. The bound counts all fits,
+    including identical resulting models; it does not guarantee optimal allocation.
     """
     if any(type(n) is not int or n < 1 for n in (max_per_category, max_centroids)):
         raise ValueError("prototype growth budgets must be positive integers")
     if any(type(n) is not int or n < 0 for n in (max_errors, refinement_steps)):
         raise ValueError("error and refinement budgets must be nonnegative integers")
+    if max_allocation_trials is not None and (
+            type(max_allocation_trials) is not int or max_allocation_trials < 1
+            or not allocate_by_errors):
+        raise ValueError("allocation trial budget must be positive and requires error allocation")
     if not math.isfinite(encoding_cost) or encoding_cost < 0:
         raise ValueError("prototype cost must be finite and nonnegative")
     if len(rows) < 2 or len(rows) != len(labels):
@@ -490,6 +501,10 @@ def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("training row arity differs from contract")
     allowances = dict.fromkeys(labels, 1)
+    order = tuple(allowances)
+    seen = {tuple(allowances.values())}
+    frontier: list[tuple[int, int, int, tuple[int, ...]]] = []
+    serial = 0
     proposals = []
     while max(allowances.values()) <= max_per_category and sum(allowances.values()) <= max_centroids:
         centers, _ = _centroid_training(measurement, rows, labels, False, max_centroids,
@@ -503,9 +518,25 @@ def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
         modes = {code: histogram.most_common(1)[0][0] for code, histogram in counts.items()}
         errors = Counter(label for code, label in zip(codes, labels, strict=True)
                          if modes[code] != label)
-        if sum(errors.values()) <= max_errors:
+        if sum(errors.values()) <= max_errors or (max_allocation_trials is not None
+                                                  and len(proposals) >= max_allocation_trials):
             break
-        if allocate_by_errors:
+        if max_allocation_trials is not None:
+            if sum(allowances.values()) < max_centroids:
+                for label in order:
+                    if allowances[label] >= max_per_category:
+                        continue
+                    child = dict(allowances)
+                    child[label] += 1
+                    state = tuple(child.values())
+                    if state not in seen:
+                        seen.add(state)
+                        serial += 1
+                        heappush(frontier, (sum(errors.values()), -errors[label], serial, state))
+            if not frontier:
+                break
+            allowances = dict(zip(order, heappop(frontier)[-1], strict=True))
+        elif allocate_by_errors:
             eligible = [label for label in allowances
                         if errors[label] and allowances[label] < max_per_category]
             if not eligible:
