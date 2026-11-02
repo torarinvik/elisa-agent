@@ -62,6 +62,19 @@ ARITY_PRIOR = "logic.arity.prior.v1"
 """Weighted arity automaton, including the formula syntax restriction."""
 
 
+def _changed_rows(current: np.ndarray, previous: np.ndarray) -> tuple[int, ...]:
+    """Find changed rows without materializing a full comparison matrix."""
+    native = getattr(_NATIVE, "changed_rows", None)
+    if (native is not None and current.ndim == 2 and current.shape == previous.shape
+            and current.shape[1] and current.dtype == np.float64 and previous.dtype == np.float64
+            and current.flags.c_contiguous and previous.flags.c_contiguous):
+        out = np.empty(len(current), dtype=np.int64)
+        count = native(current.ravel(), previous.ravel(), out, current.shape[1])
+        if count >= 0:
+            return tuple(int(index) for index in out[:count])
+    return tuple(int(index) for index in np.flatnonzero(np.any(current != previous, axis=1)))
+
+
 def _most_likely_words(readings: Sequence[Sequence[float]]) -> list[str]:
     native = getattr(_NATIVE, "row_argmax", None)
     if len(readings) and all(isinstance(row, RankedReading) for row in readings):
@@ -516,7 +529,7 @@ class FormulaEvaluator:
         else:
             current = np.asarray(readings, dtype=np.float64)
             changed = (() if state.answer_readings is None else
-                       np.flatnonzero(np.any(current != state.answer_readings, axis=1)))
+                       _changed_rows(current, state.answer_readings))
             if state.answer_cursor is None:
                 masses = _arity_masses(readings)
                 with np.errstate(divide="ignore"):
@@ -745,8 +758,7 @@ class FormulaEvaluator:
                 else:
                     state.risk_band = CertifiedSplit(log_probs, ARITY_ORDER, self.band_slack)
                     state.cursor = state.risk_band.split
-            changed = np.flatnonzero(np.any(state.cursor.log_probs != log_probs, axis=1))
-            state.changed = tuple(int(k) for k in changed)
+            state.changed = _changed_rows(state.cursor.log_probs, log_probs)
             if state.risk_band is not None:
                 for k in state.changed:
                     if state.risk_band.climb_normalizer(k, log_probs[k]) is None:

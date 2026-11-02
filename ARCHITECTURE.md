@@ -765,7 +765,9 @@ priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs
 remain unchanged. The raw answer cursor reuses its trace on unchanged
 readings; changed readings still require incremental decoding and per-word
-distribution preparation.
+distribution preparation. Elisa's `changed_rows` compares contiguous binary64
+snapshots in row order without a temporary comparison matrix; other layouts use
+NumPy with the same unequal-value semantics.
 
 `Distribution.revision(i)` identifies the item's rung within one refinement
 run. The run fixes observations and calibration, so the rung identifies both.

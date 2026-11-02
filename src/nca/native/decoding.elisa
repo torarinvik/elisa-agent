@@ -94,6 +94,23 @@ def pair_shares(risks: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Pani
         suffix[n - i - 1] <- upper_add(suffix[n - i], risks[n - i - 1])
     return [upper_product(upper_product(risks[i], upper_add(prefix[i], suffix[i + 1])), 0.5) for i in 0..<n]
 
+# Return indices of rows with any unequal values, preserving row order.
+def changed_rows(left: view[f64], right: view[f64], output: mutable view[i64], width: i64) -> i64 can[Abort.Panic]:
+    return -1 if width <= 0 or left.len.i64() != right.len.i64()
+    return -1 if left.len.i64() % width != 0
+    rows: i64 = left.len.i64() / width
+    return -1 if output.len.i64() < rows
+    return
+        for k in 0..<rows |count: i64 = 0, output| -> count:
+            different: bool =
+                for j in 0..<width |different: bool = false| -> different:
+                    if left[k * width + j] != right[k * width + j]:
+                        different <- true
+                        break
+            if different:
+                output[count] <- k
+                count += 1
+
 # Map arities outside the usable range to its two sentinel boundaries.
 def clamp_format_symbols(symbols: mutable view[i64], length: i64) -> i64 can[Abort.Panic]:
     for i in 0..<symbols.len.i64():
@@ -1585,6 +1602,7 @@ def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperat
     return risk_at_anchor(logits, groups, groups[top], temperature, logits[top])
 
 export pymodule decoding:
+    fn changed_rows
     fn tilt_weights_checked
     fn nonnegative_arities
     fn clamp_format_symbols

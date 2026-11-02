@@ -564,6 +564,23 @@ def test_answer_cursor_matches_fresh_words(reference: bool, monkeypatch: pytest.
         assert evaluator.words(readings, state) == evaluator.words(readings)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_changed_rows_matches_numpy_for_layouts_and_special_values(reference, monkeypatch) -> None:
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    current = np.array([[0.0, -0.0, np.inf], [np.nan, 1.0, -np.inf],
+                        [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]])
+    previous = current.copy()
+    previous[2, 1] = 9.0
+    for left, right in ((current, previous), (current[::2], previous[::2]),
+                        (current.astype(np.float32), previous.astype(np.float32))):
+        expected = tuple(int(k) for k in np.flatnonzero(np.any(left != right, axis=1)))
+        assert word_module._changed_rows(left, right) == expected
+    assert word_module._changed_rows(np.empty((0, 3)), np.empty((0, 3))) == ()
+
+
 def test_answer_cursor_reuses_trace_only_for_unchanged_readings(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.modules.words import CorrectionState
 
