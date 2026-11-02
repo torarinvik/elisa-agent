@@ -710,6 +710,20 @@ def test_tail_summary_uses_older_native_fallback(monkeypatch: pytest.MonkeyPatch
         native(rows.reshape(-1), reference))
 
 
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_band_changes_accepts_strided_reference_indices(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rows = np.log(np.tile([0.8, 0.2], (6, 1)))
+    reference = np.array([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1], dtype=np.int64)[::2]
+    assert not reference.flags.c_contiguous
+    assert decoding._tail_mass_summary(rows, reference) == pytest.approx(
+        decoding._tail_mass_summary(rows, reference.copy()))
+    assert decoding.band_changes(rows, reference, 0.01) == pytest.approx(
+        decoding.band_changes(rows, reference.copy(), 0.01))
+
+
 def test_banded_cursor_recovers_if_block_update_fails() -> None:
     if getattr(decoding._NATIVE, "tail_block_summary", None) is None:
         pytest.skip("native tail block kernel is not built")
@@ -1233,6 +1247,37 @@ def test_banded_split_limits_storage_to_largest_row_interval(
         assert log_x == pytest.approx(expected[1])
         weight, arities = split.best(k)
         assert weight == pytest.approx(expected[1])
+        assert parse(arities) is not None
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
+def test_ragged_split_sparse_generic_alphabet_after_many_updates(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(284)
+    m = 35
+    alphabet = (0, 1, 2, 3, 5, 8, 13, 21, 34)
+    rows = np.full((m, len(alphabet)), -np.inf)
+    rows[:, 1] = 0.0
+    rows[-1, 0] = 0.0
+    centre = [1] * m + [0]
+    cursor = decoding.Split(rows, alphabet, centre, 5)
+    for _ in range(45):
+        k = int(rng.integers(m))
+        row = np.full(len(alphabet), -np.inf)
+        row[1] = -float(rng.uniform(0.0, 2.0))
+        if k == m - 1:
+            row[0] = -float(rng.uniform(0.0, 2.0))
+        for j in rng.choice(len(alphabet), size=3, replace=False):
+            row[j] = -float(rng.uniform(0.0, 20.0))
+        rows[k] = row
+        actual = cursor.climb(k, row)
+        expected = decoding._banded_passes(rows, alphabet, centre, 5)
+        assert expected is not None
+        assert actual == pytest.approx(expected[:2])
+        best, arities = cursor.best(k)
+        assert best == pytest.approx(expected[1])
         assert parse(arities) is not None
 
 
