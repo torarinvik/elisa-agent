@@ -878,7 +878,8 @@ Rungs cache at most 128 absent restricted-calibration results, invalidating
 them on recalibration or held-out label replacement. A weak reference avoids
 retaining old label tensors. As with fitted temperatures, callers must not
 mutate snapshot tensors in place. The derived cache is discarded during
-serialization and rebuilt on demand.
+serialization and rebuilt on demand, including when loading a rung serialized
+before the cache fields existed.
 For a wide class space and a small selected set, it scans the selected classes
 instead of allocating a lookup proportional to the full width. The selected
 matrix gathers row and class indices together, avoiding an intermediate copy

@@ -330,6 +330,22 @@ def test_missing_calibration_cache_does_not_break_serialization() -> None:
         restored.temperature(((1,), (2,)))
 
 
+def test_pre_cache_serialized_rung_state_restores_missing_calibration() -> None:
+    from nca.ladder import MissingCalibrationError
+
+    legacy_state = {
+        "module": None,
+        "temperatures": {},
+        "held_out": (torch.zeros((1, 3), dtype=torch.float64), torch.tensor([0])),
+    }
+    restored = Rung.__new__(Rung)
+    restored.__setstate__(legacy_state)
+    for _ in range(2):
+        with pytest.raises(MissingCalibrationError):
+            restored.temperature(((1,), (2,)))
+    assert len(restored._missing_temperatures) == 1
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_restricted_calibration_gathers_only_requested_columns(native, monkeypatch) -> None:
     from nca import ladder as ladder_module

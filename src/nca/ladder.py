@@ -334,6 +334,12 @@ class Rung:
         state["_missing_labels"] = None
         return state
 
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        # Older serialized rungs have neither cache field.
+        self._missing_temperatures = set()
+        self._missing_labels = None
+
     @property
     def cost(self) -> float:
         return self.module.manifest.cost
