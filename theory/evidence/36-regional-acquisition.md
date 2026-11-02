@@ -471,3 +471,21 @@ nextafter/sqrt, and reference norm error within one ulp. These assumptions are
 not formalized or established by testing. Near ties and nonrepresentable squared
 distances deliberately use the robust reference. Models retain original centers;
 packed buffers are derived parameter caches, not training observations.
+
+
+## 36.52 Error-driven prototype family growth
+
+Increase the per-category center allowance from one while empirical modal
+errors exceed a supplied nonnegative integer budget. Retain every fitted
+representation and stop after the first sufficiently explained training sample.
+Before fitting each family, require category_count × allowance ≤ total_budget.
+This conservative complete-allocation check can reject a family whose duplicate
+centers would fit in fewer slots, but never drops categories to satisfy a budget.
+Per-category/iteration bounds remain explicit resources, not architectural limits.
+
+Zero failed observations imply every Boolean training outcome is true; Lean
+proves this special case, not scoring implementation, monotonic improvement or
+head-family sufficiency. Positive tolerances are caller choices. Modal ambiguity
+need not fall with each local clustering run, and training stopping can miss
+better generalizing candidates. Independent whole-task selection remains
+mandatory. Only centers and generated type declarations enter inference artifacts.

@@ -445,3 +445,39 @@ def test_categorical_partition_matches_raw_modal_predictions_on_noisy_samples() 
     raw = fit_decoder(Contract((source.manifest.contract.output,), "output"),
                       [source.invoke(*r) for r in rows], labels, cost=0)
     assert [head.invoke(code) for code in codes] == [raw.invoke(source.invoke(*r)) for r in rows]
+
+
+def test_growing_prototype_types_are_selected_on_independent_rows() -> None:
+    import random
+
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import propose_heads
+    from nca.projection_learning import fit_prototype_features
+
+    class Vector:
+        manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())
+
+        def invoke(self, value: Any) -> Any:
+            return value
+
+    rng = random.Random(3655)
+    rows, labels = [], []
+    for _ in range(800):
+        group = rng.randrange(4)
+        center = (-2.0 if group // 2 == 0 else 2.0, -2.0 if group % 2 == 0 else 2.0)
+        rows.append((tuple(rng.gauss(x, 0.25) for x in center),))
+        labels.append("a" if group in (0, 3) else "b")
+    sizes = []
+
+    def propose(train: Any, targets: Any) -> Any:
+        features = fit_prototype_features(Vector(), train, targets, max_per_category=4,
+                    max_centroids=8, max_errors=0, encoding_cost=1)
+        sizes.append((len(train), [len(p.expert.centers) for p in features]))
+        return propose_heads(Baseline(), features,
+                    lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                    train, targets, max_features=4, max_heads=1)
+
+    result = discover(Baseline(), propose, rows, labels, lambda a, b: a == b)
+    assert sizes == [(400, [2, 4])]
+    assert result.chosen is not None and sum(result.trials[-1].outcomes) == 400
+    assert result.chosen.constructors == (result.chosen.expert.feature.constructor,)

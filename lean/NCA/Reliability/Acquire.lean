@@ -384,4 +384,11 @@ theorem prototype_interval_choice {I : Type*} (score low high : I → ℝ) (best
   intro i hi
   exact lt_of_le_of_lt (inside best).2 (lt_of_lt_of_le (gap i hi) (inside i).1)
 
+/-- No false outcomes means every observation in a finite sample succeeded. -/
+theorem zero_failed_observations (outcomes : List Bool)
+    (h : outcomes.count false = 0) : outcomes.all id = true := by
+  induction outcomes with
+  | nil => simp
+  | cons b bs ih => cases b <;> simp_all
+
 end NCA

@@ -561,3 +561,25 @@ def test_native_prototype_packed_shapes_and_ambiguous_cases() -> None:
                             ((0.0,), (1.0, math.nextafter(1.0, math.inf)))]:
         assert native.nearest(array("d", value), array("d", centers)) == -1
     assert native.nearest(array("d", (1.0, 1.0)), array("d", (0.0, 0.0, 4.0, 4.0))) == 0
+
+
+def test_prototype_growth_stops_after_explaining_training_ambiguity() -> None:
+    from nca.projection_learning import fit_prototype_features
+
+    rows = [((-2.0, -2.0),), ((2.0, 2.0),), ((-2.0, 2.0),), ((2.0, -2.0),)] * 5
+    labels = ["a", "a", "b", "b"] * 5
+
+    def fit(**kwargs: Any) -> Any:
+        return fit_prototype_features(Measurement(), rows, labels, max_per_category=4,
+                    encoding_cost=0, **kwargs)
+
+    features = fit(max_centroids=8, max_errors=0)
+    assert [len(p.expert.centers) for p in features] == [1, 4]
+    assert all(p.constructors == (p.expert.constructor,) for p in features)
+    assert len(fit(max_centroids=8, max_errors=10)) == 1
+    assert len(fit(max_centroids=3, max_errors=0)) == 1
+    assert fit(max_centroids=1, max_errors=0) == []
+    with pytest.raises(ValueError, match="nonnegative"):
+        fit(max_centroids=8, max_errors=-1)
+    with pytest.raises(ValueError, match="positive"):
+        fit(max_centroids=0, max_errors=0)

@@ -2,6 +2,7 @@
 
 import math
 from array import array
+from collections import Counter
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
 from itertools import combinations
@@ -449,5 +450,49 @@ def fit_polynomial_regression_features(measurement: Module,
                           for target, prediction in zip(targets, predictions, strict=True))
         offset = math.fsum(residual / len(rows) for residual in residuals)
         if max(abs(_observation(residual - offset)) for residual in residuals) <= max_error:
+            break
+    return proposals
+
+
+def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
+        labels: Sequence[Hashable], *, max_per_category: int, max_centroids: int,
+        max_errors: int, encoding_cost: float, refinement_steps: int = 3) -> list[Proposal]:
+    """Grow prototype interfaces until empirical categorical ambiguity is small (§36.52).
+
+    Fit allowances 1..max_per_category, scoring modal training labels per code.
+    Stop at the first candidate with at most max_errors training mistakes, or
+    before the conservative complete allocation (categories * allowance) exceeds
+    max_centroids. No category is omitted to fit a budget. Duplicate centers can
+    make actual models smaller than this allocation bound. Every fitted candidate
+    remains available to downstream head fitting and independent selection.
+    Stable observations and hashable labels are assumed; neither monotonic score
+    improvement nor useful generalization is guaranteed. Budgets limit represented
+    families, not total runtime/memory. No training samples or labels are retained.
+    """
+    if any(type(n) is not int or n < 1 for n in (max_per_category, max_centroids)):
+        raise ValueError("prototype growth budgets must be positive integers")
+    if any(type(n) is not int or n < 0 for n in (max_errors, refinement_steps)):
+        raise ValueError("error and refinement budgets must be nonnegative integers")
+    if not math.isfinite(encoding_cost) or encoding_cost < 0:
+        raise ValueError("prototype cost must be finite and nonnegative")
+    if len(rows) < 2 or len(rows) != len(labels):
+        raise ValueError("prototype growth needs aligned observations")
+    contract = measurement.manifest.contract
+    if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("training row arity differs from contract")
+    categories = len(set(labels))
+    proposals = []
+    for allowance in range(1, max_per_category + 1):
+        if categories * allowance > max_centroids:
+            break
+        encoder = fit_prototype_encoder(measurement, rows, labels, max_centroids=max_centroids,
+                    encoding_cost=encoding_cost, centers_per_category=allowance,
+                    refinement_steps=refinement_steps)
+        proposals.append(Proposal(encoder, (encoder.constructor,)))
+        counts: dict[int, Counter[Hashable]] = {}
+        for row, label in zip(rows, labels, strict=True):
+            counts.setdefault(encoder.invoke(*row), Counter())[label] += 1
+        successes = sum(max(histogram.values()) for histogram in counts.values())
+        if len(rows) - successes <= max_errors:
             break
     return proposals
