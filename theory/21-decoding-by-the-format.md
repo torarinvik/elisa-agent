@@ -98,6 +98,11 @@ directly over `1 ≤ n ≤ r − a` without testing larger states.
 Weights for arities with `a ≥ r` at that position have zero contribution to
 every complete sequence and need not be exponentiated by the normal-space
 decoder.
+Likewise, a transition to zero pending subformulas before the last word cannot
+contribute: the next word makes the counter run invalid. Removing that mass
+before normalizing keeps it from overwhelming the still-completable paths.
+Backward states with zero forward mass cannot contribute to any complete
+sequence or marginal, and can be omitted from the reverse pass.
 If every arity is at most `A`, a reachable counter after `k` words is at most
 `1 + k · max(A − 1, 0)`. Intersecting this reachability bound with the
 completion bound `m − k` gives the state range needed by the exact decoder;

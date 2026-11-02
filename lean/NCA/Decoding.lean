@@ -370,6 +370,11 @@ theorem foldl_await_none : ∀ l : List ℕ, l.foldl await none = none
   | [] => rfl
   | _ :: l => foldl_await_none l
 
+/-- Once all slots are closed, any remaining word makes the run invalid. -/
+theorem foldl_await_zero_nonempty (a : ℕ) (l : List ℕ) :
+    (a :: l).foldl await (some 0) = none := by
+  simp [await, foldl_await_none]
+
 /-- Every successful counter run conserves pending slots plus consumed words. -/
 theorem await_balance : ∀ (l : List ℕ) (start finish : ℕ),
     l.foldl await (some start) = some finish → start + l.sum = finish + l.length

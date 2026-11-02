@@ -2115,6 +2115,34 @@ def test_native_decode_retries_when_normal_weights_have_underflowing_product() -
     np.testing.assert_allclose(actual.marginals, reference.marginals, rtol=1e-12, atol=0)
 
 
+def test_native_decode_discards_early_termination_before_normalizing() -> None:
+    native = getattr(decoding._NATIVE, "decode", None)
+    if native is None:
+        pytest.skip("native decoder is not built")
+    rows = np.array([[0.0, -690.0], [0.0, -690.0], [0.0, -np.inf]])
+    actual = np.asarray(native(rows.ravel(), np.array([0, 1], dtype=np.int64)))
+    assert len(actual) == 10
+    assert actual[0] == pytest.approx(-1380.0)
+    np.testing.assert_array_equal(actual[1:4], [1, 1, 0])
+    np.testing.assert_allclose(actual[4:].reshape(rows.shape), [[0, 1], [0, 1], [1, 0]])
+
+
+def test_native_decode_skips_unreachable_backward_states() -> None:
+    native = getattr(decoding._NATIVE, "decode", None)
+    if native is None:
+        pytest.skip("native decoder is not built")
+    length = 12
+    rows = np.tile([0.0, -690.0, -np.inf], (length, 1))
+    rows[-1] = [0.0, -np.inf, -np.inf]
+    actual = np.asarray(native(rows.ravel(), np.arange(3, dtype=np.int64)))
+    assert len(actual) == 1 + 4 * length
+    assert actual[0] == pytest.approx(-690.0 * (length - 1))
+    np.testing.assert_array_equal(actual[1:length + 1], [1] * (length - 1) + [0])
+    expected = np.tile([0, 1, 0], (length, 1))
+    expected[-1] = [1, 0, 0]
+    np.testing.assert_allclose(actual[length + 1:].reshape(rows.shape), expected)
+
+
 @pytest.mark.parametrize("kernel, row", [("decode", np.log([0.2, 0.3, 0.5])),
                                          ("decode_log", np.full(3, -1000.0))])
 def test_native_decoder_ignores_impossible_arity_in_state_bound(kernel, row) -> None:

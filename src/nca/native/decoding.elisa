@@ -171,7 +171,7 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                     for j in 0..<width |forward, best, choice|:
                         continue if alphabet[j] > next_top
                         target: i64 = n - 1 + alphabet[j]
-                        continue if target > next_top
+                        continue if target > next_top or (target == 0 and k + 1 < m)
                         cell: i64 = next_row + target
                         weight: f64 = weights[k * width + j]
                         contribution: f64 = here * weight
@@ -205,9 +205,10 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                     weight: f64 = weights[k * width + j] / totals[k + 1]
                     return [FLOOR] if weight == -log(0.0)
                     for n in 1..<(live(k, m, max_arity) + 1) |backward, through_total: f64 = 0.0| -> through_total:
+                        continue if forward[here_row + n] == 0.0
                         through: f64 =
                             target: i64 = n - 1 + alphabet[j]
-                            continue if target > next_top
+                            continue if target > next_top or (target == 0 and k + 1 < m)
                             weight * backward[backward_next + target]
                         return [FLOOR] if through == -log(0.0) or through != through
                         backward[backward_here + n] <- backward[backward_here + n] + through
