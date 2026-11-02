@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.38) are described in the
+Regional acquisition and composition (§§36.26–36.39) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2341,3 +2341,10 @@ Auxiliary categories train directions; regional trainers keep original targets.
 Each returned encoder exposes its constructor for proposal propagation and
 existing numeric graph retention. `feedback_group_invariance` proves only
 filter equality when opaque category membership is unchanged.
+
+`regional_learning.MeasurementProposer` (§36.39) receives training rows, opaque
+feedback and remaining candidate slots. `propose_failure_partitions` appends a
+bounded prefix of its measurement proposals, validates external signatures and
+propagates their constructors through router screening and specialist acquisition.
+It never retains the training callback. `measurement_prefix_bound` proves only
+the retained-list length bound, not callback computation or model correctness.

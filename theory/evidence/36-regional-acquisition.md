@@ -234,3 +234,23 @@ proves the filter-membership special case. It does not prove executable fitting,
 finite arithmetic accuracy, generalization or nonlinear separability. Ordered
 pair budgets, stable measurements and independent whole-task selection remain
 assumptions. Learned directions do not invent the underlying vector measurement.
+
+
+## 36.39 Feedback-driven measurement acquisition
+
+After constructing nonconstant training feedback with at least one incumbent
+error, freeze a prefix of supplied measurements. For a total candidate budget B
+and F fixed candidates, request at most B−F additional measurement proposals
+from a supplied learner on training rows and feedback only. Retain at most this
+prefix of its outputs. Each proposal must preserve the original external inputs,
+slots and relevance, with an arbitrary scalar output interface and explicit
+constructor declarations. Fit/screen routers, then acquire task specialists.
+Propagate the learned measurement declarations before the router declarations.
+
+Taking at most k elements of a returned list retains at most k elements; Lean
+proves this bound, not callback termination, truthful declarations or runtime
+cost. The callback owns its internal work budget. Empty/constant feedback and
+zero remaining slots must not invoke it. No callback or training sample becomes
+part of the inference route. Learned implementations still belong to a supplied
+family; this orchestration does not invent arbitrary executable bodies. Stable
+models, faithful learners and independent whole-task selection remain necessary.

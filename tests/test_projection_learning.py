@@ -241,8 +241,6 @@ def test_native_polynomials_validate_packed_indices() -> None:
 
 def test_auxiliary_projection_routes_original_object_targets() -> None:
     from collections import Counter
-    from dataclasses import replace
-
     from nca.discovery import Proposal
     from nca.numeric_learning import midpoint_boundary
     from nca.projection_learning import fit_projection_encoders
@@ -259,28 +257,32 @@ def test_auxiliary_projection_routes_original_object_targets() -> None:
     rng = random.Random(3641)
     rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(1000)]
     targets = [{"kind": "left" if sum(row[0]) < 0 else "right"} for row in rows]
-    seen = []
+    seen, measurement_calls = [], []
+
+    def learn(train: Any, categories: Any, budget: int) -> Any:
+        measurement_calls.append((tuple(train), tuple(categories), budget))
+        return [Proposal(encoder, (encoder.constructor,))
+                for encoder in fit_projection_encoders(Measurement(), train, categories,
+                                                       limit=budget, projection_cost=1)]
 
     def propose(train: Any, labels: Any) -> Any:
-        categories = [frozenset({target["kind"]}) for target in labels]
-        encoders = fit_projection_encoders(Measurement(), train, categories,
-                                            limit=1, projection_cost=1)
-        assert len(encoders) == 1
         def acquire(subset: Any, original: Any) -> Any:
             seen.extend(zip(subset, original, strict=True))
             modal = Counter(target["kind"] for target in original).most_common(1)[0][0]
             return [Proposal(Expert(incumbent.manifest, lambda xy: {"kind": modal}))]
 
-        return [replace(p, constructors=(encoders[0].constructor,) + p.constructors)
-                for p in propose_failure_partitions(incumbent, encoders, acquire, train, labels,
+        return propose_failure_partitions(incumbent, [], acquire, train, labels,
                     lambda a, b: a == b, max_measurements=1, max_regions=2,
                     encoding_cost=1, overhead_cost=1, max_combinations=1,
                     place_boundary=midpoint_boundary,
-                    routing_signal=lambda row, prediction, target: frozenset({target["kind"]}))]
+                    routing_signal=lambda row, prediction, target: frozenset({target["kind"]}),
+                    propose_measurements=learn)
 
     result = discover(incumbent, propose, rows, targets, lambda a, b: a == b)
     assert result.chosen is not None
     assert len(result.chosen.constructors) == 2
+    assert measurement_calls == [(tuple(rows[:500]),
+        tuple(frozenset({t["kind"]}) for t in targets[:500]), 1)]
     assert sum(result.trials[-1].outcomes) > 475
     assert sorted((row, target["kind"]) for row, target in seen) == (
         sorted((row, target["kind"]) for row, target in zip(rows[:500], targets[:500])))

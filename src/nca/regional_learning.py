@@ -12,6 +12,8 @@ from nca.discovery import Proposal, _total_calls
 from nca.numeric_learning import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
 
+MeasurementProposer = Callable[
+    [Sequence[tuple[Any, ...]], Sequence[Hashable], int], Sequence[Proposal]]
 RegionalRefiner = Callable[[Module, Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Proposal]]
 
 
@@ -202,7 +204,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         max_combinations: int = 0, refine: RegionalRefiner | None = None,
         max_refinements: int = 0,
         routing_signal: Callable[[tuple[Any, ...], Any, Any], Hashable] | None = None,
-        max_measurement_candidates: int | None = None
+        max_measurement_candidates: int | None = None,
+        propose_measurements: MeasurementProposer | None = None
         ) -> list[Proposal]:
     """Learn routing cuts from training failures, then acquire task specialists (§36.27).
 
@@ -216,7 +219,7 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     is not retained for inference. Its meaning and usefulness are caller supplied.
     Use inside discover's training callback. Inputs/models/scoring
     must remain stable; training may invoke the incumbent/measurements repeatedly.
-    This family learns scalar cuts, not measurement implementations. An explicit
+    Without a measurement proposer this family learns scalar cuts only. An explicit
     routing_regions budget permits interval refinement (§36.28); tie_break is a
     pure secondary score over read-only label histograms, with modal accuracy primary.
     Each measurement search has its own max_refinements call budget.
@@ -226,6 +229,11 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     Without screening, the original prefix allocation is preserved. Screening
     may invoke measurements again and assumes stable observations; it does not
     claim that signal accuracy predicts task improvement.
+    Optional propose_measurements(rows, signals, remaining_budget) learns scalar
+    measurement proposals (§36.39). Fixed measurements consume the prefix first;
+    only remaining candidate slots are requested and retained. The callback owns
+    its computation budget, sees training data only, and supplies constructors
+    that accompany selected routers. No-error or constant-signal samples skip it.
     """
     if type(max_combinations) is not int or max_combinations < 0:
         raise ValueError("combination budget must be a nonnegative integer")
@@ -245,8 +253,9 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     contract = incumbent.manifest.contract
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("rows must supply slot fillings followed by inputs")
-    measurements = tuple(measurements[:max_measurements if max_measurement_candidates is None
-                                     else max_measurement_candidates])
+    measurement_budget = (max_measurements if max_measurement_candidates is None
+                          else max_measurement_candidates)
+    measurements = tuple(measurements[:measurement_budget])
     if any(replace(m.manifest.contract, output=contract.output) != contract for m in measurements):
         raise ValueError("measurements must preserve inputs, slots and relevance")
     failures = []
@@ -259,8 +268,17 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
                        else routing_signal(row, prediction, target))
     if not any(failures) or len(set(signals)) < 2:
         return []
+    measurement_proposals = [Proposal(m) for m in measurements]
+    remaining = measurement_budget - len(measurement_proposals)
+    if propose_measurements is not None and remaining:
+        learned = tuple(propose_measurements(tuple(rows), tuple(signals), remaining)[:remaining])
+        if any(replace(p.expert.manifest.contract, output=contract.output) != contract
+               for p in learned):
+            raise ValueError("learned measurements must preserve inputs, slots and relevance")
+        measurement_proposals.extend(learned)
     routers = []
-    for measurement in measurements:
+    for measurement_proposal in measurement_proposals:
+        measurement = measurement_proposal.expert
         if routing_regions == 2:
             encoder = fit_partition_encoder(measurement, rows, signals,
                         encoding_cost=encoding_cost, place_boundary=place_boundary,
@@ -270,7 +288,7 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
                         encoding_cost=encoding_cost, place_boundary=place_boundary,
                         tie_break=tie_break)
         if encoder is not None:
-            routers.append(encoder)
+            routers.append((encoder, measurement_proposal.constructors))
     if max_measurement_candidates is not None:
         def score(encoder: Module) -> int:
             counts: dict[Hashable, Counter[Hashable]] = {}
@@ -278,13 +296,14 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
                 counts.setdefault(encoder.invoke(*row), Counter())[signal] += 1
             return sum(max(histogram.values()) for histogram in counts.values())
 
-        routers.sort(key=score, reverse=True)
+        routers.sort(key=lambda item: score(item[0]), reverse=True)
     proposals = []
-    for encoder in routers[:max_measurements]:
+    for encoder, measurement_constructors in routers[:max_measurements]:
         local = propose_regional_experts(incumbent, encoder, propose, rows, labels, correct,
                                          max_regions=max_regions, overhead_cost=overhead_cost,
                                          max_combinations=max_combinations, refine=refine,
                                          max_refinements=max_refinements)
-        proposals.extend(Proposal(candidate.expert, (encoder.constructor,) + candidate.constructors)
+        proposals.extend(Proposal(candidate.expert, measurement_constructors +
+                                 (encoder.constructor,) + candidate.constructors)
                          for candidate in local)
     return proposals

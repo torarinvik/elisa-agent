@@ -512,3 +512,42 @@ def test_router_screening_spends_specialist_budget_on_training_signal() -> None:
         propose_failure_partitions(incumbent, [], acquire, rows, labels,
                     lambda a, b: a == b, max_measurements=1, max_regions=1,
                     max_measurement_candidates=0, encoding_cost=0, overhead_cost=0)
+
+
+def test_measurement_acquisition_budget_and_degenerate_feedback() -> None:
+    from nca.objects import Constructor
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
+    constructor = Constructor("auxiliary", "1", 0, "hypothetical learned measurement")
+    calls = []
+
+    def learn(rows: Any, signals: Any, budget: int) -> list[Proposal]:
+        calls.append((rows, signals, budget))
+        # Extra outputs must not consume extra fitting or specialist calls.
+        invalid = Expert(Manifest("invalid", "1", Contract((), "reading")), lambda: 1.0)
+        return [Proposal(reading, (constructor,)), Proposal(invalid)]
+
+    def run(labels: Any, measurements: Any = (), **kwargs: Any) -> Any:
+        return propose_failure_partitions(incumbent, measurements,
+                    lambda rows, targets: [Proposal(incumbent)],
+                    [(-1.0,), (1.0,)], labels, lambda a, b: a == b,
+                    max_measurements=1, max_regions=1, encoding_cost=0, overhead_cost=0,
+                    propose_measurements=learn, **kwargs)
+
+    proposals = run([0, 1])
+    assert calls == [(((-1.0,), (1.0,)), (False, True), 1)]
+    assert len(proposals) == 1 and proposals[0].constructors[0] == constructor
+    calls.clear()
+    assert run([0, 0]) == []
+    assert run([0, 0], routing_signal=lambda row, prediction, target: row) == []
+    assert run([1, 1]) == []
+    run([0, 1], [reading])
+    assert calls == []
+    invalid = Expert(Manifest("invalid", "1", Contract((), "reading")), lambda: 1.0)
+    with pytest.raises(ValueError, match="learned measurements"):
+        propose_failure_partitions(incumbent, [], lambda rows, labels: [],
+                    [(-1.0,), (1.0,)], [0, 1], lambda a, b: a == b,
+                    max_measurements=1, max_regions=1, encoding_cost=0, overhead_cost=0,
+                    propose_measurements=lambda rows, signals, budget: [Proposal(invalid)])

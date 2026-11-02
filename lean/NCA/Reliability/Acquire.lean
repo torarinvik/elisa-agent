@@ -302,4 +302,10 @@ theorem feedback_group_invariance {X : Type*} (xs : List X) (p q : X → Bool)
   have hpq : p = q := funext h
   rw [hpq]
 
+/-- Retaining a bounded prefix cannot exceed its requested candidate count. -/
+theorem measurement_prefix_bound {X : Type*} (xs : List X) (budget : ℕ) :
+    (xs.take budget).length ≤ budget := by
+  simp only [List.length_take]
+  exact Nat.min_le_left _ _
+
 end NCA
