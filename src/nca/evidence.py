@@ -23,11 +23,12 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from nca.abi import Module
+from nca.abi import NOTHING, Demand, Module, SequenceDemand
 from nca.cache import Checks, value_digest
 from nca.objects import Attestation, Ref, Store
 from nca.packages import Export, Requirement, Upcast, charge
-from nca.planner import Apply, Map, Plan
+from nca.optimize import slot_calls
+from nca.planner import Apply, Given, Map, Plan
 from nca.router import sign_test
 from nca.stats import clopper_pearson_upper, family_audit_alpha
 from nca.trust import Trust
@@ -151,7 +152,8 @@ class _Unknown(Exception):
     pass
 
 
-def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int = 1) -> float | None:
+def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int = 1, *,
+               relevant: bool = False) -> float | None:
     """The total charge of ``plan`` when each invocation of an expert costs its
     failure rate ``rate(expert)`` (§31.2): an upper bound on the probability
     of a wrong answer when the rates are in situ, ``length`` bounds every
@@ -161,6 +163,11 @@ def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int =
     through the slots that fill them; an upcast returns its input and never
     fails. ``None`` if some invoked expert has no rate, or an expert with
     slots declares no call counts, since then nothing bounds the risk.
+
+    With ``relevant``, only relevant invocations are charged (§31.6): demand
+    is propagated from the answer through each expert's ``decides`` rule, or
+    its ``demand`` rule, a map's body is charged at each element's demand,
+    and an invocation whose output has empty demand costs nothing.
     """
     def unit(module: Module) -> float:
         if isinstance(module, Export):
@@ -172,7 +179,27 @@ def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int =
             raise _Unknown
         return found
 
+    def relevant_charge(node: Plan, demand: Demand) -> float:
+        if isinstance(node, Given) or demand == NOTHING:
+            return 0.0
+        if isinstance(node, Map):
+            per = demand.element if isinstance(demand, SequenceDemand) else (lambda i, n: demand)
+            return (relevant_charge(node.source, None)
+                    + sum(relevant_charge(node.body, per(i, length)) for i in range(length)))
+        module = node.module
+        rule = getattr(module, "decides", None) or getattr(module, "demand", None)
+        calls = slot_calls(module.manifest, length)
+        if node.slots and not calls:
+            raise ValueError(f"{module.manifest.module_id} declares no slot calls")
+        own = (relevant_charge(module.route, None) if isinstance(module, Export) else unit(module))
+        return (own + sum(relevant_charge(arg, None if rule is None else rule(i, demand))
+                          for i, arg in enumerate(node.args))
+                + sum(n * charge(sub, length, unit, strict=True)
+                      for n, sub in zip(calls, node.slots)))
+
     try:
+        if relevant:
+            return relevant_charge(plan, None)
         return charge(plan, length, unit, strict=True)
     except (_Unknown, ValueError):
         return None

@@ -319,6 +319,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [31.1](theory/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
 | [31.2](theory/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
 | [31.4](theory/31-composing-uncertainty.md) | `audit_family_le` with `risk_le_charges` | `Calibration`, `Risk` |
+| [31.5](theory/31-composing-uncertainty.md) | `risk_le_charges` on relevant counts, with `DemandSound.exact` | `Risk`, `Demand` |
 | [32.1](theory/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/32-trust.md) | `undetected_le_exp` | `Spot` |
 
@@ -1722,6 +1723,15 @@ implements §31.5: experts with an accepted `exact` attestation
 proportion to their invocation counts in the route (computed with
 `route_risk` and an indicator rate), each bound coming from that expert's
 in-situ benchmark in `benches`.
+
+`route_risk(..., relevant=True)` implements §31.6: it propagates demand
+from the answer (`None`) through each expert's `decides` rule, or its
+`demand` rule, charges a map's body at each element's demand over `length`
+elements and its source in full, and charges nothing for an invocation
+whose output has empty demand. Exports' routes and slot fillings are
+charged in full. An installed `LazyExpert` forwards `demand` but not
+`decides`, so packaged experts are charged at their read demand, which is
+sound but coarser.
 
 ## 32. Trust
 

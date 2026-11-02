@@ -340,3 +340,23 @@ def test_arithmetic_package_answers_like_the_flat_pipeline() -> None:
         answers = [execute(r, {EXPRESSION_IMAGE: Message(EXPRESSION_IMAGE, image, "input")},
                            Workspace(), 1000).payload for r in (flat, route)]
         assert answers[0] == answers[1]
+
+
+def test_relevant_risk_charges_each_reader_only_where_the_parser_reads_it() -> None:
+    """§31.6: the parser reads digits at even and operators at odd positions."""
+    from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION
+    from nca.domains.arithmetic.operator_recognizer import OPERATOR_DISTRIBUTION
+    from nca.evidence import route_risk
+
+    route = compose_plan(build_registry(DigitRecognizer(digit_net()), SymbolRecognizer(op_net())))
+    rates = {DIGIT_DISTRIBUTION: 0.02, OPERATOR_DISTRIBUTION: 0.01}
+
+    def rate(module: object) -> float:
+        return rates.get(module.manifest.contract.output, 0.0)
+
+    for glyphs in (1, 5, 9):
+        plain = route_risk(route, rate, glyphs)
+        relevant = route_risk(route, rate, glyphs, relevant=True)
+        assert plain == pytest.approx(glyphs * 0.03)
+        assert relevant == pytest.approx((glyphs + 1) / 2 * 0.02 + (glyphs - 1) / 2 * 0.01)
+    assert route_risk(route, rate, 4, relevant=True) == 0.0  # Even lengths are never parsed.

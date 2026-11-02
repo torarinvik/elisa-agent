@@ -112,3 +112,32 @@ An expert whose exactness is established otherwise, by a proof or by
 construction, and attested by a trusted issuer, is charged rate `0` and
 needs no share: its premise is the attestation, as purity's is (§32.3),
 not an audit.
+
+## 31.6 Charging only relevant invocations
+
+The propagation hypothesis of §31.1 counts every failed invocation, also
+those whose output nothing downstream decides on. Demand (§14) says what a
+consumer reads of each input, and a decision demand what of it can change
+the consumer's decision. Call an invocation *relevant* if the demand on its
+output, propagated from the answer, is not empty, and let `Rₑ ≤ Iₑ` count
+the relevant invocations of `e`.
+
+If the declared demands are sound (Theorems 14.10–14.13), a value that
+agrees with the correct one under its demand gives the correct answer, and
+the empty demand is met by every value. So a run whose relevant
+invocations do not fail answers correctly: the propagation hypothesis holds
+with relevant failures in place of all failures.
+
+**Theorem 31.5 (relevant failures).** Under sound demands,
+`P(wrong) ≤ Σₑ E[Rₑ] · εₑ`, where `εₑ` is the in-situ rate among relevant
+invocations, and the bound with per-input limits on `Rₑ` follows as in
+Theorem 31.2.
+
+*Proof.* Theorems 31.1 and 31.2 hold for any counts satisfying the
+propagation hypothesis; apply them to `Rₑ`. ∎
+
+Demand on a sequence is per element, so a map's body is charged at each
+element's own demand: an expression parser that reads digits only at even
+positions charges a digit reader for half the glyphs and an operator reader
+for the other half, where §31.2 charged both for every glyph. The bound is
+as sound as the declared demands, which are claims of the experts' authors.
