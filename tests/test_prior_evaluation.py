@@ -1,4 +1,5 @@
 from typing import Any
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -99,6 +100,33 @@ def test_format_evaluator_retains_tiny_risk_with_and_without_session(
     for account in (fresh, cached):
         assert account is not None
         assert sum(account.values()) == pytest.approx(np.exp(-40.0), rel=1e-14)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("use_state", [False, True])
+def test_corrected_account_retains_tiny_sequence_risk_with_larger_within_risk(
+        reference, use_state, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+    from nca.modules import words as word_module
+    from nca.modules.words import CorrectionState
+
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    logs = np.array([[-np.inf, 0.0, -40.0], [np.log(0.5), np.log(0.5), -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    probabilities = torch.tensor(np.exp(logs), dtype=torch.float64)
+    actual_logs = probabilities.log().numpy()
+    sequence_risk = priors.format_sequence_risk(actual_logs, (0, 1, 2), (1, 1, 0))
+    evaluator = FormulaEvaluator(decode=True, short_circuit=False)
+    account = evaluator.corrected(["not", "not", "true"], [[1], [2], []],
+                                  lambda k, d: 0.5, lambda k, d: probabilities[k],
+                                  CorrectionState() if use_state else None)
+    assert account is not None and sequence_risk > 0
+    excess = sum(Fraction.from_float(value) - Fraction(1, 2) for value in account.values())
+    assert excess >= Fraction.from_float(sequence_risk)
 
 
 @pytest.mark.parametrize("use_prior", [False, True])

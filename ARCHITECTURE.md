@@ -760,6 +760,9 @@ Pairwise detection shares use Elisa prefix and suffix sums with upward-rounded
 products; Markov halves and within-group additions also round upward. Lean
 checks the real-number ordering, not the floating-point code or the individual
 risk estimates. Detection floors have not yet been numerically enclosed.
+The correction account also rounds each share and within-group risk addition
+upward; `combined_allocation_cover` checks how these charges preserve the
+coverage of the allocated bound in real arithmetic.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs

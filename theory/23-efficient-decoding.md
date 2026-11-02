@@ -264,6 +264,11 @@ then at least `R` under round-to-nearest, gradual underflow, and correctly
 rounded `nextafter`. This is a coverage guarantee for the supplied binary64
 bound, not a certificate that the bound itself is accurate.
 
+If each reported charge is at least the sum of its allocated share and its
+within-certificate risk, the sum of reported charges covers `R` plus the sum
+of those within-certificate risks. In binary64, each such addition must round
+upward: ordinary rounding can erase a small share next to a much larger risk.
+
 **Theorem 23.12 (revision cache invariant).** Suppose a cached quantity
 is a deterministic function `f(v)` of an item's revision `v`. Reusing a
 cached value `f(v₀)` is exact whenever `v = v₀`. The revision must identify

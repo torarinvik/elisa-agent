@@ -820,7 +820,8 @@ class FormulaEvaluator:
         else:
             kept = (self.evaluated(words, children, within, [0.0] * n) if self.short_circuit
                     else set(range(n)))
-        return {k: shares[k] + (within[k] if k in kept else 0.0) for k in range(n)}
+        combined = _combine_shares(shares, [within[k] if k in kept else 0.0 for k in range(n)])
+        return dict(enumerate(combined))
 
     def certificate_session(self) -> Callable[..., dict[int, float] | None]:
         """Create certificate state owned by one solve, including its cursor."""

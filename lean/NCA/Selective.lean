@@ -239,6 +239,16 @@ theorem priority_allocation_cover (R lower actual added : ℝ)
     (hlower : lower ≤ actual) (hadded : R - lower ≤ added) : R ≤ actual + added := by
   linarith
 
+/-- Per-item upper bounds preserve allocation coverage when risks are combined. -/
+theorem combined_allocation_cover (R : ℝ) (share within charge : X → ℝ)
+    (hshare : R ≤ ∑ x, share x)
+    (hcharge : ∀ x, share x + within x ≤ charge x) :
+    R + ∑ x, within x ≤ ∑ x, charge x := by
+  have hsum : (∑ x, (share x + within x)) ≤ ∑ x, charge x :=
+    Finset.sum_le_sum fun x _ => hcharge x
+  rw [Finset.sum_add_distrib] at hsum
+  linarith
+
 /-- A revision identifies all inputs to a cached deterministic quantity. -/
 theorem revision_cache_eq {V Y : Type} (f : V → Y) {old current : V}
     (h : current = old) : f current = f old := congrArg f h
