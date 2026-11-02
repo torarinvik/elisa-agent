@@ -1031,6 +1031,8 @@ unreachable sentinel before native conversion (`accepted_arity_lt_length`
 in `NCA.Decoding`).
 `prior_relabel` in `NCA.Product` proves path-weight preservation for a
 relabelling with a left inverse.
+Prior path-weight evaluation rejects detected finite-addition loss while
+preserving zero mass for forbidden or zero-weight paths.
 Selected symbols are checked as integers before native conversion. `decode`
 uses Elisa `decode_prior` for forward sums, maximum
 backtracking and backward marginals, with a NumPy reference fallback.

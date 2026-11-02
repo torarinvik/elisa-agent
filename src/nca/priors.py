@@ -304,10 +304,13 @@ class ArityPrior:
         native = getattr(_NATIVE, "prior_log_weight", None)
         if native is not None:
             alphabet, selected = _native_symbol_pair(self.alphabet, arities)
-            return float(native(alphabet,
-                                self.transitions.reshape(-1), self.log_weights.reshape(-1),
-                                self.log_final, self.start, selected))
-        state, total = self.start, 0.0
+            result = float(native(alphabet,
+                                  self.transitions.reshape(-1), self.log_weights.reshape(-1),
+                                  self.log_final, self.start, selected))
+            if math.isnan(result) or result == math.inf:
+                raise ValueError("prior log weight arithmetic is not finite or loses precision")
+            return result
+        state, total, failed = self.start, 0.0, False
         for a in arities:
             if a not in self.alphabet:
                 return -math.inf
@@ -315,9 +318,24 @@ class ArityPrior:
             target = int(self.transitions[state, j])
             if target < 0:
                 return -math.inf
-            total += float(self.log_weights[state, j])
+            weight = float(self.log_weights[state, j])
+            if weight == -math.inf:
+                return -math.inf
+            if not failed:
+                try:
+                    total = _partition_log_product(total, weight, "prior log weight")
+                except _PartitionArithmeticError:
+                    failed = True
             state = target
-        return total + float(self.log_final[state])
+        final = float(self.log_final[state])
+        if final == -math.inf:
+            return -math.inf
+        if failed:
+            raise ValueError("prior log weight arithmetic is not finite or loses precision")
+        try:
+            return _partition_log_product(total, final, "prior log weight")
+        except _PartitionArithmeticError as exc:
+            raise ValueError("prior log weight arithmetic is not finite or loses precision") from exc
 
     def log_evidence(self, log_posteriors: np.ndarray, log_base: np.ndarray) -> float:
         """Relative log evidence Z(q)/Z(base) for a base-prior tilt (§27.5).

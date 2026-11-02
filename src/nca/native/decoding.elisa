@@ -232,8 +232,8 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
 # Product of prior edge and final weights, in log space (NCA.prior, §27).
 def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[f64], final: view[f64], start: i64, selected: view[i64]) -> f64 can[Abort.Panic]:
     width: i64 = alphabet.len.i64()
-    state, total =
-        for k in 0..<selected.len.i64() |state: i64 = start, total: f64 = 0.0| -> (state, total):
+    state, total, failed =
+        for k in 0..<selected.len.i64() |state: i64 = start, total: f64 = 0.0, failed: bool = false| -> (state, total, failed):
             column: i64 =
                 for j in 0..<width |found: i64 = -1| -> found:
                     if alphabet[j] == selected[k]:
@@ -243,9 +243,17 @@ def prior_log_weight(alphabet: view[i64], transitions: view[i64], weights: view[
             edge: i64 = state * width + column
             target: i64 = transitions[edge]
             return log(0.0) if target < 0
-            total += weights[edge]
+            return log(0.0) if weights[edge] == log(0.0)
+            if not failed:
+                value: f64 = partition_log_product(total, weights[edge])
+                if value != value:
+                    failed <- true
+                else:
+                    total <- value
             state <- target
-    return total + final[state]
+    return log(0.0) if final[state] == log(0.0)
+    return log(-1.0) if failed
+    return partition_log_product(total, final[state])
 
 def log_add_present(x: f64, y: f64) -> f64:
     return x + log1p(exp(y - x)) if x >= y else y + log1p(exp(x - y))

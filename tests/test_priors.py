@@ -1014,6 +1014,29 @@ def test_prior_decoder_handles_gaps_and_moving_state_envelopes() -> None:
     np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_log_weight_detects_loss_but_preserves_zero_mass(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1, 2), np.array([[0, 0, -1]]),
+                              np.array([[float(2**54), 1.0, 0.0]]), np.zeros(1))
+    with pytest.raises(ValueError, match="prior log weight.*precision"):
+        prior.log_weight((0, 1))
+    assert prior.log_weight((0, 1, 2)) == -np.inf
+    overflow = priors.ArityPrior((0, 1), np.array([[0, -1]]),
+                                 np.array([[1e308, 0.0]]), np.zeros(1))
+    with pytest.raises(ValueError, match="prior log weight.*finite"):
+        overflow.log_weight((0, 0))
+    assert overflow.log_weight((0, 0, 1)) == -np.inf
+    zero_edge = priors.ArityPrior((0, 1), np.array([[0, 0]]),
+                                  np.array([[1e308, -np.inf]]), np.zeros(1))
+    assert zero_edge.log_weight((0, 0, 1)) == -np.inf
+    zero_final = priors.ArityPrior((0, 1), np.array([[0, 1], [-1, -1]]),
+                                   np.array([[1e308, 0.0], [0.0, 0.0]]),
+                                   np.array([0.0, -np.inf]))
+    assert zero_final.log_weight((0, 0, 1)) == -np.inf
+
+
 def test_native_prior_log_weight_matches_reference_for_all_short_sequences(
         monkeypatch: pytest.MonkeyPatch) -> None:
     if getattr(priors._NATIVE, "prior_log_weight", None) is None:

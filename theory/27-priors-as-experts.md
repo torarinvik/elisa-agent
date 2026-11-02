@@ -298,6 +298,9 @@ Finite log-weight additions use the same local TwoSum residual check as the
 format partition; it detects a materially rounded individual addition, not
 the accumulated error of an entire partition. The Lean identity establishes
 the corresponding exact-real algebra; it is not a proof of binary64 rounding.
+The individual prior-path log-weight calculation applies the same local
+check. A forbidden transition or zero edge/final mass still makes the path
+weight zero, even if an earlier intermediate sum could not be represented.
 Subtracting one common log weight per reading row, one from every supported
 edge, and one from every supported final state scales every fixed-length path
 by the same factor. Its selected-to-alternative risk is unchanged by Theorem
