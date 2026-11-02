@@ -139,6 +139,7 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
             largest <- alphabet[j] if alphabet[j] > largest else largest
     m: i64 = log_probs.len.i64() / width
     return [FLOOR] if m == 0
+    row_size: i64 = m + 1
     offsets: darray[i64] =
         for k in 0..<(m + 1) |offsets: darray[i64] = [0 for _ in 0..<(m + 2)]| -> offsets:
             offsets[k + 1] <- offsets[k] + live(k, m, max_arity) + 1
@@ -149,43 +150,49 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
         return [FLOOR] if log_probs[i] != log(0.0) and weights[i] < 2.2250738585072014e-308
         return [FLOOR] if weights[i] == -log(0.0)
     forward, best, choice, totals, log_z =
-        for k in 0..<m |forward: darray[f64] = [1.0 if i == offsets[0] + 1 else 0.0 for i in 0..<offsets[m + 1]], best: darray[f64] = [0.0 if i == offsets[0] + 1 else FLOOR for i in 0..<offsets[m + 1]], choice: darray[i64] = [0 for _ in 0..<offsets[m + 1]], totals: darray[f64] = [1.0 for _ in 0..<(m + 1)], log_z: f64 = 0.0| -> (forward, best, choice, totals, log_z):
+        for k in 0..<m |forward: darray[f64] = [1.0 if i == offsets[0] + 1 else 0.0 for i in 0..<offsets[m + 1]], best: darray[f64] = [0.0 if i == 1 else FLOOR for i in 0..<(2 * row_size)], choice: darray[i64] = [0 for _ in 0..<offsets[m + 1]], totals: darray[f64] = [1.0 for _ in 0..<(m + 1)], log_z: f64 = 0.0| -> (forward, best, choice, totals, log_z):
+            best_here: i64 = (k % 2) * row_size
+            best_next: i64 = ((k + 1) % 2) * row_size
+            for n in 0..<(live(k + 1, m, max_arity) + 1) |best|:
+                best[best_next + n] <- FLOOR
             total: f64 = |forward, best, choice|
                 next_row: i64 = offsets[k + 1]
                 next_top: i64 = live(k + 1, m, max_arity)
                 for n in 1..<(live(k, m, max_arity) + 1) |forward, best, choice|:
-                    here_best: f64 = best[offsets[k] + n]
+                    here_best: f64 = best[best_here + n]
                     continue if here_best <= FLOOR
                     here: f64 = forward[offsets[k] + n] / totals[k]
                     for j in 0..<width |forward, best, choice|:
                         continue if alphabet[j] > next_top
-                        cell: i64 =
-                            target: i64 = n - 1 + alphabet[j]
-                            continue if target > next_top
-                            next_row + target
+                        target: i64 = n - 1 + alphabet[j]
+                        continue if target > next_top
+                        cell: i64 = next_row + target
                         weight: f64 = weights[k * width + j]
                         contribution: f64 = here * weight
                         return [FLOOR] if here > 0.0 and weight > 0.0 and contribution < 2.2250738585072014e-308
                         forward[cell] <- forward[cell] + contribution
                         candidate: f64 = here_best + log_probs[k * width + j]
-                        choice[cell] <- j if candidate > best[cell] or (candidate == best[cell] and j < choice[cell]) else choice[cell]
-                        best[cell] <- candidate if candidate > best[cell] else best[cell]
+                        choice[cell] <- j if candidate > best[best_next + target] or (candidate == best[best_next + target] and j < choice[cell]) else choice[cell]
+                        best[best_next + target] <- candidate if candidate > best[best_next + target] else best[best_next + target]
                 for n in 0..<(next_top + 1) |total: f64 = 0.0| -> total:
                     total += forward[next_row + n]
             totals[k + 1] <- 1.0 if total <= 0.0 else total
             log_z <- FLOOR if total <= 0.0 or log_z <= FLOOR else log_z + log(total)
-    return [FLOOR] if log_z <= FLOOR or best[offsets[m]] <= FLOOR
+    return [FLOOR] if log_z <= FLOOR or best[(m % 2) * row_size] <= FLOOR
     decoded: darray[f64] =
         for step in 0..<m |decoded: darray[f64] = [log_z if i == 0 else 0.0 for i in 0..<(1 + m + m * width)], state: i64 = 0| -> decoded:
             arity: i64 = alphabet[choice[offsets[m - step] + state]]
             decoded[m - step] <- arity.f64()
             state <- state + 1 - arity
     result: darray[f64] =
-        for step in 0..<m |result: darray[f64] = decoded, backward: darray[f64] = [1.0 if (i == offsets[m]) else 0.0 for i in 0..<offsets[m + 1]]| -> result:
+        for step in 0..<m |result: darray[f64] = decoded, backward: darray[f64] = [1.0 if i == (m % 2) * row_size else 0.0 for i in 0..<(2 * row_size)]| -> result:
             k: i64 = m - 1 - step
             here_row: i64 = offsets[k]
-            next_row: i64 = offsets[k + 1]
+            backward_here: i64 = (k % 2) * row_size
+            backward_next: i64 = ((k + 1) % 2) * row_size
             next_top: i64 = live(k + 1, m, max_arity)
+            for n in 0..<(live(k, m, max_arity) + 1) |backward|:
+                backward[backward_here + n] <- 0.0
             for j in 0..<width |result, backward|:
                 continue if alphabet[j] > next_top
                 through_total: f64 = |backward|
@@ -195,10 +202,10 @@ def decode(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Memory.
                         through: f64 =
                             target: i64 = n - 1 + alphabet[j]
                             continue if target > next_top
-                            weight * backward[next_row + target]
+                            weight * backward[backward_next + target]
                         return [FLOOR] if through == -log(0.0) or through != through
-                        backward[here_row + n] <- backward[here_row + n] + through
-                        return [FLOOR] if backward[here_row + n] == -log(0.0)
+                        backward[backward_here + n] <- backward[backward_here + n] + through
+                        return [FLOOR] if backward[backward_here + n] == -log(0.0)
                         through_total += forward[here_row + n] * through
                 result[1 + m + k * width + j] <- through_total / totals[k]
     return result
