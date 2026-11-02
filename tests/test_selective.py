@@ -734,6 +734,21 @@ def test_risk_allocation_uses_current_bound(priorities: list[float]) -> None:
         assert len(charges) == len(priorities)
 
 
+@pytest.mark.parametrize("native", [False, True])
+def test_risk_allocation_accepts_numpy_vectors(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "risk_shares_covering", None) is None:
+        pytest.skip("native risk allocation kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    priorities = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    assert allocate_risk(0.3, priorities) == pytest.approx([0.05, 0.10, 0.15])
+    assert allocate_risk(0.3, np.zeros(2)) == pytest.approx([0.15, 0.15])
+    with pytest.raises(ValueError, match="at least one item"):
+        allocate_risk(0.3, np.array([], dtype=np.float64))
+
+
 @pytest.mark.parametrize("bound, priorities", [(float("nan"), [1.0]),
                                                (-0.1, [1.0]), (0.1, []),
                                                (0.1, [-1.0]), (0.1, [float("inf")])])

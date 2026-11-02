@@ -757,14 +757,15 @@ def _cost_aware_choice(open_: Sequence[int], charges: dict[int, float],
 def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
     """Allocate a current bound using possibly stale, nonnegative priorities.
 
-    Priorities guide refinement only; their age does not affect the total
+    Priorities may be a Python sequence or a one-dimensional NumPy array.
+    They guide refinement only; their age does not affect the total
     charge in exact arithmetic (THEORY 23.11). Zero priorities receive a
     uniform allocation. If every share underflows, one retains the bound;
     positive allocations are adjusted to cover the bound under binary64 arithmetic.
     """
     if not math.isfinite(bound) or bound < 0:
         raise ValueError("bound must be finite and nonnegative")
-    if not priorities:
+    if len(priorities) == 0:
         raise ValueError("risk allocation requires at least one item")
     checked = getattr(_NATIVE, "risk_shares_covering", None)
     if checked is not None:
