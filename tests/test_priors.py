@@ -680,6 +680,28 @@ def test_decoded_checks_marginal_rows(reference, row, valid, monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_unit_prior_decode_recovers_marginals_from_precision_loss(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.zeros((1, 2)), np.zeros(1))
+    rows = np.full((4, 2), 1e307)
+    result = prior.decode(rows)
+    assert result is not None and result.log_z == 4e307
+    np.testing.assert_allclose(result.marginals, np.full((4, 2), 0.5))
+    assert result.risk(rows, (0, 1)) == pytest.approx(15 / 16)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_nonunit_prior_decode_still_reports_precision_loss(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.full((1, 2), 0.1), np.zeros(1))
+    with pytest.raises(ValueError, match="marginals are not normalized"):
+        prior.decode(np.full((1, 2), float(2**52)))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_decode_rejects_unnormalized_marginals_from_precision_loss(
         reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:

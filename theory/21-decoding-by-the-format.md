@@ -121,6 +121,11 @@ Each is the sum-product theorem applied to a prefix and a suffix.
 Finite-precision implementations check that each emitted marginal row is
 nonnegative, finite, and sums approximately to one. This catches some severe
 roundoff failures but does not certify otherwise normalized results.
+When that check fails, format decoding can retry with checked common row
+shifts and restore the normalizer to its original log scale. At very large
+scales the binary64 normalizer can still lose small corrections; subtracting
+it from a selected log weight is not a reliable replacement for the separate
+sequence-risk calculation.
 The maximum recurrence needs only its preceding state row; retaining its
 chosen predecessor at each position is sufficient for traceback. Likewise,
 the marginal calculation needs only the next backward row while traversing

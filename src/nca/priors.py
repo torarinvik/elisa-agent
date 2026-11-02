@@ -101,6 +101,10 @@ class _PartitionArithmeticError(ValueError):
     """A partition could not be represented with the required local precision."""
 
 
+class _MarginalPrecisionError(ValueError):
+    """A decoder produced visibly invalid marginal probabilities."""
+
+
 def _partition_log_add(left: float, right: float, context: str) -> float:
     with np.errstate(over="ignore"):
         result = float(np.logaddexp(left, right))
@@ -151,6 +155,18 @@ def _center_unit_prior_rows(rows: np.ndarray, prior: ArityPrior) -> np.ndarray |
             or np.any((prior.log_final != 0.0) & (prior.log_final != -math.inf))):
         return None
     return _center_log_rows(rows)
+
+
+def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None) -> Decoded:
+    if decoded is None:
+        raise _MarginalPrecisionError("centered decoding unexpectedly has no supported path")
+    try:
+        log_z = math.fsum([*(float(offset) for offset in np.max(rows, axis=1)), decoded.log_z])
+    except OverflowError as exc:
+        raise _MarginalPrecisionError("restored decoder normalizer is not finite") from exc
+    if not math.isfinite(log_z):
+        raise _MarginalPrecisionError("restored decoder normalizer is not finite")
+    return Decoded(decoded.arities, log_z, decoded.marginals, decoded.prior)
 
 
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
@@ -392,6 +408,18 @@ class ArityPrior:
     def decode(self, log_probs: np.ndarray) -> Decoded | None:
         """Sum, maximize and marginalize reading weight times prior weight."""
         rows = self._rows(log_probs)
+        try:
+            return self._decode_rows(rows)
+        except _MarginalPrecisionError as failure:
+            centered = _center_unit_prior_rows(rows, self)
+            if centered is None or np.array_equal(centered, rows):
+                raise
+            try:
+                return _restore_centered_decoded(rows, self._decode_rows(centered))
+            except ValueError:
+                raise failure from None
+
+    def _decode_rows(self, rows: np.ndarray) -> Decoded | None:
         m, width = rows.shape
         if not m:
             log_z = float(self.log_final[self.start])
@@ -789,7 +817,7 @@ class Decoded:
             valid = (np.all(np.isfinite(self.marginals)) and np.all(self.marginals >= 0)
                      and np.allclose(totals, 1.0, rtol=1e-8, atol=1e-10))
         if not valid:
-            raise ValueError("decoder marginals are not normalized; numerical precision was lost")
+            raise _MarginalPrecisionError("decoder marginals are not normalized; numerical precision was lost")
 
     def log_weight(self, log_probs: np.ndarray, alphabet: Sequence[int],
                    arities: Sequence[int]) -> float:

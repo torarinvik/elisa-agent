@@ -2033,10 +2033,34 @@ def test_format_risk_preserves_error_when_centering_is_unsafe(reference, monkeyp
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
-def test_decode_rejects_unnormalized_marginals_from_precision_loss(decoder) -> None:
+def test_decode_recovers_unnormalized_marginals_from_precision_loss(decoder) -> None:
     rows = np.full((3, 3), 1e307)
-    with pytest.raises(ValueError, match="marginals are not normalized"):
-        decoder(rows)
+    result = decoder(rows)
+    assert result is not None
+    assert result.log_z == 3e307
+    np.testing.assert_allclose(result.marginals, [[0, 0.5, 0.5], [0.5, 0.5, 0], [1, 0, 0]])
+    assert result.risk(rows, (0, 1, 2)) == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_centered_retry_matches_enumeration(decoder) -> None:
+    rng = np.random.default_rng(881)
+    candidates = list(parseable(5))
+    for _ in range(30):
+        rows = rng.integers(-3, 4, size=(5, 3)).astype(float) + float(2**52)
+        centered = rows - rows.max(axis=1, keepdims=True)
+        scores = np.array([sum(centered[k, a] for k, a in enumerate(path)) for path in candidates])
+        weights = np.exp(scores - scores.max())
+        weights /= weights.sum()
+        expected = np.zeros((5, 3))
+        for path, weight in zip(candidates, weights, strict=True):
+            expected[np.arange(5), list(path)] += weight
+        result = decoder(rows)
+        assert result is not None
+        assert scores[candidates.index(result.arities)] == scores.max()
+        np.testing.assert_allclose(result.marginals, expected, atol=1e-12)
+        assert result.risk(rows, (0, 1, 2)) == pytest.approx(
+            1 - weights[candidates.index(result.arities)], abs=1e-12)
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])

@@ -269,6 +269,10 @@ would be representable after cancellation.
 Full decoding also checks marginal rows for finite, nonnegative entries and
 approximate unit sum. This detects some loss of precision but is not a
 floating-point error bound and cannot validate every normalized result.
+On a detected marginal failure, a unit-weight prior can retry decoding after
+checked common row shifts and restore the normalizer to its original scale.
+That binary64 normalizer may still lose small corrections at large magnitudes;
+the selected-sequence risk is computed separately.
 Partition calculations likewise reject a log-sum correction distorted by at
 least `1.01 × 10⁻⁸`; other numerical errors can remain undetected. Incremental
 partition updates invalidate their cached suffix after this arithmetic failure

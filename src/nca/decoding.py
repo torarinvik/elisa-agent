@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from itertools import accumulate
 
 import numpy as np
 
 from nca.native import load
-from nca.priors import (Decoded, _generic_format_sequence_risk as _format_sequence_risk,
-                        _native_format_symbols, risk_from_log_weight, sequence_log_weight)
+from nca.priors import (Decoded, _center_log_rows,
+                        _generic_format_sequence_risk as _format_sequence_risk,
+                        _MarginalPrecisionError, _native_format_symbols,
+                        _restore_centered_decoded, risk_from_log_weight, sequence_log_weight)
 
 _NATIVE = load("decoding")
 
@@ -86,8 +88,27 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
     Uses the native kernel ``nca.native.decoding`` when it is built, and
     ``decode_reference`` otherwise; the two agree to rounding."""
     log_probs = _format_inputs(log_probs, alphabet)
+    return _format_decode_with_retry(log_probs, alphabet, _decode_native_once)
+
+
+def _format_decode_with_retry(
+        log_probs: np.ndarray, alphabet: Sequence[int],
+        decoder: Callable[[np.ndarray, Sequence[int]], Decoded | None]) -> Decoded | None:
+    try:
+        return decoder(log_probs, alphabet)
+    except _MarginalPrecisionError as failure:
+        centered = _center_log_rows(log_probs)
+        if centered is None or np.array_equal(centered, log_probs):
+            raise
+        try:
+            return _restore_centered_decoded(log_probs, decoder(centered, alphabet))
+        except ValueError:
+            raise failure from None
+
+
+def _decode_native_once(log_probs: np.ndarray, alphabet: Sequence[int]) -> Decoded | None:
     if _NATIVE is None or len(log_probs) == 0:
-        return decode_reference(log_probs, alphabet)
+        return _decode_reference_once(log_probs, alphabet)
     m = len(log_probs)
     flat = np.ascontiguousarray(log_probs, dtype=np.float64).ravel()
     native_alphabet = _native_format_symbols(alphabet, m)
@@ -96,7 +117,7 @@ def decode(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2)) -> Decode
         # The linear-space kernel requests log space when it loses precision.
         native_log = getattr(_NATIVE, "decode_log", None)
         if native_log is None:
-            return decode_reference(log_probs, alphabet)
+            return _decode_reference_once(log_probs, alphabet)
         out = np.asarray(native_log(flat, native_alphabet))
         if not len(out):
             return None
@@ -117,6 +138,10 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
     """``decode`` in NumPy: the dynamic programs in log space, with all states
     ``n ≤ m − k`` that can still be completed at position ``k``."""
     log_probs = _format_inputs(log_probs, alphabet)
+    return _format_decode_with_retry(log_probs, alphabet, _decode_reference_once)
+
+
+def _decode_reference_once(log_probs: np.ndarray, alphabet: Sequence[int]) -> Decoded | None:
     m = len(log_probs)
     if m == 0:
         return None
