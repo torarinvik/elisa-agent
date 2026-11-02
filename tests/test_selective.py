@@ -1507,6 +1507,43 @@ def test_native_observation_logs_match_fallback(monkeypatch) -> None:
     np.testing.assert_array_equal(strided, fallback)
 
 
+def test_native_observation_logs_into_matches_legacy_and_validates() -> None:
+    from nca import ladder as ladder_module
+
+    native = ladder_module._NATIVE
+    kernel = getattr(native, "observation_logs_into", None)
+    if kernel is None:
+        pytest.skip("native observation output buffer is not built")
+    values = np.array([0.0, np.nextafter(0.0, 1.0), 1e-300, 1.0, 1e300])
+    output = np.empty_like(values)
+    assert kernel(values, output) == 0
+    np.testing.assert_array_equal(output, native.observation_logs(values))
+    assert kernel(values, np.empty(1)) == -1
+    for invalid in ([], [0.0, 0.0], [1.0, -1.0], [1.0, math.nan], [1.0, math.inf]):
+        invalid = np.array(invalid, dtype=np.float64)
+        sentinel = np.full_like(invalid, -42.0)
+        assert kernel(invalid, sentinel) == -1
+        np.testing.assert_array_equal(sentinel, np.full_like(invalid, -42.0))
+
+
+def test_observation_supports_older_native_kernel(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    native = ladder_module._NATIVE
+    if getattr(native, "observation_logs", None) is None:
+        pytest.skip("native observation preparation is not built")
+    class LegacyNative:
+        def __getattr__(self, name):
+            if name == "observation_logs_into":
+                raise AttributeError(name)
+            return getattr(native, name)
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", LegacyNative())
+    rung = Rung(constant("legacy-observation", (1.0, 0.0, 1e-300), 1.0))
+    np.testing.assert_array_equal(rung.observe(None).numpy(),
+                                  native.observation_logs(np.array([1.0, 0.0, 1e-300])))
+
+
 def test_observation_decisions_match_across_cpu_paths(monkeypatch) -> None:
     from nca import ladder as ladder_module
 

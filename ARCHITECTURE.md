@@ -894,6 +894,9 @@ floating-point rounding can change a near-tied winner.
 Reading, risk, and distribution paths require positive finite temperatures
 for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.
+On CPU, Elisa `observation_logs_into` validates weights and writes floored
+logarithms into caller-owned storage; older native builds and the reference
+implementation remain supported.
 Integer logits are shifted relative to the selected classes before conversion
 to floating point. On CPU, Elisa `shifted_integer_logits_into` writes the
 shifted values into a caller-owned array; other devices and missing kernels

@@ -22,16 +22,24 @@ def matrix_shape(size: i64, rows: i64, columns: i64) -> bool:
     return false if size < 0 or rows <= 0 or columns <= 0
     return size / columns == rows and size % columns == 0
 
+def valid_observation_weights(values: view[f64]) -> bool can[Abort.Panic]:
+    return
+        for i in 0..<values.len.i64() |positive: bool = false| -> positive:
+            x: f64 = values[i]
+            return false if x != x or x < 0.0 or x == -log(0.0)
+            positive <- true if x > 0.0 else positive
+
 # Validate nonnegative finite weights and produce their floored logarithms.
 # An empty result signals an invalid vector (including an all-zero vector).
 def observation_logs(values: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
-    positive: bool =
-        for i in 0..<values.len.i64() |positive: bool = false| -> positive:
-            x: f64 = values[i]
-            return [] if x != x or x < 0.0 or x == -log(0.0)
-            positive <- true if x > 0.0 else positive
-    return [] if not positive
+    return [] if not valid_observation_weights(values)
     return [log(values[i] if values[i] > 0.0 else nextafter(0.0, 1.0)) for i in 0..<values.len.i64()]
+
+def observation_logs_into(values: view[f64], output: mutable view[f64]) -> i64 can[Abort.Panic]:
+    return -1 if output.len.i64() != values.len.i64() or not valid_observation_weights(values)
+    for i in 0..<values.len.i64():
+        output[i] <- log(values[i] if values[i] > 0.0 else nextafter(0.0, 1.0))
+    return 0
 
 # Sum finite nonnegative binary64 values, rounding each inexact addition up.
 def upper_add(total: f64, x: f64) -> f64:
@@ -2010,6 +2018,7 @@ export pymodule decoding:
     fn clamp_format_symbols
     fn clamp_unsigned_format_symbols
     fn observation_logs
+    fn observation_logs_into
     fn upper_sum
     fn lower_sum
     fn detection_floors

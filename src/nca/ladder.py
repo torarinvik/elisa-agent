@@ -464,6 +464,7 @@ class Rung:
         if isinstance(output, torch.Tensor) and output.is_complex():
             raise ValueError("expert output must contain real-valued weights")
         native = getattr(_NATIVE, "observation_logs", None)
+        native_into = getattr(_NATIVE, "observation_logs_into", None)
         array = None
         if isinstance(output, (tuple, list, np.ndarray)):
             try:
@@ -495,6 +496,12 @@ class Rung:
             if array.ndim != 1:
                 raise ValueError("expert output must be a one-dimensional weight vector")
             array = np.ascontiguousarray(array)
+            if native_into is not None:
+                logs = np.empty_like(array)
+                if native_into(array, logs) != 0:
+                    raise ValueError("expert output must contain finite nonnegative weights with positive mass")
+                logits = torch.from_numpy(logs)
+                return RankedObservation(logits, tuple(array.tolist())) if ranked else logits
             if native is not None:
                 logs = native(array)
                 if not logs:
