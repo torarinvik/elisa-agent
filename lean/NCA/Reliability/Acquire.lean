@@ -191,4 +191,16 @@ theorem ordered_product_fold (values : List ℝ) (acc : ℝ) :
   | nil => simp
   | cons x xs ih => simp [List.foldl_cons, List.prod_cons, ih, mul_assoc]
 
+/-- A strongest simple case of faithful chain restoration: corresponding
+endomorphisms agree everywhere, so their ordered executions agree. -/
+theorem restored_chain_eq {X : Type*} (before after : List (X → X))
+    (faithful : List.Forall₂ (fun f g => ∀ x, f x = g x) before after) (value : X) :
+    before.foldl (fun x f => f x) value = after.foldl (fun x f => f x) value := by
+  induction faithful generalizing value with
+  | nil => rfl
+  | cons same rest ih =>
+    simp only [List.foldl_cons]
+    rw [same value]
+    exact ih _
+
 end NCA

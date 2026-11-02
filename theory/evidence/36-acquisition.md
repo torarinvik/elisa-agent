@@ -490,3 +490,22 @@ experiments must compare both implementations, including finite extremes,
 underflow, overflow rejection and empty bases. Wrapper validation of finite
 Python-float tuples and finite output monomials remains identical on both paths.
 No reassociation or exponentiation substitution is allowed by this design.
+
+## 36.25 Retaining acquired encoder chains
+
+An acquired numeric representation is a finite chain of known fitted runtimes
+ending in a content-identified external measurement. Retain each generated type
+and parameter record separately, with an explicit dependency on the preceding
+artifact/export. Factories reconstruct the fitted runtime from parameters and
+lazy dependencies; no external expert implementation or training rows are copied.
+A chain serializer verifies the original external binding before saving and
+rebinds later stages to the corresponding reconstructed predecessor. Cycles are
+rejected. Byte sizes remain caller declarations, not measured resident memory.
+
+If each stage's restored function equals its trained function, then their
+composition does too. Lean proves this conditional list-of-endomorphisms special
+case by induction. Heterogeneous typed constructors, executable factory fidelity,
+floating-point behavior and the store/FFI remain unproved implementation
+obligations. Admission and content identity check wiring and metadata, not
+semantic equivalence. Existing package composition can export a restored
+encoder plus a separately retained decoder; saved artifacts assert no calibration.

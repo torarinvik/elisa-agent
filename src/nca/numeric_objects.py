@@ -10,10 +10,13 @@ from nca.discovery import FeatureTree
 from nca.numeric_learning import PartitionEncoder, RegionsEncoder
 from nca.objects import Primitive, Ref, Store, digest, manifest_data
 from nca.packages import install, resolve_binding
+from nca.projection_learning import PolynomialEncoder, ProjectionEncoder
 from nca.tree_objects import tree_object
 
 
 Binding = tuple[Ref, int]
+Encoder = PartitionEncoder | RegionsEncoder | ProjectionEncoder | PolynomialEncoder
+_ENCODERS = (PartitionEncoder, RegionsEncoder, ProjectionEncoder, PolynomialEncoder)
 
 
 def _measurement(dependencies: tuple[tuple[Module, ...], ...], index: int) -> Module:
@@ -39,31 +42,92 @@ def load_regions(manifest: dict[str, Any], index: int, cost: float, boundaries: 
     return encoder
 
 
-def encoder_object(store: Store, encoder: PartitionEncoder | RegionsEncoder,
-                   binding: Binding, *, size: int) -> Primitive:
-    """Snapshot parameters after verifying the original measurement artifact binding.
+def load_projection(manifest: dict[str, Any], index: int, cost: float, direction: list[float],
+                    dependencies: tuple[tuple[Module, ...], ...]) -> ProjectionEncoder:
+    encoder = ProjectionEncoder(_measurement(dependencies, index), tuple(direction), cost)
+    encoder.manifest = replace(encoder.manifest, module_id=manifest["module_id"])
+    return encoder
 
-    Store the generated constructor before admitting this primitive. Its factory
-    reconstructs metadata from the measurement and parameters; Primitive.load
-    checks it against the stored manifest. External code fidelity is assumed.
-    """
-    reference, index = binding
-    resolve_binding(store, reference, index, encoder.measurement)
+
+def load_polynomial(manifest: dict[str, Any], index: int, cost: float, dimension: int,
+                    degree: int, max_terms: int,
+                    dependencies: tuple[tuple[Module, ...], ...]) -> PolynomialEncoder:
+    encoder = PolynomialEncoder(_measurement(dependencies, index), dimension, degree,
+                                max_terms=max_terms, cost=cost)
+    encoder.manifest = replace(encoder.manifest, module_id=manifest["module_id"])
+    return encoder
+
+
+def _parameters(encoder: Encoder) -> tuple[Callable[..., Encoder], dict[str, Any]]:
+    if isinstance(encoder, PartitionEncoder):
+        return load_partition, {"boundary": encoder.boundary}
+    if isinstance(encoder, RegionsEncoder):
+        return load_regions, {"boundaries": list(encoder.boundaries)}
+    if isinstance(encoder, ProjectionEncoder):
+        return load_projection, {"direction": list(encoder.direction)}
+    if isinstance(encoder, PolynomialEncoder):
+        return load_polynomial, {"dimension": encoder.dimension, "degree": encoder.degree,
+                                 "max_terms": max(1, len(encoder.terms))}
+    raise TypeError("unsupported fitted encoder runtime")
+
+
+def _increment(encoder: Encoder) -> float:
     cost = encoder.manifest.cost - encoder.measurement.manifest.cost
     if not math.isfinite(cost) or cost < 0:
         raise ValueError("encoding cost must be finite and nonnegative")
-    arguments = {"index": index, "cost": cost}
-    if isinstance(encoder, PartitionEncoder):
-        entry = "nca.numeric_objects:load_partition"
-        arguments["boundary"] = encoder.boundary
-    else:
-        entry = "nca.numeric_objects:load_regions"
-        arguments["boundaries"] = list(encoder.boundaries)
+    return cost
+
+
+def encoder_object(store: Store, encoder: Encoder, binding: Binding, *, size: int) -> Primitive:
+    """Snapshot fitted parameters with a verified content-identified measurement.
+
+    Store the generated constructor first. Factories reconstruct metadata from
+    parameters/dependencies; Primitive.load checks it. External code fidelity is
+    assumed. Size declares only this stage, not its dependency closure.
+    """
+    reference, index = binding
+    resolve_binding(store, reference, index, encoder.measurement)
+    factory, parameters = _parameters(encoder)
+    arguments = {"index": index, "cost": _increment(encoder), **parameters}
     identity = digest({"parameters": arguments, "measurement": reference,
                        "constructor": encoder.constructor.ref})
     manifest = replace(encoder.manifest, module_id=f"learned-numeric/{identity}")
     arguments["manifest"] = manifest_data(manifest)
-    return Primitive(manifest, entry, arguments, size=size, dependencies=(reference,))
+    return Primitive(manifest, f"{__name__}:{factory.__name__}", arguments,
+                     size=size, dependencies=(reference,))
+
+
+def store_encoder_chain(store: Store, encoder: Module, bind: Callable[[Module], Binding], *,
+                        size: int) -> Binding:
+    """Retain a fitted chain without copying the external measurement implementation.
+
+    The binder must identify the original external leaf faithfully. Reconstruct
+    each saved predecessor before rebinding its successor; no trained module is
+    mutated. The returned binding names the final encoder. Constructors and
+    dependency artifacts are admitted in order; no active library is changed.
+    """
+    stages: list[Encoder] = []
+    seen: set[int] = set()
+    leaf = encoder
+    while isinstance(leaf, _ENCODERS):
+        if id(leaf) in seen:
+            raise ValueError("fitted encoder chain contains a cycle")
+        seen.add(id(leaf))
+        stages.append(leaf)
+        leaf = leaf.measurement
+    binding = bind(leaf)
+    restored = resolve_binding(store, *binding, leaf)
+    for stage in reversed(stages):
+        factory, parameters = _parameters(stage)
+        rebound = factory(manifest=manifest_data(stage.manifest), index=0,
+                          cost=_increment(stage), dependencies=((restored,),), **parameters)
+        if rebound.manifest != stage.manifest:
+            raise ValueError("restored predecessor changed fitted encoder metadata")
+        store.put(stage.constructor)
+        reference = store.put(encoder_object(store, rebound, binding, size=size))
+        binding = reference, 0
+        restored = install(store, reference)[0]
+    return binding
 
 
 def store_numeric_tree(store: Store, tree: FeatureTree, bind: Callable[[Module], Binding], *,
@@ -78,12 +142,9 @@ def store_numeric_tree(store: Store, tree: FeatureTree, bind: Callable[[Module],
     features = []
     bindings = []
     for feature in tree.features:
-        if isinstance(feature, (PartitionEncoder, RegionsEncoder)):
-            store.put(feature.constructor)
-            obj = encoder_object(store, feature, bind(feature.measurement), size=encoder_size)
-            reference = store.put(obj)
-            binding = reference, 0
-            restored = install(store, reference)[0]
+        if isinstance(feature, _ENCODERS):
+            binding = store_encoder_chain(store, feature, bind, size=encoder_size)
+            restored = install(store, binding[0])[binding[1]]
         else:
             binding = bind(feature)
             restored = resolve_binding(store, *binding, feature)

@@ -2228,3 +2228,12 @@ indices are checked before native buffer access. `ordered_product_fold` proves
 the real fold/product identity; bitwise float, FFI and failure correspondence
 are regression-tested rather than formally verified. Build with the ordinary
 native builder; `NCA_NATIVE=0` selects the reference path.
+
+`numeric_objects.store_encoder_chain` (§36.25) retains fitted polynomial,
+projection and scalar-partition stages as separate parameter artifacts linked
+to the verified original measurement reference/export. It reconstructs each
+predecessor before rebinding the next stage without mutating trained objects.
+`store_numeric_tree` uses the same chain serializer; ordinary composites can
+export the final encoder with a separately stored decoder. Installs remain lazy.
+`restored_chain_eq` proves conditional composition fidelity for endomorphism
+lists, not executable factories or heterogeneous typed serialization.

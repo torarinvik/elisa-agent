@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from nca.abi import Module
+from nca.abi import Contract, Manifest, Module
 from nca.discovery import train_tree
 from nca.loader import ExpertStore
 from nca.numeric_learning import midpoint_boundary, propose_partition, propose_regions
@@ -80,3 +80,82 @@ def test_locally_acquired_tree_round_trips_with_shared_measurements(tmp_path: Pa
     model_ids = [obj.manifest.ref for ref in store.walk(reference)
                  if isinstance(obj := store.get(ref), Primitive)]
     assert len(model_ids) == len(set(model_ids))
+
+
+class VectorMeasurement:
+    """External measurement fixture: artifacts retain its entry, never its code."""
+
+    manifest = Manifest("vector-measurement", "1", Contract(("input",), "features"),
+                        effects=frozenset())
+
+    def __init__(self, scale: float = 1.0) -> None:
+        self.scale = scale
+
+    def invoke(self, value: tuple[float, ...]) -> tuple[float, ...]:
+        return tuple(self.scale * x for x in value)
+
+
+def test_acquired_nonlinear_package_round_trips_lazily(tmp_path: Path) -> None:
+    from nca.discovery import decoder_object
+    from nca.numeric_objects import store_encoder_chain
+    from nca.objects import Composite
+    from nca.projection_learning import propose_polynomial_partitions
+
+    store = Store()
+    source_ref = store.put(Primitive(VectorMeasurement.manifest, f"{__name__}:VectorMeasurement",
+                                     size=16))
+    source = install(store, source_ref)[0]
+    rows = [((s * 1.0, t * 1.0),) for s, t in ((1, 1), (-1, -1), (1, -1), (-1, 1))]
+    proposal = propose_polynomial_partitions(Baseline(), source, rows,
+                [True, True, False, False], degrees=(2,), max_terms=5, limit=1,
+                lifting_cost=1, projection_cost=1, encoding_cost=1, decoder_cost=1,
+                place_boundary=midpoint_boundary, reuse_observations=True)[0]
+    encoder = proposal.expert.feature
+    original_source = encoder.measurement.measurement.measurement
+    reference, index = store_encoder_chain(store, encoder, bind, size=32)
+    assert index == 0
+    assert store_encoder_chain(store, encoder, bind, size=32) == (reference, index)
+    assert encoder.measurement.measurement.measurement is original_source
+    assert list(store.walk(reference)).count(source_ref) == 1
+    head_ref = store.put(decoder_object(proposal.expert.decoder, size=16))
+    package = store.put(Composite("acquired", "1", (reference, head_ref),
+                                 exports=(Baseline.manifest.contract,), effects=frozenset()))
+    tree = train_tree(Baseline(), [encoder], rows, [True, True, False, False],
+                      max_nodes=3, overhead_cost=0)
+    tree_ref = store_numeric_tree(store, tree, bind, tree_size=64, encoder_size=32)
+    store.save(tmp_path)
+    reopened = Store.open(tmp_path)
+    restored_tree = install(reopened, tree_ref)[0]
+    resident = ExpertStore(budget=128)
+    export = install(reopened, package, experts=resident)[0]
+    assert resident.stats.loads == 0
+    fresh = [(i / 10, j / 10) for i in range(-9, 10) for j in range(-9, 10)]
+    assert [export.invoke(x) for x in fresh] == [proposal.expert.invoke(x) for x in fresh]
+    assert [restored_tree.invoke(x) for x in fresh] == [tree.invoke(x) for x in fresh]
+    assert resident.stats.loads == 5
+    assert export.manifest.contract == proposal.expert.manifest.contract
+    assert export.manifest.cost == proposal.expert.manifest.cost
+    for constructor in proposal.constructors:
+        assert reopened.get(constructor.ref) == constructor
+    primitive_entries = [reopened.get(ref).entry for ref in reopened.walk(package)
+                         if isinstance(reopened.get(ref), Primitive)]
+    assert primitive_entries.count(f"{__name__}:VectorMeasurement") == 1
+
+
+def test_encoder_chain_rejects_wrong_external_binding_and_cycles() -> None:
+    from nca.numeric_objects import store_encoder_chain
+    from nca.projection_learning import PolynomialEncoder, ProjectionEncoder
+
+    store = Store()
+    first, second = [store.put(Primitive(VectorMeasurement.manifest,
+                     f"{__name__}:VectorMeasurement", {"scale": scale})) for scale in (1.0, 2.0)]
+    source = install(store, first)[0]
+    lift = PolynomialEncoder(source, 2, 2, max_terms=5, cost=1)
+    count = len(store)
+    with pytest.raises(ValueError, match="content identity"):
+        store_encoder_chain(store, lift, lambda module: (second, 0), size=32)
+    assert len(store) == count
+    projection = ProjectionEncoder(source, (1.0, 1.0), 1)
+    projection.measurement = projection
+    with pytest.raises(ValueError, match="cycle"):
+        store_encoder_chain(store, projection, bind, size=32)
