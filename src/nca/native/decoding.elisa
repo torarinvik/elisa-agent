@@ -898,10 +898,10 @@ def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view
 # current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
 # prefix traced back through the forward max rows and the best suffix forward through the
 # backward max rows.
-def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+# The ordered flag may be true only for a nondecreasing alphabet.
+def trace_ragged_with_order(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, ordered: bool) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     arities: i64 = alphabet.len.i64()
     m: i64 = low.len.i64() - 1
-    ordered: bool = arities_ordered(alphabet)
     left: (first: i64, last: i64) = support_envelope(forward_max, forward_max, offsets, low, high, k)
     right: (first: i64, last: i64) = support_envelope(backward_max, backward_max, offsets, low, high, k + 1)
     log_x, state, choice =
@@ -967,6 +967,10 @@ def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: vie
         result[1 + i] <- arity.f64()
         after <- target
     return result
+
+# Compatibility entry point determines the ordering on each call.
+def trace_ragged(forward_max: view[f64], backward_max: view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return trace_ragged_with_order(forward_max, backward_max, log_probs, alphabet, low, high, offsets, k, arities_ordered(alphabet))
 
 # Least-risk certificate on an already parsed prefix tree. Opcodes follow the
 # formula vocabulary: true, false, not, and, or, xor. Ties prefer the right child.
@@ -1281,6 +1285,7 @@ export pymodule decoding:
     fn scores_ragged_log
     fn scores_ragged_with_order
     fn trace_ragged
+    fn trace_ragged_with_order
     fn certificate
     fn parse_tree
     fn parse_tree_generic

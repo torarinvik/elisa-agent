@@ -570,9 +570,13 @@ class Split:
         self._advance(k)
         self._retreat(k + 1)
         if self._native is not None:
-            out = np.asarray(self._native.trace_ragged(self.forward_max, self.backward_max,
-                                           self.log_probs.reshape(-1), self.arities, self.low,
-                                           self.high, self.offsets, k))
+            args = (self.forward_max, self.backward_max, self.log_probs.reshape(-1),
+                    self.arities, self.low, self.high, self.offsets, k)
+            ordered_trace = getattr(self._native, "trace_ragged_with_order", None)
+            if ordered_trace is None:
+                out = np.asarray(self._native.trace_ragged(*args))
+            else:
+                out = np.asarray(ordered_trace(*args, self._arities_ordered))
             if np.isnan(out[0]):
                 raise ValueError("format decoding arithmetic is not finite")
             return float(out[0]), tuple(int(a) for a in out[1:])

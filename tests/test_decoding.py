@@ -1518,14 +1518,15 @@ def test_banded_split_falls_back_with_older_native_kernel(monkeypatch: pytest.Mo
 
 
 @pytest.mark.parametrize("alphabet", [(0, 1, 3, 10**100), (10**100, 3, 0, 1)])
-def test_split_cached_order_matches_legacy_native_scoring(alphabet: tuple[int, ...]) -> None:
+def test_split_cached_order_matches_legacy_native_kernels(alphabet: tuple[int, ...]) -> None:
     native = decoding._NATIVE
-    if getattr(native, "scores_ragged_with_order", None) is None:
-        pytest.skip("native cached-order scoring is not built")
+    if (getattr(native, "scores_ragged_with_order", None) is None
+            or getattr(native, "trace_ragged_with_order", None) is None):
+        pytest.skip("native cached-order kernels are not built")
 
     class OlderNative:
         def __getattr__(self, name: str) -> Any:
-            if name == "scores_ragged_with_order":
+            if name in ("scores_ragged_with_order", "trace_ragged_with_order"):
                 raise AttributeError(name)
             return getattr(native, name)
 
@@ -1537,11 +1538,16 @@ def test_split_cached_order_matches_legacy_native_scoring(alphabet: tuple[int, .
     with pytest.raises(ValueError):
         cursor.arities[0] = 0
     for k in (0, 6, 12):
+        rows[k] = np.log(rng.dirichlet(np.ones(len(alphabet))))
+        cursor.climb(k, rows[k])
         actual = cursor.scores(k, rows[k])
+        actual_best = cursor.best(k)
         cursor._native = OlderNative()
         expected = cursor.scores(k, rows[k])
+        expected_best = cursor.best(k)
         cursor._native = native
         assert actual == pytest.approx(expected)
+        assert actual_best == expected_best
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
