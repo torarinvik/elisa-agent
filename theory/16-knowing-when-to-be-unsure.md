@@ -97,6 +97,11 @@ selects from the numerical reading, including its tie behavior. In unequal group
 weights can change the group risk substantially because other classes add
 mass to one group. Numerical probabilities returned by `reading` can still
 tie: a consumer using ranked risk must select with the same retained ordering.
+If two possible selected groups have masses `A` and `B` within a decision
+of total mass `Z > 0`, their risks differ in absolute value by `|A − B| / Z`.
+Thus a near tie between individual weights gives no comparable bound on the
+risk difference: other members of the selected groups contribute to `A` and
+`B`.
 For batches, the same ordering argument applies independently to each row;
 callers may supply the original weights for selection when numerical readings
 have lost distinctions, provided the consumer uses that same ordering.

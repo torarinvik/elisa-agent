@@ -138,6 +138,14 @@ theorem batched_group_risk_bounds {ρ : Type*} (chosen outside : ρ → ℝ)
   · apply (div_le_one (ht row)).2
     linarith [hc row]
 
+/-- Changing the selected group changes risk by its normalized mass difference. -/
+theorem grouped_selection_risk_difference (a b total : ℝ) (positive : 0 < total) :
+    |(total - a) / total - (total - b) / total| = |a - b| / total := by
+  rw [← sub_div, abs_div, abs_of_pos positive]
+  congr 1
+  have h : total - a - (total - b) = b - a := by ring
+  rw [h, abs_sub_comm]
+
 /-- A positive observation floor leaves every represented input positive. -/
 theorem positive_observation_floor {p ε : ℝ} (hε : 0 < ε) : 0 < max p ε := by
   exact lt_of_lt_of_le hε (le_max_right p ε)

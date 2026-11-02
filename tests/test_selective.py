@@ -3241,6 +3241,9 @@ def test_batched_refinement_preserves_ranked_selection_after_log_tie(monkeypatch
     assert calls == [True, True]
     assert ranked.bound == ladder_module._upper_sum([risk] * len(values))
     assert ranked.bound != numerical.bound
+    group_masses = rung.distribution(observation.logits, decision)
+    assert abs(ranked.bound - numerical.bound) / len(values) == pytest.approx(
+        abs(float(group_masses[0] - group_masses[1])), abs=1e-14)
 
 
 def test_batched_default_account_leaves_missing_calibration_unavailable() -> None:
