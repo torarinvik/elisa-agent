@@ -102,6 +102,10 @@ class _PartitionArithmeticError(ValueError):
     """A partition could not be represented with the required local precision."""
 
 
+class _WeightArithmeticError(ValueError):
+    """A sequence weight could not be represented accurately."""
+
+
 class _MarginalPrecisionError(ValueError):
     """A decoder produced visibly invalid marginal probabilities."""
 
@@ -247,7 +251,7 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
         result = float(native_weight(np.asarray(log_probs, dtype=np.float64).reshape(-1),
                                      symbols, encoded))
         if math.isnan(result) or result == math.inf:
-            raise ValueError("sequence log weight arithmetic is not finite or loses precision")
+            raise _WeightArithmeticError("sequence log weight arithmetic is not finite or loses precision")
         return result
     symbols = tuple(alphabet)
     total, failed = 0.0, False
@@ -265,7 +269,7 @@ def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
             except _PartitionArithmeticError:
                 failed = True
     if failed:
-        raise ValueError("sequence log weight arithmetic is not finite or loses precision")
+        raise _WeightArithmeticError("sequence log weight arithmetic is not finite or loses precision")
     return total
 
 @dataclass(frozen=True)
@@ -324,7 +328,7 @@ class ArityPrior:
                                   self.transitions.reshape(-1), self.log_weights.reshape(-1),
                                   self.log_final, self.start, selected))
             if math.isnan(result) or result == math.inf:
-                raise ValueError("prior log weight arithmetic is not finite or loses precision")
+                raise _WeightArithmeticError("prior log weight arithmetic is not finite or loses precision")
             return result
         state, total, failed = self.start, 0.0, False
         for a in arities:
@@ -347,11 +351,11 @@ class ArityPrior:
         if final == -math.inf:
             return -math.inf
         if failed:
-            raise ValueError("prior log weight arithmetic is not finite or loses precision")
+            raise _WeightArithmeticError("prior log weight arithmetic is not finite or loses precision")
         try:
             return _partition_log_product(total, final, "prior log weight")
         except _PartitionArithmeticError as exc:
-            raise ValueError("prior log weight arithmetic is not finite or loses precision") from exc
+            raise _WeightArithmeticError("prior log weight arithmetic is not finite or loses precision") from exc
 
     def log_evidence(self, log_posteriors: np.ndarray, log_base: np.ndarray) -> float:
         """Relative log evidence Z(q)/Z(base) for a base-prior tilt (§27.5).
@@ -947,8 +951,23 @@ class Decoded:
         """Log weight of a sequence under readings and the optional prior."""
         if self.prior is not None and tuple(alphabet) != self.prior.alphabet:
             raise ValueError("alphabet must match the decoded prior")
-        reading = sequence_log_weight(log_probs, alphabet, arities)
-        return reading + (0.0 if self.prior is None else self.prior.log_weight(arities))
+        try:
+            reading = sequence_log_weight(log_probs, alphabet, arities)
+        except _WeightArithmeticError:
+            if self.prior is not None and self.prior.log_weight(arities) == -math.inf:
+                return -math.inf
+            raise
+        if self.prior is None or reading == -math.inf:
+            return reading
+        prior_weight = self.prior.log_weight(arities)
+        if prior_weight == -math.inf:
+            return -math.inf
+        try:
+            return _partition_log_product(reading, prior_weight, "decoded log weight")
+        except _PartitionArithmeticError as exc:
+            raise _WeightArithmeticError(
+                "decoded log weight arithmetic is not finite or loses precision"
+            ) from exc
 
     def risk(self, log_probs: np.ndarray, alphabet: Sequence[int],
              arities: Sequence[int] | None = None) -> float:

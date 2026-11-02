@@ -725,6 +725,28 @@ def test_sequence_log_weight_detects_loss_but_preserves_zero_mass(reference, mon
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_decoded_combines_weights_safely(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+
+    def decoded(edge, length=1):
+        prior = priors.ArityPrior((0,), np.array([[0]]), np.array([[edge]]), np.zeros(1))
+        return priors.Decoded((0,) * length, 0.0, np.ones((length, 1)), prior)
+
+    for reading, edge in ((float(2**54), 1.0), (1e308, 1e308)):
+        with pytest.raises(ValueError, match="decoded log weight.*precision"):
+            decoded(edge).log_weight(np.array([[reading]]), (0,), (0,))
+    assert decoded(-1e308).log_weight(np.array([[1e308]]), (0,), (0,)) == 0.0
+    assert decoded(-0.5).log_weight(np.array([[-2.0]]), (0,), (0,)) == -2.5
+    assert decoded(-np.inf, 2).log_weight(np.array([[1e308], [1e308]]),
+                                           (0,), (0, 0)) == -np.inf
+    assert decoded(1e308, 2).log_weight(np.array([[-np.inf], [0.0]]),
+                                         (0,), (0, 0)) == -np.inf
+    with pytest.raises(ValueError, match="one row"):
+        decoded(-np.inf).log_weight(np.empty((0, 1)), (0,), (0,))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_sequence_log_weight(reference: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference:
         monkeypatch.setattr(formulas, "_NATIVE", None)
