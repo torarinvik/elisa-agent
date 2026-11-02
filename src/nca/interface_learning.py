@@ -1,13 +1,13 @@
 """Acquire typed bridges from paired expert observations (§36.17)."""
 
 import math
-from collections import deque
-from collections.abc import Callable, Sequence
+from collections import Counter, deque
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
 from nca.abi import Contract, Module
-from nca.discovery import Decoded, Proposal, fit_decoder
+from nca.discovery import Decoded, JointFeature, Proposal, fit_decoder
 
 
 class AdapterFitter(Protocol):
@@ -133,3 +133,49 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
                 pending.extend(extra)
                 admitted += len(extra)
     return proposals
+
+
+def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
+        rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
+        max_candidates: int, limit: int, pair_cost: float) -> list[Proposal]:
+    """Resolve empirical category ambiguity by pairing representations (§36.45).
+
+    Observe the seed once per training row and each bounded companion once.
+    Rank joint features by modal training successes, retaining only strict gains
+    over the seed and at most limit outputs. Ties retain companion order. Stable
+    hashable keys/labels and observations are required. Use within a training-only
+    FeatureRefiner; categorical modal gains need not help another head family or
+    generalize. Returned features retain their original implementations, not data.
+    """
+    if any(type(n) is not int or n < 1 for n in (max_candidates, limit)):
+        raise ValueError("companion and output budgets must be positive integers")
+    if not math.isfinite(pair_cost) or pair_cost < 0:
+        raise ValueError("pair cost must be finite and nonnegative")
+    if not rows or len(rows) != len(labels):
+        raise ValueError("joint refinement needs nonempty aligned rows and labels")
+    contract = feature.expert.manifest.contract
+    if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("rows must supply slot fillings followed by inputs")
+    companions = tuple(companions[:max_candidates])
+    if any(replace(p.expert.manifest.contract, output=contract.output) != contract
+           for p in companions):
+        raise ValueError("companion features must preserve inputs, slots and relevance")
+
+    def score(keys: Sequence[Hashable]) -> int:
+        counts: dict[Hashable, Counter[Hashable]] = {}
+        for key, label in zip(keys, labels, strict=True):
+            counts.setdefault(key, Counter())[label] += 1
+        return sum(max(histogram.values()) for histogram in counts.values())
+
+    keys = tuple(feature.expert.invoke(*row) for row in rows)
+    baseline = score(keys)
+    ranked = []
+    for companion in companions:
+        joint_keys = tuple((key, companion.expert.invoke(*row))
+                           for row, key in zip(rows, keys, strict=True))
+        successes = score(joint_keys)
+        if successes > baseline:
+            joined = JointFeature(feature.expert, companion.expert, pair_cost)
+            ranked.append((successes, Proposal(joined, feature.constructors + companion.constructors)))
+    ranked.sort(key=lambda item: -item[0])
+    return [proposal for _, proposal in ranked[:limit]]

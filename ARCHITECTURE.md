@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.44) are described in the
+Regional acquisition and composition (§§36.26–36.45) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2382,3 +2382,10 @@ feature budget; a separate call budget limits refinement. Best training heads
 use success/cost/stable-order ranking, and no-head families can bootstrap with a
 None seed. `feature_admission_bound` proves the natural-number admission bound,
 not callback runtime, training fitness or generalization.
+
+`interface_learning.propose_joint_refinements` (§36.45) screens bounded companion
+features by empirical modal label improvement, emitting ranked `JointFeature`
+proposals with both constructor sets. It can implement a `FeatureRefiner` without
+specializing generic search to a task. `joint_key_refines_seed` proves the key
+partition implication; `binary_modal_split_le` supplies a restricted score result.
+Structural-product runtimes are not yet supported by automatic graph retention.

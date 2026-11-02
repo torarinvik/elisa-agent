@@ -345,3 +345,21 @@ computation. Perfect training heads and exhausted budgets skip refinement.
 Models, payloads and scoring must remain stable; independent whole-task
 selection still decides retention. This does not invent the refiner family,
 prove training seed quality or guarantee a useful representation exists.
+
+
+## 36.45 Combining representations to resolve ambiguity
+
+For a seed feature f, bound a supplied ordered companion family g. Compute the
+empirical modal score of f and of each pair (f,g); retain only strict gains,
+ranked by descending training score with stable ties and a bounded output count.
+Keys and labels are opaque stable hashable values. Pairing refines seed groups:
+equal joint keys imply equal seed keys. Lean proves this implication. The binary
+modal split inequality of §36.28 supports the two-label/two-child special case;
+no general executable score theorem or generalization guarantee is claimed.
+
+Each retained feature is an ordinary structural product of the original experts,
+carrying both sets of required constructor declarations. No training tables are
+retained in the feature. A categorical head may exploit the finer partition;
+other head families may not. Screening sees training data only, and independent
+whole-task selection decides retention. Finite sample gains can reflect noise;
+this learner combines supplied capabilities rather than inventing their bodies.

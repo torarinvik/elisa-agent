@@ -257,3 +257,75 @@ def test_feature_refinement_bootstraps_empty_head_families_with_total_budget() -
                       max_features=3, max_heads=1, max_refinements=1,
                       correct=lambda a, b: False,
                       refine=lambda *args: [Proposal(Consumer())])
+
+
+def test_joint_refiner_learns_an_informative_companion_from_training_ambiguity() -> None:
+    import random
+
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import propose_heads, propose_joint_refinements
+    from nca.objects import Constructor
+
+    class Feature:
+        def __init__(self, index: int) -> None:
+            self.index = index
+            self.constructor = Constructor("feature", "1", 0, str(index))
+            self.manifest = Manifest(f"feature-{index}", "1",
+                                     Contract(("input",), self.constructor.type()))
+
+        def invoke(self, value: Any) -> Any:
+            return value[self.index]
+
+    left, right, noise = (Feature(i) for i in range(3))
+    seed = Proposal(left, (left.constructor,))
+    companions = [Proposal(f, (f.constructor,)) for f in (noise, right)]
+    rng = random.Random(3648)
+    rows = [(tuple(rng.randrange(4) for _ in range(3)),) for _ in range(800)]
+    labels = [f"label-{(a + b) % 4}" for (a, b, _), in rows]
+    seen = []
+
+    def refine(feature: Any, head: Any, train: Any, targets: Any, budget: int) -> Any:
+        seen.append((tuple(train), tuple(targets), budget))
+        return propose_joint_refinements(feature, companions, train, targets,
+                                          max_candidates=2, limit=budget, pair_cost=1)
+
+    def propose(train: Any, targets: Any) -> Any:
+        return propose_heads(Baseline(), [seed],
+                    lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                    train, targets, max_features=2, max_heads=1, refine=refine,
+                    max_refinements=1, correct=lambda a, b: a == b)
+
+    result = discover(Baseline(), propose, rows, labels, lambda a, b: a == b)
+    assert result.chosen is not None and sum(result.trials[-1].outcomes) == 400
+    joint = result.chosen.expert.feature
+    assert joint.left is left and joint.right is right
+    assert result.chosen.constructors == (left.constructor, right.constructor)
+    assert seen == [(tuple(rows[:400]), tuple(labels[:400]), 1)]
+    assert propose_joint_refinements(seed, [seed], rows, labels,
+                                    max_candidates=1, limit=1, pair_cost=0) == []
+    assert propose_joint_refinements(seed, companions, rows, ["same"] * len(rows),
+                                    max_candidates=2, limit=1, pair_cost=0) == []
+
+    class ConstantFeature:
+        manifest = left.manifest
+
+        def invoke(self, value: Any) -> Any:
+            return None
+
+    assert propose_joint_refinements(seed, [Proposal(ConstantFeature())], rows, labels,
+                                    max_candidates=1, limit=1, pair_cost=0) == []
+
+
+def test_joint_refinement_budget_and_signature_validation() -> None:
+    from nca.interface_learning import propose_joint_refinements
+
+    seed = Proposal(Source())
+    for kwargs, message in [({"max_candidates": 0, "limit": 1, "pair_cost": 0}, "budgets"),
+                            ({"max_candidates": 1, "limit": 1, "pair_cost": -1}, "pair cost")]:
+        with pytest.raises(ValueError, match=message):
+            propose_joint_refinements(seed, [], [(1,)], [1], **kwargs)
+    with pytest.raises(ValueError, match="companion features"):
+        propose_joint_refinements(seed, [Proposal(Consumer())], [(1,)], [1],
+                                  max_candidates=1, limit=1, pair_cost=0)
+    with pytest.raises(ValueError, match="aligned"):
+        propose_joint_refinements(seed, [], [], [], max_candidates=1, limit=1, pair_cost=0)

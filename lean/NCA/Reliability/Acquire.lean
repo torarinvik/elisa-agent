@@ -337,4 +337,9 @@ theorem feature_admission_bound (used added budget : ℕ) (hu : used ≤ budget)
     (ha : added ≤ budget - used) : used + added ≤ budget := by
   omega
 
+/-- Pairing cannot merge inputs that the seed feature already distinguished. -/
+theorem joint_key_refines_seed {X A B : Type*} (f : X → A) (g : X → B)
+    (x y : X) (same : (f x, g x) = (f y, g y)) : f x = f y := by
+  exact congrArg Prod.fst same
+
 end NCA
