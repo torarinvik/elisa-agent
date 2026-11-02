@@ -188,6 +188,37 @@ def _center_prior(rows: np.ndarray, prior: ArityPrior) -> tuple[np.ndarray, Arit
     return centered_rows, centered_prior, edge_offset, final_offset
 
 
+def _evidence_prior(base_rows: np.ndarray, prior: ArityPrior) -> ArityPrior:
+    """Use common prior shifts that cancel in a fixed-length evidence ratio."""
+    if not len(base_rows):
+        return prior
+    edge_offset = float(np.max(prior.log_weights, where=prior.transitions >= 0, initial=-math.inf))
+    final_offset = float(np.max(prior.log_final))
+    # Leave generous binary64 headroom for subtracting the two log normalizers.
+    if (math.isfinite(edge_offset) and math.isfinite(final_offset)
+            and len(base_rows) * abs(edge_offset) + abs(final_offset) < 16777216.0):
+        return prior
+    shifted = _center_prior(base_rows, prior)
+    if shifted is not None:
+        return shifted[1]
+    if prior.log_normalizer(base_rows) == -math.inf:
+        raise ValueError("candidate prior has zero mass under the base")
+    raise ValueError("prior normalizer rescaling is not finite or loses precision")
+
+
+def _evidence_difference(numerator: float, denominator: float,
+                         posterior: np.ndarray, base: np.ndarray) -> float:
+    if numerator == -math.inf:
+        return -math.inf
+    if not math.isfinite(numerator):
+        raise ValueError("candidate evidence must be finite or negative infinity")
+    if max(abs(numerator), abs(denominator)) >= 16777216.0:
+        if np.array_equal(posterior, base):
+            return 0.0
+        raise ValueError("prior evidence normalizers are too large for reliable subtraction")
+    return numerator - denominator
+
+
 def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None, *,
                               prior: ArityPrior | None = None,
                               edge_offset: float = 0.0, final_offset: float = 0.0) -> Decoded:
@@ -306,15 +337,13 @@ class ArityPrior:
                 raise ValueError("evidence rows must be normalized log probabilities")
         if np.any(np.isneginf(base) & np.isfinite(posterior)):
             raise ValueError("posterior support must lie within base support")
-        denominator = self.log_normalizer(base)
+        evidence_prior = _evidence_prior(base, self)
+        denominator = evidence_prior.log_normalizer(base)
         if denominator == -math.inf:
             raise ValueError("candidate prior has zero mass under the base")
         if not math.isfinite(denominator):
             raise ValueError("candidate base normalizer must be finite")
-        evidence = self.log_normalizer(posterior) - denominator
-        if math.isnan(evidence) or evidence == math.inf:
-            raise ValueError("candidate evidence must be finite or negative infinity")
-        return evidence
+        return _evidence_difference(evidence_prior.log_normalizer(posterior), denominator, posterior, base)
 
     def _rows(self, log_probs: np.ndarray) -> np.ndarray:
         rows = np.asarray(log_probs, dtype=np.float64)
@@ -749,7 +778,9 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                 else:
                     if prior.alphabet != alphabet:
                         raise ValueError("candidate alphabet must match the shared base")
-                    denominator = prior.log_normalizer(np.broadcast_to(base, rows.shape))
+                    base_rows = np.broadcast_to(base, rows.shape)
+                    prior = _evidence_prior(base_rows, prior)
+                    denominator = prior.log_normalizer(base_rows)
                     if denominator == -math.inf:
                         raise ValueError("candidate prior has zero mass under the base")
                     if not math.isfinite(denominator):
@@ -763,7 +794,8 @@ def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
                 evidence = -score_clip
             else:
                 prior, denominator = model
-                evidence = prior.log_normalizer(rows) - denominator
+                evidence = _evidence_difference(prior.log_normalizer(rows), denominator, rows,
+                                                np.broadcast_to(base, rows.shape))
             if math.isnan(evidence) or evidence == math.inf:
                 raise ValueError("candidate evidence must be finite or negative infinity")
             if score_clip is not None:

@@ -251,6 +251,17 @@ and `Z_e(π)` is the same program evaluated at the shared base probabilities.
 Substitute Bayes' rule into the sum: `Πₖ πₖ(aₖ) Lₖ(aₖ) = (Πₖ cₖ) Πₖ qₖ(aₖ)`.
 Thus the shared observation-marginal factor cancels when comparing experts.
 There is no extra sequence-dependent divisor outside this sum.
+Common edge and final factors cancel from this evidence ratio at a fixed
+length. When their combined log magnitude reaches `2²⁴`, the implementation
+removes them using checked shifts before computing both normalizers, so a
+large shared prior weight need not be subtracted from another nearly equal
+large weight. If the shifts cannot be represented with the local precision
+checks, the calculation reports an error. Smaller common offsets use the
+original prior. Forbidden edges do not determine the common edge shift. If
+either finite normalizer still has magnitude at least `2²⁴`, subtraction is
+rejected unless the two input readings are identical, in which case the
+evidence is exactly zero. Neither path bounds all floating-point error in a
+normalizer.
 
 The evidence interpretation requires a common observation model, normalized
 rows and posterior support contained in base support. Normalized calibrated

@@ -1,4 +1,5 @@
 import itertools
+import math
 from typing import Any
 
 import numpy as np
@@ -10,6 +11,73 @@ from nca import decoding, formulas, priors
 from nca.formulas import (FormulaDataset, decode)
 from nca.ladder import Decision, Rung
 from nca.modules.words import (ARITY_DECISION, EditReader)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("location", ["edge", "final"])
+def test_prior_evidence_and_selection_ignore_large_common_weight(reference, location, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    large = float(2**52)
+    if location == "edge":
+        prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.array([[large, large - 2]]),
+                                  np.zeros(1))
+    else:
+        prior = priors.ArityPrior((0, 1), np.array([[1, 2], [-1, -1], [-1, -1]]),
+                                  np.zeros((3, 2)), np.array([-np.inf, large, large - 2]))
+    competitor = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.array([[0.0, -2.1]]),
+                                   np.zeros(1))
+    base = np.log([0.5, 0.5])
+    posterior = np.log([[0.9, 0.1]])
+    expected = math.log((0.9 + 0.1 * math.exp(-2)) / (0.5 + 0.5 * math.exp(-2)))
+    assert prior.log_evidence(posterior, base[None, :]) == pytest.approx(expected, abs=1e-12)
+    selected = priors.select_prior([lambda _: prior, lambda _: competitor], [posterior], base,
+                                   alphabet=(0, 1))
+    assert selected.index == 1
+    assert selected.scores[0] == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_evidence_ignores_forbidden_edge_weight_when_shifting(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    large = -float(2**52)
+    prior = priors.ArityPrior((0, 1, 2), np.array([[0, 0, -1]]),
+                              np.array([[large, large - 2, 0.0]]), np.zeros(1))
+    base = np.log([[1 / 3, 1 / 3, 1 / 3]])
+    posterior = np.log([[0.45, 0.05, 0.5]])
+    expected = math.log((0.45 + 0.05 * math.exp(-2)) / ((1 + math.exp(-2)) / 3))
+    assert prior.log_evidence(posterior, base) == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_evidence_rejects_large_normalizers_hidden_by_unreachable_final(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0], [-1, -1]]),
+                              np.array([[0.0, -2.0], [0.0, 0.0]]),
+                              np.array([-float(2**52), 0.0]))
+    base = np.log([[0.5, 0.5]])
+    posterior = np.log([[0.9, 0.1]])
+    with pytest.raises(ValueError, match="normalizers are too large|normalizer arithmetic.*precision"):
+        prior.log_evidence(posterior, base)
+    with pytest.raises(ValueError, match="normalizers are too large|normalizer arithmetic.*precision"):
+        priors.select_prior([lambda _: prior], [posterior], base[0], alphabet=(0, 1))
+    if not reference:
+        assert prior.log_evidence(base, base) == 0.0
+
+
+@pytest.mark.parametrize("reference", [False, True])
+def test_prior_evidence_rejects_unrepresentable_prior_shift(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    prior = priors.ArityPrior((0, 1), np.array([[0, 0]]), np.array([[1e308, -1e308]]),
+                              np.zeros(1))
+    base = np.log([[0.5, 0.5]])
+    with pytest.raises(ValueError, match="normalizer.*(finite|precision)"):
+        prior.log_evidence(base, base)
+    with pytest.raises(ValueError, match="normalizer.*(finite|precision)"):
+        priors.select_prior([lambda _: prior], [base], base[0], alphabet=(0, 1))
 
 
 @pytest.mark.parametrize("reference", [False, True])

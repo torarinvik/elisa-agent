@@ -1201,8 +1201,11 @@ upgrade a reused checking split into fresh validation.
 `select_prior` owns snapshots of the base vector, alphabet and candidate
 order for the batch. A local cache retains each immutable prior model and
 base normalizer by candidate index and length; observation normalizers are
-still computed for every formula. The cache is discarded when selection
+still computed for every formula. Large common prior offsets use the same
+checked shifted prior for both normalizers, which the cache retains. The cache is discarded when selection
 returns, so no cached denominator crosses calibration or selection runs.
+Large residual normalizers are rejected before subtraction unless the readings
+are identical; this is a diagnostic, not an accumulated-error certificate.
 Empty readings are supported when a provider supplies a prior whose start
 state has nonzero final weight; its relative log evidence is zero.
 Decoded sequence risk uses `expm1` to retain small positive risks when the
