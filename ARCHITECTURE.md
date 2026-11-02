@@ -264,7 +264,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [27.7](theory/27-priors-as-experts.md) | `bounded_shape_length`, `complete_shape_bounded` | `Decoding` |
 | [27.8](theory/27-priors-as-experts.md) | `prior_evidence_identity` | `Product` |
 | [27.9](theory/27-priors-as-experts.md) | `prior_selection_regret`, `prior_selection_half_gap` | `Product` |
-| [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds` (range only; concentration not formalized) | `Product` |
+| [27.10](theory/27-priors-as-experts.md) | `clipped_evidence_bounds`, `clipped_error_bound_mono` (concentration not formalized) | `Product` |
 | [27.11](theory/27-priors-as-experts.md) | `selected_audit_failure_le` (conditional finite mixture) | `Product` |
 | [27.12](theory/27-priors-as-experts.md) | `partial_evidence_bounds` (bounded range for optional scores) | `Product` |
 | [27.15](theory/27-priors-as-experts.md) | `prior_empty`, `prior_empty_normalized` | `Product` |

@@ -1,4 +1,5 @@
 import NCA.Decoding
+import Mathlib.Analysis.Real.Sqrt
 
 /-!
 # Decoding under a prior automaton
@@ -237,6 +238,16 @@ theorem prior_selection_regret {best chosen reportedBest reportedChosen ε : ℝ
 theorem prior_selection_half_gap (best score error : ℝ) :
     best - score ≤ 2 * error ↔ best / 2 - score / 2 ≤ error := by
   constructor <;> intro h <;> linarith
+
+/-- Increasing nonnegative inputs cannot reduce the clipped-score error bound. -/
+theorem clipped_error_bound_mono (B n t B' n' t' : ℝ)
+    (hB : 0 ≤ B) (hn : 0 ≤ n) (ht : 0 ≤ t)
+    (B_le : B ≤ B') (n_le : n ≤ n') (t_le : t ≤ t') :
+    B * Real.sqrt (2 * n * t) ≤ B' * Real.sqrt (2 * n' * t') := by
+  have hn' : 0 ≤ n' := le_trans hn n_le
+  have ht' : 0 ≤ t' := le_trans ht t_le
+  have hB' : 0 ≤ B' := le_trans hB B_le
+  gcongr
 
 /-- Clipping a real evidence score supplies the deterministic bounded range. -/
 theorem clipped_evidence_bounds {x B : ℝ} (hB : 0 ≤ B) :

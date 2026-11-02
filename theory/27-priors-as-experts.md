@@ -410,7 +410,9 @@ For `K` candidates, with probability at least `1 − α`, simultaneously
 
 > `|S_e − n μ_e| ≤ ε_n = B sqrt(2 n log(2K/α))`.
 
-The implementation rounds its binary64 bound upward at each arithmetic stage.
+The bound is monotone in its nonnegative clipping, sample-count, and log-ratio
+inputs, so increasing those inputs cannot reduce it in exact arithmetic. The
+implementation rounds its binary64 bound upward at each arithmetic stage.
 Its conservatism assumes the platform logarithm is within one binary64 ulp;
 the logarithm and concentration inequality are not formally enclosed in Lean.
 
