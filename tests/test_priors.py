@@ -779,6 +779,10 @@ def test_native_format_symbols_preserves_inputs_and_large_integers(reference, dt
     values = np.arange(64, dtype=dtype)
     if dtype in (np.int32, np.int64):
         values[0] = -5
+    if dtype is np.uint64:
+        values[-1] = np.iinfo(np.uint64).max
+        values[-2] = 2**63
+        values[-3] = 2**63 - 1
     if dtype is object:
         values[-1] = 10**100
         values[0] = -(10**100)

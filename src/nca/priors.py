@@ -76,6 +76,12 @@ def _native_format_symbols(symbols: Sequence[int], length: int) -> np.ndarray:
             result = np.array(values, dtype=np.int64, order="C", copy=True)
             native(result, length)
             return result
+        unsigned = getattr(_NATIVE, "clamp_unsigned_format_symbols", None)
+        if unsigned is not None and values.dtype.kind == "u":
+            # Values with the high bit set exceed any representable sequence length.
+            result = np.array(values, dtype=np.uint64, order="C", copy=True).view(np.int64)
+            unsigned(result, length)
+            return result
     return np.fromiter((max(-1, min(int(a), length)) for a in symbols),
                        dtype=np.int64, count=len(symbols))
 
