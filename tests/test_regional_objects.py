@@ -90,3 +90,29 @@ def test_regional_keys_use_structural_codec_without_lossy_coercion() -> None:
     opaque = RegionalExpert(model.incumbent, model.feature, frozenset({1}), model.specialist, 0)
     with pytest.raises(TypeError, match="JSON scalars or tuples"):
         regional_object(store, opaque, bindings, size=16)
+
+
+def test_combined_policy_round_trip_and_duplicate_key_rejection(tmp_path: Path) -> None:
+    from nca.regional_learning import RegionalPolicy
+    from nca.regional_objects import policy_object
+
+    store = Store()
+    original, bindings = components(store)
+    left = store.put(affine_object(fit_affine(Identity.manifest.contract,
+                     [-1.0, -0.5], [-3.0, -2.0], cost=1), size=32))
+    policy = RegionalPolicy(original.incumbent, original.feature,
+                             {0: install(store, left)[0], 2: original.specialist}, 0)
+    grouped = (*bindings[:2], (left, 0), bindings[2])
+    obj = policy_object(store, policy, grouped, size=16)
+    ref = store.put(obj)
+    assert ref == policy_object(store, policy, grouped, size=16).ref
+    store.save(tmp_path)
+    resident = ExpertStore(budget=112)
+    restored = install(Store.open(tmp_path), ref, experts=resident)[0]
+    assert resident.stats.loads == 0
+    values = [-0.9, 0.0, 0.9]
+    assert [restored.invoke(x) for x in values] == [policy.invoke(x) for x in values]
+    assert resident.stats.loads == 6
+    malformed = replace(obj, arguments={**obj.arguments, "keys": [0, 0]})
+    with pytest.raises(ValueError, match="keys must be distinct"):
+        malformed.load(lambda ref: install(store, ref))

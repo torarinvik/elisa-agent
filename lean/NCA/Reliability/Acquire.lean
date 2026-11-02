@@ -237,4 +237,11 @@ theorem regional_reloaded_eq {X Y K : Type*} [DecidableEq K]
   funext x
   rw [hr x, hs x, hi x]
 
+/-- A pure regional policy preserves incumbent output for keys without an expert.
+No empirical gain or executable dictionary behavior is asserted here. -/
+theorem regional_policy_missing {X Y K : Type*} (incumbent : X → Y) (feature : X → K)
+    (experts : K → Option (X → Y)) (x : X) (missing : experts (feature x) = none) :
+    (match experts (feature x) with | none => incumbent x | some f => f x) = incumbent x := by
+  rw [missing]
+
 end NCA

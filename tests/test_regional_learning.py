@@ -176,3 +176,51 @@ def test_multi_interval_failure_routing_isolates_an_interior_specialist() -> Non
     assert len(regional.feature.boundaries) == 2
     assert regional.invoke(-0.7) == -0.7 and regional.invoke(0.9) == 0.9
     assert regional.invoke(0.1) == pytest.approx(0.9)
+
+
+def test_combined_specialists_cover_disjoint_regions_with_one_routing_read() -> None:
+    from nca.numeric_learning import midpoint_boundary, purity_tiebreak
+    from nca.regional_learning import RegionalPolicy, propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
+    reads = []
+
+    def read(x: float) -> float:
+        reads.append(x)
+        return x
+
+    measurement = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), read)
+    rows = [(i / 100,) for i in range(-100, 101)]
+    labels = [2 * x - 1 if x < -0.3 else 2 * x + 1 if x >= 0.4 else x for x, in rows]
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        return [Proposal(fit_affine(CONTRACT, [r[0] for r in train], targets, cost=1))]
+
+    proposals = propose_failure_partitions(incumbent, [measurement], acquire, rows, labels,
+                lambda a, b: abs(a - b) < 1e-9, max_measurements=1, max_regions=2,
+                routing_regions=3, encoding_cost=0, overhead_cost=0,
+                place_boundary=midpoint_boundary, tie_break=purity_tiebreak, max_combinations=1)
+    assert len(proposals) == 3
+    combined = proposals[-1].expert
+    assert isinstance(combined, RegionalPolicy) and len(combined.specialists) == 2
+    for x, target in [(-0.9, -2.8), (0.2, 0.2), (0.8, 2.6)]:
+        reads.clear()
+        assert combined.invoke(x) == pytest.approx(target)
+        assert reads == [x]
+    assert len(proposals[-1].constructors) == 1
+
+
+def test_combination_budget_limits_cartesian_prefix() -> None:
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
+    feature = Expert(Manifest("feature", "1", replace(CONTRACT, output="key")), lambda x: x >= 0)
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        return [Proposal(Expert(Manifest(f"alternative-{i}", "1", CONTRACT),
+                                lambda x, value=targets[0] + i: value)) for i in range(2)]
+
+    proposals = propose_regional_experts(incumbent, feature, acquire,
+                [(-2,), (-1,), (1,), (2,)], [1, 1, 2, 2], lambda a, b: a == b,
+                max_regions=2, overhead_cost=0, max_combinations=2)
+    assert len(proposals) == 6  # Four singles plus two of four possible combinations.
+    assert [proposals[-2].expert.invoke(x) for x in (-1, 1)] == [1, 2]
+    assert [proposals[-1].expert.invoke(x) for x in (-1, 1)] == [1, 3]

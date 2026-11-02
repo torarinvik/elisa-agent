@@ -1,8 +1,9 @@
 """Acquire arbitrary local experts where incumbent training failures concentrate."""
 
 import math
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import replace
+from itertools import islice, product
 from typing import Any
 
 from nca.abi import Module
@@ -10,40 +11,52 @@ from nca.discovery import Proposal, _total_calls
 from nca.numeric_learning import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
 
-class RegionalExpert:
-    """A learned expert in one feature region, with the incumbent elsewhere."""
+class RegionalPolicy:
+    """One routing evaluation dispatches to a specialist or the incumbent."""
 
-    def __init__(self, incumbent: Module, feature: Module, key: Hashable,
-                 specialist: Module, cost: float) -> None:
+    def __init__(self, incumbent: Module, feature: Module,
+                 specialists: Mapping[Hashable, Module], cost: float) -> None:
         contract = incumbent.manifest.contract
-        if specialist.manifest.contract != contract:
+        specialists = dict(specialists)
+        if any(module.manifest.contract != contract for module in specialists.values()):
             raise ValueError("regional expert must preserve the external contract")
         if replace(feature.manifest.contract, output=contract.output) != contract:
             raise ValueError("routing feature must preserve inputs, slots and relevance")
-        manifests = (incumbent.manifest, feature.manifest, specialist.manifest)
+        manifests = (incumbent.manifest, feature.manifest,
+                     *(module.manifest for module in specialists.values()))
         if any(not math.isfinite(m.cost) or m.cost < 0 for m in manifests) or (
                 not math.isfinite(cost) or cost < 0):
             raise ValueError("regional costs must be finite and nonnegative")
         effects = (None if any(m.effects is None for m in manifests)
                    else frozenset().union(*(m.effects for m in manifests)))
-        self.incumbent, self.feature, self.key, self.specialist = incumbent, feature, key, specialist
+        self.incumbent, self.feature, self.specialists = incumbent, feature, specialists
         self.overhead_cost = cost
-        self.manifest = replace(incumbent.manifest,
-            module_id=f"{incumbent.manifest.module_id}/regional/{specialist.manifest.module_id}",
+        self.manifest = replace(incumbent.manifest, module_id="learned-regional-policy",
             cost=cost + sum(m.cost for m in manifests), calls=_total_calls(manifests),
             expected_calls=None, effects=effects)
 
     def invoke(self, *inputs: Any) -> Any:
-        if self.feature.invoke(*inputs) == self.key:
-            return self.specialist.invoke(*inputs)
-        return self.incumbent.invoke(*inputs)
+        specialist = self.specialists.get(self.feature.invoke(*inputs))
+        return (self.incumbent.invoke(*inputs) if specialist is None
+                else specialist.invoke(*inputs))
+
+
+class RegionalExpert(RegionalPolicy):
+    """The single-region form, preserving its public fields and artifact factory."""
+
+    def __init__(self, incumbent: Module, feature: Module, key: Hashable,
+                 specialist: Module, cost: float) -> None:
+        super().__init__(incumbent, feature, {key: specialist}, cost)
+        self.key, self.specialist = key, specialist
+        self.manifest = replace(self.manifest,
+            module_id=f"{incumbent.manifest.module_id}/regional/{specialist.manifest.module_id}")
 
 
 def propose_regional_experts(incumbent: Module, feature: Module,
         propose: Callable[[Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Proposal]],
         rows: Sequence[tuple[Any, ...]], labels: Sequence[Any],
         correct: Callable[[Any, Any], bool], *, max_regions: int,
-        overhead_cost: float) -> list[Proposal]:
+        overhead_cost: float, max_combinations: int = 0) -> list[Proposal]:
     """Train replacements in error-bearing regions using training rows only (§36.26).
 
     Rank by error count, ties by first occurrence; this is not optimal allocation.
@@ -52,7 +65,11 @@ def propose_regional_experts(incumbent: Module, feature: Module,
     becomes a separate whole-task candidate for discover's independent selection.
     Models, row payloads and feature keys must remain stable. No active library,
     saved package or risk certificate is changed by this in-memory proposal step.
+    max_combinations optionally adds a bounded Cartesian prefix over all trainable
+    selected regions (§36.30); this is not exhaustive region-subset search.
     """
+    if type(max_combinations) is not int or max_combinations < 0:
+        raise ValueError("combination budget must be a nonnegative integer")
     if type(max_regions) is not int or max_regions < 1:
         raise ValueError("region budget must be a positive integer")
     if not rows or len(rows) != len(labels):
@@ -72,12 +89,24 @@ def propose_regional_experts(incumbent: Module, feature: Module,
         errors[key] = errors.get(key, 0) + int(not correct(incumbent.invoke(*row), target))
     selected = sorted((key for key in groups if errors[key]), key=lambda key: -errors[key])
     proposals = []
+    alternatives = []
     for key in selected[:max_regions]:
         indices = groups[key]
         local = tuple(propose(tuple(rows[i] for i in indices), tuple(labels[i] for i in indices)))
+        if local:
+            alternatives.append((key, local))
         for candidate in local:
             expert = RegionalExpert(incumbent, feature, key, candidate.expert, overhead_cost)
             proposals.append(Proposal(expert, candidate.constructors))
+    if len(alternatives) > 1 and max_combinations:
+        keys = tuple(key for key, _ in alternatives)
+        for choice in islice(product(*(family for _, family in alternatives)), max_combinations):
+            policy = RegionalPolicy(incumbent, feature,
+                                     dict(zip(keys, (c.expert for c in choice), strict=True)),
+                                     overhead_cost)
+            constructors = tuple(constructor for candidate in choice
+                                 for constructor in candidate.constructors)
+            proposals.append(Proposal(policy, constructors))
     return proposals
 
 
@@ -87,7 +116,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         correct: Callable[[Any, Any], bool], *, max_measurements: int, max_regions: int,
         encoding_cost: float, overhead_cost: float,
         place_boundary: Callable[[float, float], float] | None = None,
-        routing_regions: int = 2, tie_break: SplitTieBreak | None = None) -> list[Proposal]:
+        routing_regions: int = 2, tie_break: SplitTieBreak | None = None,
+        max_combinations: int = 0) -> list[Proposal]:
     """Learn routing cuts from training failures, then acquire task specialists (§36.27).
 
     Measurements are finite-float experts with the original external inputs.
@@ -99,6 +129,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     routing_regions budget permits interval refinement (§36.28); tie_break is a
     pure secondary score over read-only label histograms, with modal accuracy primary.
     """
+    if type(max_combinations) is not int or max_combinations < 0:
+        raise ValueError("combination budget must be a nonnegative integer")
     if any(type(n) is not int or n < 1 for n in (max_measurements, max_regions, routing_regions)):
         raise ValueError("measurement and region budgets must be positive integers")
     if len(rows) < 2 or len(rows) != len(labels):
@@ -128,7 +160,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         if encoder is None:
             continue
         local = propose_regional_experts(incumbent, encoder, propose, rows, labels, correct,
-                                         max_regions=max_regions, overhead_cost=overhead_cost)
+                                         max_regions=max_regions, overhead_cost=overhead_cost,
+                                         max_combinations=max_combinations)
         proposals.extend(Proposal(candidate.expert, (encoder.constructor,) + candidate.constructors)
                          for candidate in local)
     return proposals

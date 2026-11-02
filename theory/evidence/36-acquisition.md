@@ -584,3 +584,15 @@ conditional branch-composition statement with an unchanged key. It does not
 verify key codecs, Python factories, effectful execution, or content-addressed
 code fidelity. No training rows, external implementations, calibration claims,
 or independent-selection evidence are silently embedded in this parameter record.
+
+## 36.30 Combining disjoint regional specialists
+
+A regional policy maps stable routing keys to contract-preserving experts,
+evaluates the feature once, and delegates missing keys to the incumbent.
+An explicit combination budget enumerates a bounded prefix of the Cartesian
+product of trained alternatives across trainable selected regions, alongside
+single-region candidates; it does not search all region subsets. Whole-task
+independent selection remains required. Costs/calls conservatively cover all
+branches. Lean proves pure output preservation for missing keys, not gains,
+optimal enumeration, or executable fidelity. Parameter artifacts retain the
+ordered keys and verified dependencies; unsupported structural keys fail.

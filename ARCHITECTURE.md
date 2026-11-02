@@ -2271,3 +2271,12 @@ contracts/costs/effects; the resulting identity includes key and dependencies.
 `discover_packages` can select these stored experts directly. Installation stays
 lazy. `regional_reloaded_eq` proves conditional pure-function agreement with
 unchanged key, not key-codec, factory, effectful-execution or provenance fidelity.
+
+`RegionalPolicy` (§36.30) generalizes single-region dispatch to a mapping of keys
+to experts, evaluating its feature once. `RegionalExpert` preserves the single-key
+interface over that runtime. Acquisition's opt-in `max_combinations` adds a
+bounded Cartesian prefix across nonempty selected regional families, alongside
+single candidates. `policy_object` retains ordered keys and verified dependency
+bindings; existing single-key artifacts keep their factory/data format.
+`regional_policy_missing` proves pure missing-key fallback, not empirical gains
+or exhaustive combination search. Conservative metadata includes every branch.
