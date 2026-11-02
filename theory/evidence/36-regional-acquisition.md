@@ -548,4 +548,4 @@ Exposing an intermediate representation does not establish that it preserves inf
 needed by another task. Stable functional models, faithful factories and explicit
 selection remain assumptions; writes are not transactional or state snapshots.
 
-Interface alignment continues in [§§36.56–36.57](36-interface-acquisition.md).
+Interface alignment continues in [§§36.56–36.58](36-interface-acquisition.md).

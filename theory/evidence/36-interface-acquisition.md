@@ -37,3 +37,21 @@ memory savings. Inference values are not cached; each route still invokes the
 source. Existing conditional family agreement applies, with stable functional
 models, faithful factories and independent end-to-end selection as assumptions.
 The teacher adds no separate inference dependency.
+
+
+## 36.58 Acquiring a family of alignment hypotheses
+
+An explicit ordered family of fitters can propose different bridges for each
+compatible source/teacher pair. Enumerate source, teacher, fitter, consumer in
+that order, bounded by completed-route count. Shared alignment applies within a
+fitter entry, not between independently fitted hypotheses. An empty fitter
+family proposes nothing. Providers must accept the observed value shapes;
+failures are reported rather than silently reclassified as inapplicability.
+
+If an adapter belongs to a fitted family, its consumer composition belongs to
+the mapped completed-route family; Lean proves this membership statement.
+A bounded prefix may never reach that adapter. Even a reached hypothesis may
+fail on independent data. Therefore freeze completed routes before selection
+under §36.3, without using held-out outcomes to choose or train fitters. Neither
+type identity nor teacher training agreement establishes which fitting family
+is useful. Stable models/data and faithful providers remain assumptions.

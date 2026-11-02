@@ -166,3 +166,41 @@ def test_standalone_and_shared_alignment_fit_once_without_inference_caching() ->
         fit_interface_bridge(source, teacher, rows, adapter_cost=-1)
     with pytest.raises(ValueError, match="paired experts"):
         fit_interface_bridge(Consumer("different-input", 0.0), teacher, rows, adapter_cost=1)
+
+
+def test_ordered_bridge_families_are_shared_locally_and_bounded() -> None:
+    from nca.discovery import fit_decoder
+
+    source, teacher = Reading(2.0, 1.0, "new"), Reading(1.0, 0.0, "old")
+    rows = [(-1.0,), (-0.5,), (0.5,), (1.0,)]
+    consumers = [Consumer("old", 1.0), Consumer("old", 0.0)]
+    fitted = []
+
+    def lookup(c: Contract, v: Sequence[Any], t: Sequence[Any], *, cost: float) -> Module:
+        fitted.append("lookup")
+        return fit_decoder(c, v, t, cost=cost)
+
+    def affine(c: Contract, v: Sequence[Any], t: Sequence[Any], *, cost: float) -> Module:
+        fitted.append("affine")
+        return fit_affine(c, v, t, cost=cost)
+
+    def propose(limit: int, family: Sequence[Any]) -> list[Proposal]:
+        return propose_adapters(Baseline(), [Proposal(source)], [Proposal(teacher)],
+                    consumers, rows, max_candidates=limit, decoder_cost=1,
+                    fitters=family, share_alignment=True)
+
+    candidates = propose(4, [lookup, affine])
+    assert fitted == ["lookup", "affine"] and len(teacher.calls) == 2 * len(rows)
+    assert [p.expert.decoder for p in candidates] == consumers * 2
+    assert candidates[0].expert.feature is candidates[1].expert.feature
+    assert candidates[2].expert.feature is candidates[3].expert.feature
+    assert candidates[0].expert.feature is not candidates[2].expert.feature
+    assert candidates[1].expert.invoke(0.37) == pytest.approx(1.0)
+    assert candidates[3].expert.invoke(0.37) == pytest.approx(0.37**2)
+    fitted.clear()
+    assert len(propose(3, [lookup, affine])) == 3
+    assert fitted == ["lookup", "affine"]
+    fitted.clear()
+    before = len(teacher.calls)
+    assert propose(4, []) == []
+    assert fitted == [] and len(teacher.calls) == before

@@ -75,7 +75,8 @@ def propose_adapter(incumbent: Module, source: Module, teacher: Module, consumer
 def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: Sequence[Proposal],
         consumers: Sequence[Module], rows: Sequence[tuple[Any, ...]], *,
         max_candidates: int, decoder_cost: float,
-        fit: AdapterFitter = fit_decoder, share_alignment: bool = False) -> list[Proposal]:
+        fit: AdapterFitter = fit_decoder, share_alignment: bool = False,
+        fitters: Sequence[AdapterFitter] | None = None) -> list[Proposal]:
     """Acquire a bounded family of typed bridges into supplied consumers (§36.56).
 
     Use within independent discovery's training callback. Filter source/teacher
@@ -91,6 +92,10 @@ def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: S
     source/teacher pair and shares that model across completed consumer routes.
     It changes the training family for stochastic fitters. Candidate limits still
     count complete routes, and inference values are never cached by this option.
+    Explicit fitters (§36.58) override fit and define an ordered alignment family;
+    an empty family emits nothing. Order is source/teacher/fitter/consumer, with
+    sharing local to each fitter entry. Fitters must accept the paired value
+    shapes; errors are not suppressed. Freeze all candidates before evaluation.
     """
     if type(max_candidates) is not int or max_candidates < 1:
         raise ValueError("adapter candidate budget must be a positive integer")
@@ -100,6 +105,7 @@ def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: S
     if not rows or any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("training rows must supply slot fillings followed by inputs")
     sources, teachers, consumers = tuple(sources), tuple(teachers), tuple(consumers)
+    family = tuple(fitters) if fitters is not None else (fit,)
     proposals = []
     for source in sources:
         if replace(source.expert.manifest.contract, output=contract.output) != contract:
@@ -108,22 +114,23 @@ def propose_adapters(incumbent: Module, sources: Sequence[Proposal], teachers: S
             if replace(teacher.expert.manifest.contract, output=contract.output) != contract:
                 continue
             expected = Contract((teacher.expert.manifest.contract.output,), contract.output)
-            bridge: Decoded | None = None
-            for consumer in consumers:
-                if consumer.manifest.contract != expected:
-                    continue
-                if share_alignment:
-                    if bridge is None:
-                        bridge = fit_interface_bridge(source.expert, teacher.expert, rows,
-                                                       adapter_cost=decoder_cost, fit=fit)
-                    proposal = Proposal(Decoded(bridge, consumer, contract))
-                else:
-                    proposal = propose_adapter(incumbent, source.expert, teacher.expert, consumer,
-                                                rows, decoder_cost=decoder_cost, fit=fit)
-                proposals.append(replace(proposal,
-                    constructors=source.constructors + teacher.constructors))
-                if len(proposals) == max_candidates:
-                    return proposals
+            for fitter in family:
+                bridge: Decoded | None = None
+                for consumer in consumers:
+                    if consumer.manifest.contract != expected:
+                        continue
+                    if share_alignment:
+                        if bridge is None:
+                            bridge = fit_interface_bridge(source.expert, teacher.expert, rows,
+                                                           adapter_cost=decoder_cost, fit=fitter)
+                        proposal = Proposal(Decoded(bridge, consumer, contract))
+                    else:
+                        proposal = propose_adapter(incumbent, source.expert, teacher.expert, consumer,
+                                                    rows, decoder_cost=decoder_cost, fit=fitter)
+                    proposals.append(replace(proposal,
+                        constructors=source.constructors + teacher.constructors))
+                    if len(proposals) == max_candidates:
+                        return proposals
     return proposals
 
 

@@ -511,4 +511,4 @@ semantic equivalence. Existing package composition can export a restored
 encoder plus a separately retained decoder; saved artifacts assert no calibration.
 
 Regional routing and composition continue in [§§36.26–36.55](36-regional-acquisition.md).
-Interface alignment continues in [§§36.56–36.57](36-interface-acquisition.md).
+Interface alignment continues in [§§36.56–36.58](36-interface-acquisition.md).

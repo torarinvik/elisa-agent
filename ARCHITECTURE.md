@@ -2283,7 +2283,7 @@ or exhaustive combination search. Conservative metadata includes every branch.
 
 Regional acquisition and composition (§§36.26–36.55) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
-Interface alignment (§§36.56–36.57) continues in the
+Interface alignment (§§36.56–36.58) continues in the
 [alignment acquisition chapter](theory/evidence/36-interface-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2469,3 +2469,9 @@ per compatible source/teacher pair while retaining completed-route budgets.
 Multi-root retention/installation preserves the shared artifact and optional
 public bridge root. `shared_alignment_observation_bound` proves only the external
 paired-observation count inequality, not speed or executable model equivalence.
+
+`propose_adapters(fitters=...)` (§36.58) searches explicit ordered bridge-fitting
+families, keeping sharing local to each entry and bounding completed routes.
+The singular fitter remains the default. `adapter_family_contains_route` proves
+only mapped-family membership for a present adapter, not prefix coverage,
+provider success or generalization.

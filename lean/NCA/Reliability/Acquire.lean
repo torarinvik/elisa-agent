@@ -426,4 +426,12 @@ theorem shared_alignment_observation_bound (rows consumers : ℕ) (h : 0 < consu
     rows ≤ consumers * rows := by
   simpa using Nat.mul_le_mul_right rows (show 1 ≤ consumers by omega)
 
+/-- A present adapter yields a present completed route in the mapped family. -/
+theorem adapter_family_contains_route {X A B Y : Type*} (source : X → A)
+    (consumer : B → Y) (adapters : List (A → B)) (adapter : A → B)
+    (present : adapter ∈ adapters) :
+    (fun x => consumer (adapter (source x))) ∈
+      adapters.map (fun a x => consumer (a (source x))) := by
+  exact List.mem_map.mpr ⟨adapter, present, rfl⟩
+
 end NCA
