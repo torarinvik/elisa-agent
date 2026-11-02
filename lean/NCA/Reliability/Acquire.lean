@@ -364,4 +364,11 @@ theorem grouped_modal_dominates {K L : Type*} [Fintype K]
   intro l
   exact Finset.sum_le_sum (fun k _ => modal k l)
 
+/-- One-dimensional two-center nearest-prototype separation. -/
+theorem prototype_left_of_midpoint (a b x : ℝ) (hab : a < b)
+    (hx : x < (a + b) / 2) : (x - a)^2 < (x - b)^2 := by
+  have hp : 0 < (b - a) * (a + b - 2*x) :=
+    mul_pos (sub_pos.mpr hab) (by linarith)
+  nlinarith
+
 end NCA

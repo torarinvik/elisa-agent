@@ -417,3 +417,21 @@ information. Bijective category renaming preserving modal choices leaves the
 partition unchanged. Stable keys/categories, faithful value encoding and
 independent whole-task selection remain assumptions. Smaller downstream tables
 do not imply a smaller whole model: the encoder itself retains a key table.
+
+
+## 36.49 Prototype-based vector interfaces
+
+Group finite vector observations by opaque training category and fit each
+centroid. Generate an interface assigning a vector to the nearest Euclidean
+centroid, breaking ties by first category occurrence. Identical centroids share
+a code. A supplied group budget rejects excess categories rather than truncating
+the model. No category names or samples remain in the encoder, and the generated
+type records source and centers. Unlike a key table, this rule applies to fresh
+vectors, but centroid geometry may not separate their categories.
+
+In one dimension, if a < b and x < (a+b)/2, then (x−a)² < (x−b)². Lean
+proves this strict two-center special case, not finite-vector distance evaluation,
+centroid quality or generalization. Finite range and consistent dimensions are
+required; unrepresentable distances fail explicitly. Independent whole-task
+selection and faithful serialization remain assumptions. Sources, categories
+and the prototype family are supplied; useful geometry is not guaranteed.

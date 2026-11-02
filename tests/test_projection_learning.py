@@ -459,3 +459,33 @@ def test_polynomial_growth_snapshot_reuse_requires_pure_slot_free_source(
         fit_polynomial_regression_features(source, rows, [1.0, 2.0], max_degree=2,
                     max_terms=10, max_error=0, lifting_cost=0, projection_cost=0,
                     reuse_observations=True)
+
+
+def test_prototype_encoder_generates_vector_groups_with_stable_ties() -> None:
+    from nca.projection_learning import PrototypeEncoder, fit_prototype_encoder
+
+    rows = [((-2.0, 0.0),), ((-1.0, 0.0),), ((1.0, 0.0),), ((2.0, 0.0),)]
+    model = fit_prototype_encoder(Measurement(), rows, ["a", "a", "b", "b"],
+                                  max_centroids=2, encoding_cost=1)
+    renamed = fit_prototype_encoder(Measurement(), rows, [17, 17, 93, 93],
+                                    max_centroids=2, encoding_cost=1)
+    assert model.centers == ((-1.5, 0.0), (1.5, 0.0))
+    assert model.constructor == renamed.constructor
+    assert model.invoke((-0.3, 0.2)) == 0
+    assert model.invoke((0.3, 0.2)) == 1
+    assert model.invoke((0.0, 0.0)) == 0
+    merged = fit_prototype_encoder(Measurement(), [((1.0,),), ((1.0,),)], [0, 1],
+                                   max_centroids=2, encoding_cost=0)
+    assert merged.centers == ((1.0,),)
+    with pytest.raises(ValueError, match="group budget"):
+        fit_prototype_encoder(Measurement(), rows, [0, 0, 1, 1], max_centroids=1, encoding_cost=0)
+    with pytest.raises(ValueError, match="dimensions"):
+        fit_prototype_encoder(Measurement(), [((1.0,),), ((1.0, 2.0),)], [0, 1],
+                              max_centroids=2, encoding_cost=0)
+    with pytest.raises(ValueError, match="dimension"):
+        model.invoke((1.0,))
+    with pytest.raises(ValueError, match="finite"):
+        model.invoke((float("nan"), 0.0))
+    huge = PrototypeEncoder(Measurement(), ((-1.7e308,),), 0)
+    with pytest.raises(ValueError, match="finite range"):
+        huge.invoke((1.7e308,))

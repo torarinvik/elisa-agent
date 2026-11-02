@@ -69,6 +69,26 @@ def _fit_projections(measurement: Module, rows: Sequence[tuple[Any, ...]],
         raise ValueError("costs must be finite and nonnegative")
     if reuse_observations and (measurement.manifest.effects != frozenset() or contract.slots):
         raise ValueError("observation reuse requires known empty effects and no slots")
+    centroids, observations = _centroid_training(measurement, rows, labels, reuse_observations)
+    projections = []
+    for index, (a, b) in enumerate(combinations(centroids, 2)):
+        if index >= limit:
+            break
+        direction = _vector(tuple(y - x for x, y in zip(a, b, strict=True)))
+        if any(direction):
+            projections.append(ProjectionEncoder(measurement, direction, cost))
+    return projections, observations
+
+
+def _centroid_training(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                       labels: Sequence[Hashable], reuse_observations: bool,
+                       max_groups: int | None = None
+                       ) -> tuple[tuple[tuple[float, ...], ...], list[tuple[tuple[float, ...], Hashable]]]:
+    if len(rows) < 2 or len(rows) != len(labels):
+        raise ValueError("centroid fitting needs aligned observations")
+    contract = measurement.manifest.contract
+    if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("training row arity differs from contract")
     observations = []
     groups: dict[Hashable, list[tuple[float, ...]]] = {}
     dimension = None
@@ -79,17 +99,59 @@ def _fit_projections(measurement: Module, rows: Sequence[tuple[Any, ...]],
         dimension = len(value)
         if reuse_observations:
             observations.append((value, label))
+        if label not in groups and max_groups is not None and len(groups) >= max_groups:
+            raise ValueError("centroid group budget exceeded")
         groups.setdefault(label, []).append(value)
     centroids = [tuple(math.fsum(x[i] / len(group) for x in group)
                        for i in range(dimension or 0)) for group in groups.values()]
-    projections = []
-    for index, (a, b) in enumerate(combinations(centroids, 2)):
-        if index >= limit:
-            break
-        direction = _vector(tuple(y - x for x, y in zip(a, b, strict=True)))
-        if any(direction):
-            projections.append(ProjectionEncoder(measurement, direction, cost))
-    return projections, observations
+    return tuple(centroids), observations
+
+
+class PrototypeEncoder:
+    """A typed nearest-prototype interface fitted from vector observations."""
+
+    def __init__(self, measurement: Module, centers: tuple[tuple[float, ...], ...],
+                 cost: float) -> None:
+        centers = tuple(_vector(center) for center in centers)
+        if not centers or any(len(c) != len(centers[0]) for c in centers):
+            raise ValueError("prototype centers must be nonempty with consistent dimensions")
+        if not math.isfinite(cost) or cost < 0:
+            raise ValueError("prototype cost must be finite and nonnegative")
+        self.measurement, self.centers = measurement, centers
+        self.constructor = Constructor("learned-prototype-partition", "1", 0,
+            canonical({"source": measurement.manifest.contract.output, "centers": centers,
+                       "meaning": "nearest Euclidean center; first center breaks ties"}).decode())
+        self.manifest = replace(measurement.manifest,
+            module_id=f"{measurement.manifest.module_id}/prototypes/{self.constructor.ref}",
+            contract=replace(measurement.manifest.contract, output=self.constructor.type()),
+            cost=measurement.manifest.cost + cost)
+
+    def invoke(self, *inputs: Any) -> int:
+        value = _vector(self.measurement.invoke(*inputs))
+        if len(value) != len(self.centers[0]):
+            raise ValueError("prototype input dimension differs from training")
+        distances = tuple(math.dist(value, center) for center in self.centers)
+        if any(not math.isfinite(distance) for distance in distances):
+            raise ValueError("prototype distances exceed finite range")
+        return min(range(len(distances)), key=lambda i: distances[i])
+
+
+def fit_prototype_encoder(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                          labels: Sequence[Hashable], *, max_centroids: int,
+                          encoding_cost: float) -> PrototypeEncoder:
+    """Learn a reusable vector partition from opaque categories (§36.49).
+
+    Group order follows category occurrence; labels are not retained. Equal
+    centroids share a code. A group budget fails explicitly instead of dropping
+    categories. Stable observations and independent whole-task selection are
+    required; centroid geometry need not separate arbitrary categories.
+    """
+    if type(max_centroids) is not int or max_centroids < 1:
+        raise ValueError("centroid budget must be a positive integer")
+    if not math.isfinite(encoding_cost) or encoding_cost < 0:
+        raise ValueError("prototype cost must be finite and nonnegative")
+    centers, _ = _centroid_training(measurement, rows, labels, False, max_centroids)
+    return PrototypeEncoder(measurement, tuple(dict.fromkeys(centers)), encoding_cost)
 
 
 def fit_projection_encoders(measurement: Module, rows: Sequence[tuple[Any, ...]],

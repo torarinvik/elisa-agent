@@ -284,3 +284,25 @@ def test_learned_categorical_partition_and_head_can_be_retained(tmp_path: Path) 
     store.save(tmp_path)
     restored = install(Store.open(tmp_path), reference)[index]
     assert [restored.invoke((i,)) for i in range(12)] == [model.expert.invoke((i,)) for i in range(12)]
+
+
+def test_prototype_interface_graph_can_be_retained(tmp_path: Path) -> None:
+    from nca.discovery import fit_decoder
+    from nca.projection_learning import fit_prototype_encoder
+    from test_projection_learning import Measurement as VectorMeasurement
+
+    store = Store()
+    reference = store.put(Primitive(VectorMeasurement.manifest,
+                                   "test_projection_learning:Measurement", size=8))
+    source = install(store, reference)[0]
+    rows = [((-2.0, 0.0),), ((-1.0, 0.0),), ((1.0, 0.0),), ((2.0, 0.0),)]
+    encoder = fit_prototype_encoder(source, rows, ["a", "a", "b", "b"],
+                                    max_centroids=2, encoding_cost=1)
+    head = fit_decoder(Contract((encoder.constructor.type(),), "target"),
+                        [encoder.invoke(*r) for r in rows], ["a", "a", "b", "b"], cost=1)
+    model = Decoded(encoder, head, Contract(("input",), "target"))
+    root, index = store_acquired_model(store, model, lambda m: (m.identity, 0), size=lambda m: 16)
+    store.save(tmp_path)
+    restored = install(Store.open(tmp_path), root)[index]
+    fresh = [(-0.2, 0.1), (0.3, 0.1), (0.0, 0.0)]
+    assert [restored.invoke(v) for v in fresh] == [model.invoke(v) for v in fresh]

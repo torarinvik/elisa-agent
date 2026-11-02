@@ -10,13 +10,13 @@ from nca.discovery import FeatureTree
 from nca.numeric_learning import PartitionEncoder, RegionsEncoder
 from nca.objects import Primitive, Ref, Store, digest, manifest_data
 from nca.packages import install, resolve_binding
-from nca.projection_learning import PolynomialEncoder, ProjectionEncoder
+from nca.projection_learning import PolynomialEncoder, ProjectionEncoder, PrototypeEncoder
 from nca.tree_objects import tree_object
 
 
 Binding = tuple[Ref, int]
-Encoder = PartitionEncoder | RegionsEncoder | ProjectionEncoder | PolynomialEncoder
-_ENCODERS = (PartitionEncoder, RegionsEncoder, ProjectionEncoder, PolynomialEncoder)
+Encoder = PartitionEncoder | RegionsEncoder | ProjectionEncoder | PolynomialEncoder | PrototypeEncoder
+_ENCODERS = (PartitionEncoder, RegionsEncoder, ProjectionEncoder, PolynomialEncoder, PrototypeEncoder)
 
 
 def _measurement(dependencies: tuple[tuple[Module, ...], ...], index: int) -> Module:
@@ -58,7 +58,17 @@ def load_polynomial(manifest: dict[str, Any], index: int, cost: float, dimension
     return encoder
 
 
+def load_prototypes(manifest: dict[str, Any], index: int, cost: float, centers: list[list[float]],
+                    dependencies: tuple[tuple[Module, ...], ...]) -> PrototypeEncoder:
+    encoder = PrototypeEncoder(_measurement(dependencies, index),
+                                tuple(tuple(c) for c in centers), cost)
+    encoder.manifest = replace(encoder.manifest, module_id=manifest["module_id"])
+    return encoder
+
+
 def _parameters(encoder: Encoder) -> tuple[Callable[..., Encoder], dict[str, Any]]:
+    if isinstance(encoder, PrototypeEncoder):
+        return load_prototypes, {"centers": [list(c) for c in encoder.centers]}
     if isinstance(encoder, PartitionEncoder):
         return load_partition, {"boundary": encoder.boundary}
     if isinstance(encoder, RegionsEncoder):

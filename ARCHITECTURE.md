@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.48) are described in the
+Regional acquisition and composition (§§36.26–36.49) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2406,3 +2406,9 @@ proves the conditional finite child-score comparison, not search completeness.
 can feed `propose_heads` and existing graph retention without a new runtime.
 `grouped_modal_dominates` proves the finite summed-count condition only, not
 executable fitting, category-renaming invariance or cross-task sufficiency.
+
+`projection_learning.fit_prototype_encoder` (§36.49) fits category centroids as a
+generated vector partition. `PrototypeEncoder` uses finite Euclidean distances
+and stable first-center ties, without retaining categories. The numeric encoder
+factories and acquired-model graph visitor retain its parameters and constructor.
+`prototype_left_of_midpoint` proves only the one-dimensional two-center case.
