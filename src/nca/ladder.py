@@ -242,9 +242,20 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
             and 0 < temperature < torch.finfo(log.dtype).tiny):
         log = log.double()
     maximum = log.max()
-    if not math.isfinite(maximum.item()):
+    maximum_value = maximum.item()
+    if not math.isfinite(maximum_value):
         raise ValueError("calibrated decision requires finite log weights with positive mass")
-    return (log - maximum) / temperature
+    difference = log - maximum
+    # Below half an ulp at the finite limit, adding the maximum to even the
+    # most negative finite value cannot round the difference to infinity.
+    if (temperature > 1 and maximum_value > 0 and
+            (not log.is_floating_point() or maximum_value >
+             torch.finfo(log.dtype).max * torch.finfo(log.dtype).eps / 4)):
+        # A finite difference can overflow before a large divisor rescales it.
+        return torch.where(torch.isneginf(difference) & torch.isfinite(log),
+                           log / temperature - maximum / temperature,
+                           difference / temperature)
+    return difference / temperature
 
 
 def _checked_calibrated_risk(value: float) -> float:
@@ -453,7 +464,7 @@ class Rung:
             return result
         # A float32 softmax can erase probabilities that fit in binary64.
         scores = values.double()
-        scores = (scores - scores.max()) / temperature
+        scores = _temperature_scores(scores, temperature)
         top = int(scores.argmax()) if selected is None else selected
         chosen = (next(part for part in positions if top in part)
                   if positions is not None else [top])

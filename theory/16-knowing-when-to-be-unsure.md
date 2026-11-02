@@ -67,6 +67,13 @@ temperature: a negative value reverses logit order, zero is undefined, and
 an infinite value does not retain the finite-temperature ordering guarantee.
 In exact real arithmetic, dividing logits by a positive temperature preserves
 their order and dividing by a negative temperature reverses it.
+The scaled difference `(a - b) / T` equals `a / T - b / T` in real
+arithmetic. With finite floating-point logits of opposite sign, the
+subtraction can overflow even when the scaled difference is representable.
+For a temperature greater than one, the implementation rescales the operands
+separately when that overflow occurs; ordinary cases retain subtraction first
+to avoid unnecessary cancellation. This does not make floating-point
+arithmetic exact.
 `Rung.risk` accepts a ranked observation and charges
 the group containing the original highest-weight class; its tensor-only form
 selects from the numerical reading, including its tie behavior. In unequal groups, a tiny difference in the leading

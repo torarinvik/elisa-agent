@@ -150,7 +150,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `observation_weight_sum_positive` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `collapsed_pair_cannot_choose_both` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `original_value_distinguishes` | `Selective` |
-| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `monotone_normalized_rank`, `calibrated_difference_rescale` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `asymmetric_group_risk` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
@@ -873,6 +873,8 @@ and returns the original tensor dtype. Temperature fitting is unchanged.
 Reading, risk, and distribution paths require positive finite temperatures
 for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.
+For a large temperature, scaled differences that overflow before division
+are computed by scaling each finite operand first, in both Elisa and PyTorch.
 Calibrated decisions reject NaN or positive-infinite log weights and selected
 groups with zero total mass; negative infinity is valid for individual
 zero-mass entries. The fallback checks the maximum on the host, which entails

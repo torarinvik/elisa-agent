@@ -33,6 +33,11 @@ the decision never chooses.
 
 namespace NCA
 
+/-- Scaling the operands separately has the same exact-real result. -/
+theorem calibrated_difference_rescale (a b temperature : ℝ) :
+    (a - b) / temperature = a / temperature - b / temperature := by
+  exact sub_div a b temperature
+
 /-- A nonnegative finite family with zero total has no positive entry. -/
 theorem zero_total_no_positive_entry {ι : Type*} [Fintype ι]
     (mass : ι → ℝ) (nonneg : ∀ x, 0 ≤ mass x)

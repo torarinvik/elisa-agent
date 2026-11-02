@@ -1482,6 +1482,39 @@ def test_calibration_allows_zero_mass_entries_when_decision_has_mass(native, mon
     assert rung.log_distribution(logits, decision).tolist() == [-math.inf, 0.0]
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype,scale", [(torch.float32, 3e38), (torch.float64, 1e308)])
+def test_calibration_rescales_before_overflow(native, dtype, scale, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and ladder_module._NATIVE is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("extreme-scale", (0.5, 0.5), 1.0))
+    rung.temperatures[None] = scale
+    decision = ((0,), (1,))
+    rung.temperatures[decision] = scale
+    logits = torch.tensor([scale, -scale], dtype=dtype)
+    expected = torch.softmax(torch.tensor([1.0, -1.0], dtype=torch.float64), dim=0)
+    assert torch.allclose(rung.reading(logits).double(), expected, atol=1e-7)
+    assert torch.allclose(rung.distribution(logits, decision).double(), expected, atol=1e-7)
+    assert torch.allclose(rung.log_distribution(logits, decision), expected.log(), atol=1e-7)
+    assert rung.risk(logits, decision) == pytest.approx(expected[1].item(), abs=1e-7)
+
+
+def test_calibration_overflow_rescaling_preserves_gradients() -> None:
+    rung = Rung(constant("extreme-gradient", (0.5, 0.5), 1.0))
+    rung.temperatures[None] = 1e308
+    logits = torch.tensor([1e308, -1e308], dtype=torch.float64, requires_grad=True)
+    probability = rung.reading(logits)[0]
+    probability.backward()
+    expected = probability.item() * (1 - probability.item()) / 1e308
+    assert logits.grad is not None
+    assert logits.grad[0].item() == pytest.approx(expected, rel=1e-12, abs=0)
+    assert logits.grad[1].item() == pytest.approx(-expected, rel=1e-12, abs=0)
+
+
 def test_calibration_rejects_nonfinite_legacy_kernel_results(monkeypatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
