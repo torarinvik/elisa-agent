@@ -466,3 +466,49 @@ def test_auxiliary_feedback_does_not_acquire_for_a_perfect_incumbent() -> None:
                 max_measurements=1, max_regions=2, encoding_cost=0, overhead_cost=0,
                 routing_signal=lambda row, prediction, target: seen.append(row) or row)
     assert result == [] and seen == [(-1.0,), (1.0,)]
+
+
+def test_router_screening_spends_specialist_budget_on_training_signal() -> None:
+    from nca.numeric_learning import midpoint_boundary
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda xy: 0.0)
+    reading_contract = replace(CONTRACT, output="reading")
+    irrelevant = Expert(Manifest("irrelevant", "1", reading_contract), lambda xy: xy[1])
+    useful = Expert(Manifest("useful", "1", reading_contract), lambda xy: xy[0])
+    rng = random.Random(3640)
+    rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(400)]
+    labels = [2 * xy[0] - 3 if xy[0] < 0.13 else 3 * xy[0] + 2 for xy, in rows]
+    seen = []
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        seen.append((tuple(train), tuple(targets)))
+        model = fit_affine(CONTRACT, [row[0][0] for row in train], targets, cost=1)
+        return [Proposal(Expert(model.manifest, lambda xy: model.invoke(xy[0])))]
+
+    proposals = propose_failure_partitions(incumbent, [irrelevant, useful], acquire,
+                rows, labels, lambda a, b: abs(a - b) < 1e-9,
+                max_measurements=1, max_measurement_candidates=2, max_regions=2,
+                encoding_cost=0, overhead_cost=0, max_combinations=1,
+                place_boundary=midpoint_boundary,
+                routing_signal=lambda row, prediction, target: prediction < target)
+    assert len(seen) == 2
+    assert sorted(pair for train, targets in seen for pair in zip(train, targets, strict=True)) == (
+        sorted(zip(rows, labels, strict=True)))
+    assert len(proposals) == 3
+    assert all(p.expert.feature.measurement is useful for p in proposals)
+    assert abs(proposals[-1].expert.invoke((-0.5, 0.2)) + 4) < 1e-9
+    assert abs(proposals[-1].expert.invoke((0.5, -0.2)) - 3.5) < 1e-9
+
+    seen.clear()
+    duplicate = Expert(Manifest("duplicate", "1", reading_contract), lambda xy: xy[0])
+    tied = propose_failure_partitions(incumbent, [useful, duplicate], acquire, rows, labels,
+                lambda a, b: abs(a - b) < 1e-9, max_measurements=1,
+                max_measurement_candidates=2, max_regions=2, encoding_cost=0, overhead_cost=0,
+                routing_signal=lambda row, prediction, target: prediction < target)
+    assert len(tied) == len(seen) == 2
+    assert all(p.expert.feature.measurement is useful for p in tied)
+    with pytest.raises(ValueError, match="candidate budget"):
+        propose_failure_partitions(incumbent, [], acquire, rows, labels,
+                    lambda a, b: a == b, max_measurements=1, max_regions=1,
+                    max_measurement_candidates=0, encoding_cost=0, overhead_cost=0)

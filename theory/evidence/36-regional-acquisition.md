@@ -197,3 +197,21 @@ the positive-denominator reciprocal ordering special case, not executable
 binomial summation, probability validity or generalization. This preserves the
 finite-family assumptions of §36.3 and does not make p-value ranking equivalent
 to maximizing accuracy. Exact integer arithmetic has sample-dependent cost.
+
+
+## 36.37 Training-only router screening
+
+Fit at most B routing candidates from a supplied ordered measurement family.
+For a fitted router r and auxiliary labels z, define its empirical modal score
+S(r) = Σ over regions g of max over labels a of count{i : r(x_i)=g, z_i=a}.
+Rank by decreasing S, retaining supplied order for ties; spend specialist
+training on only the first M fitted routers. B and M are explicit resource
+budgets, not architectural limits. Without screening keep prefix allocation.
+
+For two scores a,b, choosing b when a ≤ b and a otherwise yields a score at
+least each input score. Lean proves this two-candidate comparison, not the
+implementation's sorting or a relationship to task improvement. All screening
+uses training data only; original targets train specialists and independently
+held-out whole-task selection remains mandatory. Measurement stability and
+meaningful supplied feedback are assumptions. Additional observations and
+sorting cost are real; empirical signal purity may prefer an unhelpful router.

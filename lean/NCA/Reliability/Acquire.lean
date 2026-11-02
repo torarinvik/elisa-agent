@@ -291,4 +291,9 @@ theorem reciprocal_evidence_order (a b : ℝ) (ha : 0 < a) (hab : a < b) :
     1 / b < 1 / a := by
   exact one_div_lt_one_div_of_lt ha hab
 
+/-- The higher of two empirical scores dominates both; no generalization claim. -/
+theorem router_score_selection (a b : ℕ) :
+    a ≤ (if a ≤ b then b else a) ∧ b ≤ (if a ≤ b then b else a) := by
+  split_ifs with h <;> omega
+
 end NCA

@@ -1,6 +1,7 @@
 """Acquire arbitrary local experts where incumbent training failures concentrate."""
 
 import math
+from collections import Counter
 from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
 from dataclasses import replace
 from heapq import heappop, heappush
@@ -200,7 +201,8 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         routing_regions: int = 2, tie_break: SplitTieBreak | None = None,
         max_combinations: int = 0, refine: RegionalRefiner | None = None,
         max_refinements: int = 0,
-        routing_signal: Callable[[tuple[Any, ...], Any, Any], Hashable] | None = None
+        routing_signal: Callable[[tuple[Any, ...], Any, Any], Hashable] | None = None,
+        max_measurement_candidates: int | None = None
         ) -> list[Proposal]:
     """Learn routing cuts from training failures, then acquire task specialists (§36.27).
 
@@ -218,6 +220,12 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     routing_regions budget permits interval refinement (§36.28); tie_break is a
     pure secondary score over read-only label histograms, with modal accuracy primary.
     Each measurement search has its own max_refinements call budget.
+    Optional max_measurement_candidates bounds a larger screening prefix: rank
+    fitted routers by training modal signal accuracy, ties in supplied order,
+    then train specialists for at most max_measurements routers (§36.37).
+    Without screening, the original prefix allocation is preserved. Screening
+    may invoke measurements again and assumes stable observations; it does not
+    claim that signal accuracy predicts task improvement.
     """
     if type(max_combinations) is not int or max_combinations < 0:
         raise ValueError("combination budget must be a nonnegative integer")
@@ -231,10 +239,14 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         raise ValueError("failure partition training needs at least two aligned rows")
     if any(not math.isfinite(c) or c < 0 for c in (encoding_cost, overhead_cost)):
         raise ValueError("failure partition costs must be finite and nonnegative")
+    if max_measurement_candidates is not None and (
+            type(max_measurement_candidates) is not int or max_measurement_candidates < 1):
+        raise ValueError("measurement candidate budget must be a positive integer")
     contract = incumbent.manifest.contract
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("rows must supply slot fillings followed by inputs")
-    measurements = tuple(measurements[:max_measurements])
+    measurements = tuple(measurements[:max_measurements if max_measurement_candidates is None
+                                     else max_measurement_candidates])
     if any(replace(m.manifest.contract, output=contract.output) != contract for m in measurements):
         raise ValueError("measurements must preserve inputs, slots and relevance")
     failures = []
@@ -247,7 +259,7 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
                        else routing_signal(row, prediction, target))
     if not any(failures) or len(set(signals)) < 2:
         return []
-    proposals = []
+    routers = []
     for measurement in measurements:
         if routing_regions == 2:
             encoder = fit_partition_encoder(measurement, rows, signals,
@@ -257,8 +269,18 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
             encoder = fit_regions_encoder(measurement, rows, signals, max_regions=routing_regions,
                         encoding_cost=encoding_cost, place_boundary=place_boundary,
                         tie_break=tie_break)
-        if encoder is None:
-            continue
+        if encoder is not None:
+            routers.append(encoder)
+    if max_measurement_candidates is not None:
+        def score(encoder: Module) -> int:
+            counts: dict[Hashable, Counter[Hashable]] = {}
+            for row, signal in zip(rows, signals, strict=True):
+                counts.setdefault(encoder.invoke(*row), Counter())[signal] += 1
+            return sum(max(histogram.values()) for histogram in counts.values())
+
+        routers.sort(key=score, reverse=True)
+    proposals = []
+    for encoder in routers[:max_measurements]:
         local = propose_regional_experts(incumbent, encoder, propose, rows, labels, correct,
                                          max_regions=max_regions, overhead_cost=overhead_cost,
                                          max_combinations=max_combinations, refine=refine,
