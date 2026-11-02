@@ -533,6 +533,32 @@ def test_partition_cursor_tracks_independent_reading_and_selection_changes() -> 
     assert cursor.last_start == 3
 
 
+@pytest.mark.parametrize("contiguous", [False, True])
+@pytest.mark.parametrize("reference_change", [False, True])
+def test_partition_cursor_keeps_private_row_snapshot(contiguous, reference_change, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    native = incremental._NATIVE
+    if native is None:
+        pytest.skip("incremental partition is not built")
+    if reference_change:
+        monkeypatch.setattr(incremental, "_NATIVE", SimpleNamespace(update=native.update))
+    prior = priors.ArityPrior((0, 1, 2), np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    source = np.zeros((8, 6))
+    rows = source[:, :3].copy() if contiguous else source[:, ::2]
+    selected = (0,) * len(rows)
+    cursor = incremental.PartitionCursor(prior)
+    expected = cursor.partition(rows, selected)
+    assert not np.shares_memory(cursor._rows, rows)
+    assert cursor.partition(rows, selected) == expected
+    assert cursor.last_start == len(rows)
+    rows[5, 1] = -2.0
+    np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected))
+    assert cursor.last_start == 5
+    assert not np.shares_memory(cursor._rows, rows)
+
+
 @pytest.mark.parametrize("reference", [False, True])
 def test_partition_cursor_supports_large_symbols_and_revisions(reference, monkeypatch) -> None:
     import nca.partition as incremental

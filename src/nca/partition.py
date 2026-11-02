@@ -80,7 +80,6 @@ class PartitionCursor:
             self._symbols = None
             self._valid = False
             return self.prior.partition(rows, selected)
-        rows = np.array(rows, dtype=np.float64, order="C", copy=True)
         alphabet, chosen = _native_symbol_pair(self.prior.alphabet, selected, values=selected_values)
         if alphabet is not self._alphabet:
             self._valid = False
@@ -102,12 +101,13 @@ class PartitionCursor:
                                          | (chosen != self._selected))
                 first = int(changed[0]) if len(changed) else m
             else:
-                first = int(find_change(rows.reshape(-1), self._rows.reshape(-1),
+                first = int(find_change(np.ascontiguousarray(rows).reshape(-1), self._rows.reshape(-1),
                                         chosen, self._selected, rows.shape[1]))
             if first == m:
                 assert self._result is not None
                 self.last_start = m
                 return self._result
+        rows = np.array(rows, dtype=np.float64, order="C", copy=True)
         assert self._alternatives is not None and self._bounds is not None
         assert self._matched_states is not None and self._matched_weights is not None
         if not self._valid:

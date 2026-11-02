@@ -1274,7 +1274,9 @@ default, the cursor uses the rolling full partition. The limit is configurable;
 the estimate includes the immutable alphabet-membership set used by the cache.
 Selected symbols use the same exact native encoding as the full partition;
 changing that encoding invalidates the cached prefix, even if encoded values
-match an earlier selection.
+match an earlier selection. Unchanged contiguous readings are compared with
+the private snapshot before making a new copy; changed readings are copied
+before the native update, preserving snapshot ownership.
 The cache and its floating-point behavior are not formally verified in Lean.
 For widths up to three, Elisa accepts clearly normalized, base-supported
 reading snapshots in one pass; ambiguous or invalid rows fall back to NumPy's
