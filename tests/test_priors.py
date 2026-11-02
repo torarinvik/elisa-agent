@@ -1337,6 +1337,24 @@ def test_normalizer_matches_full_decoder_for_sparse_weighted_automata() -> None:
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_normalizer_handles_changing_sparse_symbol_support(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rng = np.random.default_rng(914)
+    states, width = 7, 12
+    prior = priors.ArityPrior(tuple(range(width)), rng.integers(-1, states, size=(states, width)),
+                              rng.normal(size=(states, width)), rng.normal(size=states))
+    rows = np.full((5, width), -np.inf)
+    for k, active in enumerate(((0, 5), (2, 8), (1, 3, 11), (5, 7), (0, 4))):
+        rows[k, list(active)] = rng.normal(size=len(active))
+    decoded = prior.decode(rows)
+    expected = -np.inf if decoded is None else decoded.log_z
+    assert prior.log_normalizer(rows) == pytest.approx(expected, abs=1e-12)
+    rows[2] = -np.inf
+    assert prior.log_normalizer(rows) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("location", ["edge", "sequence", "final"])
 def test_normalizer_rejects_finite_negative_overflow(
         reference: bool, location: str, monkeypatch: pytest.MonkeyPatch) -> None:

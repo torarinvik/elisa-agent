@@ -322,6 +322,10 @@ A final addition or correction update that loses at least `1.01 × 10⁻⁸` is
 reported; smaller errors can still accumulate, so this is not an overall
 selection-accuracy bound.
 
+For each reading row, symbols with zero weight contribute zero to every
+transition sum. The normalizer can enumerate only the nonzero symbols in
+their original order without changing that recurrence.
+
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.
 

@@ -183,6 +183,16 @@ theorem prior_support_sum {S : Type} [Fintype S] (forward backward : S → ℝ) 
   intro s _
   by_cases h : forward s = 0 <;> simp [h]
 
+/-- Zero-weight readings contribute nothing to a transition sum. -/
+theorem prior_prune_zero_readings {α : Type} (symbols : List α) (reading edge : α → ℝ) :
+    (symbols.map (fun a => reading a * edge a)).sum =
+      ((symbols.filter fun a => reading a ≠ 0).map (fun a => reading a * edge a)).sum := by
+  classical
+  induction symbols with
+  | nil => simp
+  | cons a rest ih =>
+    by_cases h : reading a = 0 <;> simp [h, ih]
+
 private theorem max_fold_zero_le (values : List ℝ) : 0 ≤ values.foldr max 0 := by
   induction values with
   | nil => simp

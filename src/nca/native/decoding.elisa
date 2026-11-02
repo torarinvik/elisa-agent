@@ -599,7 +599,12 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
     unreachable: f64 = log(0.0)
     return final[start] if m == 0
     rows, bounds =
-        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else unreachable for i in 0..<(2 * states)], bounds: darray[i64] = [start, start, 0, -1]| -> (rows, bounds):
+        for k in 0..<m |rows: darray[f64] = [0.0 if i == start else unreachable for i in 0..<(2 * states)], bounds: darray[i64] = [start, start, 0, -1], active: darray[i64] = [0 for _ in 0..<width]| -> (rows, bounds):
+            count: i64 =
+                for j in 0..<width |count: i64 = 0, active| -> count:
+                    if log_probs[k * width + j] != unreachable:
+                        active[count] <- j
+                        count += 1
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
             here_bound: i64 = (k % 2) * 2
@@ -611,13 +616,14 @@ def prior_normalizer(log_probs: view[f64], alphabet: view[i64], transitions: vie
             bounds[next_bound + 1] <- -1
             for state in bounds[here_bound]..<(bounds[here_bound + 1] + 1) |rows, bounds|:
                 continue if rows[here + state] == unreachable
-                for j in 0..<width |rows, bounds|:
+                for position in 0..<count |rows, bounds|:
+                    j: i64 = active[position]
                     edge: i64 = state * width + j
                     target: i64 = transitions[edge]
                     continue if target < 0
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
-                    continue if reading == unreachable or edge_weight == unreachable
+                    continue if edge_weight == unreachable
                     weight: f64 = reading + edge_weight
                     return log(-1.0) if weight == unreachable or weight == -unreachable
                     through: f64 = rows[here + state] + weight
