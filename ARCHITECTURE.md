@@ -2246,3 +2246,11 @@ constructor declarations propagate, while inference costs, slots and effects
 include all possible stages conservatively. These proposals remain in memory.
 `regional_preserves_complement` proves pure-function output preservation outside
 the selected region, not effectful-execution or generalization guarantees.
+
+`propose_failure_partitions` (§36.27) fits `fit_partition_encoder` to auxiliary
+incumbent failure indicators, then delegates regional task training to
+`propose_regional_experts`. The numeric fitter returns only a generated routing
+encoder, so auxiliary labels never masquerade as the task's output type.
+Measurement and region budgets are explicit; constant error signals yield no
+proposal from this family. `failure_partition_covers` proves training coverage
+conditional on exact alignment, without asserting learned or held-out coverage.

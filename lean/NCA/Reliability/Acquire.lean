@@ -211,4 +211,11 @@ theorem regional_preserves_complement {X Y K : Type*} [DecidableEq K]
     (if feature x = key then specialist x else incumbent x) = incumbent x := by
   simp only [outside, if_false]
 
+/-- Conditional training coverage only: a perfectly aligned failure router
+covers every failed training row, with no held-out guarantee. -/
+theorem failure_partition_covers {X : Type*} (rows : List X) (route success : X → Bool)
+    (aligned : ∀ x ∈ rows, route x = !(success x)) (x : X) (member : x ∈ rows)
+    (failed : success x = false) : route x = true := by
+  simpa [failed] using aligned x member
+
 end NCA

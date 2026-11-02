@@ -530,3 +530,22 @@ outcomes, including the unaffected regions, select the frozen candidates.
 Metadata conservatively includes both branches and the routing feature; no
 inference call-count or effect declaration is invented. Proposals are currently
 in-memory, without a new persistence or calibration claim.
+
+## 36.27 Acquiring routing boundaries from training failures
+
+From training rows and a caller-supplied correctness predicate, form incumbent
+failure indicators. Fit a scalar measurement partition to those indicators
+using the existing empirical threshold objective; its generated interface
+becomes the routing feature for §36.26. Then train regional specialists using
+the original task targets, never the auxiliary failure indicators. Targets
+need not be categorical. Measurement and region budgets remain explicit.
+
+Constant failure indicators supply no error contrast, so this proposal family
+returns nothing; constant measurements also yield no split. This is a limited
+scalar routing family, not evidence that no decomposition exists. If a learned
+router perfectly matches failure indicators on the training list, it covers
+every failed training row; Lean proves this conditional finite-data statement.
+No held-out coverage, actual perfect alignment, arbitrary feature discovery or
+optimal allocation is implied. A generated partition may be imperfect, so
+whole-task independent selection remains essential. The routing type and the
+specialist's new constructors travel together in each in-memory proposal.

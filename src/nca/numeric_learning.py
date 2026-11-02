@@ -79,13 +79,10 @@ def _partition_from_ordered(incumbent: Module, measurement: Module,
                             place_boundary: Callable[[float, float], float] | None
                             ) -> list[Proposal]:
     """Build a proposal from validated observations sorted by measured value."""
-    best, _ = _best_split(ordered)
+    best = _fitted_split(ordered, place_boundary)
     if best is None:
         return []
     boundary, lower_label, upper_label = best
-    if place_boundary is not None:
-        lower = next(value for value, _ in reversed(ordered) if value < boundary)
-        boundary = _placed_boundary(lower, boundary, place_boundary)
     encoder = PartitionEncoder(measurement, boundary, encoding_cost)
     decoder = Decoder(Contract((encoder.constructor.type(),), incumbent.manifest.contract.output),
                       {0: lower_label, 1: upper_label}, lower_label, decoder_cost)
@@ -95,17 +92,47 @@ def _partition_from_ordered(incumbent: Module, measurement: Module,
 def _ordered(incumbent: Module, measurement: Module,
              rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable],
              encoding_cost: float, decoder_cost: float) -> list[tuple[float, Hashable]]:
-    if len(rows) < 2 or len(rows) != len(labels):
-        raise ValueError("partition training needs at least two aligned observations")
     if any(not math.isfinite(c) or c < 0 for c in (encoding_cost, decoder_cost)):
         raise ValueError("declared costs must be finite and nonnegative")
     contract = incumbent.manifest.contract
     if replace(measurement.manifest.contract, output=contract.output) != contract:
         raise ValueError("measurement must preserve inputs, slots and relevance")
+    return _observations(measurement, rows, labels)
+
+
+def _observations(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                  labels: Sequence[Hashable]) -> list[tuple[float, Hashable]]:
+    if len(rows) < 2 or len(rows) != len(labels):
+        raise ValueError("partition training needs at least two aligned observations")
+    contract = measurement.manifest.contract
     if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
         raise ValueError("rows must supply slot fillings followed by inputs")
     return sorted(((_observation(measurement.invoke(*row)), label)
                       for row, label in zip(rows, labels, strict=True)), key=lambda item: item[0])
+
+
+def _fitted_split(ordered: Sequence[tuple[float, Hashable]],
+                  place_boundary: Callable[[float, float], float] | None
+                  ) -> tuple[float, Hashable, Hashable] | None:
+    best, _ = _best_split(ordered)
+    if best is None:
+        return None
+    boundary, lower_label, upper_label = best
+    if place_boundary is not None:
+        lower = next(value for value, _ in reversed(ordered) if value < boundary)
+        boundary = _placed_boundary(lower, boundary, place_boundary)
+    return boundary, lower_label, upper_label
+
+
+def fit_partition_encoder(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                          labels: Sequence[Hashable], *, encoding_cost: float,
+                          place_boundary: Callable[[float, float], float] | None = None
+                          ) -> PartitionEncoder | None:
+    """Fit only the representation; labels supervise fitting without becoming an output type."""
+    if not math.isfinite(encoding_cost) or encoding_cost < 0:
+        raise ValueError("encoding cost must be finite and nonnegative")
+    best = _fitted_split(_observations(measurement, rows, labels), place_boundary)
+    return None if best is None else PartitionEncoder(measurement, best[0], encoding_cost)
 
 
 def _best_split(ordered: Sequence[tuple[float, Hashable]]) -> tuple[

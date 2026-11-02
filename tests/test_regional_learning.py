@@ -94,3 +94,58 @@ def test_regional_dispatch_preserves_slots_and_conservative_metadata() -> None:
     assert regional.manifest.effects is None and regional.manifest.expected_calls is None
     with pytest.raises(ValueError, match="external contract"):
         RegionalExpert(incumbent, feature, True, feature, 0)
+
+
+def test_failure_boundaries_are_learned_without_a_supplied_region() -> None:
+    from nca.numeric_learning import midpoint_boundary
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
+    measurement = Expert(Manifest("measurement", "1", replace(CONTRACT, output="reading")),
+                         lambda x: x)
+    rng = random.Random(3631)
+    rows = [(rng.uniform(-1, 1),) for _ in range(1000)]
+    labels = [x if x < 0.23 else 2 * x + 0.7 for x, in rows]
+    seen = []
+
+    def acquire(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        seen.append((tuple(train), tuple(targets)))
+        return [Proposal(fit_affine(CONTRACT, [r[0] for r in train], targets, cost=1))]
+
+    def propose(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        return propose_failure_partitions(incumbent, [measurement], acquire, train, targets,
+                    lambda a, b: abs(a - b) < 1e-9, max_measurements=1, max_regions=1,
+                    encoding_cost=0, overhead_cost=0, place_boundary=midpoint_boundary)
+
+    result = discover(incumbent, propose, rows, labels, lambda a, b: abs(a - b) < 1e-9)
+    assert result.chosen is not None
+    regional = result.chosen.expert
+    boundary = regional.feature.boundary
+    assert abs(boundary - 0.23) < 0.01
+    expected = [(r, y) for r, y in zip(rows[:500], labels[:500]) if r[0] >= boundary]
+    assert seen == [(tuple(r for r, _ in expected), tuple(y for _, y in expected))]
+    assert result.chosen.constructors == (regional.feature.constructor,)
+    assert regional.feature.manifest.contract.output == result.chosen.constructors[0].type()
+    assert sum(result.trials[0].outcomes) >= 495
+
+
+def test_failure_partition_degenerate_signal_and_measurement_budget() -> None:
+    from nca.regional_learning import propose_failure_partitions
+
+    incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
+    contract = replace(CONTRACT, output="reading")
+    unusable = Expert(Manifest("unusable", "1", contract),
+                       lambda x: pytest.fail("measurement was outside the search budget"))
+    constant = Expert(Manifest("constant", "1", contract), lambda x: 0.0)
+    rows = [(-1.0,), (1.0,)]
+    kwargs = dict(max_measurements=1, max_regions=1, encoding_cost=0, overhead_cost=0)
+
+    def acquire(train: Any, targets: Any) -> list[Proposal]:
+        pytest.fail("no usable routing cut should train an expert")
+
+    assert propose_failure_partitions(incumbent, [unusable], acquire, rows, [-1.0, 1.0],
+                                      lambda a, b: a == b, **kwargs) == []
+    assert propose_failure_partitions(incumbent, [unusable], acquire, rows, [0.0, 0.0],
+                                      lambda a, b: a == b, **kwargs) == []
+    assert propose_failure_partitions(incumbent, [constant, unusable], acquire, rows, [-1.0, 3.0],
+                                      lambda a, b: a == b, **kwargs) == []
