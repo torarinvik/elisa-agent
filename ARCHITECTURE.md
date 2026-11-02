@@ -45,7 +45,7 @@ run the Python tests with `uv run pytest`.
 | [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
 | [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
 | [§33 Per-input risk on any route](theory/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
-| [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `loader.LazyExpert.invoke_batch` |
+| [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -329,6 +329,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [33.4](theory/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
 | [34.2](theory/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
 | [34.3](theory/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
+| [34.4](theory/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
 
 ## Native kernels
 
@@ -1772,7 +1773,7 @@ a deployment can start a cache with `refuted` filled from others' evidence.
 §33. Alongside the read demand the runtime propagates a decision demand
 from the answer through each expert's `decides` rule, or its `demand`
 rule; each invocation whose decision demand is not empty adds its
-`risk(output)` report, adds nothing if `exact(module)` holds, and is
+`risk(output, *inputs)` report, adds nothing if `exact(module)` holds, and is
 otherwise recorded in `uncertified`. The ledger is also the current one in
 a context variable, so an `Export` (`accounts_inside`) runs its route on
 it and is not served from the result cache while a ledger is kept; its
@@ -1786,8 +1787,9 @@ issuers)` is an `exact` predicate from accepted exactness attestations.
 The ledger's `entries` record each charged invocation's expert, input
 values and report. `modules.refinement.Escalating(rungs, module_id)` holds
 reporting substitutes with one contract, cheapest first, answers each
-distinct input (by `value_digest`) at its level and reports the answering
-rung's risk; `refine(*values)` raises that input's level. Levels persist
+distinct input (by `value_digest`) at its level and reports the risk of
+the rung at that input's level; `invoke_batch` calls each rung once for
+the rows at its level; `refine(*values)` raises that input's level. Levels persist
 across calls, so an input once found hard starts higher next time.
 `evidence.refine_within` re-executes the route, each time raising the
 charged invocation with the largest report whose expert can climb, until
@@ -1816,3 +1818,10 @@ row's ledger current. A compiled route records no messages and spends no
 budget; `execute` remains the reference semantics. `LazyExpert`
 forwards `invoke_batch`, falling back to per-row invocation, and the
 arithmetic digit and operator readers batch their forward pass.
+
+`evidence.refine_batch(plan, available, rows, δ, exact, cache)` is
+`refine_within` for a batch on the compiled route: each round evaluates
+the undecided rows together with fresh ledgers, answers or abstains on
+each, and climbs the riskiest climbable entry of every row over `δ`,
+making a climb that several rows share once per round. A `cache` serves
+the pure invocations a climb did not change.

@@ -1638,7 +1638,7 @@ class Calibrated:
     def invoke(self, value: Any) -> tuple[float, ...]:
         return tuple(self.rung.reading(self.rung.observe(value)).tolist())
 
-    def risk(self, output: Sequence[float]) -> float:
+    def risk(self, output: Sequence[float], *inputs: Any) -> float:
         return risk(torch.tensor(output, dtype=torch.float64))
 
 

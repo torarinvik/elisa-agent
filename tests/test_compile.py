@@ -102,7 +102,7 @@ class Reporting(Batched):
                                  effects=frozenset())
         self.identity = "measure-ref"
 
-    def risk(self, output: int) -> float:
+    def risk(self, output: int, *inputs: Any) -> float:
         return 0.01 * output
 
 

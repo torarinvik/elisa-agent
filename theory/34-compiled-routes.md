@@ -63,3 +63,30 @@ batch. ∎
 
 So Theorems 33.1–33.4 hold for answers produced by a compiled route, and
 selective answering or refinement may use it in place of the runtime.
+
+## 34.4 Batched refinement
+
+Refinement (§33.3) can run on a batch: each round evaluates the compiled
+route on every row not yet decided, answers the rows whose ledger is
+certified and at most `δ`, abstains on uncertified rows and on rows with
+nothing left to climb, and for every other row raises its charged
+invocation with the largest climbable report. Escalation levels belong to
+the expert and its input, not to a row, so a climb made for one row in a
+round also serves every row sharing that input, and is made once.
+
+**Theorem 34.4 (batched refinement).** Batched refinement takes at most
+`1 + Σ (hₑ − 1) · nₑ` rounds, with `nₑ` now the number of distinct inputs
+of `e` over the batch, and under the premise of Theorem 33.4 its error
+rate among answered rows is at most `δ`.
+
+*Proof.* Every round but the last raises at least one level of a pair
+(expert, input), and levels are bounded, as in Theorem 33.3. A row is
+answered only when the ledger of its final evaluation, which is the
+runtime's by Theorem 34.3, is certified and at most `δ`; apply Theorem
+33.2. ∎
+
+The climbs made, and so the cost, may differ from refining the rows one
+after another, since a row may start from levels another row raised; the
+guarantee does not depend on the order. With a result cache, the pure
+invocations of a round whose inputs did not change are served from it,
+so a round recomputes little beyond what the climbs changed.

@@ -76,19 +76,35 @@ class Escalating:
         self.rungs = list(rungs)
         self.manifest = replace(rungs[0].manifest, module_id=module_id)
         self.levels: dict[str, int] = {}
-        self._answered_by = 0
 
     def _level(self, values: tuple[Any, ...]) -> tuple[str | None, int]:
         key = value_digest(list(values))
         return key, 0 if key is None else self.levels.get(key, 0)
 
     def invoke(self, *values: Any) -> Any:
-        _, self._answered_by = self._level(values)
-        return self.rungs[self._answered_by].invoke(*values)
+        return self.rungs[self._level(values)[1]].invoke(*values)
 
-    def risk(self, output: Any) -> float | None:
-        report = getattr(self.rungs[self._answered_by], "risk", None)
-        return None if report is None else report(output)
+    def invoke_batch(self, *columns: list[Any]) -> list[Any]:
+        """``invoke`` on each row, one call per rung for the rows at its level."""
+        rows = list(zip(*columns, strict=True))
+        outputs: list[Any] = [None] * len(rows)
+        at: dict[int, list[int]] = {}
+        for j, row in enumerate(rows):
+            at.setdefault(self._level(row)[1], []).append(j)
+        for level, indices in at.items():
+            rung = self.rungs[level]
+            batch = getattr(rung, "invoke_batch", None)
+            chosen = [rows[j] for j in indices]
+            results = (batch(*map(list, zip(*chosen))) if batch is not None
+                       else [rung.invoke(*row) for row in chosen])
+            for j, result in zip(indices, results, strict=True):
+                outputs[j] = result
+        return outputs
+
+    def risk(self, output: Any, *values: Any) -> float | None:
+        """The report of the rung at the level of ``values``."""
+        report = getattr(self.rungs[self._level(values)[1]], "risk", None)
+        return None if report is None else report(output, *values)
 
     def refine(self, *values: Any) -> bool:
         """Answer ``values`` one rung higher from now on; ``False`` at the top."""

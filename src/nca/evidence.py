@@ -23,8 +23,9 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from nca.abi import NOTHING, Demand, Message, Module, SequenceDemand
-from nca.cache import Checks, value_digest
+from nca.abi import NOTHING, Demand, Message, Module, SequenceDemand, TypeId
+from nca.cache import Checks, ResultCache, value_digest
+from nca.compile import compile_route
 from nca.objects import Attestation, Ref, Store
 from nca.packages import Export, Requirement, Upcast, charge
 from nca.optimize import slot_calls
@@ -349,3 +350,44 @@ def refine_within(plan: Plan, inputs: Sequence[Message], delta: float,
                 break
         else:
             return None, ledger, executions
+
+
+def refine_batch(plan: Plan, available: Sequence[TypeId], rows: Sequence[tuple[Any, ...]],
+                 delta: float, exact: Callable[[Module], bool] | None = None,
+                 cache: ResultCache | None = None) -> tuple[list[Any], list[RiskLedger], int]:
+    """``refine_within`` for a batch of rows on the compiled route (§34.4).
+
+    Each round evaluates the undecided rows together; each row over
+    ``delta`` raises its charged invocation with the largest report whose
+    expert can climb, a climb shared by several rows being made once per
+    round. Returns the answers (``None`` for abstentions), each row's final
+    ledger and the number of rounds."""
+    compiled = compile_route(plan, available)
+    answers: list[Any] = [None] * len(rows)
+    ledgers: list[RiskLedger] = [RiskLedger() for _ in rows]
+    pending = list(range(len(rows)))
+    rounds = 0
+    while pending:
+        rounds += 1
+        fresh = [RiskLedger() if exact is None else RiskLedger(exact) for _ in pending]
+        outputs = compiled([rows[j] for j in pending], cache=cache, ledgers=fresh)
+        climbed: set[tuple[int, str | None]] = set()
+        undecided = []
+        for j, output, ledger in zip(pending, outputs, fresh, strict=True):
+            ledgers[j] = ledger
+            if not ledger.certified:
+                continue
+            if ledger.charge <= delta:
+                answers[j] = output
+                continue
+            for module, values, _ in sorted(ledger.entries, key=lambda e: -e[2]):
+                climb = getattr(module, "refine", None)
+                if climb is None:
+                    continue
+                key = (id(module), value_digest(list(values)))
+                if key in climbed or climb(*values):
+                    climbed.add(key)
+                    undecided.append(j)
+                    break
+        pending = undecided
+    return answers, ledgers, rounds

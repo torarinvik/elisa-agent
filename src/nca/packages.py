@@ -59,7 +59,7 @@ class Requirement:
                                  cost=0.0)
         self._fillings: list[Callable[..., Any]] = []
 
-    def risk(self, output: Any) -> float:
+    def risk(self, output: Any, *inputs: Any) -> float:
         """Its filling's invocations are charged where they run (§33)."""
         return 0.0
 
@@ -84,7 +84,7 @@ class Upcast:
                      format_type(App(refined, tuple(parse_type(a) for a in arguments)))),
             cost=0.0, effects=frozenset())
 
-    def risk(self, output: Any) -> float:
+    def risk(self, output: Any, *inputs: Any) -> float:
         return 0.0
 
     def invoke(self, value: Any) -> Any:

@@ -8,7 +8,7 @@ import pytest
 import torch
 
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
-from nca.cache import ResultCache
+from nca.cache import ResultCache, value_digest
 from nca.evidence import (benchmark, error_bound, evaluation, exact, rates, route_bound,
                           route_risk, answer_within, refine_within)
 from nca.optimize import cheapest_within, plan_pareto
@@ -381,7 +381,7 @@ def test_route_bounds_spend_confidence_by_invocations_and_skip_exact_experts() -
 class Reporting(Expert):
     """Counts letters and reports a risk that grows with the word's length."""
 
-    def risk(self, output: int) -> float:
+    def risk(self, output: int, *inputs: Any) -> float:
         return 0.01 * output
 
 
@@ -437,7 +437,7 @@ class Rung1(Expert):
     def invoke(self, word: str) -> int:
         return len(word)
 
-    def risk(self, output: int) -> float:
+    def risk(self, output: int, *inputs: Any) -> float:
         return self.reported
 
 
@@ -461,3 +461,25 @@ def test_refinement_climbs_the_riskiest_invocation_on_any_route() -> None:
     # with every word at the top (0.004) the target is out of reach.
     answer, ledger, executions = refine_within(route, text, 0.003, exact_module)
     assert answer is None and executions == 3
+
+
+def test_batched_refinement_climbs_shared_inputs_once_per_round() -> None:
+    from nca.evidence import refine_batch
+    from nca.modules.refinement import Escalating
+
+    reader = Escalating([Rung1("cheap", 0.04), Rung1("dear", 0.001)], "reader")
+    modules = [Expert("split", [TEXT], seq_type(WORD), []), reader,
+               Expert("sum", [seq_type(INT)], INT, [])]
+    route = plan_stable(modules, (TEXT,), INT)
+
+    def exact_module(module: Any) -> bool:
+        return module.manifest.module_id in {"split", "sum"}
+
+    rows = [("ab cd ab ef",), ("ab gh",), ("x",)]
+    answers, ledgers, rounds = refine_batch(route, (TEXT,), rows, 0.05, exact_module)
+    # Round 1: rows 0 (0.16) and 1 (0.08) both climb "ab", once; row 2 (0.04)
+    # is answered. Round 2: row 1 (0.041) is answered, row 0 (0.082) climbs
+    # "cd". Round 3: row 0 (0.043) is answered.
+    assert answers == [8, 4, 1] and rounds == 3
+    assert [ledger.charge for ledger in ledgers] == pytest.approx([0.043, 0.041, 0.04])
+    assert reader.levels == {value_digest(["ab"]): 1, value_digest(["cd"]): 1}

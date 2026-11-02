@@ -60,7 +60,7 @@ With a ``RiskLedger`` (§33), every relevant invocation's reported risk is
 added to the ledger. Relevance follows the decision demand, propagated from
 the answer through each expert's ``decides`` rule (or its ``demand`` rule)
 alongside the read demand: an invocation no decision depends on adds
-nothing (§31.6). An expert reports through ``risk(output)`` (``None`` for
+nothing (§31.6). An expert reports through ``risk(output, *inputs)`` (``None`` for
 no report), one the ledger's ``exact`` predicate accepts adds nothing, and
 any other is recorded as uncertified. An expert with ``accounts_inside`` (a package's export) runs
 its own route on the same ledger, which ``execute`` makes the current one
@@ -135,7 +135,7 @@ def charge(ledger: RiskLedger | None, module: Module, payload: Any, decision: De
     if ledger is None or decision == NOTHING or getattr(module, "accounts_inside", False):
         return
     report = getattr(module, "risk", None)
-    reported = None if report is None else report(payload)
+    reported = None if report is None else report(payload, *values)
     if reported is not None:
         ledger.charge += reported
         ledger.entries.append((module, tuple(values), reported))
