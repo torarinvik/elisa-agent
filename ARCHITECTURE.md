@@ -875,6 +875,8 @@ for both ordinary and ranked observations. `temperature_rank` proves the
 real-arithmetic ordering effect of the temperature's sign.
 For a large temperature, scaled differences that overflow before division
 are computed by scaling each finite operand first, in both Elisa and PyTorch.
+The PyTorch path promotes lower-precision logits when the temperature is
+outside their dtype's finite normal range.
 Calibrated decisions reject NaN or positive-infinite log weights and selected
 groups with zero total mass; negative infinity is valid for individual
 zero-mass entries. The fallback checks the maximum on the host, which entails

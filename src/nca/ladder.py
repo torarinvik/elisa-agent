@@ -239,7 +239,8 @@ class RankedReading(Sequence[float]):
 def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
     # Keep a positive binary64 temperature representable for lower-precision inputs.
     if (log.is_floating_point() and log.dtype != torch.float64
-            and 0 < temperature < torch.finfo(log.dtype).tiny):
+            and (0 < temperature < torch.finfo(log.dtype).tiny
+                 or temperature > torch.finfo(log.dtype).max)):
         log = log.double()
     maximum = log.max()
     maximum_value = maximum.item()

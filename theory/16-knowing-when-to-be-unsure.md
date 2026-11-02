@@ -73,7 +73,9 @@ subtraction can overflow even when the scaled difference is representable.
 For a temperature greater than one, the implementation rescales the operands
 separately when that overflow occurs; ordinary cases retain subtraction first
 to avoid unnecessary cancellation. This does not make floating-point
-arithmetic exact.
+arithmetic exact. A finite temperature may also be outside the range of the
+logit tensor's dtype; the reference path uses binary64 intermediates in that
+case so converting the temperature cannot silently produce zero or infinity.
 `Rung.risk` accepts a ranked observation and charges
 the group containing the original highest-weight class; its tensor-only form
 selects from the numerical reading, including its tie behavior. In unequal groups, a tiny difference in the leading

@@ -1515,6 +1515,43 @@ def test_calibration_overflow_rescaling_preserves_gradients() -> None:
     assert logits.grad[1].item() == pytest.approx(-expected, rel=1e-12, abs=0)
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("dtype,scale,temperature", [
+    (torch.float16, 60000.0, 200000.0),
+    (torch.float32, 3e38, 1e39),
+])
+def test_calibration_temperature_above_dtype_range(native, dtype, scale, temperature, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and ladder_module._NATIVE is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("large-temperature", (0.5, 0.5), 1.0))
+    decision = ((0,), (1,))
+    rung.temperatures[None] = temperature
+    rung.temperatures[decision] = temperature
+    logits = torch.tensor([scale, -scale], dtype=dtype)
+    expected = torch.softmax(logits.double() / temperature, dim=0)
+    tolerance = 5e-4 if dtype == torch.float16 else 1e-7
+    assert torch.allclose(rung.reading(logits).double(), expected, atol=tolerance)
+    assert torch.allclose(rung.distribution(logits, decision).double(), expected, atol=tolerance)
+    assert torch.allclose(rung.log_distribution(logits, decision), expected.log(), atol=1e-7)
+    assert rung.risk(logits, decision) == pytest.approx(expected[1].item(), abs=tolerance)
+
+
+def test_calibration_large_temperature_keeps_float32_gradients() -> None:
+    rung = Rung(constant("large-temperature-gradient", (0.5, 0.5), 1.0))
+    rung.temperatures[None] = 1e39
+    logits = torch.tensor([3e38, -3e38], dtype=torch.float32, requires_grad=True)
+    rung.reading(logits)[0].backward()
+    expected = torch.softmax(logits.detach().double() / 1e39, dim=0)
+    expected_gradient = (expected[0] * expected[1] / 1e39).item()
+    assert logits.grad is not None
+    assert logits.grad[0].item() == pytest.approx(expected_gradient, rel=1e-5, abs=0)
+    assert logits.grad[1].item() == pytest.approx(-expected_gradient, rel=1e-5, abs=0)
+
+
 def test_calibration_rejects_nonfinite_legacy_kernel_results(monkeypatch) -> None:
     from types import SimpleNamespace
     from nca import ladder as ladder_module
