@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import torch
 
-from nca.abi import Calls, Contract, Manifest, Message, seq_type
+from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
 from nca.cache import ResultCache
 from nca.ladder import CALIBRATION, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
@@ -169,6 +169,30 @@ def test_composites_nest() -> None:
     assert export.manifest.contract.slots == ()
     route = plan_stable([export], (TEXT,), INT)
     assert execute(route, {TEXT: Message(TEXT, "abc de", "input")}, Workspace(), 10).payload == 5
+
+
+class FirstOnly(Expert):
+    """Reads only its first input."""
+
+    def demand(self, index: int, demand: Any) -> Any:
+        return demand if index == 0 else NOTHING
+
+
+def first_only() -> FirstOnly:
+    return FirstOnly("first", [TEXT, INT], WORD, [])
+
+
+def test_installed_primitives_keep_their_implementations_demand() -> None:
+    BEHAVIOR["first"] = lambda text, _: text
+    store = Store()
+    first = store.put(Primitive(first_only().manifest, f"{__name__}:first_only"))
+    length = store.put(primitive("length", [TEXT], INT))
+    modules = install(store, store.put(Composite("both", "1", (first, length))))
+    route = plan_stable(modules, (TEXT,), WORD)
+    assert isinstance(route, Apply) and route.module.manifest.module_id == "first"
+    workspace = Workspace()
+    assert execute(route, [Message(TEXT, "ab", "input")], workspace, 10).payload == "ab"
+    assert not any(m.producer.startswith("length") for m in workspace.messages())
 
 
 def test_declared_manifest_must_match_the_loaded_one() -> None:

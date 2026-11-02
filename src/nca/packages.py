@@ -121,15 +121,26 @@ class Export:
                 requirement._fillings.pop()
 
 
+def _forward(expert: LazyExpert, name: str, default: Any) -> Callable[..., Any]:
+    """The implementation's optional rule ``name``, or what its absence means."""
+    def rule(*arguments: Any) -> Any:
+        own = getattr(expert.store.acquire(expert), name, None)
+        return default if own is None else own(*arguments)
+
+    return rule
+
+
 def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
             budget: int = 10_000, length: int = 1) -> list[Module]:
     """The experts a scope sees for the object ``ref``, in order.
 
     Primitives become lazy experts in ``experts`` (a fresh unbounded store by
     default), each with its reference as identity, so a primitive shared by
-    several composites is one expert. ``budget`` bounds the invocations of
-    one call of an export, and ``length`` is the sequence length at which
-    exports declare their cost.
+    several composites is one expert. Their demand and relevance rules are
+    the implementation's, read when the planner first asks (loading it);
+    without one, everything is demanded and relevant. ``budget`` bounds the
+    invocations of one call of an export, and ``length`` is the sequence
+    length at which exports declare their cost.
     """
     experts = experts if experts is not None else ExpertStore()
     made: dict[Ref, Module] = {}
@@ -138,7 +149,10 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
         if node not in made:
             obj = store.get(node)
             assert isinstance(obj, Primitive)
-            made[node] = LazyExpert(obj.manifest, obj.load, obj.size, experts, identity=node)
+            expert = LazyExpert(obj.manifest, obj.load, obj.size, experts, identity=node)
+            expert.demand = _forward(expert, "demand", None)
+            expert.relevant = _forward(expert, "relevant", True)
+            made[node] = expert
         return made[node]
 
     def members(obj: Composite) -> list[Module]:
