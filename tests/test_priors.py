@@ -758,6 +758,31 @@ def test_partition_cursor_bounds_cache_and_falls_back() -> None:
             assert cursor._alternatives is None
 
 
+def test_partition_cursor_wide_alphabet_membership_and_cache_budget() -> None:
+    import nca.partition as incremental
+
+    alphabet = (*range(256), 2**64)
+    prior = priors.ArityPrior(alphabet, np.zeros((1, len(alphabet)), dtype=np.int64),
+                              np.zeros((1, len(alphabet))), np.zeros(1))
+    rows = np.zeros((3, len(alphabet)))
+    cursor = incremental.PartitionCursor(prior)
+    for selected in ((255, 2**64, 0), (np.uint64(255), 2**64, np.int64(0)),
+                     (255, 2**64 + 1, 0)):
+        np.testing.assert_allclose(cursor.partition(rows, selected), prior.partition(rows, selected))
+    class UnhashableInt(int):
+        __hash__ = None
+    np.testing.assert_allclose(cursor.partition(rows, (UnhashableInt(255), 2**64, 0)),
+                               prior.partition(rows, (255, 2**64, 0)))
+    limited = incremental.PartitionCursor(prior, max_cache_bytes=0)
+    np.testing.assert_allclose(limited.partition(rows, (255, 2**64, 0)),
+                               prior.partition(rows, (255, 2**64, 0)))
+    assert limited._symbols is None and limited._alternatives is None
+    limited = incremental.PartitionCursor(prior, max_cache_bytes=128)
+    np.testing.assert_allclose(limited.partition(rows, (255, 2**64 + 1, 0)),
+                               prior.partition(rows, (255, 2**64 + 1, 0)))
+    assert limited._symbols is None and limited._alternatives is None
+
+
 def test_partition_cursor_fallback_does_not_copy_input_before_partition(
         monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental

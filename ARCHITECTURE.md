@@ -1270,7 +1270,8 @@ changes; adapters preserve that callback's source identity across calls.
 For changed readings, `PartitionCursor` retains prefix summaries and recomputes
 from the first changed row or selected arity. The Elisa kernel performs the
 numeric update; without it, or when the estimated cache exceeds 64 MiB by
-default, the cursor uses the rolling full partition. The limit is configurable.
+default, the cursor uses the rolling full partition. The limit is configurable;
+the estimate includes the immutable alphabet-membership set used by the cache.
 Selected symbols use the same exact native encoding as the full partition;
 changing that encoding invalidates the cached prefix, even if encoded values
 match an earlier selection.

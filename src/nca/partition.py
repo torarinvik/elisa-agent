@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from numbers import Integral
+from sys import getsizeof
 
 import numpy as np
 
@@ -25,6 +26,7 @@ class PartitionCursor:
                                             or max_cache_bytes < 0):
             raise ValueError("max_cache_bytes must be a nonnegative integer or None")
         self._prior = prior
+        self._symbols: frozenset[int] | None = None
         self._max_cache_bytes = None if max_cache_bytes is None else int(max_cache_bytes)
         self._rows: np.ndarray | None = None
         self._selected: np.ndarray | None = None
@@ -53,14 +55,29 @@ class PartitionCursor:
         selected_values = np.asarray(selected)
         if not _integer_symbols(selected, values=selected_values):
             raise ValueError("selected symbols must be integers")
-        if _NATIVE is None or any(symbol not in self.prior.alphabet for symbol in selected):
+        if _NATIVE is None or self.max_cache_bytes == 0:
+            return self.prior.partition(rows, selected)
+        if self._symbols is None:
+            self._symbols = frozenset(self.prior.alphabet)
+        symbol_bytes = getsizeof(self._symbols)
+        if self.max_cache_bytes is not None and symbol_bytes > self.max_cache_bytes:
+            self._symbols = None
+            return self.prior.partition(rows, selected)
+        try:
+            unsupported = any(symbol not in self._symbols for symbol in selected)
+        except TypeError:
+            # Integer subclasses may deliberately disable hashing.
+            unsupported = any(symbol not in self.prior.alphabet for symbol in selected)
+        if unsupported:
             # The rolling fallback does not mutate the cached prefix snapshot.
             return self.prior.partition(rows, selected)
         m, states = len(rows), len(self.prior.log_final)
-        cache_bytes = (m + 1) * (states * 8 + 32) + m * (rows.shape[1] + 1) * 8
+        cache_bytes = ((m + 1) * (states * 8 + 32) + m * (rows.shape[1] + 1) * 8
+                       + symbol_bytes)
         if self.max_cache_bytes is not None and cache_bytes > self.max_cache_bytes:
             self._rows = self._selected = self._alphabet = self._result = None
             self._alternatives = self._bounds = self._matched_states = self._matched_weights = None
+            self._symbols = None
             self._valid = False
             return self.prior.partition(rows, selected)
         rows = np.array(rows, dtype=np.float64, order="C", copy=True)
