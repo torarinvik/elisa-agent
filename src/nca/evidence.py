@@ -518,3 +518,24 @@ def audit_invocations(invocations: Sequence[Invocation], labels: Sequence[Any],
     return audit([i.report for i in invocations],
                  [not correct(i.output, label) for i, label in zip(invocations, labels)],
                  independent)
+
+
+def cross_audit(invocations: Sequence[Invocation], reference: Module,
+                same: Callable[[Any, Any], bool], independent: bool = True) -> Audit:
+    """Audit sampled invocations against a reference expert with the same
+    contract instead of labels (Theorem 40.1): the reference is invoked on
+    each invocation's inputs, ``same`` compares the two decisions, and the
+    disagreements are audited against the sums of both reports. A refutation
+    means at least one of the two is miscalibrated."""
+    reports, disagreements = [], []
+    for invocation in invocations:
+        if invocation.expert.manifest.contract != reference.manifest.contract:
+            raise ValueError("the reference must have the audited expert's contract")
+        output = reference.invoke(*invocation.values)
+        report = getattr(reference, "risk", None)
+        second = None if report is None else report(output, *invocation.values)
+        if second is None:
+            raise ValueError(f"{reference.manifest.ref} reports no risk")
+        reports.append(min(1.0, invocation.report + second))
+        disagreements.append(not same(invocation.output, output))
+    return audit(reports, disagreements, independent)

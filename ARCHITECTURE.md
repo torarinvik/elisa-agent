@@ -51,6 +51,7 @@ run the Python tests with `uv run pytest`.
 | [§37 Calibration by groups of inputs](theory/reliability/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
 | [§38 In-situ audits](theory/reliability/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
 | [§39 Answering over alternatives](theory/reliability/39-alternatives.md) | `Alternatives` | `alternatives.answer_over_alternatives`, `alternatives.Choice`, `alternatives.Tabled`, `alternatives.fit_table` |
+| [§40 Audits by agreement](theory/reliability/40-agreement-audits.md) | `Agreement` | `evidence.cross_audit` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -342,6 +343,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [37.1](theory/reliability/37-grouped-calibration.md) | `grouped_calibrated` | `Grouped` |
 | [38.1](theory/reliability/38-in-situ-audits.md) | `sampled_calibrated` | `Sampling` |
 | [39.1](theory/reliability/39-alternatives.md) | `alternatives_le`, `alternatives_lower` | `Alternatives` |
+| [40.1](theory/reliability/40-agreement-audits.md) | `disagreement_le` with `audit_tail_le` | `Agreement`, `Audit` |
 
 ## Native kernels
 
@@ -1923,3 +1925,13 @@ cells. The arithmetic segmenter's first segmentation cuts each run into
 (`segmenter.pitched`), separating touching glyphs; its further
 `alternatives` are the uncut runs, merges and single splits, without
 repeats, and `segmenter.segmentations` gives their column spans.
+
+## 40. Audits by agreement
+
+`evidence.cross_audit(invocations, reference, same, independent)` audits
+sampled invocations without labels: it requires `reference` to have the
+audited expert's contract and to report risk, invokes it on each
+invocation's inputs, counts a failure where `same(output, reference
+output)` is false, and runs `audit` with reports `min(1, report +
+reference report)`. A refutation means the expert, the reference, or
+both are miscalibrated on the sampled inputs.

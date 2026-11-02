@@ -164,3 +164,39 @@ def test_grouped_calibration_holds_in_each_group_and_any_mixture() -> None:
     # An input of a group without a rung reports no risk.
     sparse = Grouped(expert, group, {0: rungs[0]})
     assert sparse.risk(sparse.invoke((0, 1, 5)), (0, 1, 5)) is None
+
+
+def test_cross_audits_refute_by_disagreement_without_labels() -> None:
+    from nca.evidence import cross_audit
+    from nca.runtime import Invocation
+
+    rng = random.Random(5)
+
+    class Reader:
+        def __init__(self, name: str, error: float, report: float) -> None:
+            self.manifest = Manifest(name, "1", Contract(("glyph.v1",), "label.v1"))
+            self.error, self.report = error, report
+
+        def invoke(self, value: tuple[int, int]) -> int:
+            label, noise = value
+            return label if rng.random() >= self.error else label + 1 + rng.randrange(5)
+
+        def risk(self, output: int, *inputs: Any) -> float:
+            return self.report
+
+    def sample(reader: Reader, n: int) -> list[Invocation]:
+        values = [(rng.randrange(10), 0) for _ in range(n)]
+        return [Invocation(reader, (v,), out := reader.invoke(v), reader.risk(out)) for v in values]
+
+    def same(first: int, second: int) -> bool:
+        return first == second
+
+    honest, reference = Reader("a", 0.05, 0.05), Reader("b", 0.05, 0.05)
+    assert not cross_audit(sample(honest, 1000), reference, same).refutes(0.01)
+    overconfident = Reader("a", 0.2, 0.01)
+    found = cross_audit(sample(overconfident, 1000), reference, same)
+    assert found.refutes(1e-6) and found.reported == pytest.approx(60.0)
+    silent = Reader("c", 0.0, 0.0)
+    silent.manifest = Manifest("c", "1", Contract(("glyph.v1",), "other.v1"))
+    with pytest.raises(ValueError, match="contract"):
+        cross_audit(sample(honest, 3), silent, same)
