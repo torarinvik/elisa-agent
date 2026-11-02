@@ -31,7 +31,7 @@ from nca.packages import Export, Requirement, Upcast, charge
 from nca.optimize import slot_calls
 from nca.planner import Apply, Given, Map, Plan
 from nca.router import sign_test
-from nca.runtime import Resolver, RiskLedger, execute
+from nca.runtime import Invocation, Resolver, RiskLedger, execute
 from nca.stats import clopper_pearson_upper, family_audit_alpha, poisson_binomial_upper_bound
 from nca.trust import Trust
 from nca.workspace import Workspace
@@ -494,3 +494,27 @@ def acquire(incumbent: Module, train: Callable[[Sequence[Any], Sequence[Any]], M
     accepted, p_value = sign_test(base, found, alpha)
     promotion = _promotion(incumbent, challenger, base, found, p_value, alpha) if accepted else None
     return Acquisition(challenger, base, found, promotion)
+
+
+def sample_invocations(ledgers: Sequence[RiskLedger], rate: float, seed: int = 0,
+                       select: Callable[[Module], bool] | None = None) -> list[Invocation]:
+    """Keep each charged invocation of a selected expert in ``ledgers`` with
+    probability ``rate``, by coins independent of everything else: an
+    in-situ audit sample (Theorem 38.1)."""
+    import random
+
+    if not 0.0 <= rate <= 1.0:
+        raise ValueError("the sampling rate must be a probability")
+    coins = random.Random(seed)
+    return [invocation for ledger in ledgers for invocation in ledger.invocations
+            if (select is None or select(invocation.expert)) and coins.random() < rate]
+
+
+def audit_invocations(invocations: Sequence[Invocation], labels: Sequence[Any],
+                      correct: Callable[[Any, Any], bool], independent: bool = True) -> Audit:
+    """``audit`` of sampled invocations, given a label for each."""
+    if len(labels) != len(invocations):
+        raise ValueError("an audit needs one label per invocation")
+    return audit([i.report for i in invocations],
+                 [not correct(i.output, label) for i, label in zip(invocations, labels)],
+                 independent)

@@ -109,6 +109,18 @@ def _never(module: Module) -> bool:
     return False
 
 
+@dataclass(frozen=True)
+class Invocation:
+    """A charged invocation: the expert that answered it (an escalating
+    expert's ``answering`` rung, else the expert itself), its inputs, its
+    output and its report."""
+
+    expert: Module
+    values: tuple[Any, ...]
+    output: Any
+    report: float
+
+
 @dataclass
 class RiskLedger:
     """The per-input charge of one execution (§33.2)."""
@@ -120,6 +132,8 @@ class RiskLedger:
     """Experts invoked without a reported risk, by module id."""
     entries: list[tuple[Module, tuple[Any, ...], float]] = field(default_factory=list)
     """Each charged invocation: the expert, its input values and its report."""
+    invocations: list[Invocation] = field(default_factory=list)
+    """Each charged invocation as audits sample it (§38)."""
 
     @property
     def certified(self) -> bool:
@@ -139,6 +153,9 @@ def charge(ledger: RiskLedger | None, module: Module, payload: Any, decision: De
     if reported is not None:
         ledger.charge += reported
         ledger.entries.append((module, tuple(values), reported))
+        answering = getattr(module, "answering", None)
+        expert = module if answering is None else answering(*values)
+        ledger.invocations.append(Invocation(expert, tuple(values), payload, reported))
     elif not ledger.exact(module):
         ledger.uncertified.append(module.manifest.module_id)
 

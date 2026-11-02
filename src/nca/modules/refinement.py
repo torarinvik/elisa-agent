@@ -106,6 +106,10 @@ class Escalating:
         report = getattr(self.rungs[self._level(values)[1]], "risk", None)
         return None if report is None else report(output, *values)
 
+    def answering(self, *values: Any) -> Module:
+        """The rung that answers ``values`` at their current level."""
+        return self.rungs[self._level(values)[1]]
+
     def refine(self, *values: Any) -> bool:
         """Answer ``values`` one rung higher from now on; ``False`` at the top."""
         key, level = self._level(values)

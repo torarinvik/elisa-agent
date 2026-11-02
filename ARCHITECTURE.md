@@ -49,6 +49,7 @@ run the Python tests with `uv run pytest`.
 | [§35 Calibration audits](theory/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
 | [§36 Acquiring experts](theory/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
 | [§37 Calibration by groups of inputs](theory/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
+| [§38 In-situ audits](theory/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -336,6 +337,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [35.1](theory/35-calibration-audits.md) | `count_tail_le`, `audit_tail_le` | `Audit` |
 | [36.1](theory/36-acquisition.md) | `split_test_le` | `Acquire` |
 | [37.1](theory/37-grouped-calibration.md) | `grouped_calibrated` | `Grouped` |
+| [38.1](theory/38-in-situ-audits.md) | `sampled_calibrated` | `Sampling` |
 
 ## Native kernels
 
@@ -1873,3 +1875,17 @@ group has no rung is read uncalibrated and reports `None`. Groups are
 audited separately with `evidence.audit`. The grouping is the caller's:
 any function of the input, such as a classifier trained to tell audited
 inputs from calibration inputs.
+
+## 38. In-situ audits
+
+`runtime.charge` also appends each charged invocation to
+`RiskLedger.invocations` as a `runtime.Invocation(expert, values,
+output, report)`, where `expert` is the module's `answering(*values)` if
+it has one (an `Escalating` expert's rung at the input's current level)
+and the module otherwise; both execution paths charge through it.
+`evidence.sample_invocations(ledgers, rate, seed, select)` keeps each
+invocation of a selected expert with probability `rate`, by seeded coins;
+callers pass final ledgers, such as those `refine_batch` returns, so the
+sample is of the invocations answers relied on.
+`evidence.audit_invocations(invocations, labels, correct)` audits them
+once labeled, and their `values` feed `recalibrate` or `fit_groups`.

@@ -483,3 +483,35 @@ def test_batched_refinement_climbs_shared_inputs_once_per_round() -> None:
     assert answers == [8, 4, 1] and rounds == 3
     assert [ledger.charge for ledger in ledgers] == pytest.approx([0.043, 0.041, 0.04])
     assert reader.levels == {value_digest(["ab"]): 1, value_digest(["cd"]): 1}
+
+
+def test_in_situ_samples_name_the_rung_that_answered() -> None:
+    from nca.evidence import audit_invocations, refine_batch, sample_invocations
+    from nca.modules.refinement import Escalating
+
+    cheap, dear = Rung1("cheap", 0.04), Rung1("dear", 0.001)
+    reader = Escalating([cheap, dear], "reader")
+    modules = [Expert("split", [TEXT], seq_type(WORD), []), reader,
+               Expert("sum", [seq_type(INT)], INT, [])]
+    route = plan_stable(modules, (TEXT,), INT)
+
+    def exact_module(module: Any) -> bool:
+        return module.manifest.module_id in {"split", "sum"}
+
+    rows = [("ab cd ab ef",), ("ab gh",), ("x",)]
+    _, ledgers, _ = refine_batch(route, (TEXT,), rows, 0.05, exact_module)
+    kept = sample_invocations(ledgers, 1.0)
+    # Final ledgers only: "ab" twice and "cd" by the dear rung, the rest cheap.
+    assert sorted((i.values[0], i.expert.manifest.module_id) for i in kept) == [
+        ("ab", "dear"), ("ab", "dear"), ("ab", "dear"), ("cd", "dear"), ("ef", "cheap"),
+        ("gh", "cheap"), ("x", "cheap")]
+    assert all(i.output == len(i.values[0]) for i in kept)
+    assert len(sample_invocations(ledgers, 1.0, select=lambda m: m is cheap)) == 3
+    assert sample_invocations(ledgers, 0.0) == []
+    many = [ledgers[0]] * 500
+    assert 900 < len(sample_invocations(many, 0.5)) < 1100  # Half of 2,000.
+    result = audit_invocations(kept, [len(i.values[0]) for i in kept],
+                               lambda output, label: output == label)
+    assert result.failures == 0 and result.reported == pytest.approx(0.004 + 0.12)
+    with pytest.raises(ValueError, match="probability"):
+        sample_invocations(ledgers, 1.5)
