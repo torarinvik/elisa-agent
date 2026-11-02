@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.41) are described in the
+Regional acquisition and composition (§§36.26–36.42) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2362,3 +2362,10 @@ observations against continuous training feedback, returning an ordinary
 no teacher or targets. Existing head/measurement acquisition and numeric graph
 retention can consume its generated interface. `orthogonal_residual_square`
 proves only the scalar orthogonal residual identity, not the NumPy solver.
+
+`fit_polynomial_regression_features` (§36.42) grows complete polynomial lifts
+while fitted projection/offset residuals exceed a supplied training tolerance.
+It emits feature proposals with lift/projection constructors, stops before term
+budget overflow, and leaves head fitting and whole-task selection separate.
+`nested_fit_comparison` proves only conditional optimizer comparison, not a
+floating-point or maximum-residual monotonicity result.

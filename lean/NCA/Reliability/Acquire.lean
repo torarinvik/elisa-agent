@@ -320,4 +320,11 @@ theorem orthogonal_residual_square (r p : ℝ) (h : r * p = 0) :
     (r + p)^2 = r^2 + p^2 := by
   nlinarith [sq_nonneg r, sq_nonneg p]
 
+/-- A larger-class optimizer cannot exceed an admitted smaller-class witness. -/
+theorem nested_fit_comparison {H : Type*} (admitted : H → Prop) (error : H → ℝ)
+    (best witness : H) (hw : admitted witness)
+    (optimal : ∀ h, admitted h → error best ≤ error h) :
+    error best ≤ error witness := by
+  exact optimal witness hw
+
 end NCA

@@ -260,3 +260,48 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
             proposals.append(replace(proposal,
                                     constructors=(lift.constructor,) + proposal.constructors))
     return proposals
+
+
+def fit_polynomial_regression_features(measurement: Module,
+        rows: Sequence[tuple[Any, ...]], feedback: Sequence[float], *, max_degree: int,
+        max_terms: int, max_error: float, lifting_cost: float,
+        projection_cost: float) -> list[Proposal]:
+    """Grow polynomial representations while training residuals remain (§36.42).
+
+    Fit a centered regression projection at each complete degree, retaining its
+    generated lift/projection declarations. Stop after the first fitted projection
+    whose affine-offset residual meets max_error, or before a degree/term limit.
+    The offset is used only for training stopping; fit an actual head separately.
+    No basis is partially truncated. Limits bound represented families, not all
+    runtime/memory use. Constant/zero directions emit no feature and search may
+    continue. Use independent whole-task selection after head acquisition; this
+    training stop can miss features that generalize better at higher degrees.
+    Stable measurements and finite floating-point arithmetic remain assumptions.
+    """
+    if any(type(n) is not int or n < 1 for n in (max_degree, max_terms)):
+        raise ValueError("degree and term budgets must be positive integers")
+    if any(not math.isfinite(c) or c < 0 for c in (max_error, lifting_cost, projection_cost)):
+        raise ValueError("error tolerance and costs must be finite and nonnegative")
+    if len(rows) < 2 or len(rows) != len(feedback):
+        raise ValueError("polynomial regression needs aligned observations")
+    contract = measurement.manifest.contract
+    if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
+        raise ValueError("training row arity differs from contract")
+    targets = tuple(map(_observation, feedback))
+    dimension = len(_vector(measurement.invoke(*rows[0])))
+    proposals = []
+    for degree in range(1, max_degree + 1):
+        if math.comb(dimension + degree, degree) - 1 > max_terms:
+            break
+        lift = PolynomialEncoder(measurement, dimension, degree,
+                                 max_terms=max_terms, cost=lifting_cost)
+        projection = fit_regression_projection(lift, rows, targets, projection_cost=projection_cost)
+        if projection is None:
+            continue
+        proposals.append(Proposal(projection, (lift.constructor, projection.constructor)))
+        residuals = tuple(_observation(target - projection.invoke(*row))
+                          for row, target in zip(rows, targets, strict=True))
+        offset = math.fsum(residual / len(rows) for residual in residuals)
+        if max(abs(_observation(residual - offset)) for residual in residuals) <= max_error:
+            break
+    return proposals

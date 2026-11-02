@@ -289,3 +289,23 @@ Floating-point centering, conditioning and finite range can affect results.
 Stable observations and independent whole-task selection remain assumptions.
 No unobserved direction is identified by a minimum-norm fit, and a supplied
 vector measurement or regression family is not invented by this mechanism.
+
+
+## 36.42 Error-driven polynomial representation growth
+
+Starting at degree one, form the complete nonconstant monomial basis, fit a
+continuous-feedback projection, and retain its generated interfaces. For fitted
+projection q_i, estimate offset b = mean_i(z_i−q_i) and stop at the first degree
+with max_i |z_i−q_i−b| ≤ ε, for a supplied finite nonnegative ε. Otherwise grow
+the degree, bounded by explicit degree and term budgets. Stop before allocating
+an over-budget complete basis; never silently truncate a basis. Zero directions
+emit no feature. Fit actual heads and select whole-task candidates independently.
+
+For nested exact hypothesis classes, if the larger class contains a predictor
+with error E_small and its optimizer attains no larger error than any member,
+then its error is at most E_small. Lean proves this comparison principle, not
+monomial enumeration, least-squares implementation or a monotonic maximum-error
+claim. Least squares minimizes squared error, while the stopping statistic here
+is maximum absolute residual. Training stopping can miss better generalizing
+higher degrees. Families, tolerance and vector source remain supplied; resource
+budgets bound retained structures, not callback time or numerical conditioning.

@@ -352,3 +352,52 @@ def test_regression_projection_finite_data_and_degenerate_design() -> None:
         fit(Measurement(), [(), ()], [1.0, 2.0], projection_cost=0)
     with pytest.raises(ValueError, match="cost"):
         fit(Measurement(), [((1.0,),), ((2.0,),)], [1.0, 2.0], projection_cost=-1)
+
+
+def test_polynomial_growth_stops_when_training_feedback_is_explained() -> None:
+    from nca.affine_learning import fit_affine
+    from nca.discovery import Proposal
+    from nca.interface_learning import propose_heads
+    from nca.projection_learning import fit_polynomial_regression_features
+
+    rng = random.Random(3645)
+    rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(400)]
+    targets = [1.7 * v[0] * v[1] - 0.4 * v[0] ** 2 + 0.2 for v, in rows]
+    degrees = []
+
+    def propose(train: Any, labels: Any) -> Any:
+        features = fit_polynomial_regression_features(Measurement(), train, labels,
+                    max_degree=5, max_terms=100, max_error=1e-9,
+                    lifting_cost=1, projection_cost=1)
+        degrees.extend(f.expert.measurement.degree for f in features)
+        assert all(len(f.constructors) == 2 for f in features)
+        return propose_heads(Baseline(), features,
+            lambda contract, values, targets, budget: [
+                Proposal(fit_affine(contract, values, targets, cost=1))],
+            train, labels, max_features=5, max_heads=1)
+
+    result = discover(Baseline(), propose, rows, targets, lambda a, b: abs(a - b) < 1e-9)
+    assert degrees == [1, 2]
+    assert result.chosen is not None and len(result.chosen.constructors) == 2
+    assert [sum(t.outcomes) for t in result.trials] == [0, 200]
+
+
+def test_polynomial_regression_growth_respects_structural_budgets() -> None:
+    from nca.projection_learning import fit_polynomial_regression_features
+
+    rows = [((x, y),) for x in (-1.0, 0.0, 1.0) for y in (-1.0, 0.0, 1.0)]
+    targets = [x + x * y for (x, y), in rows]
+
+    def fit(**kwargs: Any) -> Any:
+        return fit_polynomial_regression_features(Measurement(), rows, targets,
+                    max_error=0, lifting_cost=0, projection_cost=0, **kwargs)
+
+    assert fit(max_degree=5, max_terms=1) == []
+    assert [p.expert.measurement.degree for p in fit(max_degree=5, max_terms=2)] == [1]
+    assert [p.expert.measurement.degree for p in fit(max_degree=1, max_terms=100)] == [1]
+    with pytest.raises(ValueError, match="budgets"):
+        fit(max_degree=0, max_terms=100)
+    with pytest.raises(ValueError, match="tolerance"):
+        fit_polynomial_regression_features(Measurement(), rows, targets,
+                    max_degree=2, max_terms=10, max_error=float("nan"),
+                    lifting_cost=0, projection_cost=0)
