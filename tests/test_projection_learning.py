@@ -237,3 +237,66 @@ def test_native_polynomials_validate_packed_indices() -> None:
                                 array("q", indices)) == []
     assert native.monomials(array("d", [2.0]), array("q", [0, 0, 2]),
                             array("q", [0, 0])) == [1.0, 4.0]
+
+
+def test_auxiliary_projection_routes_original_object_targets() -> None:
+    from collections import Counter
+    from dataclasses import replace
+
+    from nca.discovery import Proposal
+    from nca.numeric_learning import midpoint_boundary
+    from nca.projection_learning import fit_projection_encoders
+    from nca.regional_learning import propose_failure_partitions
+
+    class Expert:
+        def __init__(self, manifest: Manifest, function: Any) -> None:
+            self.manifest, self.function = manifest, function
+
+        def invoke(self, *args: Any) -> Any:
+            return self.function(*args)
+
+    incumbent = Expert(Baseline.manifest, lambda xy: None)
+    rng = random.Random(3641)
+    rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(1000)]
+    targets = [{"kind": "left" if sum(row[0]) < 0 else "right"} for row in rows]
+    seen = []
+
+    def propose(train: Any, labels: Any) -> Any:
+        categories = [frozenset({target["kind"]}) for target in labels]
+        encoders = fit_projection_encoders(Measurement(), train, categories,
+                                            limit=1, projection_cost=1)
+        assert len(encoders) == 1
+        def acquire(subset: Any, original: Any) -> Any:
+            seen.extend(zip(subset, original, strict=True))
+            modal = Counter(target["kind"] for target in original).most_common(1)[0][0]
+            return [Proposal(Expert(incumbent.manifest, lambda xy: {"kind": modal}))]
+
+        return [replace(p, constructors=(encoders[0].constructor,) + p.constructors)
+                for p in propose_failure_partitions(incumbent, encoders, acquire, train, labels,
+                    lambda a, b: a == b, max_measurements=1, max_regions=2,
+                    encoding_cost=1, overhead_cost=1, max_combinations=1,
+                    place_boundary=midpoint_boundary,
+                    routing_signal=lambda row, prediction, target: frozenset({target["kind"]}))]
+
+    result = discover(incumbent, propose, rows, targets, lambda a, b: a == b)
+    assert result.chosen is not None
+    assert len(result.chosen.constructors) == 2
+    assert sum(result.trials[-1].outcomes) > 475
+    assert sorted((row, target["kind"]) for row, target in seen) == (
+        sorted((row, target["kind"]) for row, target in zip(rows[:500], targets[:500])))
+
+
+def test_projection_encoder_fitting_is_label_agnostic_and_bounded() -> None:
+    from nca.projection_learning import fit_projection_encoders
+
+    rows = [((-2.0, 0.0),), ((-1.0, 0.0),), ((1.0, 0.0),), ((2.0, 0.0),)]
+    first = fit_projection_encoders(Measurement(), rows, ["a", "a", "b", "b"],
+                                    limit=1, projection_cost=0)
+    renamed = fit_projection_encoders(Measurement(), rows, [17, 17, 93, 93],
+                                      limit=1, projection_cost=0)
+    assert first[0].direction == renamed[0].direction == (3.0, 0.0)
+    assert first[0].constructor == renamed[0].constructor
+    assert fit_projection_encoders(Measurement(), rows, [0] * 4,
+                                   limit=1, projection_cost=0) == []
+    with pytest.raises(ValueError, match="arity"):
+        fit_projection_encoders(Measurement(), [(), ()], [0, 1], limit=1, projection_cost=0)

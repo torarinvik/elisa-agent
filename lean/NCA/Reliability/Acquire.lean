@@ -296,4 +296,10 @@ theorem router_score_selection (a b : ℕ) :
     a ≤ (if a ≤ b then b else a) ∧ b ≤ (if a ≤ b then b else a) := by
   split_ifs with h <;> omega
 
+/-- Renaming auxiliary categories without changing membership preserves each group. -/
+theorem feedback_group_invariance {X : Type*} (xs : List X) (p q : X → Bool)
+    (h : ∀ x, p x = q x) : xs.filter p = xs.filter q := by
+  have hpq : p = q := funext h
+  rw [hpq]
+
 end NCA

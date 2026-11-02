@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.37) are described in the
+Regional acquisition and composition (§§36.26–36.38) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2334,3 +2334,10 @@ prefix before specialist acquisition. Fitted routers rank by training modal
 signal accuracy, with stable ties; only `max_measurements` receive specialist
 training. `max_measurement_candidates=None` preserves prefix allocation.
 `router_score_selection` proves the two-score comparison special case only.
+
+`projection_learning.fit_projection_encoders` (§36.38) exposes the same
+centroid-pair fitting used by `propose_projections` without a task decoder.
+Auxiliary categories train directions; regional trainers keep original targets.
+Each returned encoder exposes its constructor for proposal propagation and
+existing numeric graph retention. `feedback_group_invariance` proves only
+filter equality when opaque category membership is unchanged.

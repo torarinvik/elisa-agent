@@ -215,3 +215,22 @@ uses training data only; original targets train specialists and independently
 held-out whole-task selection remains mandatory. Measurement stability and
 meaningful supplied feedback are assumptions. Additional observations and
 sorting cost are real; empirical signal purity may prefer an unhelpful router.
+
+
+## 36.38 Feedback-fitted routing measurements
+
+Given a vector measurement v and opaque auxiliary training categories z, group
+observations by z and form each finite centroid μ. For a bounded ordered set
+of category pairs, propose the scalar measurement r(x) = (μ_b − μ_a) · v(x)
+when the centroid difference is nonzero. Each projection introduces its own
+source/direction-derived interface. Fit routing cuts on these scalar measurements,
+then train regional experts on original targets, which need not be categories.
+Feedback categories are not declared to be values of the task's output type.
+
+For d = μ_b − μ_a, the projection gap at the two centroids is d · d ≥ 0,
+strictly positive if d ≠ 0, as in §36.20. Additionally, replacing opaque category
+names while preserving group membership cannot change centroid inputs; Lean
+proves the filter-membership special case. It does not prove executable fitting,
+finite arithmetic accuracy, generalization or nonlinear separability. Ordered
+pair budgets, stable measurements and independent whole-task selection remain
+assumptions. Learned directions do not invent the underlying vector measurement.

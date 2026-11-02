@@ -52,34 +52,20 @@ class ProjectionEncoder:
         return result
 
 
-def propose_projections(incumbent: Module, measurement: Module,
-                        rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
-                        limit: int, projection_cost: float, encoding_cost: float,
-                        decoder_cost: float,
-                        place_boundary: Callable[[float, float], float] | None = None,
-                        reuse_observations: bool = False) -> list[Proposal]:
-    """Fit centroid-difference projections and threshold heads on training rows only.
-
-    Target order determines budgeted pair order. No direction is proposed for
-    equal centroids. Stable observations/models and independent selection are
-    required. This family can miss nonlinear distinctions entirely. Opt-in reuse
-    additionally asserts determinism, requires known empty effects and no slots,
-    and never retains training snapshots in the proposed inference route.
-    """
+def _fit_projections(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                     labels: Sequence[Hashable], limit: int, cost: float,
+                     reuse_observations: bool
+                     ) -> tuple[list[ProjectionEncoder], list[tuple[tuple[float, ...], Hashable]]]:
     if type(limit) is not int or limit < 1:
         raise ValueError("projection limit must be a positive integer")
     if len(rows) < 2 or len(rows) != len(labels):
         raise ValueError("projection fitting needs aligned observations")
-    contract = incumbent.manifest.contract
-    if replace(measurement.manifest.contract, output=contract.output) != contract:
-        raise ValueError("measurement must preserve inputs, slots and relevance")
+    contract = measurement.manifest.contract
     if any(len(row) != len(contract.inputs) + len(contract.slots) for row in rows):
         raise ValueError("training row arity differs from contract")
-    if any(not math.isfinite(c) or c < 0
-           for c in (projection_cost, encoding_cost, decoder_cost)):
+    if not math.isfinite(cost) or cost < 0:
         raise ValueError("costs must be finite and nonnegative")
-    if reuse_observations and (measurement.manifest.effects != frozenset()
-                               or measurement.manifest.contract.slots):
+    if reuse_observations and (measurement.manifest.effects != frozenset() or contract.slots):
         raise ValueError("observation reuse requires known empty effects and no slots")
     observations = []
     groups: dict[Hashable, list[tuple[float, ...]]] = {}
@@ -94,14 +80,56 @@ def propose_projections(incumbent: Module, measurement: Module,
         groups.setdefault(label, []).append(value)
     centroids = [tuple(math.fsum(x[i] / len(group) for x in group)
                        for i in range(dimension or 0)) for group in groups.values()]
-    proposals = []
+    projections = []
     for index, (a, b) in enumerate(combinations(centroids, 2)):
         if index >= limit:
             break
         direction = _vector(tuple(y - x for x, y in zip(a, b, strict=True)))
-        if not any(direction):
-            continue
-        projection = ProjectionEncoder(measurement, direction, projection_cost)
+        if any(direction):
+            projections.append(ProjectionEncoder(measurement, direction, cost))
+    return projections, observations
+
+
+def fit_projection_encoders(measurement: Module, rows: Sequence[tuple[Any, ...]],
+                            labels: Sequence[Hashable], *, limit: int,
+                            projection_cost: float) -> list[ProjectionEncoder]:
+    """Learn scalar measurements from opaque auxiliary categories (§36.38).
+
+    Labels need not be the task's output type. Fit on training rows only, then
+    use the projections in routing or another independent acquisition step.
+    Pair order follows first label occurrence; limit bounds considered pairs,
+    including equal-centroid pairs which emit no direction. Stable observations
+    are assumed. Each encoder exposes its generated constructor; callers must
+    propagate it when retaining a decomposition. No labels or samples are kept
+    in the inference object, and nonlinear distinctions may be missed entirely.
+    """
+    projections, _ = _fit_projections(measurement, rows, labels, limit, projection_cost, False)
+    return projections
+
+
+def propose_projections(incumbent: Module, measurement: Module,
+                        rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
+                        limit: int, projection_cost: float, encoding_cost: float,
+                        decoder_cost: float,
+                        place_boundary: Callable[[float, float], float] | None = None,
+                        reuse_observations: bool = False) -> list[Proposal]:
+    """Fit centroid-difference projections and threshold heads on training rows only.
+
+    Target order determines budgeted pair order. No direction is proposed for
+    equal centroids. Stable observations/models and independent selection are
+    required. This family can miss nonlinear distinctions entirely. Opt-in reuse
+    additionally asserts determinism, requires known empty effects and no slots,
+    and never retains training snapshots in the proposed inference route.
+    """
+    contract = incumbent.manifest.contract
+    if replace(measurement.manifest.contract, output=contract.output) != contract:
+        raise ValueError("measurement must preserve inputs, slots and relevance")
+    if any(not math.isfinite(c) or c < 0 for c in (encoding_cost, decoder_cost)):
+        raise ValueError("costs must be finite and nonnegative")
+    projections, observations = _fit_projections(measurement, rows, labels, limit,
+                                                 projection_cost, reuse_observations)
+    proposals = []
+    for projection in projections:
         if reuse_observations:
             ordered = sorted(((projection.project(value), label) for value, label in observations),
                              key=lambda item: item[0])
