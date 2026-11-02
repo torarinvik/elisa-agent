@@ -2262,3 +2262,12 @@ An optional pure `tie_break` scores read-only label histograms only after modal
 accuracy. `purity_tiebreak` supplies weighted child purity without label semantics.
 `binary_modal_split_le` proves the binary empirical split bound, not greedy
 lookahead optimality or executable/native verification.
+
+`regional_objects.regional_object` (§36.29) stores a structural routing key,
+explicit dispatch overhead and three verified dependency bindings. Store fitted
+components first, rebuild the regional runtime from their installed versions,
+then snapshot its wiring. The factory checks scope positions and reconstructs
+contracts/costs/effects; the resulting identity includes key and dependencies.
+`discover_packages` can select these stored experts directly. Installation stays
+lazy. `regional_reloaded_eq` proves conditional pure-function agreement with
+unchanged key, not key-codec, factory, effectful-execution or provenance fidelity.

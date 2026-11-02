@@ -226,4 +226,15 @@ theorem binary_modal_split_le (a b c d : ℕ) :
   · exact Nat.add_le_add (le_max_left _ _) (le_max_left _ _)
   · exact Nat.add_le_add (le_max_right _ _) (le_max_right _ _)
 
+/-- Regional restoration is faithful conditional on matching routing/branches
+and an unchanged key. Codecs, effects and executable factories are unproved. -/
+theorem regional_reloaded_eq {X Y K : Type*} [DecidableEq K]
+    (inc0 inc1 spec0 spec1 : X → Y) (route0 route1 : X → K) (key : K)
+    (hi : ∀ x, inc0 x = inc1 x) (hs : ∀ x, spec0 x = spec1 x)
+    (hr : ∀ x, route0 x = route1 x) :
+    (fun x => if route0 x = key then spec0 x else inc0 x) =
+      (fun x => if route1 x = key then spec1 x else inc1 x) := by
+  funext x
+  rw [hr x, hs x, hi x]
+
 end NCA

@@ -27,6 +27,7 @@ class RegionalExpert:
         effects = (None if any(m.effects is None for m in manifests)
                    else frozenset().union(*(m.effects for m in manifests)))
         self.incumbent, self.feature, self.key, self.specialist = incumbent, feature, key, specialist
+        self.overhead_cost = cost
         self.manifest = replace(incumbent.manifest,
             module_id=f"{incumbent.manifest.module_id}/regional/{specialist.manifest.module_id}",
             cost=cost + sum(m.cost for m in manifests), calls=_total_calls(manifests),

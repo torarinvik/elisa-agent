@@ -567,3 +567,20 @@ that executable histograms are correct, that greedy ties find the best future
 cuts, or that held-out errors decrease. Empty/pure intervals and explicit region
 budgets retain their existing behavior. The original first-boundary tie rule
 remains the default. Independent whole-task outcomes must compare routing policies.
+
+## 36.29 Retaining regional wiring
+
+A regional model stores its selected structural key, dispatch overhead, and
+three explicit content references/export positions: incumbent, routing feature,
+and specialist. Verify each original binding before snapshotting; reconstruct
+the runtime from lazy dependency scopes, with metadata recomputed from those
+components. Model identity includes the key and dependency references so distinct
+regional wirings do not share an artifact identity. Key encoding uses the
+existing finite scalar/tuple codec; unsupported keys fail explicitly.
+
+If restored routing and both restored branches agree with their original
+functions, the restored regional function agrees everywhere. Lean proves this
+conditional branch-composition statement with an unchanged key. It does not
+verify key codecs, Python factories, effectful execution, or content-addressed
+code fidelity. No training rows, external implementations, calibration claims,
+or independent-selection evidence are silently embedded in this parameter record.
