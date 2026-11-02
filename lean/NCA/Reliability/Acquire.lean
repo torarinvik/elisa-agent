@@ -349,4 +349,11 @@ theorem joint_reloaded_eq {X A B : Type*} (f0 f1 : X → A) (g0 g1 : X → B)
   funext x
   rw [hf x, hg x]
 
+/-- Child modal scores dominate any fixed coarse label's summed counts. -/
+theorem modal_refinement_dominates {G L : Type*} [Fintype G]
+    (counts : G → L → ℕ) (modal : G → ℕ) (label : L)
+    (dominates : ∀ g, counts g label ≤ modal g) :
+    (∑ g, counts g label) ≤ ∑ g, modal g := by
+  exact Finset.sum_le_sum (fun g _ => dominates g)
+
 end NCA

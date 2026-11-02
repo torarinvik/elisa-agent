@@ -380,3 +380,20 @@ subtraction from total cost. External implementations still require verified
 bindings. Sizes are declarations and mutable-state snapshots are not provided.
 This extends graph retention to the representations acquired in §36.45; it does
 not grant a semantic or risk certificate to a paired feature.
+
+
+## 36.47 Bounded lookahead across modal-score plateaus
+
+A companion may not improve empirical modal score alone while a larger joint
+representation does. Enumerate bounded companion subsets in increasing size,
+then supplied index order, scoring each directly against the seed. Do not require
+strict gain at intermediate pairings. Bound companion count, subset depth, scored
+subset count and retained outputs separately; non-improving subsets consume the
+scoring budget too. Retained products associate left in subset order.
+
+For any fixed coarse label, the sum of its child-group counts is at most the
+sum of child modal scores whenever each modal score dominates that child's count.
+Lean proves this finite-sum comparison for arbitrary child groups, not executable
+ranking, search completeness or held-out gains. Source snapshots are local to
+training and assume stable observations. Search remains combinatorial; bounded
+lookahead can miss deeper interactions, and observed gains can reflect noise.

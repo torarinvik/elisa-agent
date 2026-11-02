@@ -4,6 +4,7 @@ import math
 from collections import Counter, deque
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
+from itertools import chain, combinations, islice
 from typing import Any, Protocol
 
 from nca.abi import Contract, Module
@@ -137,7 +138,8 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
 
 def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
         rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
-        max_candidates: int, limit: int, pair_cost: float) -> list[Proposal]:
+        max_candidates: int, limit: int, pair_cost: float,
+        max_companions: int = 1, max_joint_candidates: int | None = None) -> list[Proposal]:
     """Resolve empirical category ambiguity by pairing representations (§36.45).
 
     Observe the seed once per training row and each bounded companion once.
@@ -146,8 +148,16 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
     hashable keys/labels and observations are required. Use within a training-only
     FeatureRefiner; categorical modal gains need not help another head family or
     generalize. Returned features retain their original implementations, not data.
+    Optional bounded lookahead (§36.47) scores companion subsets smallest first,
+    index order within each size. max_joint_candidates bounds scored subsets
+    (default max_candidates), including non-improving subsets. No intermediate
+    gain is required. Snapshots trade temporary memory for one observation per
+    supplied companion; the retained product is left-associated in subset order.
     """
-    if any(type(n) is not int or n < 1 for n in (max_candidates, limit)):
+    if max_joint_candidates is None:
+        max_joint_candidates = max_candidates
+    if any(type(n) is not int or n < 1
+           for n in (max_candidates, limit, max_companions, max_joint_candidates)):
         raise ValueError("companion and output budgets must be positive integers")
     if not math.isfinite(pair_cost) or pair_cost < 0:
         raise ValueError("pair cost must be finite and nonnegative")
@@ -169,13 +179,21 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
 
     keys = tuple(feature.expert.invoke(*row) for row in rows)
     baseline = score(keys)
+    observations = tuple(tuple(p.expert.invoke(*row) for row in rows) for p in companions)
+    subsets = chain.from_iterable(combinations(range(len(companions)), size)
+                                  for size in range(1, min(max_companions, len(companions)) + 1))
     ranked = []
-    for companion in companions:
-        joint_keys = tuple((key, companion.expert.invoke(*row))
-                           for row, key in zip(rows, keys, strict=True))
+    for subset in islice(subsets, max_joint_candidates):
+        joint_keys = keys
+        for index in subset:
+            joint_keys = tuple(zip(joint_keys, observations[index], strict=True))
         successes = score(joint_keys)
         if successes > baseline:
-            joined = JointFeature(feature.expert, companion.expert, pair_cost)
-            ranked.append((successes, Proposal(joined, feature.constructors + companion.constructors)))
+            joined = feature.expert
+            constructors = feature.constructors
+            for index in subset:
+                joined = JointFeature(joined, companions[index].expert, pair_cost)
+                constructors += companions[index].constructors
+            ranked.append((successes, Proposal(joined, constructors)))
     ranked.sort(key=lambda item: -item[0])
     return [proposal for _, proposal in ranked[:limit]]

@@ -329,3 +329,54 @@ def test_joint_refinement_budget_and_signature_validation() -> None:
                                   max_candidates=1, limit=1, pair_cost=0)
     with pytest.raises(ValueError, match="aligned"):
         propose_joint_refinements(seed, [], [], [], max_candidates=1, limit=1, pair_cost=0)
+
+
+def test_joint_lookahead_crosses_non_improving_pairings() -> None:
+    from itertools import product
+
+    from nca.discovery import fit_decoder
+    from nca.interface_learning import propose_heads, propose_joint_refinements
+
+    class Feature:
+        def __init__(self, index: int) -> None:
+            self.index, self.calls = index, 0
+            self.manifest = Manifest(f"feature-{index}", "1",
+                                     Contract(("input",), f"feature-{index}"))
+
+        def invoke(self, value: Any) -> Any:
+            self.calls += 1
+            return value[self.index]
+
+    features = [Feature(i) for i in range(3)]
+    seed = Proposal(features[0])
+    companions = [Proposal(f) for f in features[1:]]
+    rows = [(value,) for value in product(range(2), repeat=3)] * 50
+    labels = [f"label-{sum(value) % 2}" for value, in rows]
+    kwargs = {"max_candidates": 2, "limit": 1, "pair_cost": 1}
+    assert propose_joint_refinements(seed, companions, rows, labels, **kwargs) == []
+    assert propose_joint_refinements(seed, companions, rows, labels, **kwargs,
+                                    max_companions=2, max_joint_candidates=2) == []
+    for f in features:
+        f.calls = 0
+    learned = propose_joint_refinements(seed, companions, rows, labels, **kwargs,
+                                       max_companions=2, max_joint_candidates=3)
+    assert len(learned) == 1 and [f.calls for f in features] == [400, 400, 400]
+    assert learned[0].expert.left.left is features[0]
+    assert learned[0].expert.left.right is features[1]
+    assert learned[0].expert.right is features[2]
+
+    def refine(feature: Any, head: Any, train: Any, labels: Any, budget: int) -> Any:
+        return propose_joint_refinements(feature, companions, train, labels, **kwargs,
+                                         max_companions=2, max_joint_candidates=3)
+
+    def propose(train: Any, labels: Any) -> Any:
+        return propose_heads(Baseline(), [seed],
+                    lambda c, v, t, b: [Proposal(fit_decoder(c, v, t, cost=1))],
+                    train, labels, max_features=2, max_heads=1, refine=refine,
+                    max_refinements=1, correct=lambda a, b: a == b)
+
+    result = discover(Baseline(), propose, rows + rows, labels + labels, lambda a, b: a == b)
+    assert result.chosen is not None
+    assert [sum(t.outcomes) for t in result.trials] == [200, 400]
+    with pytest.raises(ValueError, match="budgets"):
+        propose_joint_refinements(seed, companions, rows, labels, **kwargs, max_companions=0)

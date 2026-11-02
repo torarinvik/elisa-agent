@@ -2281,7 +2281,7 @@ bindings; existing single-key artifacts keep their factory/data format.
 `regional_policy_missing` proves pure missing-key fallback, not empirical gains
 or exhaustive combination search. Conservative metadata includes every branch.
 
-Regional acquisition and composition (§§36.26–36.46) are described in the
+Regional acquisition and composition (§§36.26–36.47) are described in the
 [regional acquisition chapter](theory/evidence/36-regional-acquisition.md).
 `_ranked_combinations` enumerates a bounded best-first Cartesian frontier after
 regional alternatives are scored on training rows. Ranking maximizes summed
@@ -2394,3 +2394,9 @@ Structural products are retained by the acquired-model graph path (§36.46).
 with explicit `JointFeature.pair_cost`. The graph visitor recognizes the exact
 runtime type, preserving sharing and opaque external bindings. `joint_reloaded_eq`
 proves conditional ordered-pair functional equality, not executable serialization.
+
+`propose_joint_refinements` (§36.47) can score bounded companion subsets across
+non-improving intermediate pairs. Companion/depth/scored-subset/output budgets
+are explicit; original features are observed once per row and their products
+remain ordinary persistable `JointFeature` graphs. `modal_refinement_dominates`
+proves the conditional finite child-score comparison, not search completeness.
