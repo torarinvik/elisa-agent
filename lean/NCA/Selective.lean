@@ -234,6 +234,11 @@ theorem priority_allocation_nonneg (h : X → ℝ) (R : ℝ)
     0 ≤ R * h x / (∑ y, h y) :=
   div_nonneg (mul_nonneg hR (hh x)) (sum_nonneg fun y _ => hh y)
 
+/-- Filling a certified shortfall makes the total allocation cover the bound. -/
+theorem priority_allocation_cover (R lower actual added : ℝ)
+    (hlower : lower ≤ actual) (hadded : R - lower ≤ added) : R ≤ actual + added := by
+  linarith
+
 /-- A revision identifies all inputs to a cached deterministic quantity. -/
 theorem revision_cache_eq {V Y : Type} (f : V → Y) {old current : V}
     (h : current = old) : f current = f old := congrArg f h

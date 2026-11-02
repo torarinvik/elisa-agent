@@ -709,13 +709,13 @@ def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
     Priorities guide refinement only; their age does not affect the total
     charge in exact arithmetic (THEORY 23.11). Zero priorities receive a
     uniform allocation. If every share underflows, one retains the bound;
-    this is not a general outward-rounding guarantee.
+    positive allocations are adjusted to cover the bound under binary64 arithmetic.
     """
     if not math.isfinite(bound) or bound < 0:
         raise ValueError("bound must be finite and nonnegative")
     if not priorities:
         raise ValueError("risk allocation requires at least one item")
-    checked = getattr(_NATIVE, "risk_shares_checked", None)
+    checked = getattr(_NATIVE, "risk_shares_covering", None)
     if checked is not None:
         values = np.asarray(priorities)
         if values.ndim == 1 and values.dtype.kind in "biuf" and values.dtype.itemsize <= 8:
@@ -735,6 +735,25 @@ def allocate_risk(bound: float, priorities: Sequence[float]) -> list[float]:
         shares = [bound * (w / total) for w in weights]
     if bound > 0 and not any(shares):
         shares[max(range(len(priorities)), key=priorities.__getitem__)] = bound
+    if bound > 0:
+        top = max(range(len(shares)), key=shares.__getitem__)
+        total, correction = 0.0, 0.0
+        for share in shares:
+            if share > 0:
+                updated = total + share
+                if updated == math.inf:
+                    return shares
+                virtual = updated - total
+                residual = (total - (updated - virtual)) + (share - virtual)
+                if residual:
+                    correction = math.nextafter(correction + residual, -math.inf)
+                total = updated
+        estimate = total + correction
+        lower = math.nextafter(estimate, 0.0) if estimate > 0 else 0.0
+        if shares[top] < bound and lower < bound:
+            deficit = math.nextafter(bound - lower, math.inf)
+            increased = shares[top] + deficit
+            shares[top] = bound if increased >= bound else math.nextafter(increased, math.inf)
     return shares
 
 

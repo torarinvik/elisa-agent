@@ -743,6 +743,24 @@ def test_risk_allocation_rejects_invalid_inputs(bound: float, priorities: list[f
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_risk_allocation_covers_bound_as_exact_binary64_sum(reference, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if reference:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rng = np.random.default_rng(829)
+    cases = [(0.1, [1.0, 1.0, 1.0]),
+             (math.nextafter(0.0, 1.0), [1.0, 2.0, 1.0]),
+             (np.finfo(float).max, [1.0, 1.0, 1.0])]
+    cases.extend((float(rng.random()), rng.random(int(rng.integers(1, 40))).tolist())
+                 for _ in range(300))
+    for bound, priorities in cases:
+        shares = allocate_risk(bound, priorities)
+        assert all(math.isfinite(share) and share >= 0 for share in shares)
+        assert sum(map(Fraction.from_float, shares)) >= Fraction.from_float(bound)
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_risk_allocation_rejects_priorities_lost_by_binary64_conversion(reference, monkeypatch) -> None:
     from nca import ladder as ladder_module
 

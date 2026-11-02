@@ -231,7 +231,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [23.14](theory/23-efficient-decoding.md) | `sum_row_shift`, `row_shift_order` | `Selective` |
 | [23.13](theory/23-efficient-decoding.md) | `selective_risk_le_approx`, `threshold_stable` | `Selective` |
 | [23.12](theory/23-efficient-decoding.md) | `revision_cache_eq` | `Selective` |
-| [23.11](theory/23-efficient-decoding.md) | `priority_allocation_sum`, `priority_allocation_nonneg` | `Selective` |
+| [23.11](theory/23-efficient-decoding.md) | `priority_allocation_sum`, `priority_allocation_nonneg`, `priority_allocation_cover` | `Selective` |
 | [24.1](theory/24-when-the-prior-is-wrong.md) | `reweighted_odds` | `Misspecification` |
 | [24.2](theory/24-when-the-prior-is-wrong.md) | `reweighted_risk_le` | `Misspecification` |
 | [24.3](theory/24-when-the-prior-is-wrong.md) | `reweighted_risk_le_mul` | `Misspecification` |
@@ -835,8 +835,10 @@ score array. No extra observation/calibration cache assumption is needed.
 native `risk_shares_checked`, which validates them while finding the largest
 priority. Other numeric representations retain Python validation. The Elisa
 loop rescales by the largest priority and uses compensated summation; all-zero
-priorities get uniform weights. The existing Python `math.fsum` path remains
-the fallback. Both implement Theorem 23.11;
+priorities get uniform weights. A downward-rounded sum and upward shortfall
+adjustment ensure the returned shares cover the supplied binary64 bound under
+the documented floating-point assumptions. The Python path remains the
+fallback. Both implement Theorem 23.11;
 small floating-point differences in charges can affect refinement tie order.
 
 The correction account uses `formulas.sequence_log_weight` to score the

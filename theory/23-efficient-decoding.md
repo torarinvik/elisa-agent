@@ -257,6 +257,13 @@ caching the risk itself: `R` and the within-certificate risk must still be
 current. If every priority is zero, a nonempty set of `m` items can instead
 receive uniform charges `R / m`.
 
+The binary64 allocation computes a downward-rounded lower bound on the sum of
+its initial shares. If this is below `R`, it adds an upward-rounded shortfall
+to one share, capped at `R`; the exact sum of the returned binary64 shares is
+then at least `R` under round-to-nearest, gradual underflow, and correctly
+rounded `nextafter`. This is a coverage guarantee for the supplied binary64
+bound, not a certificate that the bound itself is accurate.
+
 **Theorem 23.12 (revision cache invariant).** Suppose a cached quantity
 is a deterministic function `f(v)` of an item's revision `v`. Reusing a
 cached value `f(v₀)` is exact whenever `v = v₀`. The revision must identify
