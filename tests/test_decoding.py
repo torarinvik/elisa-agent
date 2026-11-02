@@ -2005,6 +2005,24 @@ def test_decode_skips_overflow_in_unreachable_suffix(decoder) -> None:
 
 
 @pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_skips_overflow_in_prefix_without_supported_completion(decoder) -> None:
+    rows = np.array([[-np.inf, 0.0, -1e308], [-np.inf, -1e308, -np.inf],
+                     [-np.inf, 0.0, -np.inf], [0.0, -np.inf, -np.inf]])
+    result = decoder(rows)
+    assert result is not None
+    assert result.arities == (1, 1, 1, 0)
+    assert result.log_z == -1e308
+    np.testing.assert_array_equal(result.marginals, [[0, 1, 0], [0, 1, 0],
+                                                    [0, 1, 0], [1, 0, 0]])
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_decode_returns_none_when_overflowing_prefix_cannot_finish(decoder) -> None:
+    rows = np.array([[-np.inf, -1e308], [-np.inf, -1e308], [-np.inf, 0.0]])
+    assert decoder(rows, (0, 1)) is None
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
 def test_decode_rejects_overflow_on_reachable_path(decoder) -> None:
     rows = np.array([[-np.inf, 0.0, 0.0], [-1e308, 0.0, -np.inf],
                      [-1e308, -np.inf, -np.inf]])

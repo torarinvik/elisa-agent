@@ -382,6 +382,19 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
     return [] if m == 0
     width: i64 = m + 2
     unreachable: f64 = log(0.0)
+    completable: darray[i64] = [1 if i == m * width else 0 for i in 0..<((m + 1) * width)]
+    for step in 0..<m:
+        k: i64 = m - 1 - step
+        for j in 0..<alphabet_size:
+            arity: i64 = alphabet[j]
+            return [] if arity < 0
+            continue if arity >= width or log_probs[k * alphabet_size + j] == unreachable
+            for state in 1..<width:
+                target: i64 = state - 1 + arity
+                continue if target >= width
+                if completable[(k + 1) * width + target] != 0:
+                    completable[k * width + state] <- 1
+    return [] if completable[1] == 0
     forward: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
     best: darray[f64] = [0.0 if i == 1 else unreachable for i in 0..<((m + 1) * width)]
     choice: darray[i64] = [0 for _ in 0..<((m + 1) * width)]
@@ -394,6 +407,7 @@ def decode_log(log_probs: view[f64], alphabet: view[i64]) -> darray[f64] can[Mem
             for state in 1..<width:
                 target: i64 = state - 1 + arity
                 continue if target >= width or target > m - k - 1
+                continue if completable[(k + 1) * width + target] == 0
                 cell: i64 = (k + 1) * width + target
                 source: f64 = forward[k * width + state]
                 through: f64 = source + step

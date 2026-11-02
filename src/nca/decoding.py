@@ -121,6 +121,17 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
     if m == 0:
         return None
     width = m + 2
+    # Determine which states have a supported completion without adding weights.
+    completable = np.zeros((m + 1, width), dtype=bool)
+    completable[m, 0] = True
+    for k in range(m - 1, -1, -1):
+        for j, a in enumerate(alphabet):
+            a = int(a)
+            span = min(a + width - 1, width) - a
+            if span > 0 and log_probs[k, j] != -np.inf:
+                completable[k, 1:1 + span] |= completable[k + 1, a:a + span]
+    if not completable[0, 1]:
+        return None
     forward = np.full((m + 1, width), -np.inf)
     best = np.full((m + 1, width), -np.inf)
     choice = np.zeros((m + 1, width), dtype=np.int64)
@@ -134,9 +145,11 @@ def decode_reference(log_probs: np.ndarray, alphabet: Sequence[int] = (0, 1, 2))
             if span <= 0:
                 continue
             step = log_probs[k, j]
+            supported = completable[k + 1, low:low + span]
+            source = np.where(supported, forward[k, 1:1 + span], -np.inf)
             forward[k + 1, low:low + span] = np.logaddexp(
-                forward[k + 1, low:low + span], _checked_log_sum(forward[k, 1:1 + span], step))
-            candidate = _checked_log_sum(best[k, 1:1 + span], step)
+                forward[k + 1, low:low + span], _checked_log_sum(source, step))
+            candidate = _checked_log_sum(np.where(supported, best[k, 1:1 + span], -np.inf), step)
             better = candidate > best[k + 1, low:low + span]
             best[k + 1, low:low + span][better] = candidate[better]
             choice[k + 1, low:low + span][better] = j
