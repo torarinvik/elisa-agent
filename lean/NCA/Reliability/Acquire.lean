@@ -40,4 +40,13 @@ theorem proposal_budget_le {I : Type*} (family : Finset I) (mass budget : I → 
     ∑ i ∈ family, mass i ≤ alpha := by
   exact (Finset.sum_le_sum each).trans total
 
+/-- Reloading a candidate preserves its scored outcomes if it preserves its
+function. This assumes executable equivalence; a digest alone does not prove it. -/
+theorem reloaded_outcomes_eq {X Y L : Type*} (before after : X → Y)
+    (score : Y → L → Bool) (samples : List (X × L))
+    (same : ∀ x, before x = after x) :
+    samples.map (fun row => score (before row.1) row.2) =
+      samples.map (fun row => score (after row.1) row.2) := by
+  simp_rw [same]
+
 end NCA

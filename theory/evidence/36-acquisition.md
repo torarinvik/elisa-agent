@@ -56,3 +56,18 @@ The proposer must not select, retrain, or add proposals after seeing `E`.
 Repeated adaptive searches need their own budget accounting. Shallow sequence
 snapshots do not isolate mutable sample objects. This mechanism evaluates
 proposed interfaces; it does not itself invent representations or prove transfer.
+
+A proposed decomposition may be a stored package rather than a live expert.
+Its candidate family consists of all installed exports with the incumbent's
+external contract, identified by source object reference and export identity.
+The budget counts these exports, not packages: a package can contribute several
+competing experts. Package references are frozen using `T` alone before any
+export is evaluated on `E`. Unselected objects can remain in a candidate store
+without being added to the active expert library.
+
+**Proposition 36.3 (reloaded outcomes).** If reloading a selected export preserves
+its function on every input, then its scored outcomes on a fixed labeled sample
+are unchanged. This follows pointwise by substitution. Content references alone
+do not establish the premise: entry points, external weights, runtime state and
+scoring behavior must also be preserved. Selection evidence is neither a
+calibration certificate nor a proof of representation semantics.

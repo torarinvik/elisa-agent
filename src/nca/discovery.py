@@ -8,13 +8,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Module
-from nca.objects import Constructor
+from nca.objects import Constructor, Ref, Store
+from nca.packages import install
 from nca.router import sign_test
 
 
 @dataclass(frozen=True)
 class Proposal:
-    """An expert and optional new intermediate types; nothing is installed.
+    """An expert and optional new intermediate types; no active library changes.
 
     Internal composition is unrestricted. Constructor declarations assert no
     semantic equivalence to existing types and must describe the actual expert.
@@ -22,6 +23,8 @@ class Proposal:
 
     expert: Module
     constructors: tuple[Constructor, ...] = ()
+    package: Ref | None = None
+    """Source object when evaluated through discover_packages; not a certificate."""
 
 
 @dataclass(frozen=True)
@@ -76,3 +79,36 @@ def discover(incumbent: Module,
     accepted_trials = [trial for trial in trials if trial.accepted]
     chosen = min(accepted_trials, key=lambda trial: trial.p_value).proposal if accepted_trials else None
     return Discovery(baseline, tuple(trials), chosen)
+
+
+def discover_packages(
+    incumbent: Module, store: Store,
+    propose: Callable[[Sequence[tuple[Any, ...]], Sequence[Any]], Sequence[Ref]],
+    rows: Sequence[tuple[Any, ...]], labels: Sequence[Any],
+    correct: Callable[[Any, Any], bool], alpha: float = 0.05,
+) -> Discovery:
+    """Select reusable package exports trained only on the training split.
+
+    The proposer stores its artifacts (including constructor declarations) and
+    returns their references. All matching exports are frozen before evaluation;
+    each spends one share of the family budget. A package with no matching
+    export is an error. The chosen proposal retains its package reference and
+    its expert's identity, so a saved store can reinstall it. Rejected artifacts
+    remain in this candidate store; no active library or name is changed.
+
+    As with discover, isolation, faithful entry points, and immutable artifacts
+    are caller assumptions. This neither saves external weights nor calibrates
+    experts or persists selection evidence.
+    """
+    def proposals(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[Proposal]:
+        references = tuple(propose(train, targets))
+        candidates = []
+        for reference in references:
+            matching = [expert for expert in install(store, reference)
+                        if expert.manifest.contract == incumbent.manifest.contract]
+            if not matching:
+                raise ValueError("proposed package has no export with the external contract")
+            candidates.extend(Proposal(expert, package=reference) for expert in matching)
+        return candidates
+
+    return discover(incumbent, proposals, rows, labels, correct, alpha)

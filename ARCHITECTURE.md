@@ -1970,3 +1970,14 @@ checks their external contracts, and tests each on the held-out half at
 without installation or risk claims. Internal compositions are unrestricted.
 `NCA.proposal_budget_le` in `Reliability/Acquire.lean` proves the budget-sum
 step; test validity and split independence remain premises of `split_test_le`.
+
+`discovery.discover_packages` lets the training callback store learned primitive
+or composite objects and return references. It freezes the references, installs
+them into a candidate scope, and tests every export matching the incumbent's
+contract. Each matching export counts toward the family budget. The chosen
+`Proposal.package` and expert identity identify what to reinstall from a saved
+store; no active library or name is changed. Constructors remain in the store,
+and external weights remain the loader's responsibility. Selection evidence is
+not persisted by this API. `reloaded_outcomes_eq` in `Reliability/Acquire.lean`
+proves Proposition 36.3 conditional on executable equivalence; store/reload
+behavior for a trained two-stage package is regression-tested.

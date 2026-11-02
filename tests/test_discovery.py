@@ -1,13 +1,15 @@
 """Training-only search over proposed intermediate representations."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.discovery import Proposal, discover
-from nca.objects import Constructor
+from nca.discovery import Proposal, discover, discover_packages
+from nca.objects import Composite, Constructor, Primitive, Store
+from nca.packages import install
 
 
 class Constant:
@@ -116,3 +118,77 @@ def test_discovery_accepts_multi_input_experts_with_slot_fillings() -> None:
     result = discover(Higher(False), lambda rows, labels: [Proposal(Higher(True))],
                       rows, [i + 1 for i in range(40)], lambda a, b: a == b)
     assert result.chosen is not None
+
+
+class StoredPart:
+    """Serializable learned encoder or decoder used by a proposed composite."""
+
+    def __init__(self, encoder: bool, interface: str, threshold: float,
+                 outputs: list[float]) -> None:
+        self.encoder = encoder
+        self.threshold = threshold
+        self.outputs = outputs
+        self.manifest = Manifest(
+            "encode" if encoder else "decode", "1",
+            Contract(("source" if encoder else interface,), interface if encoder else "result"),
+            effects=frozenset())
+
+    def invoke(self, value: Any) -> Any:
+        return int(value >= self.threshold) if self.encoder else self.outputs[value]
+
+
+def stored_split(store: Store, expert: Split, copies: int = 1) -> str:
+    store.put(expert.interface)
+    members = []
+    for encoder in (True, False):
+        arguments = {"encoder": encoder, "interface": expert.interface.type(),
+                     "threshold": expert.threshold, "outputs": list(expert.outputs)}
+        part = StoredPart(**arguments)
+        members.append(store.put(Primitive(part.manifest, f"{__name__}:StoredPart", arguments)))
+    return store.put(Composite("learned-split", "1", tuple(members),
+                               exports=(Constant.manifest.contract,) * copies,
+                               effects=frozenset()))
+
+
+def test_package_discovery_reloads_a_learned_decomposition(tmp_path: Path) -> None:
+    store = Store()
+    xs = [i / 100 for i in range(100)]
+    rows = [(x,) for x in xs[::2] + xs[1::2]]
+    labels = [-1.0 if row[0] < 0.3 else 1.0 for row in rows]
+
+    def propose(train: Sequence[tuple[Any, ...]], targets: Sequence[Any]) -> list[str]:
+        assert tuple(train) == tuple(rows[:50])
+        assert tuple(targets) == tuple(labels[:50])
+        proposal = propose_split(train, targets)[0]
+        assert isinstance(proposal.expert, Split)
+        return [stored_split(store, proposal.expert)]
+
+    result = discover_packages(Constant(), store, propose, rows, labels, same)
+    assert result.chosen is not None and result.chosen.package is not None
+    chosen = result.chosen
+    store.save(tmp_path)
+    reopened = Store.open(tmp_path)
+    experts = install(reopened, chosen.package)
+    assert len(experts) == 1
+    assert experts[0].identity == chosen.expert.identity
+    assert [experts[0].invoke(*row) for row in rows] == [chosen.expert.invoke(*row) for row in rows]
+    assert sum(result.trials[0].outcomes) >= 49
+    assert len(reopened) == 4  # constructor, encoder, decoder, composite
+
+
+def test_package_discovery_counts_exports_rather_than_packages() -> None:
+    store = Store()
+    package = stored_split(store, Split(0, (1, 1)), copies=100)
+    result = discover_packages(Constant(), store, lambda rows, labels: [package],
+                               [(float(i),) for i in range(40)], [1.0] * 40,
+                               same, alpha=0.00001)
+    assert len(result.trials) == 100 and result.chosen is None
+    assert all(trial.proposal.package == package for trial in result.trials)
+
+
+def test_package_discovery_requires_a_matching_export() -> None:
+    store = Store()
+    constructor = store.put(Constructor("unrelated", "1", 0, "test representation"))
+    with pytest.raises(ValueError, match="no export"):
+        discover_packages(Constant(), store, lambda rows, labels: [constructor],
+                           [(0.0,), (1.0,)], [0, 0], same)
