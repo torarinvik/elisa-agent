@@ -13,8 +13,7 @@ research examples, not a fixed catalog of the system's possible capabilities.
 
 ### No hard-coded or hand-coded tasks in the core
 
-The core is everything under `src/nca/` outside `src/nca/domains/`, including
-its native kernels. It must work unchanged for tasks nobody has written yet.
+The core is everything under `src/nca/`, including its native kernels. It must work unchanged for tasks nobody has written yet.
 
 - The core never names a task, data set, domain type, vocabulary, label set,
   opcode, symbol meaning, or the route shape of one pipeline, and it carries
@@ -23,18 +22,29 @@ its native kernels. It must work unchanged for tasks nobody has written yet.
 - Task knowledge enters only through general interfaces: experts and their
   manifests, contracts and types, and parameters such as vocabularies,
   arities, semantics, priors, or certificates supplied by a domain.
-- Each domain lives in its own package under `src/nca/domains/<domain>/`, with
-  its data, experts, experiments, and any native kernels only it needs.
-  Domains depend on the core and never on each other, and the core never
-  imports a domain. `tests/test_layout.py` enforces this; extend the check
+- Each expert or collection of experts lives in its own independent Git
+  repository outside the core checkout, in a location chosen by the developer,
+  with its data, implementations, experiments, tests and any domain-only native
+  kernels. Source code, package metadata, tests and contributor instructions
+  must not require a particular machine-specific checkout path. No expert
+  packages live inside this core repository. Packages depend on public core
+  interfaces. Task domains never import another task domain;
+  they may use generic expert libraries through declared public dependencies.
+  The core source, tests, build metadata and lockfile never depend on an expert
+  package. Register
+  optional packages through the generic `nca.packages` entry-point group; the
+  core contains no fixed package catalog or package-specific import shims.
+  A future package manager may use this boundary without moving implementations
+  back into the kernel. `tests/test_layout.py` enforces this; extend the check
   rather than weaken it. Domains share types only by naming the same type
   identifier: each states the shared constructor object with identical
   contents, so it has one reference. The core defines no value types at all,
   not even general-purpose ones such as truth values or integers.
-- Build a capability generically in the core, with the domain as one instance
-  of it. If a second domain would have to copy code to get the same
-  capability, that code belongs in the core. Never fork a generic algorithm
-  into a domain to specialize it; parameterize it instead.
+- Keep generic runtimes, learning and composition mechanisms in the core.
+  Replaceable expert implementations, including generic expert libraries,
+  belong in independent packages. Share reusable expert code through declared
+  public library interfaces instead of copying it into task domains. Never
+  add a reverse dependency from the core to an expert library.
 - Hand-written experts, such as exact symbolic modules, are welcome as
   replaceable modules installed like any other expert. Nothing in the core may
   depend on a particular expert being present.

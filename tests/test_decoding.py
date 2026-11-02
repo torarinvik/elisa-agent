@@ -14,7 +14,7 @@ torch = pytest.importorskip("torch")
 from nca import decoding, priors
 from nca.priors import Decoded
 from nca.decoding import decode, Split, decode_banded, decode_reference, parse
-from nca.domains.boolean.words import (ARITY_ORDER)
+ARITIES = (0, 1, 2)
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -31,7 +31,7 @@ def test_arity_validation_accepts_integer_arrays_without_changing_semantics(refe
 
 
 def parseable(m: int) -> list[tuple[int, ...]]:
-    return [a for a in itertools.product(ARITY_ORDER, repeat=m) if parse(list(a)) is not None]
+    return [a for a in itertools.product(ARITIES, repeat=m) if parse(list(a)) is not None]
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -64,7 +64,7 @@ def test_decoder_matches_enumeration(decoder: Callable[..., Decoded | None]) -> 
     for m in range(1, 9):
         for _ in range(10):
             probs = rng.dirichlet(np.full(3, 0.5), size=m)
-            decoded = decoder(np.log(probs), ARITY_ORDER)
+            decoded = decoder(np.log(probs), ARITIES)
             weights = {a: float(np.prod([probs[k, a_k] for k, a_k in enumerate(a)]))
                        for a in parseable(m)}
             if not weights:
@@ -79,7 +79,7 @@ def test_decoder_matches_enumeration(decoder: Callable[..., Decoded | None]) -> 
                 marginals[np.arange(m), list(a)] += w / z
             np.testing.assert_allclose(decoded.marginals, marginals, atol=1e-9)
             union = sum(1 - probs[k, a] for k, a in enumerate(decoded.arities))
-            assert decoded.risk(np.log(probs), ARITY_ORDER) <= union + 1e-9
+            assert decoded.risk(np.log(probs), ARITIES) <= union + 1e-9
 
 @pytest.mark.parametrize("slack", [1e-1, 1e-4])
 def test_banded_decoder_is_certified(slack: float) -> None:
@@ -90,13 +90,13 @@ def test_banded_decoder_is_certified(slack: float) -> None:
     for m in range(1, 9):
         for _ in range(20):
             probs = rng.dirichlet(np.full(3, 0.5), size=m)
-            exact = decode_reference(np.log(probs), ARITY_ORDER)
-            banded = decode_banded(np.log(probs), ARITY_ORDER, slack)
+            exact = decode_reference(np.log(probs), ARITIES)
+            banded = decode_banded(np.log(probs), ARITIES, slack)
             if banded is None:
                 assert exact is None
                 continue
             assert exact is not None and parse(list(banded.arities)) is not None
-            exact_risk = exact.risk(np.log(probs), ARITY_ORDER, banded.arities)
+            exact_risk = exact.risk(np.log(probs), ARITIES, banded.arities)
             assert exact_risk <= banded.risk + 1e-9
             assert banded.risk <= exact_risk + slack + 1e-9
             if banded.exact:
@@ -1021,16 +1021,16 @@ def test_split_matches_full_decoding() -> None:
     for m in range(1, 12):
         for _ in range(10):
             probs = rng.dirichlet(np.full(3, 0.5), size=m)
-            split = Split(np.log(probs), ARITY_ORDER)
+            split = Split(np.log(probs), ARITIES)
             k = int(rng.integers(m))
             probs[k] = rng.dirichlet(np.full(3, 0.5))
-            full = decode_reference(np.log(probs), ARITY_ORDER)
+            full = decode_reference(np.log(probs), ARITIES)
             log_z, log_x = split.scores(k, np.log(probs[k]))
             if full is None:
                 assert log_z == -np.inf
                 continue
             assert log_z == pytest.approx(full.log_z)
-            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER,
+            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITIES,
                                                           full.arities))
 
 
@@ -1227,15 +1227,15 @@ def test_split_cursor_follows_climbs() -> None:
     rng = np.random.default_rng(7)
     for m in (5, 17, 40):
         probs = rng.dirichlet(np.full(3, 0.5), size=m)
-        split = Split(np.log(probs), ARITY_ORDER)
+        split = Split(np.log(probs), ARITIES)
         for _ in range(15):
             k = int(rng.integers(m))
             probs[k] = rng.dirichlet(np.full(3, 0.5))
             log_z, log_x = split.climb(k, np.log(probs[k]))
-            full = decode_reference(np.log(probs), ARITY_ORDER)
+            full = decode_reference(np.log(probs), ARITIES)
             assert full is not None
             assert log_z == pytest.approx(full.log_z)
-            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER,
+            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITIES,
                                                           full.arities))
 
 @pytest.mark.parametrize("native", [True, False])
@@ -1250,17 +1250,17 @@ def test_split_traces_best_sequence(native: bool, monkeypatch: pytest.MonkeyPatc
     rng = np.random.default_rng(9)
     for m in (1, 5, 17, 40):
         probs = rng.dirichlet(np.full(3, 0.5), size=m)
-        split = Split(np.log(probs), ARITY_ORDER)
+        split = Split(np.log(probs), ARITIES)
         for _ in range(10):
             k = int(rng.integers(m))
             probs[k] = rng.dirichlet(np.full(3, 0.5))
             split.climb(k, np.log(probs[k]))
             log_x, arities = split.best(k)
-            full = decode_reference(np.log(probs), ARITY_ORDER)
+            full = decode_reference(np.log(probs), ARITIES)
             assert full is not None
             assert parse(list(arities)) is not None
-            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITY_ORDER, full.arities))
-            assert full.log_weight(np.log(probs), ARITY_ORDER, arities) == pytest.approx(log_x)
+            assert log_x == pytest.approx(full.log_weight(np.log(probs), ARITIES, full.arities))
+            assert full.log_weight(np.log(probs), ARITIES, arities) == pytest.approx(log_x)
 
 def test_banded_split_matches_banded_passes() -> None:
     """With the band fixed, climbs rescored by the cursor match the banded
@@ -1270,13 +1270,13 @@ def test_banded_split_matches_banded_passes() -> None:
     for m in (6, 20, 45):
         probs = rng.dirichlet(np.full(3, 0.5), size=m)
         reference = np.argmax(probs, axis=1)
-        centre = 1 + np.concatenate(([0], np.cumsum(np.asarray(ARITY_ORDER)[reference] - 1)))
-        split = Split(np.log(probs), ARITY_ORDER, centre, 4)
+        centre = 1 + np.concatenate(([0], np.cumsum(np.asarray(ARITIES)[reference] - 1)))
+        split = Split(np.log(probs), ARITIES, centre, 4)
         for _ in range(12):
             k = int(rng.integers(m))
             probs[k] = rng.dirichlet(np.full(3, 0.5))
             log_z, log_x = split.climb(k, np.log(probs[k]))
-            full = decoding._banded_passes(np.log(probs), ARITY_ORDER, centre, 4)
+            full = decoding._banded_passes(np.log(probs), ARITIES, centre, 4)
             if full is None:
                 assert log_z == -np.inf
                 continue
@@ -1712,7 +1712,7 @@ def test_native_decoder_matches_reference() -> None:
             probs[:, 0] = 0.0
         with np.errstate(divide="ignore"):
             log_probs = np.log(probs)
-        native, reference = decode(log_probs, ARITY_ORDER), decode_reference(log_probs, ARITY_ORDER)
+        native, reference = decode(log_probs, ARITIES), decode_reference(log_probs, ARITIES)
         assert (native is None) == (reference is None)
         if native is None or reference is None:
             continue
@@ -1731,7 +1731,7 @@ def test_parse_accepts_exactly_the_automaton_language() -> None:
     """``NCA.accepts_iff_codes``: parseable arity sequences are the counter
     automaton's words, and the decoder searches exactly these."""
     for m in range(1, 9):
-        assert {a for a in itertools.product(ARITY_ORDER, repeat=m) if accepted(a)} == \
+        assert {a for a in itertools.product(ARITIES, repeat=m) if accepted(a)} == \
             set(parseable(m))
 
 @pytest.mark.parametrize("dtype", [np.int64, np.uint64, object])
@@ -2087,8 +2087,8 @@ def test_native_decoding_kernels_reject_inconsistent_matrix_shapes() -> None:
 def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
     rows = np.array([[-1488.0, 0.0, -1151.0], [0.0, -1381.0, -1487.0],
                      [0.0, -1488.0, -1487.0]])
-    result = decode(rows, ARITY_ORDER)
-    reference = decode_reference(rows, ARITY_ORDER)
+    result = decode(rows, ARITIES)
+    reference = decode_reference(rows, ARITIES)
     assert result is not None and reference is not None
     assert result.arities == reference.arities == (2, 0, 0)
     assert result.log_z == pytest.approx(reference.log_z)
@@ -2098,8 +2098,8 @@ def test_native_decode_falls_back_when_accepted_mass_underflows() -> None:
 def test_native_decode_preserves_partially_underflowed_paths() -> None:
     rows = np.array([[-np.inf, 0.0, -750.0], [0.0, -740.0, -np.inf],
                      [0.0, -np.inf, -np.inf]])
-    result = decode(rows, ARITY_ORDER)
-    reference = decode_reference(rows, ARITY_ORDER)
+    result = decode(rows, ARITIES)
+    reference = decode_reference(rows, ARITIES)
     assert result is not None and reference is not None
     assert result.arities == reference.arities
     assert result.log_z == pytest.approx(reference.log_z, abs=1e-12)
@@ -2109,7 +2109,7 @@ def test_native_decode_preserves_partially_underflowed_paths() -> None:
 def test_native_decode_ties_match_log_space_order() -> None:
     rows = np.array([[-np.inf, -1.0, 0.0], [-1.0, 0.0, -1.0],
                      [0.0, 0.0, 0.0]])
-    result, reference = decode(rows, ARITY_ORDER), decode_reference(rows, ARITY_ORDER)
+    result, reference = decode(rows, ARITIES), decode_reference(rows, ARITIES)
     assert result is not None and reference is not None
     assert result.arities == reference.arities == (2, 0, 0)
 
@@ -2374,8 +2374,8 @@ def test_native_decode_retries_when_normal_weights_have_underflowing_product() -
         pytest.skip("native decoder is not built")
     rows = np.array([[-np.inf, 0.0, -400.0], [-400.0, -400.0, -np.inf],
                      [0.0, -np.inf, -np.inf]])
-    assert native(rows.reshape(-1), np.asarray(ARITY_ORDER, dtype=np.int64))[0] <= -1e300
-    actual, reference = decode(rows, ARITY_ORDER), decode_reference(rows, ARITY_ORDER)
+    assert native(rows.reshape(-1), np.asarray(ARITIES, dtype=np.int64))[0] <= -1e300
+    actual, reference = decode(rows, ARITIES), decode_reference(rows, ARITIES)
     assert actual is not None and reference is not None
     assert actual.log_z == pytest.approx(reference.log_z, abs=1e-12)
     np.testing.assert_allclose(actual.marginals, reference.marginals, rtol=1e-12, atol=0)

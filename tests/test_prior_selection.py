@@ -9,10 +9,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nca import decoding, priors
-from nca.domains.boolean.formulas import FormulaDataset
 from nca.decoding import decode
-from nca.ladder import Decision, Rung
-from nca.domains.boolean.words import (ARITY_DECISION, EditReader)
 
 
 @pytest.mark.parametrize("reference", [False, True])
@@ -397,70 +394,6 @@ def test_clipped_prior_error_bound_rejects_unrepresentable_result() -> None:
         priors.select_prior([lambda _: None], [np.array([[0.0]])], np.array([0.0]),
                             alphabet=(0,), score_clip=1e308, alpha=0.1)
 
-
-def test_logic_prior_fit_consumes_texts_with_separate_calibration_labels() -> None:
-    from nca.domains.boolean.logic import choose_prior
-
-    class Reader:
-        seen: list[str] = []
-
-        def observe(self, word: str) -> str:
-            self.seen.append(word)
-            return word
-
-        def distribution(self, word: str, decision: Decision) -> torch.Tensor:
-            assert decision == ARITY_DECISION
-            return torch.tensor([0.0, 1.0, 0.0] if word == "not" else [1.0, 0.0, 0.0])
-
-    reader = Reader()
-    selected = choose_prior(reader, np.arange(6), iter(["not not true", "not not false"]),
-                            height=2, score_clip=2, alpha=0.1)
-    assert selected.index == 0 and selected.samples == 2
-    assert selected.scores == (4.0, 4.0, -4.0)
-    assert reader.seen == ["not", "not", "true", "not", "not", "false"]
-    assert selected.score_clip == 2 and selected.alpha == 0.1
-
-def test_auto_prior_is_fixed_before_deployment_audit(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    import sys
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-
-    phases: list[str] = []
-    datasets: list[tuple[str, int, float]] = []
-    original_dataset = logic.FormulaDataset
-
-    def dataset(*args: Any, **kwargs: Any) -> FormulaDataset:
-        result = original_dataset(*args, **kwargs)
-        datasets.append((result.split, result.seed, result.early_leaf))
-        return result
-
-    monkeypatch.setattr(logic, "FormulaDataset", dataset)
-    monkeypatch.setattr(sys, "argv", ["logic", "--prior", "auto", "--prior-height", "1",
-        "--prior-fit", "2", "--calibration", "1", "--samples", "1", "--depths", "0",
-        "--shift", "0.2", "--account", "correction", "--draws", "2", "--early-leaf", "0.25"])
-    monkeypatch.setattr(logic, "library", lambda *args, **kwargs: [
-        SimpleNamespace(prior=kwargs.get("prior"))])
-    monkeypatch.setattr(logic, "plan_stable", lambda modules, available, target: modules[0])
-    monkeypatch.setattr(logic, "build_ladders", lambda *args: {
-        logic.WORD_DISTRIBUTION: [Rung(EditReader())]})
-
-    def choose(rung: Rung, labels: np.ndarray, texts: Any, *args: Any) -> Any:
-        phases.append("select")
-        assert len(list(texts)) == 2 and len(labels) > 0
-        return priors.PriorSelection(2, (0.0, 1.0, 2.0), 2, 1.0, 100.0, 0.1)
-
-    def audit(route: Any, ladders: Any, args: Any) -> None:
-        phases.append("audit")
-        assert route.prior is priors.complete_prior
-        assert args.draws == 2
-
-    monkeypatch.setattr(logic, "choose_prior", choose)
-    monkeypatch.setattr(logic, "shifted", audit)
-    logic.main()
-    assert phases == ["select", "audit"]
-    assert datasets == [("validation", 0, 0.0), ("validation", 10000, 0.25),
-                        ("test", 0, 0.25)]
 
 @pytest.mark.parametrize("reference", [False, True])
 def test_prior_selection_caches_fixed_base_normalizers_per_length(

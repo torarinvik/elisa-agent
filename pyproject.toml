@@ -3,15 +3,10 @@ name = "nca"
 version = "0.1.0"
 description = "Experimental Neural Computer Agent: independently trained modules composed by a cognitive microkernel"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["numpy>=1.24", "torch>=2.4"]
 
 [project.optional-dependencies]
-vision = ["torch>=2.4", "torchvision>=0.19"]
 trust = ["cryptography>=42"]
-
-[project.entry-points."nca.packages"]
-"nca.arithmetic" = "nca.domains.arithmetic.package:arithmetic"
-"nca.formulas" = "nca.domains.boolean.package:formulas"
 
 [dependency-groups]
 dev = ["pytest>=8"]

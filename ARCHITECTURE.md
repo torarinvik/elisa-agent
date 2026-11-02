@@ -16,21 +16,21 @@ run the Python tests with `uv run pytest`.
 | [§2 Planning](theory/foundations/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification`, `PatternSearch` | `planner.plan`, `router.infer` |
 | [§3 Routing stability](theory/foundations/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
 | [§4 Compositional reliability](theory/reliability/04-compositional-reliability.md) | `Reliability` | |
-| [§5 Reliability under distribution shift](theory/reliability/05-reliability-under-distribution-shift.md) | `Shift` | `domains.arithmetic.pipeline` |
-| [§6 Handwritten-arithmetic pipeline](theory/studies/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `domains.arithmetic.segmenter`, `domains.arithmetic.symbols`, `domains.arithmetic.digit_recognizer`, `domains.arithmetic.operator_recognizer` |
-| [§7 Measuring accumulation](theory/studies/07-measuring-accumulation.md) | `Routing` | `domains.arithmetic.accumulation` |
+| [§5 Reliability under distribution shift](theory/reliability/05-reliability-under-distribution-shift.md) | `Shift` | `nca_arithmetic.pipeline` |
+| [§6 Handwritten-arithmetic pipeline](theory/studies/06-algorithms-of-the-handwritten-arithmetic-pipeline.md) | | `nca_arithmetic.segmenter`, `nca_arithmetic.symbols`, `nca_arithmetic.digit_recognizer`, `nca_arithmetic.operator_recognizer` |
+| [§7 Measuring accumulation](theory/studies/07-measuring-accumulation.md) | `Routing` | `nca_arithmetic.accumulation` |
 | [§8 Explicit route upgrades](theory/evidence/08-explicit-route-upgrades.md) | `Upgrade` | `router.Router`, `router.sign_test` |
-| [§9 Module substitution](theory/evidence/09-module-substitution.md) | `Substitution` | `domains.arithmetic.substitution` |
-| [§10 Complementarity](theory/studies/10-complementarity.md) | | `domains.arithmetic.complementarity` |
-| [§11 Evaluation methodology](theory/studies/11-evaluation-methodology.md) | | `domains.arithmetic.expressions`, `stats` |
-| [§12 Lazy loading and discovery](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `domains.arithmetic.scaling` |
-| [§13 Efficiency](theory/foundations/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `domains.arithmetic.efficiency`, `workspace` |
-| [§14 Kernel-mediated requests](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `domains.arithmetic.cascade` |
-| [§15 Normalization against shift](theory/reliability/15-normalization-against-shift.md) | `Normalize` | `domains.arithmetic.normalizer`, `domains.arithmetic.baseline` |
-| [§16 Knowing when to be unsure](theory/reliability/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `domains.arithmetic.practice` |
-| [§17 Calibration under shift](theory/reliability/17-calibration-under-distribution-shift.md) | `Calibration` | `domains.arithmetic.certify` |
-| [§18 Noisy Boolean formulas](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `prefix`, `modules.edit`, `domains.boolean.logic`, `domains.boolean.formulas`, `domains.boolean.words` |
-| [§19 Error detection by the format](theory/decoding/19-error-detection-by-the-format.md) | `Detection` | `prefix`, `shares`, `domains.boolean.logic`, `domains.boolean.formulas` |
+| [§9 Module substitution](theory/evidence/09-module-substitution.md) | `Substitution` | `nca_arithmetic.substitution` |
+| [§10 Complementarity](theory/studies/10-complementarity.md) | | `nca_arithmetic.complementarity` |
+| [§11 Evaluation methodology](theory/studies/11-evaluation-methodology.md) | | `nca_arithmetic.expressions`, `stats` |
+| [§12 Lazy loading and discovery](theory/foundations/12-lazy-loading-and-scalable-discovery.md) | `Loading`, `Pruning`, `Eliminators`, `Eviction` | `loader`, `index`, `planner.plan_stable_indexed`, `registry`, `kernel`, `nca_arithmetic.scaling` |
+| [§13 Efficiency](theory/foundations/13-efficiency.md) | `Cost`, `MinCost`, `Pareto` | `optimize`, `nca_arithmetic.efficiency`, `workspace` |
+| [§14 Kernel-mediated requests](theory/foundations/14-kernel-mediated-requests-and-refinement.md) | `Request`, `Cascade`, `Demand`, `Continuation` | `kernel`, `runtime`, `modules.refinement`, `nca_arithmetic.cascade` |
+| [§15 Normalization against shift](theory/reliability/15-normalization-against-shift.md) | `Normalize` | `nca_arithmetic.normalizer`, `nca_arithmetic.baseline` |
+| [§16 Knowing when to be unsure](theory/reliability/16-knowing-when-to-be-unsure.md) | `Selective`, `Demand`, `Practice` | `ladder`, `selective`, `nca_arithmetic.practice` |
+| [§17 Calibration under shift](theory/reliability/17-calibration-under-distribution-shift.md) | `Calibration` | `nca_arithmetic.certify` |
+| [§18 Noisy Boolean formulas](theory/studies/18-a-second-domain-noisy-boolean-formulas.md) | `Certificate` | `prefix`, `modules.edit`, `nca_boolean.logic`, `nca_boolean.formulas`, `nca_boolean.words` |
+| [§19 Error detection by the format](theory/decoding/19-error-detection-by-the-format.md) | `Detection` | `prefix`, `shares`, `nca_boolean.logic`, `nca_boolean.formulas` |
 | [§20 Higher-order experts, budgets](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `Slots`, `Continuation`, `Relevance` | `modules.combinators`, `optimize`, `kernel`, `runtime` |
 | [§21 Decoding by the format](theory/decoding/21-decoding-by-the-format.md) | `Decoding` | `decoding.decode`, `prefix.PrefixEvaluator` (`decode`), `native.decoding` |
 | [§22 Abstaining early](theory/reliability/22-abstaining-early.md) | `Detection` | `selective` (`floors`), `prefix.PrefixEvaluator.floor`, `ladder` |
@@ -38,7 +38,7 @@ run the Python tests with `uv run pytest`.
 | [§24 When the prior is wrong](theory/decoding/24-when-the-prior-is-wrong.md) | `Misspecification` | not implemented |
 | [§25 Climbing order and stopping](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/reliability/26-composing-cascades.md) | `Composition` | not implemented |
-| [§27 Priors as experts](theory/decoding/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `domains.boolean.words`, `domains.boolean.logic` |
+| [§27 Priors as experts](theory/decoding/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `nca_boolean.words`, `nca_boolean.logic` |
 | [§28 Packages as experts](theory/foundations/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
 | [§29 Types as objects](theory/foundations/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/evidence/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
@@ -59,29 +59,57 @@ run the Python tests with `uv run pytest`.
 supplies; it carries the certificate, detection, correction and prior accounts
 and their floors, so any domain whose answers are terms over a ranked alphabet
 gets them by supplying its vocabulary, its semantics and, optionally, its
-short-circuit rule. `domains.boolean.words.FormulaEvaluator` is the Boolean
-instance. `modules.edit.EditDistanceReader` reads noisy strings against any
-vocabulary. Formula data generation lives in `domains.boolean.formulas`; counter
+short-circuit rule. `nca_boolean.words.FormulaEvaluator` is the Boolean
+instance. `nca_standard_experts.edit.EditDistanceReader` reads noisy strings against any
+vocabulary. Formula data generation lives in `nca_boolean.formulas`; counter
 decoding and incremental bands live in `decoding`; weighted automata and prior
 selection live in `priors`. Numerical kernels remain in `native/decoding.elisa`,
 with Python reference implementations for validation and fallback.
+
+## Development and optional packages
+
+Install and test the independent core with `uv sync --extra trust`,
+`.venv/bin/python -m pytest -q`, and
+`NCA_NATIVE=0 .venv/bin/python -m pytest -q`. Build core kernels with
+`uv run python -m nca.native`. Numerical libraries are declared infrastructure
+dependencies; task-specific dependencies belong to their own distributions.
+
+Expert checkouts may live anywhere outside this repository. Install an optional
+collection into a chosen environment with
+`uv pip install --python <environment-python> -e <package-checkout>`.
+Before local distributions are published, pass the core and any generic expert
+library checkouts explicitly to the same command. Their READMEs describe this
+setup using developer-selected variables, not prescribed checkout paths.
+The current entry-point boundary is sufficient for discovery; a dedicated
+package-manager interface is future work.
 
 ## Layout
 
 `src/nca/` is the generic core: the ABI, planners, index, kernel, runtime,
 loader, ladders and selective refinement, statistics, decoding over ranked
 alphabets, priors, prefix-term evaluation and its accounts (`prefix`,
-`shares`), measured costs (`cost`), the generic library experts in `modules/`
-(combinators, request wrappers and the edit-distance reader), and the native
-kernels. Nothing
+`shares`), measured costs (`cost`), generic model interpreters and training
+mechanisms, and core native kernels. Ready-made expert implementations are outside this repository. Nothing
 in it names a task, a data set, or a domain type.
 
-`src/nca/domains/` holds the research domains, each a package of its data, its
-experts and its experiments: `arithmetic` (handwritten arithmetic and
-comparison) and `boolean` (noisy Boolean formulas). A domain depends only on
-the core, never on another domain, and the core never imports a domain;
-`tests/test_layout.py` enforces both directions. Domains share a type only by
-naming the same type identifier, as independently written experts would.
+Expert implementations live in independent repositories outside this checkout.
+Current optional distributions are `nca-arithmetic` (`nca_arithmetic`),
+`nca-boolean` (`nca_boolean`), and the reusable `nca-standard-experts`
+(`nca_standard_experts`) library. Each owns its source, tests, dependencies,
+entry-point contribution and any package-specific native kernels. These are
+research examples, not a core catalog. Checkout locations are chosen by each
+developer and are never embedded in runtime code or distribution metadata.
+
+The core declares no expert entry points and depends on no expert distribution.
+Its source and tests import only core interfaces and declared infrastructure
+libraries; `tests/test_layout.py` checks this boundary. Task packages can depend
+on public generic expert libraries, but task domains never import each other.
+Packages share semantic types by identical constructor contents, without
+importing another domain's definitions. The generic learned-model interpreter
+and training mechanisms remain core infrastructure, without preinstalled tasks.
+
+The examples below refer to optional packages and require their installation.
+They are not part of the core's tests or installation requirements.
 
 ## Theorems
 
@@ -353,8 +381,8 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 extensions with `python -m nca.native` (needs `elisac-stage1`). Each has a
 NumPy reference that gives the same results within rounding and is used when
 the kernel is not built or `NCA_NATIVE=0`. Kernels that only a domain needs
-live beside that domain's code (`domains/boolean/kernels.elisa`) and are
-built by the same command. `decoding.elisa` runs the exact
+live in that independent package. Build any installed package's kernels with
+`python -m nca.native --package <import-namespace>`; the builder has no package catalog. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
 It also exports `advance_ragged_log`, `retreat_ragged_log`, `scores_ragged_log`
 and `trace_ragged`, the banded cursor of §23.4
@@ -568,12 +596,12 @@ a requirement on the task's own inputs.
 
 ## 5. Reliability under distribution shift
 
-`nca.domains.arithmetic.pipeline` reports, per recognizer, the excess of in-situ over offline
+`nca_arithmetic.pipeline` reports, per recognizer, the excess of in-situ over offline
 failure rate: the lower bound on induced shift of `shift_ge_gap`.
 
 ## 6. Algorithms of the handwritten-arithmetic pipeline
 
-**Segmentation** (`nca.domains.arithmetic.segmenter`). Ink columns (intensity > 0.1) are
+**Segmentation** (`nca_arithmetic.segmenter`). Ink columns (intensity > 0.1) are
 grouped into runs; runs separated by fewer than 4 blank columns merge (the
 gap was chosen on the `validation` split, where 4 minimizes segmentation
 failures for 2, 8 and 32 operands; results in sections before §15 were
@@ -588,7 +616,7 @@ so installing one family cannot satisfy or alter the other's contracts.
 
 ## 7. Measuring accumulation
 
-The add-and-freeze runner (`nca.domains.arithmetic.accumulation`) checks the stability theorem
+The add-and-freeze runner (`nca_arithmetic.accumulation`) checks the stability theorem
 on real modules. For each task in a fixed suite, before and after installing
 new modules, it records coverage (whether `planStable` finds a route),
 whether the route is unchanged, accuracy, and the number of individual
@@ -663,7 +691,7 @@ pending request is settled with the requester's provisional answer and
 recorded as skipped; requests consumed without a declaration, mapped, or
 returned are always resolved. `SymbolFuser` declares the digit reading
 irrelevant on glyphs the operator recognizer judges to be operators. That gate
-is not sound (a digit misjudged as an operator is skipped); `nca.domains.arithmetic.cascade`
+is not sound (a digit misjudged as an operator is skipped); `nca_arithmetic.cascade`
 measures its cost as the answers that differ between gated and ungated
 refinement.
 
@@ -681,7 +709,7 @@ choices through the Elisa row-argmax kernel when available.
 
 ## 15. Normalization against shift
 
-**Normalizer** (`nca.domains.arithmetic.normalizer.GlyphNormalizer`, contract
+**Normalizer** (`nca_arithmetic.normalizer.GlyphNormalizer`, contract
 `GLYPH → NORMALIZED_GLYPH`). It scales the ink bounding box to 20 pixels,
 centers it, then thickens or thins strokes (3×3 max or min, at most three
 steps) until the ink fraction is in `[0.10, 0.21]`. This undoes size changes
@@ -726,7 +754,7 @@ shifts) of all but the cheapest. The stronger recognizer (`--arch wide
 and rescaled digits) reaches 99.19% on MNIST at about 10× the expensive
 recognizer's compute.
 
-**Practice** (`nca.domains.arithmetic.practice`). Practice is offline. A copy of the recognizer
+**Practice** (`nca_arithmetic.practice`). Practice is offline. A copy of the recognizer
 is fine-tuned on the queued glyphs mixed with 10,000 replayed MNIST training
 digits, so the normal style is not forgotten. The new version is adopted only
 if it beats the current one by a one-sided sign test on `validation`
@@ -877,7 +905,7 @@ uses `Split.best` (native Elisa `trace` when available). The calibrated cursor
 still computes the risk of that selected sequence, which need not maximize
 the calibrated posterior. Both cursors remain scoped to one solve.
 
-The Boolean domain's own native module, `domains.boolean.kernels`, exports
+The Boolean domain's own native module, `nca_boolean.kernels`, exports
 `certificate`: the least-risk certificate recurrence over parsed prefix trees,
 including right-child tie preference. Its opcodes are the formula vocabulary,
 so it lives with the domain, not in the core kernels. `FormulaEvaluator.evaluated`
@@ -1120,20 +1148,20 @@ runner can audit the current correction path without a pointwise roundoff
 allowance, subject to the sampling assumptions of §17.
 
 `ladder.certification_possible` tests the zero-error upper bound for the
-entire checking budget. `domains.boolean.logic.shifted` skips candidate fit/check evaluations
+entire checking budget. `nca_boolean.logic.shifted` skips candidate fit/check evaluations
 when even that bound exceeds the target. The uncontrolled evaluation remains
 unchanged, and feasible audit budgets use the existing fixed-sequence test.
 The Lean obstruction theorem covers the zero-error power inequality; the
 binomial bound's monotonicity in errors is used as its standard statistical
 property, not newly formalized here.
 
-For feasible audit budgets, `domains.boolean.logic.shifted` computes checking outcomes lazily
+For feasible audit budgets, `nca_boolean.logic.shifted` computes checking outcomes lazily
 in the fit-half-determined order. It stops at the first rejected candidate
 and chooses maximum coverage only among the accepted prefix. Fit-half
 candidate evaluation remains complete, and the order never changes in
 response to checking labels. This implements §17.5's existing stopping rule.
 
-Checking calls to `domains.boolean.logic.outcomes` pass `reject_above` and `alpha`. After a
+Checking calls to `nca_boolean.logic.outcomes` pass `reject_above` and `alpha`. After a
 new error, the runner tests the optimistic bound that credits every checking
 example as answered. If even it fails, the routine returns partial counts,
 which are used only to reject that candidate. Accepted candidates still
@@ -1156,7 +1184,7 @@ of that policy's stopping state. Exhausted targets use the final state.
 remain available. Multi-target calls exclude those options and require
 deterministic consumers. Audit fitting uses this API to share thresholds for each input.
 
-`domains.boolean.logic.outcomes_many` accumulates fit-half answer/error counts from
+`nca_boolean.logic.outcomes_many` accumulates fit-half answer/error counts from
 `solve_many` for all inflation thresholds. These counts determine the same
 candidate order as independent solves. Checking lazily computes one shared
 path per visited sample and retains only its answer/error flags. Candidates
@@ -1312,7 +1340,7 @@ envelopes avoid scanning outside the reachable range. Arrays remain dense;
 reused score rows clear only their previous envelopes, and no finite
 low-probability state is pruned.
 
-`domains.boolean.words.CompleteTreePrior` exposes the independent contract
+`nca_boolean.words.CompleteTreePrior` exposes the independent contract
 `logic.formula.length.v1 → logic.arity.prior.v1`. It delegates supported
 lengths to the cached constructor and returns an empty-support automaton
 otherwise, retaining the output type without a format fallback. The ordinary
@@ -1627,7 +1655,7 @@ implementation executes the inner route instead of rewriting the outer plan,
 which gives the same values because both evaluate the same expert
 applications on the same inputs.
 
-`domains.arithmetic.package.arithmetic` is the first real package: the
+`nca_arithmetic.package.arithmetic` is the first real package: the
 segmenter, symbol fuser, expression parser and evaluator as members, the
 digit and operator glyph readers as requirements, and one export from
 expression image to integer. The export shares its inner index with its
@@ -1651,8 +1679,8 @@ its reference, which is bound to the entry point's name in a `Names`. A
 name offered twice, a failing contribution, a reference missing from the
 store and a name already bound elsewhere are errors. This project's
 `pyproject.toml` contributes `nca.arithmetic`
-(`domains.arithmetic.package.arithmetic`) and `nca.formulas`
-(`domains.boolean.package.formulas`: tokenizer and formula evaluator, with
+(`nca_arithmetic.package.arithmetic`) and `nca.formulas`
+(`nca_boolean.package.formulas`: tokenizer and formula evaluator, with
 the word reader as requirement); a domain shipped as its own distribution
 declares the same entry point and needs no change to the core.
 Installed primitives keep their implementation's `demand` and `relevant`
@@ -1695,7 +1723,7 @@ returning it.
 The Lean evaluator of Theorem 29.2 (`Plan.eval`) is a model: modules are
 functions of their arguments' values and a map body reads only its element.
 The core defines no value types. Each domain defines the constructors of its own types in its `types` module
-(`domains.arithmetic.types`, `domains.boolean.types`); its modules take their
+(`nca_arithmetic.types`, `nca_boolean.types`); its modules take their
 type ids from them, and its package puts them into the store as members, so
 installing a package brings its types. `tests/test_layout.py` checks that
 every contract of a discovered package names only constructor objects or the

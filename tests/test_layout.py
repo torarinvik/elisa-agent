@@ -1,90 +1,70 @@
-"""The core never depends on a domain, and domains never depend on each other."""
+"""The kernel has no built-in task packages or undeclared package imports."""
 
 from __future__ import annotations
 
 import ast
+import re
+import sys
+import tomllib
+from importlib import metadata
 from pathlib import Path
 
-from nca.abi import App, Contract, Term, parse_type
-from nca.objects import Composite, Primitive, Store, constructors
-from nca.packages import discover
-
-PACKAGE = Path(__file__).resolve().parent.parent / "src" / "nca"
-DOMAINS = PACKAGE / "domains"
+ROOT = Path(__file__).resolve().parent.parent
+PACKAGE = ROOT / "src" / "nca"
 
 
 def imported_modules(path: Path) -> set[str]:
-    """Every absolute module a file imports, at any depth in the file."""
+    """Absolute imports, including literal dynamic imports, at any depth."""
     names: set[str] = set()
     for node in ast.walk(ast.parse(path.read_text(), str(path))):
         if isinstance(node, ast.Import):
             names.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module is not None and node.level == 0:
             names.add(node.module)
-            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+              and node.func.attr == "import_module" and node.args
+              and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+            names.add(node.args[0].value)
     return names
 
 
-def domain_of(module: str) -> str | None:
-    parts = module.split(".")
-    return parts[2] if parts[:2] == ["nca", "domains"] and len(parts) > 2 else None
-
-
-def test_core_imports_no_domain() -> None:
-    offending = {
-        str(path.relative_to(PACKAGE)): sorted(m for m in imported_modules(path)
-                                               if m == "nca.domains" or domain_of(m))
-        for path in PACKAGE.rglob("*.py") if DOMAINS not in path.parents}
-    assert {path: modules for path, modules in offending.items() if modules} == {}
-
-
-def test_domains_import_only_the_core_and_themselves() -> None:
+def test_core_and_its_tests_import_only_declared_dependencies() -> None:
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    project = config["project"]
+    requirements = [*project.get("dependencies", []),
+                    *(r for group in project.get("optional-dependencies", {}).values() for r in group),
+                    *(r for group in config.get("dependency-groups", {}).values() for r in group)]
+    declared = {re.split(r"[<>=!~\[; ]", r, maxsplit=1)[0].lower().replace("-", "_")
+                for r in requirements}
+    owners = metadata.packages_distributions()
+    allowed = set(sys.stdlib_module_names) | {"nca"} | declared
+    test_modules = {p.stem for p in (ROOT / "tests").glob("*.py")}
     offending = {}
-    for path in DOMAINS.rglob("*.py"):
-        if path.parent == DOMAINS:
-            continue
-        own = path.relative_to(DOMAINS).parts[0]
-        others = sorted(m for m in imported_modules(path) if domain_of(m) not in (None, own))
-        if others:
-            offending[str(path.relative_to(PACKAGE))] = others
+    for path in [*PACKAGE.rglob("*.py"), *(ROOT / "tests").rglob("*.py")]:
+        local = test_modules if path.is_relative_to(ROOT / "tests") else set()
+        unexpected = []
+        for module in imported_modules(path):
+            name = module.split(".")[0]
+            distributions = {d.lower().replace("-", "_") for d in owners.get(name, ())}
+            if name not in allowed | local and not distributions & declared:
+                unexpected.append(module)
+        if unexpected:
+            offending[str(path.relative_to(ROOT))] = sorted(unexpected)
     assert offending == {}
 
 
-CORE_CONSTRUCTORS = {"seq", "pair", "either", "unit"}
+def test_core_contains_no_bundled_expert_packages_or_catalog() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert not (PACKAGE / "domains").exists()
+    assert not (PACKAGE / "modules").exists()
+    assert not project.get("entry-points", {}).get("nca.packages")
+    assert not [entry for entry in metadata.distribution("nca").entry_points
+                if entry.group == "nca.packages"]
 
 
-def textual(term: Term) -> set[str]:
-    if not isinstance(term, App):
-        return set()
-    own = set() if term.name.startswith("sha256:") or term.name in CORE_CONSTRUCTORS else {term.name}
-    return own.union(*(textual(a) for a in term.args))
-
-
-def test_domain_packages_name_their_types_by_constructor_objects() -> None:
-    store = Store()
-    offending: dict[str, set[str]] = {}
-    for name, ref in discover(store).items():
-        for node in store.walk(ref):
-            obj = store.get(node)
-            if isinstance(obj, Primitive):
-                label, contracts = obj.manifest.module_id, [obj.manifest.contract]
-            elif isinstance(obj, Composite):
-                label = obj.name
-                contracts = [*(obj.exports or ()), *(Contract(i, o) for i, o in obj.requires)]
-            else:
-                continue
-            names = set().union(*(textual(parse_type(t)) for c in contracts
-                                  for t in (*c.inputs, c.output,
-                                            *(u for i, o in c.slots for u in (*i, o)))))
-            if names:
-                offending[f"{name}: {label}"] = names
-            # Installing the package brings every type it names.
-            assert set(constructors(contracts)) <= set(store.walk(ref))
-    assert offending == {}
-
-
-def test_domains_share_truth_values_by_identical_constructors() -> None:
-    from nca.domains.arithmetic import types as arithmetic
-    from nca.domains.boolean import types as boolean
-
-    assert arithmetic.BOOLEAN.ref == boolean.BOOLEAN.ref
+def test_import_scanner_checks_nested_and_dynamic_imports(tmp_path: Path) -> None:
+    source = tmp_path / "sample.py"
+    source.write_text('def f():\n    import hypothetical_plugin\n'
+                      '    from another_plugin import Expert\n'
+                      '    importlib.import_module("dynamic_plugin.impl")\n')
+    assert imported_modules(source) == {"hypothetical_plugin", "another_plugin", "dynamic_plugin.impl"}

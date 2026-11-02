@@ -8,9 +8,9 @@ import pytest
 import torch
 
 from nca.abi import NOTHING, Calls, Contract, Manifest, Message, seq_type
-from nca.cache import ResultCache, value_digest
+from nca.cache import ResultCache
 from nca.evidence import (benchmark, error_bound, evaluation, exact, rates, route_bound,
-                          route_risk, answer_within, refine_within)
+                          route_risk, answer_within)
 from nca.optimize import cheapest_within, plan_pareto
 from nca.ladder import CALIBRATION, Calibrated, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
@@ -296,15 +296,6 @@ def test_discovery_keeps_existing_names(monkeypatch: pytest.MonkeyPatch) -> None
     assert names.resolve("reader") == "sha256:" + "2" * 64
 
 
-def test_installed_distributions_contribute_their_domain_packages() -> None:
-    store = Store()
-    names = dict(discover(store).items())
-    assert {"nca.arithmetic", "nca.formulas"} <= set(names)
-    for ref in names.values():
-        obj = store.get(ref)
-        assert isinstance(obj, Composite) and obj.exports and obj.effects == frozenset()
-
-
 def test_route_risk_charges_invocations_through_maps_and_packages() -> None:
     store = Store()
     reader = store.put(primitive("count-letters", [WORD], INT))
@@ -439,82 +430,6 @@ class Rung1(Expert):
 
     def risk(self, output: int, *inputs: Any) -> float:
         return self.reported
-
-
-def test_refinement_climbs_the_riskiest_invocation_on_any_route() -> None:
-    from nca.modules.refinement import Escalating
-
-    reader = Escalating([Rung1("cheap", 0.04), Rung1("dear", 0.001)], "reader")
-    modules = [Expert("split", [TEXT], seq_type(WORD), []), reader,
-               Expert("sum", [seq_type(INT)], INT, [])]
-    route = plan_stable(modules, (TEXT,), INT)
-
-    def exact_module(module: Any) -> bool:
-        return module.manifest.module_id in {"split", "sum"}
-
-    text = [Message(TEXT, "ab cd ab ef", "input")]
-    answer, ledger, executions = refine_within(route, text, 0.1, exact_module)
-    # Three distinct words: 0.16 > 0.1; climbing "ab" (read twice) gives 0.082.
-    assert answer == 8 and executions == 2
-    assert ledger.charge == pytest.approx(0.002 + 0.08)
-    # Levels persist: "ab" is already at the top, so two climbs remain, and
-    # with every word at the top (0.004) the target is out of reach.
-    answer, ledger, executions = refine_within(route, text, 0.003, exact_module)
-    assert answer is None and executions == 3
-
-
-def test_batched_refinement_climbs_shared_inputs_once_per_round() -> None:
-    from nca.evidence import refine_batch
-    from nca.modules.refinement import Escalating
-
-    reader = Escalating([Rung1("cheap", 0.04), Rung1("dear", 0.001)], "reader")
-    modules = [Expert("split", [TEXT], seq_type(WORD), []), reader,
-               Expert("sum", [seq_type(INT)], INT, [])]
-    route = plan_stable(modules, (TEXT,), INT)
-
-    def exact_module(module: Any) -> bool:
-        return module.manifest.module_id in {"split", "sum"}
-
-    rows = [("ab cd ab ef",), ("ab gh",), ("x",)]
-    answers, ledgers, rounds = refine_batch(route, (TEXT,), rows, 0.05, exact_module)
-    # Round 1: rows 0 (0.16) and 1 (0.08) both climb "ab", once; row 2 (0.04)
-    # is answered. Round 2: row 1 (0.041) is answered, row 0 (0.082) climbs
-    # "cd". Round 3: row 0 (0.043) is answered.
-    assert answers == [8, 4, 1] and rounds == 3
-    assert [ledger.charge for ledger in ledgers] == pytest.approx([0.043, 0.041, 0.04])
-    assert reader.levels == {value_digest(["ab"]): 1, value_digest(["cd"]): 1}
-
-
-def test_in_situ_samples_name_the_rung_that_answered() -> None:
-    from nca.evidence import audit_invocations, refine_batch, sample_invocations
-    from nca.modules.refinement import Escalating
-
-    cheap, dear = Rung1("cheap", 0.04), Rung1("dear", 0.001)
-    reader = Escalating([cheap, dear], "reader")
-    modules = [Expert("split", [TEXT], seq_type(WORD), []), reader,
-               Expert("sum", [seq_type(INT)], INT, [])]
-    route = plan_stable(modules, (TEXT,), INT)
-
-    def exact_module(module: Any) -> bool:
-        return module.manifest.module_id in {"split", "sum"}
-
-    rows = [("ab cd ab ef",), ("ab gh",), ("x",)]
-    _, ledgers, _ = refine_batch(route, (TEXT,), rows, 0.05, exact_module)
-    kept = sample_invocations(ledgers, 1.0)
-    # Final ledgers only: "ab" twice and "cd" by the dear rung, the rest cheap.
-    assert sorted((i.values[0], i.expert.manifest.module_id) for i in kept) == [
-        ("ab", "dear"), ("ab", "dear"), ("ab", "dear"), ("cd", "dear"), ("ef", "cheap"),
-        ("gh", "cheap"), ("x", "cheap")]
-    assert all(i.output == len(i.values[0]) for i in kept)
-    assert len(sample_invocations(ledgers, 1.0, select=lambda m: m is cheap)) == 3
-    assert sample_invocations(ledgers, 0.0) == []
-    many = [ledgers[0]] * 500
-    assert 900 < len(sample_invocations(many, 0.5)) < 1100  # Half of 2,000.
-    result = audit_invocations(kept, [len(i.values[0]) for i in kept],
-                               lambda output, label: output == label)
-    assert result.failures == 0 and result.reported == pytest.approx(0.004 + 0.12)
-    with pytest.raises(ValueError, match="probability"):
-        sample_invocations(ledgers, 1.5)
 
 
 def test_export_identity_survives_reinstallation_and_store_reload(tmp_path: Path) -> None:

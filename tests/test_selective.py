@@ -1901,17 +1901,6 @@ def test_observation_accepts_tensor_containing_sequence(native: bool, monkeypatc
     assert reading.tolist() == pytest.approx([0.4, 0.6])
 
 
-def test_segmenter_alternatives_merge_narrowest_gap_first() -> None:
-    from nca.domains.arithmetic.segmenter import Segmenter
-
-    image = np.zeros((28, 80), dtype=np.float32)
-    for start, end in ((2, 10), (20, 24), (29, 33), (50, 58)):
-        image[5:20, start:end] = 1.0
-    alternatives = list(Segmenter().alternatives(torch.from_numpy(image)))
-    assert [len(a) for a in alternatives] == [4, 3, 3, 3]
-    assert np.isclose(alternatives[1][1].sum().item(), 15 * 8, rtol=1e-2)
-
-
 @dataclass
 class Splitter:
     """Splits a string into characters; alternatives drop the last character."""
@@ -2102,24 +2091,6 @@ def test_refinement_and_single_solve_reject_invalid_targets(target: float) -> No
     assert route is not None
     with pytest.raises(ValueError, match="target"):
         solve(route, {"dist": [Rung(reader)]}, "a", target)
-
-
-def test_practice_queue_and_fine_tuning() -> None:
-    from nca.domains.arithmetic.practice import practice, proportional, queue
-
-    torch.manual_seed(0)
-    risks = torch.tensor([0.05, 0.6, 0.2, 0.9])
-    assert queue(risks, 0.2).tolist() == [1, 2, 3]
-    drawn = proportional(torch.tensor([0.0, 0.0, 1.0, 1.0]), 2, seed=0)
-    assert sorted(drawn.tolist()) == [2, 3]
-
-    network = nn.Sequential(nn.Flatten(), nn.Linear(28 * 28, 10))
-    glyphs, labels = torch.rand(16, 28, 28), torch.full((16,), 3)
-    student = practice(network, glyphs, labels, (glyphs[:8], labels[:8]), epochs=3, seed=0)
-    assert student is not network and not student.training
-    with torch.no_grad():
-        assert (student(glyphs[:, None]).argmax(dim=1) == 3).float().mean() > \
-            (network(glyphs[:, None]).argmax(dim=1) == 3).float().mean()
 
 
 def test_risk_is_measured_against_the_decision() -> None:
@@ -2541,156 +2512,6 @@ def test_certification_budget_obstruction() -> None:
             assert certify([(answered, wrong)], 0.05, 0.1) == []
 
 
-def test_impossible_audit_skips_candidate_evaluations(monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-
-    calls: list[int] = []
-
-    def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
-                 **kwargs: Any) -> tuple[int, int]:
-        calls.append(len(samples))
-        assert len(samples) == 3  # Only the unchanged uncontrolled evaluation remains.
-        return 3, 0
-
-    monkeypatch.setattr(logic, "outcomes", outcomes)
-    args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
-                           draws=1, audit=20, targets=[0.05, 0.01], alpha=0.1)
-    logic.shifted(None, {}, args)
-    assert calls == [3, 3]
-
-
-def test_audit_stops_checking_at_first_failed_candidate(monkeypatch: pytest.MonkeyPatch,
-                                                       capsys: pytest.CaptureFixture[str]) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-
-    calls: list[tuple[int, float]] = []
-
-    def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
-                 **kwargs: Any) -> tuple[int, int]:
-        calls.append((len(samples), delta))
-        if len(calls) == 1:  # First checking candidate.
-            assert len(samples) == 60
-            assert kwargs["shared"] is None  # The fit coverage cannot certify.
-            return 60, 0
-        if len(calls) == 2:
-            assert len(samples) == 60
-            assert kwargs["shared"] is not None  # A passed check enables sharing.
-            return 60, 20
-        assert len(samples) == 3
-        return 3, 0
-
-    fit_calls: list[int] = []
-
-    def fit_outcomes(route: Any, ladders: Any, samples: Any,
-                     targets: Any) -> list[tuple[int, int]]:
-        fit_calls.append(len(samples))
-        counts = [(60, 0) for _ in targets]
-        counts[2] = (0, 0)
-        return counts
-
-    monkeypatch.setattr(logic, "outcomes_many", fit_outcomes)
-    monkeypatch.setattr(logic, "outcomes", outcomes)
-    monkeypatch.setattr(logic, "certification_order", lambda candidates, alpha: [2, 0, 1, 3, 4, 5, 6])
-    args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
-                           draws=1, audit=60, targets=[0.05], alpha=0.1)
-    logic.shifted(None, {}, args)
-    assert fit_calls == [60]
-    assert len(calls) == 4
-    assert calls[0][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
-    assert calls[1][1] == pytest.approx(0.05 / logic.INFLATIONS[0])
-    assert calls[-1][1] == pytest.approx(0.05 / logic.INFLATIONS[2])
-    assert "risk   1.5" in capsys.readouterr().out
-
-
-def test_low_fit_coverage_checks_first_candidate_without_speculative_paths(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-    from nca.selective import Answer
-
-    calls: list[str] = []
-
-    def solve(route: Any, ladders: Any, text: str, target: float) -> Answer:
-        calls.append(text)
-        return Answer(None, 1.0, 1.0, True)
-
-    def unexpected(*args: Any, **kwargs: Any) -> Any:
-        pytest.fail("first failed check should not compute shared paths")
-
-    monkeypatch.setattr(logic, "solve", solve)
-    monkeypatch.setattr(logic, "solve_many", unexpected)
-    monkeypatch.setattr(logic, "outcomes_many", lambda r, l, s, t: [(0, 0) for _ in t])
-    monkeypatch.setattr(logic, "certification_order", lambda counts, alpha: [0, 1])
-    args = SimpleNamespace(depths=[2], samples=3, shift=0.2, seed=0, xor=0.0,
-                           draws=1, audit=60, targets=[0.05], alpha=0.1)
-    logic.shifted(None, {}, args)
-    assert len(calls) == 63  # Full first check plus uncontrolled evaluation.
-
-
-@pytest.mark.parametrize("wrong_first", [False, True])
-def test_checking_rejects_early_but_never_accepts_early(wrong_first: bool,
-                                                       monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-    from nca.ladder import certify
-    from nca.selective import Answer
-
-    samples = [SimpleNamespace(text=str(i), value=True) for i in range(60)]
-    calls: list[str] = []
-
-    def solve(route: Any, ladders: Any, text: str, delta: float) -> Answer:
-        calls.append(text)
-        return Answer(not (wrong_first and text == "0"), 1.0, 0.01, False)
-
-    monkeypatch.setattr(logic, "solve", solve)
-    counts = logic.outcomes(None, {}, samples, 0.05, reject_above=0.05, alpha=0.1)
-    if wrong_first:
-        assert len(calls) == 1 and counts == (1, 1)
-        assert certify([counts], 0.05, 0.1) == []
-    else:
-        assert len(calls) == 60 and counts == (60, 0)
-        assert certify([counts], 0.05, 0.1) == [0]
-
-
-def test_shared_checking_paths_preserve_counts_and_early_rejection(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-    from nca.selective import Answer
-
-    samples = [SimpleNamespace(text=str(i), value=True) for i in range(60)]
-    targets = [0.1, 0.2, 0.3]
-    individual: list[tuple[str, float]] = []
-    batched: list[str] = []
-
-    def answer(text: str, target: float) -> Answer:
-        i = int(text)
-        return Answer(not (target == 0.2 and i == 7), 1.0, 0.01,
-                      target == 0.3 and i % 3 == 0)
-
-    def solve(route: Any, ladders: Any, text: str, target: float) -> Answer:
-        individual.append((text, target))
-        return answer(text, target)
-
-    def solve_many(route: Any, ladders: Any, text: str, targets: Any) -> list[Answer]:
-        batched.append(text)
-        return [answer(text, target) for target in targets]
-
-    monkeypatch.setattr(logic, "solve", solve)
-    monkeypatch.setattr(logic, "solve_many", solve_many)
-    separate = [logic.outcomes(None, {}, samples, target, reject_above=0.05)
-                for target in targets]
-    shared = logic._AuditPaths(None, {}, samples, targets)
-    combined = [logic.outcomes(None, {}, samples, target, reject_above=0.05,
-                               shared=shared, target_index=i)
-                for i, target in enumerate(targets)]
-    assert combined == separate
-    assert separate[1] == (8, 1)  # An irreversible failure stops at the same sample.
-    assert len(batched) == len(samples) and len(individual) > len(batched)
-
-
 def test_shared_refinement_trace_matches_independent_thresholds() -> None:
     rungs = [Rung(constant(str(i), output, float(i + 1))) for i, output in
              enumerate(((0.4, 0.6), (0.1, 0.9), (0.001, 0.999)))]
@@ -2784,73 +2605,6 @@ def test_solve_stops_preserves_certificate_and_floor_endpoints() -> None:
                           for policy in policies]
 
 
-def test_structural_shift_reaches_both_audit_halves_and_evaluation(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-
-    checked: list[int] = []
-
-    def counts(route: Any, ladders: Any, samples: Any, delta: float,
-               **kwargs: Any) -> tuple[int, int]:
-        assert all(len(sample.words) <= 2 for sample in samples)
-        checked.append(len(samples))
-        return len(samples), 0
-
-    def fit(route: Any, ladders: Any, samples: Any, targets: Any) -> list[tuple[int, int]]:
-        assert all(len(sample.words) <= 2 for sample in samples)
-        checked.append(-len(samples))
-        return [(len(samples), 0) for _ in targets]
-
-    monkeypatch.setattr(logic, "outcomes", counts)
-    monkeypatch.setattr(logic, "outcomes_many", fit)
-    args = SimpleNamespace(depths=[3], samples=3, shift=0.2, seed=0, xor=0.0,
-                           draws=1, audit=60, targets=[0.05], alpha=0.1, early_leaf=1.0)
-    logic.shifted(None, {}, args)
-    assert checked[0] == -60
-    assert checked.count(60) == len(logic.INFLATIONS)
-    assert checked[-2:] == [3, 3]
-
-
-def test_family_budget_reaches_all_audit_decision_paths(
-        monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    from types import SimpleNamespace
-    from nca.domains.boolean import logic
-    from nca.stats import family_audit_alpha
-
-    level = family_audit_alpha(0.1, 8)
-    seen = {"order": 0, "check": 0, "certify": 0}
-    original = logic.certify
-
-    def order(counts: Any, alpha: float) -> list[int]:
-        assert alpha == level
-        seen["order"] += 1
-        return [0]
-
-    def outcomes(route: Any, ladders: Any, samples: Any, delta: float,
-                 **kwargs: Any) -> tuple[int, int]:
-        if "reject_above" in kwargs:
-            assert kwargs["alpha"] == level
-            seen["check"] += 1
-        return len(samples), 0
-
-    def certify(counts: Any, delta: float, alpha: float) -> Any:
-        assert alpha == level
-        seen["certify"] += 1
-        return original(counts, delta, alpha)
-
-    monkeypatch.setattr(logic, "certification_order", order)
-    monkeypatch.setattr(logic, "certify", certify)
-    monkeypatch.setattr(logic, "outcomes", outcomes)
-    monkeypatch.setattr(logic, "outcomes_many", lambda route, ladders, samples, targets: [
-        (len(samples), 0) for _ in targets])
-    args = SimpleNamespace(depths=[0, 1], draws=2, targets=[0.05, 0.1], samples=1,
-                           audit=400, shift=0.2, seed=0, xor=0.0, alpha=0.1, family_alpha=0.1)
-    logic.shifted(None, {}, args)
-    assert seen == {"order": 8, "check": 8, "certify": 8}
-    assert "audit family: 8 tests" in capsys.readouterr().out
-
-
 def test_ranked_consumer_uses_same_order_for_answer_and_certificate() -> None:
     from nca.selective import solve_many
 
@@ -2938,33 +2692,6 @@ def test_ranked_fuser_and_legacy_fuser_match_their_risk_decisions() -> None:
     assert selected.bound == pytest.approx(11 / 21, abs=1e-14)
     assert old.value == (1,) and not old.abstained
     assert old.bound == pytest.approx(10 / 21, abs=1e-14)
-
-
-def test_symbol_fuser_hands_ranked_order_to_parser() -> None:
-    from nca.domains.arithmetic.digit_recognizer import DIGIT_DISTRIBUTION
-    from nca.domains.arithmetic.operator_recognizer import OPERATOR_DISTRIBUTION
-    from nca.domains.arithmetic.symbols import EXPRESSION, ExpressionParser, SymbolFuser
-
-    low = 1e-300
-    high = math.nextafter(low, math.inf)
-    digit_weights = (0.0, low, high) + (0.0,) * 7
-    operator_weights = (low, high, 0.0, 0.0)
-    digit = constant("ranked-digit", digit_weights, 1, Contract(("ch",), DIGIT_DISTRIBUTION))
-    operator = constant("ranked-operator", operator_weights, 1,
-                        Contract(("ch",), OPERATOR_DISTRIBUTION))
-    fuser, parser = SymbolFuser(), ExpressionParser()
-    route = plan_stable([Splitter(), digit, operator, fuser, parser], ("text",), EXPRESSION)
-    assert route is not None
-    ladders = {DIGIT_DISTRIBUTION: [Rung(digit)], OPERATOR_DISTRIBUTION: [Rung(operator)]}
-    answer = solve(route, ladders, "aaa", 2.0)
-    assert answer.value == ("2", fuser.vocabulary.operators[1], "2")
-    assert not answer.abstained
-
-    class LegacyParser(ExpressionParser):
-        ranked_symbol_readings = False
-
-    assert not fuser.ranked_readings_for(LegacyParser())
-    assert fuser.ranked_readings_for(parser)
 
 
 @pytest.mark.parametrize("native", [False, True])

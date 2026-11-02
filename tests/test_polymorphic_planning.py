@@ -8,12 +8,11 @@ from typing import Any, Callable
 import numpy as np
 import pytest
 
-from nca.abi import (App, Calls, Choice, Contract, Manifest, Message, ScopedName, Var,
+from nca.abi import (App, Calls, Contract, Manifest, Message, ScopedName, Var,
                      format_type, parse_type, type_variables)
 from nca.index import ProducerIndex
-from nca.modules.combinators import Case, Fold
 from nca.optimize import plan_min, plan_pareto
-from nca.planner import Apply, Given, Map, Plan, plan, plan_stable, uses
+from nca.planner import Apply, Given, Map, Plan, plan, plan_stable
 from nca.router import infer
 from nca.runtime import execute
 from nca.workspace import Workspace
@@ -191,129 +190,6 @@ def test_free_variable_planning_is_sound_and_complete_against_instances() -> Non
     assert planned > 100 and through_free > 30
 
 
-def test_map_candidate_pruning_changes_no_plan(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Skipping ``map`` candidates whose body goal (Theorem 12.7) or source
-    (Theorem 12.17) the closure oracle rejects, pattern-goal candidates with
-    another output root (Theorem 2.6) or an underivable input, and
-    eliminators whose output lies outside the closure (Theorem 12.19), returns
-    exactly the unpruned plan."""
-    rng = np.random.default_rng(3)
-    names = [f"t{i}.v1" for i in range(6)]
-    types = [*names, *(f"seq[{t}]" for t in names), *(f"seq[seq[{t}]]" for t in names[:2]),
-             "either[t0.v1,t1.v1]", "either[t2.v1,seq[t3.v1]]"]
-    generic = [Case(), Fold(), fn("inl", ["?l"], "either[?l,?r]", lambda x: Choice(0, x)),
-               fn("unwrap", ["either[?a,?a]"], "?a", lambda c: c.value),
-               fn("first", ["seq[?a]"], "?a", lambda x: x[0])]
-    cases = []
-    for trial in range(150):
-        modules = [fn(f"m{k}-{trial}", [str(t) for t in rng.choice(types, size=int(rng.integers(0, 3)))],
-                      str(rng.choice(types)), lambda *x: x) for k in range(int(rng.integers(2, 9)))]
-        if rng.random() < 0.3:
-            modules.insert(int(rng.integers(len(modules) + 1)),
-                           fn(f"sort-{trial}", ["seq[?a]"], "seq[?a]", lambda x: x))
-        if rng.random() < 0.3:
-            modules.insert(int(rng.integers(len(modules) + 1)),
-                           fn(f"length-{trial}", ["seq[?a]"], "t5.v1", len))
-        for module in generic:
-            if rng.random() < 0.2:
-                modules.insert(int(rng.integers(len(modules) + 1)), module)
-        available = tuple(str(t) for t in rng.choice(types, size=int(rng.integers(1, 3))))
-        cases += [(modules, available, str(goal)) for goal in rng.choice(types, size=6)]
-    pruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
-    monkeypatch.setattr(ProducerIndex, "may_derive", lambda *_: True)
-    monkeypatch.setattr(ProducerIndex, "sources", lambda *_: None)
-    monkeypatch.setattr(ProducerIndex, "seq_elements", lambda *_: None)
-    monkeypatch.setattr(ProducerIndex, "pattern_candidates",
-                        lambda self, available, goal, limit: list(range(limit)))
-    monkeypatch.setattr(ProducerIndex, "total", lambda *_: True)
-    unpruned = [plan(m, a, g, fuel=4) for m, a, g in cases]
-    assert pruned == unpruned
-    assert sum(isinstance(p, Map) for p in pruned) > 20
-
-
-def test_case_and_fold_are_planned_as_generic_eliminators() -> None:
-    """One ``Case`` and one ``Fold`` serve every type (THEORY §20.7): the
-    planner instantiates ``Case`` from the data and the goal, its closure
-    contribution is what its branches make (Theorem 12.19), a choice runs
-    only the branch it selects, and a fold plan type-checks and runs."""
-    calls: list[str] = []
-
-    def double(x: int) -> str:
-        calls.append("double")
-        return f"2x={2 * x}"
-
-    def report(e: str) -> str:
-        calls.append("report")
-        return f"bad {e}"
-
-    parse = fn("parse", [TEXT], f"either[{INT},err.v1]",
-               lambda s: Choice(0, int(s)) if s.isdigit() else Choice(1, s))
-    modules = [Case(), parse, fn("double", [INT], "out.v1", double),
-               fn("report", ["err.v1"], "out.v1", report)]
-    index = ProducerIndex(modules)
-    assert not index.total((TEXT,), len(modules))
-    assert "out.v1" in index.reachable((TEXT,), len(modules))
-    assert plan(modules, (TEXT,), "missing.v1") is None
-    route = plan(modules, (TEXT,), "out.v1")
-    assert isinstance(route, Apply) and route.module is modules[0]
-    assert route.binding == (("b", "out.v1"), ("l", INT), ("r", "err.v1"))
-    assert infer(modules, (TEXT,), route) == "out.v1"
-    for text, expected, branch in (("21", "2x=42", "double"), ("zz", "bad zz", "report")):
-        calls.clear()
-        workspace = Workspace()
-        message = Message(TEXT, text, "input")
-        workspace.post(message)
-        assert execute(route, {TEXT: message}, workspace, budget=10).payload == expected
-        assert calls == [branch]
-
-    total = "total.v1"
-    fold, zero, add = (Fold(), fn("zero", [TEXT], total, lambda _: 0),
-                       fn("add", [total, INT], total, lambda s, x: s + x))
-    route = Apply(fold, (Given(f"seq[{INT}]"), Apply(zero, (Given(TEXT),))),
-                  (Apply(add, (Given(total), Given(INT))),), (("a", INT), ("s", total)))
-    assert infer([fold, zero, add], (f"seq[{INT}]", TEXT), route) == total
-    workspace = Workspace()
-    items, text = Message(f"seq[{INT}]", [1, 2, 3], "input"), Message(TEXT, "", "input")
-    workspace.post(items)
-    workspace.post(text)
-    assert execute(route, {f"seq[{INT}]": items, TEXT: text}, workspace, budget=10).payload == 6
-
-
-def test_slot_inputs_are_addressed_by_position_and_relevant_ones_are_used() -> None:
-    """A fold whose state and elements share a type sums correctly: its step
-    reads each input by position (THEORY §20.8). The step must use both
-    inputs, so a step reading one of them twice is rejected and the planner
-    finds ``add(state, element)``; a task may require its own inputs too."""
-    fold, zero = Fold(), fn("zero", [TEXT], INT, lambda _: 0)
-    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
-    modules, available = [zero, fold, add], (f"seq[{INT}]", TEXT)
-
-    def run(route: Plan) -> Any:
-        workspace = Workspace()
-        inputs = {f"seq[{INT}]": Message(f"seq[{INT}]", [1, 2, 4], "input"),
-                  TEXT: Message(TEXT, "", "input")}
-        for message in inputs.values():
-            workspace.post(message)
-        return execute(route, inputs, workspace, budget=20).payload
-
-    by_type = Apply(fold, (Given(f"seq[{INT}]"), Apply(zero, (Given(TEXT),))),
-                    (Apply(add, (Given(INT), Given(INT))),), (("a", INT), ("s", INT)))
-    assert infer(modules, available, by_type) is None
-    step = Apply(add, (Given(INT), Given(INT, 1)))
-    assert uses(step, (INT, INT)) == {0, 1}
-    route = plan(modules, available, INT, fuel=5, required=frozenset({0}))
-    assert route == Apply(fold, by_type.args, (step,), by_type.binding)
-    assert infer(modules, available, route) == INT and run(route) == 7
-    assert plan(modules, available, INT, fuel=5) == Apply(zero, (Given(TEXT),))
-    cheapest = plan_min(modules, available, INT, 3, fuel=5, required=frozenset({0}))
-    assert cheapest is not None and cheapest[0] == route and run(cheapest[0]) == 7
-
-    # Earlier generic producers must not wrap a valid fold in redundant adds.
-    reordered = [add, zero, fold]
-    shallow = plan(reordered, available, INT, fuel=5, required=frozenset({0}))
-    assert shallow == route and run(shallow) == 7
-
-
 def test_map_sources_made_by_polymorphic_producers_are_found() -> None:
     """A sequence that only a polymorphic producer makes is a ``map`` source:
     its element is found by solving ``seq[?a]`` as a pattern goal (THEORY
@@ -406,33 +282,6 @@ def test_cost_planners_price_every_instance_of_free_variables() -> None:
     assert compared > 45
 
 
-def test_free_bindings_skip_duplicate_plan_closures(monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca import planner
-    from nca.index import ProducerIndex
-
-    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
-    zero = fn("zero", [TEXT], INT, lambda _: 0)
-    fold = Fold()
-    modules, available = [add, zero, fold], (f"seq[{INT}]", TEXT)
-    binding = fold.manifest.contract.producing(INT)
-    assert binding is not None
-    original = planner._close
-    calls = 0
-    def close(*args: Any, **kwargs: Any) -> Plan | None:
-        nonlocal calls
-        calls += 1
-        return original(*args, **kwargs)
-    monkeypatch.setattr(planner, "_close", close)
-    index = ProducerIndex(modules)
-    expected = list(dict.fromkeys(full for _, full in planner._free_instances(
-        index, index.size, available, fold, binding, 5, index.memo(index.size))))
-    before = calls
-    calls = 0
-    actual = planner.free_bindings(ProducerIndex(modules), available, fold, binding, 5)
-    assert actual == expected
-    assert calls < before
-
-
 def test_free_bindings_retry_after_failed_closure(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca import planner
     from nca.index import ProducerIndex
@@ -450,30 +299,6 @@ def test_free_bindings_retry_after_failed_closure(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(planner, "_close",
                         lambda index, limit, node, binding, memo: None if node.type_id == "bad" else node)
     assert planner.free_bindings(index, (), expert, (), 3) == [(("a", TEXT),)]
-
-
-def test_free_binding_rejects_unusable_required_input() -> None:
-    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
-    zero = fn("zero", [TEXT], INT, lambda _: 0)
-    available = (f"seq[{INT}]", TEXT, "unused.v1")
-    assert plan([add, zero, Fold()], available, INT, fuel=5, required=frozenset({2})) is None
-
-
-def test_free_binding_checks_ground_inputs_without_losing_dependent_inputs() -> None:
-    add = fn("add", [INT, INT], INT, lambda a, b: a + b)
-    zero = fn("zero", [TEXT], INT, lambda _: 0)
-    blocked = fn("blocked", ["seq[?a]", "missing.v1"], "out.v1", lambda a, b: None)
-    modules, available = [add, zero, Fold(), blocked], (f"seq[{INT}]", TEXT)
-    assert plan_min(modules, available, "out.v1", length=1, fuel=5) is None
-    assert plan_pareto(modules, available, "out.v1", length=1, errors={}, fuel=5) == []
-    missing = fn("missing", [TEXT], "missing.v1", lambda _: None)
-    result = plan_min([*modules, missing], available, "out.v1", length=1, fuel=5)
-    assert result is not None and infer([*modules, missing], available, result[0]) == "out.v1"
-
-    dependent = fn("dependent", ["box[?a]", "?a"], "out.v1", lambda a, b: None)
-    boxing = fn("boxing", [INT], "box[int.v1]", lambda value: value)
-    result = plan_min([dependent, boxing], (INT,), "out.v1", length=1, fuel=4)
-    assert result is not None and infer([dependent, boxing], (INT,), result[0]) == "out.v1"
 
 
 def test_pattern_search_checks_later_input_after_binding_without_losing_alternatives() -> None:
