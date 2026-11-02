@@ -30,3 +30,14 @@ theorem split_test_le (p : T → ℝ) (q : E → ℝ) (hp : ∀ t, 0 ≤ p t) (h
     _ = α := by rw [← Finset.sum_mul, hsum, one_mul]
 
 end NCA
+
+namespace NCA
+
+/-- Budget-sum step for a finite family of training-only proposals. -/
+theorem proposal_budget_le {I : Type*} (family : Finset I) (mass budget : I → ℝ)
+    (alpha : ℝ) (each : ∀ i ∈ family, mass i ≤ budget i)
+    (total : ∑ i ∈ family, budget i ≤ alpha) :
+    ∑ i ∈ family, mass i ≤ alpha := by
+  exact (Finset.sum_le_sum each).trans total
+
+end NCA

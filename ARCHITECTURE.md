@@ -1954,3 +1954,13 @@ The arithmetic domain's `components.ComponentSegmenter` segments by
 8-connected components of ink, merging components whose column spans
 mostly overlap and cropping each glyph by its own pixels; it has the
 segmenter's contract and serves routes meant to fail differently.
+
+## Proposal search for new decompositions (§36.3)
+
+`discovery.discover` gives a proposer only the training half of labeled input
+rows. It freezes proposals (experts plus optional new constructor objects),
+checks their external contracts, and tests each on the held-out half at
+`alpha / count`. The accepted proposal with the lowest p-value is returned
+without installation or risk claims. Internal compositions are unrestricted.
+`NCA.proposal_budget_le` in `Reliability/Acquire.lean` proves the budget-sum
+step; test validity and split independence remain premises of `split_test_le`.

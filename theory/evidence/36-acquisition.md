@@ -35,3 +35,24 @@ calibrated and audited on `E` as in §35.2, which the sign test, not
 depending on reports, leaves valid. Its calibration and promotion hold on
 the distribution the audit sampled, so acquisition answers a shift
 exactly as far as the audit's inputs represent it.
+
+## 36.3 Proposing decompositions and interfaces
+
+A proposer uses only `T` to return a finite family of experts with the
+incumbent's external contract. Each expert may introduce new intermediate
+constructor objects and an arbitrary internal composition. These declarations
+are hypotheses about useful representations, not proofs of their meaning.
+Freeze the whole family before evaluating any proposal on `E`.
+
+**Theorem 36.2 (finite proposal selection).** Conditional on `T`, suppose
+there are `k > 0` proposals and every no-better proposal's paired test has
+false acceptance probability at most `α/k`. Then the probability of selecting
+any no-better proposal is at most `α`. Independence between proposals is
+unnecessary: selection implies that at least one proposal passed, so the union
+bound applies. Averaging over independent `T` gives the unconditional bound
+as in Theorem 36.1. With no proposals, nothing is selected.
+
+The proposer must not select, retrain, or add proposals after seeing `E`.
+Repeated adaptive searches need their own budget accounting. Shallow sequence
+snapshots do not isolate mutable sample objects. This mechanism evaluates
+proposed interfaces; it does not itself invent representations or prove transfer.
