@@ -455,8 +455,6 @@ def test_generic_decoded_risk_is_stable_under_row_shifts(alphabet) -> None:
     (np.array([[-np.inf, 0.0, -1e308], [-1e308, 0.0, -np.inf],
                [0.0, 0.0, -np.inf], [0.0, -np.inf, -np.inf]]),
      (0, 1, 3), (1, 1, 1, 0)),
-    (np.array([[-np.inf, 1e308, -np.inf], [1e308, -np.inf, -np.inf]]),
-     (0, 1, 3), (1, 0)),
 ])
 def test_generic_format_risk_rejects_log_arithmetic_overflow(
         reference_only: bool, rows, alphabet, selected, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2064,6 +2062,25 @@ def test_format_risk_recovers_lost_equal_alternative_mass(reference, monkeypatch
     rows = np.full((5, 3), 1e307)
     assert priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(4 / 5)
     assert decoding._format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(4 / 5)
+
+
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("offsets", [[1e308, 1e308, -1e308, -1e308, 0.0],
+                                      [1e308, 1e308, 1e308, 1e308, 1e308]])
+def test_format_risk_cancels_row_offsets_without_summing_them(reference, offsets, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.repeat(np.array(offsets)[:, None], 3, axis=1)
+    assert priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0)) == pytest.approx(0.8)
+    unique = np.array([[-np.inf, 1e308, -np.inf], [1e308, -np.inf, -np.inf]])
+    assert priors.format_sequence_risk(unique, (0, 1, 3), (1, 0)) == 0.0
+
+
+@pytest.mark.parametrize("decoder", [decode, decode_reference])
+def test_absolute_format_normalizer_still_rejects_unrepresentable_offsets(decoder) -> None:
+    rows = np.full((5, 3), 1e308)
+    with pytest.raises(ValueError, match="arithmetic is not finite"):
+        decoder(rows, (0, 1, 3))
 
 
 @pytest.mark.parametrize("reference", [False, True])

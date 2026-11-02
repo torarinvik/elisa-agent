@@ -170,11 +170,6 @@ def _center_log_rows(rows: np.ndarray) -> np.ndarray | None:
     offsets = np.max(rows, axis=1)
     if not np.all(np.isfinite(offsets)):
         return None
-    total = 0.0
-    for offset in offsets:
-        total += float(offset)
-        if not math.isfinite(total):
-            return None
     with np.errstate(over="ignore", invalid="ignore"):
         centered = rows - offsets[:, None]
         virtual = centered - rows

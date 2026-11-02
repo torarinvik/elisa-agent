@@ -228,8 +228,10 @@ scorer also finishes syntax validation before reporting an arithmetic failure.
 On a detected arithmetic failure, format risk can retry after subtracting a
 common log weight from each row. Every complete sequence uses one weight per
 row, so these shifts cancel from the risk. The retry proceeds only if the row
-shifts and their local rounding residuals are representable; it does not make
-an absolute partition or general floating-point accuracy guarantee.
+shifts and their local rounding residuals are representable. Risk does not
+require the sum of row shifts to fit in binary64, since the common factor
+cancels. Restoring an absolute normalizer still requires a representable sum;
+the retry does not make a general floating-point accuracy guarantee.
 If adding two finite log weights overflows the representable log range, the
 general-arity partition reports the calculation as unavailable instead of
 interpreting the resulting infinity as a zero-weight path. This check does
