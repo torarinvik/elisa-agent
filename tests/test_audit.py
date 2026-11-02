@@ -115,3 +115,52 @@ def test_hotspots_rank_experts_by_charged_risk() -> None:
     first.entries += [(a, (1,), 0.1), (b, (1,), 0.3)]
     second.entries += [(a, (2,), 0.4)]
     assert [(m, pytest.approx(t)) for m, t in hotspots([first, second])] == [(a, 0.5), (b, 0.3)]
+
+
+class Shifting:
+    """Overconfident on shifted inputs (second field 1) only."""
+
+    manifest = Manifest("reader", "1", Contract(("glyph.v1",), "dist.v1"))
+
+    def invoke(self, value: tuple[int, int, int]) -> tuple[float, ...]:
+        label, shifted, noise = value
+        read = label if noise < (60 if shifted else 97) else (label + 1) % 3
+        return tuple(0.98 if k == read else 0.01 for k in range(3))
+
+
+def test_grouped_calibration_holds_in_each_group_and_any_mixture() -> None:
+    pytest.importorskip("torch")
+    from nca.grouped import Grouped, fit_groups
+    from nca.ladder import Calibrated, Rung
+
+    rng = random.Random(3)
+
+    def draw(n: int, shifted: int) -> list[tuple[int, int, int]]:
+        return [(rng.randrange(3), shifted, rng.randrange(100)) for _ in range(n)]
+
+    def group(value: tuple[int, int, int]) -> int:
+        return value[1]
+
+    expert: Any = Shifting()
+    pool = draw(5000, 0) + draw(5000, 1)
+    rungs = fit_groups(expert, group, pool, [v[0] for v in pool])
+    grouped = Grouped(expert, group, rungs)
+    pooled = Rung(expert)
+    pooled.calibrate(pool, __import__("torch").tensor([v[0] for v in pool]))
+    one = Calibrated(pooled)
+
+    def audited(reader: Any, values: list) -> Any:
+        outputs = [reader.invoke(v) for v in values]
+        return audit([reader.risk(o, v) for o, v in zip(outputs, values)],
+                     [max(range(3), key=o.__getitem__) != v[0] for o, v in zip(outputs, values)])
+
+    for shifted in (0, 1):
+        assert not audited(grouped, draw(1000, shifted)).refutes(0.01)
+    # One temperature for the pooled mixture is refuted on the shifted
+    # inputs alone, and over-reports on the clean ones.
+    assert audited(one, draw(1000, 1)).refutes(0.01)
+    clean = audited(one, draw(1000, 0))
+    assert clean.reported > 3 * clean.failures
+    # An input of a group without a rung reports no risk.
+    sparse = Grouped(expert, group, {0: rungs[0]})
+    assert sparse.risk(sparse.invoke((0, 1, 5)), (0, 1, 5)) is None

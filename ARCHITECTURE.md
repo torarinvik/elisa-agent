@@ -48,6 +48,7 @@ run the Python tests with `uv run pytest`.
 | [§34 Compiled routes](theory/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
 | [§35 Calibration audits](theory/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
 | [§36 Acquiring experts](theory/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
+| [§37 Calibration by groups of inputs](theory/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -334,6 +335,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [34.4](theory/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
 | [35.1](theory/35-calibration-audits.md) | `count_tail_le`, `audit_tail_le` | `Audit` |
 | [36.1](theory/36-acquisition.md) | `split_test_le` | `Acquire` |
+| [37.1](theory/37-grouped-calibration.md) | `grouped_calibrated` | `Grouped` |
 
 ## Native kernels
 
@@ -1859,3 +1861,15 @@ challenger is installed by the caller, after calibrating it with
 `recalibrate` on the evaluation half. In the arithmetic domain,
 `digit_recognizer.fine_tuned` trains a copy of a network further on
 labeled glyphs, and `SymbolRecognizer.fine_tuned` wraps it as a trainer.
+
+## 37. Calibration by groups of inputs
+
+`grouped.fit_groups(module, group, values, labels)` routes labeled values
+by the grouping function `group` and fits one `ladder.Rung` per group
+present. `grouped.Grouped(module, group, rungs)` is an expert with the
+module's manifest that reads each input through its group's rung, as
+`ladder.Calibrated` does, and reports that rung's risk; an input whose
+group has no rung is read uncalibrated and reports `None`. Groups are
+audited separately with `evidence.audit`. The grouping is the caller's:
+any function of the input, such as a classifier trained to tell audited
+inputs from calibration inputs.

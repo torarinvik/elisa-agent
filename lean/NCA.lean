@@ -45,3 +45,4 @@ import NCA.Spot
 import NCA.Batch
 import NCA.Audit
 import NCA.Acquire
+import NCA.Grouped

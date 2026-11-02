@@ -61,3 +61,4 @@ link for its definitions, arguments, and results.
 - [34. Compiled routes](theory/34-compiled-routes.md)
 - [35. Calibration audits](theory/35-calibration-audits.md)
 - [36. Acquiring experts](theory/36-acquisition.md)
+- [37. Calibration by groups of inputs](theory/37-grouped-calibration.md)
