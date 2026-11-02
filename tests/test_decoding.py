@@ -419,6 +419,16 @@ def test_format_partition_keeps_either_live_part_and_stops_on_empty_row(referenc
         priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 1, 1, 0))
 
 
+@pytest.mark.parametrize("reference", [False, True])
+def test_format_partition_excludes_early_completed_state(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    rows = np.array([[0.0, 0.0, -np.inf], [-np.inf, 0.0, -np.inf],
+                     [0.0, -np.inf, -np.inf]])
+    assert priors.format_sequence_risk(rows, (0, 1, 3), (1, 1, 0)) == 0.0
+    assert priors.format_sequence_risk(rows, (0, 1, 3), (0, 1, 0)) == 1.0
+
+
 @pytest.mark.parametrize("alphabet", [(0, 1, 2), (0, 1, 3)])
 def test_format_partition_matches_enumerated_paths(alphabet) -> None:
     rng = np.random.default_rng(241)

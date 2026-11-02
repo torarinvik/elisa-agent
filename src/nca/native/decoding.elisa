@@ -450,21 +450,28 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
     alternatives: darray[f64] = [missing for _ in 0..<(2 * width)]
     matched: darray[f64] = [0.0]
     state: darray[i64] = [1]
-    live: darray[i64] = [0]
+    bounds: darray[i64] = [width, -1, width, -1]
     for k in 0..<m:
-        return [missing, missing] if matched[0] == missing and live[0] == 0
+        here_bound: i64 = (k % 2) * 2
+        next_bound: i64 = ((k + 1) % 2) * 2
+        return [missing, missing] if matched[0] == missing and bounds[here_bound] > bounds[here_bound + 1]
         has_reading: bool =
             for j in 0..<count |found: bool = false| -> found:
                 if log_probs[k * count + j] != missing:
                     found <- true
                     break
         return [missing, missing] if not has_reading
-        live[0] <- 0
         here: i64 = (k % 2) * width
         next: i64 = ((k + 1) % 2) * width
-        for n in 0..<width:
+        for n in bounds[next_bound]..<(bounds[next_bound + 1] + 1):
             alternatives[next + n] <- missing
-        for n in 1..<(m - k + 1):
+        bounds[next_bound] <- width
+        bounds[next_bound + 1] <- -1
+        first: i64 = state[0] if matched[0] != missing and state[0] >= 1 and state[0] <= m - k and state[0] < bounds[here_bound] else bounds[here_bound]
+        last: i64 = state[0] if matched[0] != missing and state[0] >= 1 and state[0] <= m - k and state[0] > bounds[here_bound + 1] else bounds[here_bound + 1]
+        low: i64 = 1 if first < 1 else first
+        high: i64 = m - k if last > m - k else last
+        for n in low..<(high + 1):
             for j in 0..<count:
                 arity: i64 = alphabet[j]
                 continue if arity > m - k - 1
@@ -478,14 +485,16 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                     combined: f64 = partition_log_add(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
-                    live[0] <- 1
+                    bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
+                    bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
                 if n == state[0] and matched[0] != missing and arity != selected[k] and reading != missing:
                     through: f64 = partition_log_product(matched[0], reading)
                     return [] if through == missing or through == -missing or through != through
                     combined: f64 = partition_log_add(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
-                    live[0] <- 1
+                    bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
+                    bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
         chosen: i64 =
             for j in 0..<count |found: i64 = -1| -> found:
                 if alphabet[j] == selected[k]:

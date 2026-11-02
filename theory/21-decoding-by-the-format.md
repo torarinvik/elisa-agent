@@ -203,6 +203,10 @@ shift makes the rounded total equal the selected weight.
 If both parts have no live paths, or a row has zero weight for every symbol,
 no later row can create a supported complete sequence and the partition may
 stop. Either part must continue while it still has a live path.
+The partition can restrict each alternative-state scan to the interval
+containing its nonzero states, plus the selected state when live. A state
+with no pending nodes cannot consume another word and is excluded from later
+transition scans; the interval may contain unreachable holes.
 Adding positive mass must increase the exact sum. The partition checks the
 difference between the intended log-sum correction and the correction retained
 after addition; distortion of at least `1.01 × 10⁻⁸` reports precision loss.

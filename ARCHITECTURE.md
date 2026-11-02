@@ -991,7 +991,9 @@ If a computed sequence risk rounds to zero, the generic Elisa
 the fallback uses the same recurrence in NumPy. Both reject non-finite
 results of adding finite path weights instead of treating them as absent mass.
 `pdpSum_zero_row` and `partitionCompose_zero_left` in `NCA.Product` justify
-stopping when no reading or partition paths remain.
+stopping when no reading or partition paths remain. `sum_filter_support` and
+`foldl_await_zero_nonempty` in `NCA.Decoding` cover the support restriction and
+early completed-state exclusion used by the format partition.
 Single-row updates reuse native cursor sweeps; rebuilds preserve the reference.
 Its `Banded` result bounds model risk with the requested slack. After a
 successful result, `sequence_risk` scores any accepted arity sequence with the
