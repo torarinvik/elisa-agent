@@ -45,6 +45,11 @@ theorem calibrated_difference_rescale (a b temperature : ℝ) :
     (a - b) / temperature = a / temperature - b / temperature := by
   exact sub_div a b temperature
 
+/-- Scaling each calibration gap by the sample count gives the mean gap. -/
+theorem average_calibrated_difference (a b temperature count : ℝ) :
+    ((a - b) / temperature) / count = (a - b) / (temperature * count) := by
+  rw [div_div]
+
 /-- A nonnegative finite family with zero total has no positive entry. -/
 theorem zero_total_no_positive_entry {ι : Type*} [Fintype ι]
     (mass : ι → ℝ) (nonneg : ∀ x, 0 ≤ mass x)

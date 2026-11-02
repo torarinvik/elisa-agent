@@ -173,7 +173,11 @@ group mass `G`, each observation's negative log-likelihood is
 `−log(G/Z) = log Z − log G`. The implementation factors out a separate
 maximum from each sum before evaluating this difference and selects the best
 of 120 temperatures between 0.1 and 8.0; it does not claim a continuous
-global optimum. If a calibrated rung has no matching labels,
+global optimum. For `n` observations, the mean maximum gap can equivalently
+be accumulated as `(row maximum − target-group maximum) / (temperature · n)`
+per row. This avoids first forming a sum or an individual scaled gap that
+may overflow even when the mean is representable; floating-point rounding
+still applies. If a calibrated rung has no matching labels,
 a decision with multiple entries has no fitted restricted temperature. Direct
 queries report the missing calibration; refinement treats the account as
 unavailable, can try higher rungs, and abstains if no usable account is found.

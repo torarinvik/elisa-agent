@@ -1299,6 +1299,39 @@ def test_native_temperature_fit_matches_reference(grouped, monkeypatch) -> None:
     assert native == [Rung._fit(logits, labels, entries) for logits, labels in cases]
 
 
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("grouped", [False, True])
+@pytest.mark.parametrize("rows", [1, 8, 100])
+@pytest.mark.parametrize("dtype,high,low", [
+    (torch.float64, 1e308, -1e308),
+    (torch.float32, 3e38, 2e38),
+])
+def test_temperature_fit_stabilizes_large_finite_logits(native, grouped, rows, dtype, high, low, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibration_loss_grid", None) is None:
+        pytest.skip("native calibration kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[high, low, low]] * rows, dtype=dtype)
+    labels = torch.ones(rows, dtype=torch.int64)
+    entries = ((0, 2), (1,)) if grouped else None
+    assert Rung._fit(logits, labels, entries) == 8.0
+    if grouped:
+        rung = Rung(None)
+        rung.held_out = (logits, labels)
+        assert rung.temperature(((0, 2), (1,))) == 8.0
+
+
+def test_extreme_grouped_fit_allows_zero_mass_in_other_groups(monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    logits = torch.tensor([[1e308, -1e308, -math.inf], [-math.inf, 1e308, -math.inf]],
+                          dtype=torch.float64)
+    assert Rung._fit(logits, torch.tensor([1, 1]), ((0, 2), (1,))) == 8.0
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
     from nca import ladder as ladder_module

@@ -931,15 +931,47 @@ class Rung:
             if native is not None:
                 losses = native(log.contiguous().numpy().reshape(-1), labels.contiguous().numpy(),
                                 groups, len(entries) if grouped else width, temperatures)
-                if len(losses) == len(temperatures) and not any(math.isnan(loss) for loss in losses):
+                if len(losses) == len(temperatures) and all(math.isfinite(loss) for loss in losses):
                     return float(temperatures[min(range(len(losses)), key=losses.__getitem__)])
 
+        shifted = _temperature_scores(log, 1.0)
+        overflowed = (log.is_floating_point() and
+                      bool((torch.isneginf(shifted) & torch.isfinite(log)).any()))
+
         def nll(t: float) -> float:
-            scaled = torch.log_softmax(log / t, dim=-1)
+            scores = _temperature_scores(log, t) if overflowed and t > 1 else shifted / t
+            scaled = torch.log_softmax(scores, dim=-1)
             if grouped:
                 scaled = torch.stack([scaled[:, list(e)].logsumexp(dim=-1) for e in entries],
                                      dim=-1)
-            return nn.functional.nll_loss(scaled, labels).item()
+            loss = nn.functional.nll_loss(scaled, labels).item()
+            if math.isfinite(loss):
+                return loss
+            # Compute the average without first forming an overflowing row loss
+            # or sum. Normalize each target group relative to its own maximum.
+            if grouped:
+                maxima = torch.stack([log[:, list(e)].amax(dim=-1) for e in entries], dim=-1)
+                target_max = maxima.gather(1, labels[:, None]).squeeze(1)
+                if not bool(torch.isfinite(target_max).all()):
+                    return math.inf
+                target_norm = torch.empty_like(scores[:, 0])
+                for index, entry in enumerate(entries):
+                    selected_rows = labels == index
+                    if bool(selected_rows.any()):
+                        target_log = log[selected_rows][:, list(entry)]
+                        target_norm[selected_rows] = torch.logsumexp(
+                            _temperature_scores(target_log, t), dim=-1)
+            else:
+                target_max = log.gather(1, labels[:, None]).squeeze(1)
+                if not bool(torch.isfinite(target_max).all()):
+                    return math.inf
+                target_norm = torch.zeros_like(target_max)
+            maxima = log.amax(dim=-1)
+            count = labels.numel()
+            pairs = torch.stack((maxima, target_max), dim=-1)
+            gap = -_temperature_scores(pairs, t * count)[:, 1]
+            normalizer = torch.logsumexp(scores, dim=-1)
+            return (gap + (normalizer - target_norm) / count).sum().item()
 
         return float(min(temperatures, key=nll))
 
