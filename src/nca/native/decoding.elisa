@@ -682,8 +682,10 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
         for k in 0..<m |forward: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<((m + 1) * states)], best: darray[f64] = [0.0 if i == start else log(0.0) for i in 0..<(2 * states)], choice: darray[i64] = [-1 for _ in 0..<((m + 1) * states)], bounds: darray[i64] = [start if i < 2 else (states if i % 2 == 0 else -1) for i in 0..<(2 * (m + 1))]| -> (forward, best, choice, bounds):
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            for state in 0..<states |best|:
-                best[next + state] <- unreachable
+            # The destination row was last used at position k - 1.
+            if k > 0:
+                for state in bounds[2 * (k - 1)]..<(bounds[2 * (k - 1) + 1] + 1) |best|:
+                    best[next + state] <- unreachable
             for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |forward, best, choice, bounds|:
                 continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |forward, best, choice, bounds|:
@@ -726,12 +728,14 @@ def decode_prior(log_probs: view[f64], alphabet: view[i64], transitions: view[i6
             decoded[m - step - 1] <- alphabet[edge % width]
             state <- edge / width
     marginals: darray[darray[f64]] =
-        for step in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m], backward: darray[f64] = [final[i - (m % 2) * states] if i / states == m % 2 else unreachable for i in 0..<(2 * states)]| -> result:
+        for step in 0..<m |result: darray[darray[f64]] = [[0.0 for _ in 0..<width] for _ in 0..<m], backward: darray[f64] = [final[i % states] if i / states == m % 2 and forward[m * states + i % states] != unreachable else unreachable for i in 0..<(2 * states)]| -> result:
             k: i64 = m - 1 - step
             here: i64 = (k % 2) * states
             next: i64 = ((k + 1) % 2) * states
-            for state in 0..<states |backward|:
-                backward[here + state] <- unreachable
+            # The reused row contains only support from position k + 2.
+            if k + 2 <= m:
+                for state in bounds[2 * (k + 2)]..<(bounds[2 * (k + 2) + 1] + 1) |backward|:
+                    backward[here + state] <- unreachable
             for state in bounds[2 * k]..<(bounds[2 * k + 1] + 1) |backward|:
                 continue if forward[k * states + state] == log(0.0)
                 for j in 0..<width |backward|:

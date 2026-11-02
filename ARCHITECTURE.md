@@ -1076,7 +1076,8 @@ negative infinity in forward, backward and marginal passes (§27.6,
 valid on forward support, sufficient for all emitted posteriors, rather than
 a continuation table for arbitrary starting states. Per-position support
 envelopes avoid scanning outside the reachable range. Arrays remain dense;
-no finite low-probability state is pruned.
+reused score rows clear only their previous envelopes, and no finite
+low-probability state is pruned.
 
 `modules.words.CompleteTreePrior` exposes the independent contract
 `logic.formula.length.v1 → logic.arity.prior.v1`. It delegates supported
