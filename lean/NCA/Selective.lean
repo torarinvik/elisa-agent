@@ -50,6 +50,11 @@ theorem average_calibrated_difference (a b temperature count : ℝ) :
     ((a - b) / temperature) / count = (a - b) / (temperature * count) := by
   rw [div_div]
 
+/-- A singleton target group has unit mass after shifting by its own logit. -/
+theorem singleton_target_normalizer (logit temperature : ℝ) :
+    Real.exp ((logit - logit) / temperature) = 1 := by
+  simp
+
 /-- A nonnegative finite family with zero total has no positive entry. -/
 theorem zero_total_no_positive_entry {ι : Type*} [Fintype ι]
     (mass : ι → ℝ) (nonneg : ∀ x, 0 ≤ mass x)

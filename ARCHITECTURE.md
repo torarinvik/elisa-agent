@@ -155,6 +155,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `grouped_selection_risk_difference` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `unsigned_bitpattern_order` | `Selective` |
 | [16.1](theory/16-knowing-when-to-be-unsure.md) | `average_calibrated_difference` | `Selective` |
+| [16.1](theory/16-knowing-when-to-be-unsure.md) | `singleton_target_normalizer` | `Selective` |
 | [16.2](theory/16-knowing-when-to-be-unsure.md) | `threshold_optimal` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `bound_ge_floor` | `Selective` |
 | [16.3](theory/16-knowing-when-to-be-unsure.md) | `length_limit` | `Selective` |
@@ -876,8 +877,8 @@ and returns the original tensor dtype.
 CPU temperature fitting can use Elisa `calibration_loss_grid_stable`, which
 evaluates the same 120 candidate temperatures, supports arbitrary grouped
 labels, and rescales overflowing mean losses using row maxima cached across
-affected temperatures. Singleton entries use a direct target calculation;
-other groupings retain the grouped calculation. Older builds can use
+affected temperatures. A row whose target is a singleton uses a direct target
+calculation; multi-class targets retain the grouped calculation. Older builds can use
 `calibration_loss_grid` when all its candidate losses are finite.
 Calibration accepts signed and unsigned integer label tensors; labels are
 converted to signed 64-bit indices and checked against the observation width.

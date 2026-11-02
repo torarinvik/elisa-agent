@@ -1820,6 +1820,7 @@ def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64
     return calibration_singleton_loss_grid(logits, labels, temperatures, rows, width) if singleton
     maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
     target_maxima: darray[f64] = [log(0.0) for _ in 0..<rows]
+    target_sizes: darray[i64] = [0 for _ in 0..<rows]
     for row in 0..<rows:
         return [] if labels[row] < 0 or labels[row] >= entries
         for j in 0..<width:
@@ -1827,6 +1828,7 @@ def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64
             return [] if value != value or value == log(0.0) or value == -log(0.0)
             maxima[row] <- value if value > maxima[row] else maxima[row]
             target_maxima[row] <- value if groups[j] == labels[row] and value > target_maxima[row] else target_maxima[row]
+            target_sizes[row] <- target_sizes[row] + 1 if groups[j] == labels[row] else target_sizes[row]
         return [] if target_maxima[row] == log(0.0)
     result: darray[f64] = [0.0 for _ in 0..<temperatures.len.i64()]
     for t in 0..<temperatures.len.i64():
@@ -1836,12 +1838,18 @@ def calibration_loss_grid(logits: view[f64], labels: view[i64], groups: view[i64
             for row in 0..<rows |loss: f64 = 0.0| -> loss:
                 maximum: f64 = maxima[row]
                 target_max: f64 = target_maxima[row]
-                total, target_total =
-                    for j in 0..<width |total: f64 = 0.0, target_total: f64 = 0.0| -> (total, target_total):
-                        value: f64 = logits[row * width + j]
-                        total += exp(calibrated_difference(value, maximum, temperature))
-                        target_total += exp(calibrated_difference(value, target_max, temperature)) if groups[j] == labels[row] else 0.0
-                loss += calibrated_difference(target_max, maximum, temperature) * -1.0 + log(total) - log(target_total)
+                if target_sizes[row] == 1:
+                    total: f64 =
+                        for j in 0..<width |total: f64 = 0.0| -> total:
+                            total += exp(calibrated_difference(logits[row * width + j], maximum, temperature))
+                    loss += calibrated_difference(target_max, maximum, temperature) * -1.0 + log(total)
+                else:
+                    total, target_total =
+                        for j in 0..<width |total: f64 = 0.0, target_total: f64 = 0.0| -> (total, target_total):
+                            value: f64 = logits[row * width + j]
+                            total += exp(calibrated_difference(value, maximum, temperature))
+                            target_total += exp(calibrated_difference(value, target_max, temperature)) if groups[j] == labels[row] else 0.0
+                    loss += calibrated_difference(target_max, maximum, temperature) * -1.0 + log(total) - log(target_total)
         result[t] <- loss / rows.f64()
     return result
 

@@ -1412,6 +1412,27 @@ def test_native_singleton_calibration_matches_equivalent_permuted_groups() -> No
         assert identity == permuted
 
 
+def test_native_grouped_calibration_mixes_singleton_and_multi_class_targets() -> None:
+    from nca import ladder as ladder_module
+
+    native = getattr(ladder_module._NATIVE, "calibration_loss_grid_stable", None)
+    if native is None:
+        pytest.skip("stable native calibration kernel is not built")
+    rng = np.random.default_rng(513)
+    logits = torch.tensor(rng.normal(0, 3, size=(25, 8)), dtype=torch.float64)
+    groups = np.array([0, 0, 0, 0, 1, 2, 3, 4], dtype=np.int64)
+    labels = torch.tensor(np.arange(25) % 5, dtype=torch.int64)
+    temperatures = np.array([0.1, 0.7, 1.0, 8.0])
+    actual = native(logits.numpy().reshape(-1), labels.numpy(), groups, 5, temperatures)
+    expected = []
+    for temperature in temperatures:
+        scores = torch.log_softmax(logits / temperature, dim=-1)
+        entries = torch.stack([scores[:, groups == group].logsumexp(dim=-1)
+                               for group in range(5)], dim=-1)
+        expected.append(nn.functional.nll_loss(entries, labels).item())
+    assert actual == pytest.approx(expected, rel=1e-13, abs=1e-13)
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 def test_native_calibration_grid_matches_reference_losses(grouped) -> None:
     from nca import ladder as ladder_module
