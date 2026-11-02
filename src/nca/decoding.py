@@ -399,6 +399,8 @@ class Split:
             raise ValueError("requires rows of finite or negative-infinite weights over nonnegative arities")
         m = len(self.log_probs)
         self.arities = _native_format_symbols(alphabet, m)
+        self._arities_ordered = bool(np.all(self.arities[:-1] <= self.arities[1:]))
+        self.arities.flags.writeable = False
         position = np.arange(m + 1)
         if centre is None and half is None:
             self.low, self.high = np.zeros(m + 1, dtype=np.int64), m - position
@@ -532,10 +534,13 @@ class Split:
         self._retreat(k + 1)
         if self._native is not None:
             log_row = np.ascontiguousarray(row, dtype=np.float64)
-            log_z, log_x = self._native.scores_ragged_log(self.forward,
-                                                   self.forward_max.reshape(-1), self.backward.reshape(-1),
-                                                   self.backward_max.reshape(-1), self.arities, self.low,
-                                                   self.high, self.offsets, k, log_row)
+            args = (self.forward, self.forward_max, self.backward, self.backward_max,
+                    self.arities, self.low, self.high, self.offsets, k, log_row)
+            ordered_score = getattr(self._native, "scores_ragged_with_order", None)
+            if ordered_score is None:
+                log_z, log_x = self._native.scores_ragged_log(*args)
+            else:
+                log_z, log_x = ordered_score(*args, self._arities_ordered)
             if math.isnan(log_z) or math.isnan(log_x):
                 raise ValueError("format decoding arithmetic is not finite")
             return float(log_z), float(log_x)

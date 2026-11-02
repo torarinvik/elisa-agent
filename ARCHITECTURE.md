@@ -288,6 +288,10 @@ returns no sequence when the maximum is unreachable):
 kernel recomputes rows in place through `mutable view[f64]` parameters, which
 borrow the arrays' writable buffers. Cursors copy input weights into row-major
 storage so native calls can borrow a flat view without copying the matrix.
+The cursor keeps its mapped arities read-only and caches their ordering;
+`scores_ragged_with_order` requires its true flag to mean the supplied
+arities are nondecreasing, while
+`scores_ragged_log` determines it independently for compatibility.
 Sum and max tables use log weights in
 both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.

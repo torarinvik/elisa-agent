@@ -1517,6 +1517,33 @@ def test_banded_split_falls_back_with_older_native_kernel(monkeypatch: pytest.Mo
     assert split.scores(2, rows[2]) == pytest.approx(expected[:2])
 
 
+@pytest.mark.parametrize("alphabet", [(0, 1, 3, 10**100), (10**100, 3, 0, 1)])
+def test_split_cached_order_matches_legacy_native_scoring(alphabet: tuple[int, ...]) -> None:
+    native = decoding._NATIVE
+    if getattr(native, "scores_ragged_with_order", None) is None:
+        pytest.skip("native cached-order scoring is not built")
+
+    class OlderNative:
+        def __getattr__(self, name: str) -> Any:
+            if name == "scores_ragged_with_order":
+                raise AttributeError(name)
+            return getattr(native, name)
+
+    rng = np.random.default_rng(291)
+    rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=13))
+    cursor = decoding.Split(rows, alphabet)
+    assert not cursor.arities.flags.writeable
+    assert cursor._arities_ordered == (alphabet[0] == 0)
+    with pytest.raises(ValueError):
+        cursor.arities[0] = 0
+    for k in (0, 6, 12):
+        actual = cursor.scores(k, rows[k])
+        cursor._native = OlderNative()
+        expected = cursor.scores(k, rows[k])
+        cursor._native = native
+        assert actual == pytest.approx(expected)
+
+
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_cursors_copy_fortran_input_to_contiguous_private_rows(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:

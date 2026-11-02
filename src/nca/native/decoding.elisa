@@ -855,12 +855,12 @@ def retreat_ragged_log(backward: mutable view[f64], backward_max: mutable view[f
                 backward_max[cell] <- candidate if candidate > backward_max[cell] else backward_max[cell]
     return start - stop
 
-# [log Z, best log weight] with word k replaced by log_row.
-def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+# [log Z, best log weight] with word k replaced by log_row. The ordered flag
+# may be true only if the supplied alphabet is nondecreasing.
+def scores_ragged_with_order(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, log_row: view[f64], ordered: bool) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     left: (first: i64, last: i64) = support_envelope(forward, forward_max, offsets, low, high, k)
     right: (first: i64, last: i64) = support_envelope(backward, backward_max, offsets, low, high, k + 1)
     return [log(0.0), log(0.0)] if left.first > left.last or right.first > right.last
-    ordered: bool = arities_ordered(alphabet)
     minimum: i64 = left.first if left.first > 1 else 1
     total, log_x =
         for j in 0..<alphabet.len.i64() |total: f64 = log(0.0), log_x: f64 = log(0.0)| -> (total, log_x):
@@ -889,6 +889,10 @@ def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view
                     return [log(-1.0), log(-1.0)] if candidate == log(0.0) or candidate == -log(0.0) or candidate != candidate
                     log_x <- candidate if candidate > log_x else log_x
     return [total, log_x]
+
+# Compatibility entry point determines the ordering on each call.
+def scores_ragged_log(forward: view[f64], forward_max: view[f64], backward: view[f64], backward_max: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], k: i64, log_row: view[f64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
+    return scores_ragged_with_order(forward, forward_max, backward, backward_max, alphabet, low, high, offsets, k, log_row, arities_ordered(alphabet))
 
 # [best log weight, its arities (m)], with forward max row `k` and backward max row `k + 1`
 # current (THEORY §23.4, Theorem 23.10): the best state and arity at word `k`, then the best
@@ -1275,6 +1279,7 @@ export pymodule decoding:
     fn advance_ragged_log
     fn retreat_ragged_log
     fn scores_ragged_log
+    fn scores_ragged_with_order
     fn trace_ragged
     fn certificate
     fn parse_tree
