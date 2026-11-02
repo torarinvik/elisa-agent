@@ -762,7 +762,9 @@ checks the real-number ordering, not the floating-point code or the individual
 risk estimates. Detection floors have not yet been numerically enclosed.
 The correction account also rounds each share and within-group risk addition
 upward; `combined_allocation_cover` checks how these charges preserve the
-coverage of the allocated bound in real arithmetic.
+coverage of the allocated bound in real arithmetic. Binary floating-point
+inputs no wider than binary64 convert exactly before the Elisa addition;
+other within-group inputs are converted upward first.
 The correction account updates changed cursor rows and refreshes marginal
 priorities every `isqrt(m)` changed rows or when the prior changes. Sequence
 and within-certificate risks are reused only while their relevant inputs

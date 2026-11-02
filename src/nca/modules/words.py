@@ -204,10 +204,14 @@ def _markov_shares(risks: Sequence[float]) -> list[float]:
 
 
 def _combine_shares(shares: Sequence[float], within: Sequence[float]) -> list[float]:
-    additions = _upper_values(within)
     native = getattr(_NATIVE, "combine_shares", None)
     if native is not None:
+        # These types convert exactly to binary64; other inputs need upward
+        # conversion before they reach the native addition kernel.
+        additions = (within if set(map(type, within)) <= {float, np.float16, np.float32, np.float64}
+                     else _upper_values(within))
         return list(native(np.asarray(shares, dtype=np.float64), np.asarray(additions, dtype=np.float64)))
+    additions = _upper_values(within)
     return [_upper_sum([share, addition]) for share, addition in zip(shares, additions, strict=True)]
 
 

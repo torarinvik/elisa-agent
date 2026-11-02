@@ -369,6 +369,24 @@ def test_detection_shares_round_up_at_boundaries(reference: bool, monkeypatch: p
         assert Fraction.from_float(account[i]) >= exact
 
 
+@pytest.mark.parametrize("reference", [False, True])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_combine_shares_preserves_precise_mixed_inputs(reference: bool, mixed: bool,
+                                                      monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.modules import words as word_module
+
+    if reference:
+        monkeypatch.setattr(word_module, "_NATIVE", None)
+    additions = [np.float16(0.5), np.float32(0.25), np.float64(0.125), 0.0625]
+    if mixed:
+        additions.extend([Fraction(1, 3), 2**53 + 1])
+    shares = [1e-18] * len(additions)
+    combined = word_module._combine_shares(shares, additions)
+    for actual, addition in zip(combined, additions, strict=True):
+        exact = Fraction.from_float(float(addition)) if isinstance(addition, np.floating) else Fraction(addition)
+        assert Fraction.from_float(actual) >= exact + Fraction.from_float(1e-18)
+
+
 def test_floors_bound_every_account() -> None:
     """``FormulaEvaluator.floor`` never exceeds the account it bounds (§22.3),
     whatever the risks of the open words."""
