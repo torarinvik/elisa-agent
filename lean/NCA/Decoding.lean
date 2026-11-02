@@ -22,6 +22,48 @@ which never exceeds the union bound (`exact_risk_le_union`).
 
 namespace NCA
 
+/-- Restricting a sum to a known support interval removes only zero terms. -/
+theorem sum_filter_support (xs : List ℕ) (f : ℕ → ℝ) (first last : ℕ)
+    (outside : ∀ n ∈ xs, (n < first ∨ last < n) → f n = 0) :
+    (xs.map f).sum = ((xs.filter fun n => first ≤ n ∧ n ≤ last).map f).sum := by
+  induction xs with
+  | nil => simp
+  | cons x xs ih =>
+    have rest : ∀ n ∈ xs, (n < first ∨ last < n) → f n = 0 := by
+      intro n hn h
+      exact outside n (List.mem_cons_of_mem _ hn) h
+    by_cases h : first ≤ x ∧ x ≤ last
+    · simp [h, ih rest]
+    · have hz : f x = 0 := outside x List.mem_cons_self (by omega)
+      simp [h, hz, ih rest]
+
+/-- Restricting a nonnegative maximum to its support removes only zero terms. -/
+theorem max_filter_support (xs : List ℕ) (f : ℕ → ℝ) (first last : ℕ)
+    (outside : ∀ n ∈ xs, (n < first ∨ last < n) → f n = 0) :
+    (xs.map f).foldr max 0 =
+      ((xs.filter fun n => first ≤ n ∧ n ≤ last).map f).foldr max 0 := by
+  have nonneg : ∀ ys : List ℝ, 0 ≤ ys.foldr max 0 := by
+    intro ys
+    induction ys with
+    | nil => simp
+    | cons y ys ih => exact le_trans ih (le_max_right y _)
+  induction xs with
+  | nil => simp
+  | cons x xs ih =>
+    have rest : ∀ n ∈ xs, (n < first ∨ last < n) → f n = 0 := by
+      intro n hn h
+      exact outside n (List.mem_cons_of_mem _ hn) h
+    by_cases h : first ≤ x ∧ x ≤ last
+    · simp [h, ih rest]
+    · have hz : f x = 0 := outside x List.mem_cons_self (by omega)
+      simp [h, hz, ih rest, max_eq_right (nonneg _)]
+
+/-- A successor support interval translates to bounds on the source state. -/
+theorem support_shift_bounds (n arity first last : ℤ) :
+    (first ≤ n - 1 + arity ∧ n - 1 + arity ≤ last) ↔
+      (first + 1 - arity ≤ n ∧ n ≤ last + 1 - arity) := by
+  omega
+
 /-- Keep the earlier alphabet index when two candidates have equal score. -/
 def tiedChoice (current candidate : ℕ) : ℕ :=
   if candidate < current then candidate else current

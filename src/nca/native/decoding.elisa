@@ -770,6 +770,23 @@ def banded_format(log_probs: view[f64], alphabet: view[i64], low: view[i64], hig
         trace_state[0] <- trace_state[0] + 1 - arity
     return result
 
+# Enclose all reachable sum or maximum states; interior holes are retained.
+def support_envelope(sums: view[f64], maxima: view[f64], offsets: view[i64], low: view[i64], high: view[i64], row: i64) -> (first: i64, last: i64) can[Abort.Panic]:
+    first: i64 =
+        for n in low[row]..<(high[row] + 1) |first: i64 = high[row] + 1| -> first:
+            index: i64 = offsets[row] + n - low[row]
+            if sums[index] != log(0.0) or maxima[index] != log(0.0):
+                first <- n
+                break
+    last: i64 =
+        for back in 0..<(high[row] - first + 1) |last: i64 = first - 1| -> last:
+            n: i64 = high[row] - back
+            index: i64 = offsets[row] + n - low[row]
+            if sums[index] != log(0.0) or maxima[index] != log(0.0):
+                last <- n
+                break
+    return first, last
+
 # Recompute forward and backward rows in log space.
 def advance_ragged_log(forward: mutable view[f64], forward_max: mutable view[f64], log_probs: view[f64], alphabet: view[i64], low: view[i64], high: view[i64], offsets: view[i64], start: i64, stop: i64) -> i64 can[Abort.Panic]:
     arities: i64 = alphabet.len.i64()
@@ -778,13 +795,16 @@ def advance_ragged_log(forward: mutable view[f64], forward_max: mutable view[f64
         for n in low[i + 1]..<(high[i + 1] + 1):
             forward[target + n - low[i + 1]] <- log(0.0)
             forward_max[target + n - low[i + 1]] <- log(0.0)
+        active: (first: i64, last: i64) = support_envelope(forward, forward_max, offsets, low, high, i)
         for j in 0..<arities:
             step: f64 = log_probs[i * arities + j]
             continue if step == log(0.0)
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
-            for t in 0..<run.count:
-                source: i64 = offsets[i] + run.first + t - low[i]
-                cell: i64 = target + run.first - 1 + alphabet[j] + t - low[i + 1]
+            first: i64 = run.first if run.first > active.first else active.first
+            end: i64 = (run.first + run.count) if run.first + run.count < active.last + 1 else active.last + 1
+            for n in first..<end:
+                source: i64 = offsets[i] + n - low[i]
+                cell: i64 = target + n - 1 + alphabet[j] - low[i + 1]
                 if forward[source] != log(0.0):
                     incoming: f64 = forward[source] + step
                     return -1 if incoming == log(0.0) or incoming == -log(0.0) or incoming != incoming
@@ -801,13 +821,18 @@ def retreat_ragged_log(backward: mutable view[f64], backward_max: mutable view[f
         for n in low[i]..<(high[i] + 1):
             backward[offsets[i] + n - low[i]] <- log(0.0)
             backward_max[offsets[i] + n - low[i]] <- log(0.0)
+        active: (first: i64, last: i64) = support_envelope(backward, backward_max, offsets, low, high, i + 1)
         for j in 0..<arities:
             step: f64 = log_probs[i * arities + j]
             continue if step == log(0.0)
             run: (first: i64, count: i64) = moves(i, alphabet[j], low, high)
-            for t in 0..<run.count:
-                cell: i64 = offsets[i] + run.first + t - low[i]
-                source: i64 = offsets[i + 1] + run.first - 1 + alphabet[j] + t - low[i + 1]
+            active_first: i64 = active.first + 1 - alphabet[j]
+            active_end: i64 = active.last + 2 - alphabet[j]
+            first: i64 = run.first if run.first > active_first else active_first
+            end: i64 = (run.first + run.count) if run.first + run.count < active_end else active_end
+            for n in first..<end:
+                cell: i64 = offsets[i] + n - low[i]
+                source: i64 = offsets[i + 1] + n - 1 + alphabet[j] - low[i + 1]
                 if backward[source] != log(0.0):
                     incoming: f64 = backward[source] + step
                     return -1 if incoming == log(0.0) or incoming == -log(0.0) or incoming != incoming

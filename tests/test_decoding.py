@@ -1282,6 +1282,30 @@ def test_ragged_split_sparse_generic_alphabet_after_many_updates(
 
 
 @pytest.mark.parametrize("reference_only", [False, True])
+def test_ragged_split_recovers_support_after_empty_row(
+        reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    if reference_only:
+        monkeypatch.setattr(decoding, "_NATIVE", None)
+    rng = np.random.default_rng(285)
+    m, alphabet = 19, (0, 1, 2, 4)
+    rows = np.log(rng.dirichlet(np.ones(len(alphabet)), size=m))
+    cursor = decoding.Split(rows, alphabet)
+    for k in (m // 2, 0, m - 1, m // 3):
+        original = rows[k].copy()
+        rows[k] = -np.inf
+        assert cursor.climb(k, rows[k]) == (-math.inf, -math.inf)
+        assert cursor.best(k) == (-math.inf, ())
+        other = (k + m // 2) % m
+        assert cursor.scores(other, rows[other]) == (-math.inf, -math.inf)
+        rows[k] = original
+        actual = cursor.climb(k, original)
+        expected = decoding.decode_reference(rows, alphabet)
+        assert expected is not None
+        assert actual[0] == pytest.approx(expected.log_z)
+        assert cursor.best(k)[0] == pytest.approx(expected.log_weight(rows, alphabet, expected.arities))
+
+
+@pytest.mark.parametrize("reference_only", [False, True])
 def test_banded_split_packs_rows_around_nonzero_states(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     if reference_only:
