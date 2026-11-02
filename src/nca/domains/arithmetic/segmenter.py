@@ -6,8 +6,9 @@ run is cropped and centered on a 28x28 canvas by its center of ink mass, the
 convention MNIST digits follow, so crops match the recognizers' training
 distribution.
 
-``alternatives`` offers further segmentations, likeliest first: each merges
-one pair of adjacent runs, narrowest gap first. A consumer that cannot use a
+``alternatives`` offers further segmentations: each merging one pair of
+adjacent runs, narrowest gap first, then each splitting one run too wide
+for a glyph, widest first. A consumer that cannot use a
 segmentation (one it would read nothing of) lets the kernel try the next.
 """
 
@@ -54,6 +55,8 @@ def crop(image: np.ndarray, start: int, end: int) -> np.ndarray:
 
 
 ALTERNATIVES = 3
+SPLITS = 2
+SPLIT_WIDTH = 3 * SIZE // 2
 
 
 class Segmenter:
@@ -66,12 +69,25 @@ class Segmenter:
 
     def alternatives(self, image: torch.Tensor) -> Iterator[list[torch.Tensor]]:
         array = image.numpy()
-        runs = column_runs(array)
+        for segments in segmentations(array):
+            yield [torch.from_numpy(crop(array, s, e).astype(np.float32)) for s, e in segments]
 
-        def crops(segments: list[tuple[int, int]]) -> list[torch.Tensor]:
-            return [torch.from_numpy(crop(array, s, e).astype(np.float32)) for s, e in segments]
 
-        yield crops(runs)
-        gaps = sorted(range(len(runs) - 1), key=lambda k: runs[k + 1][0] - runs[k][1])
-        for k in gaps[:ALTERNATIVES]:
-            yield crops([*runs[:k], (runs[k][0], runs[k + 1][1]), *runs[k + 2:]])
+def segmentations(image: np.ndarray) -> Iterator[list[tuple[int, int]]]:
+    """Column spans of the segmentations ``Segmenter.alternatives`` crops, in
+    its order: the runs; each merging one pair of adjacent runs, narrowest
+    gap first; each splitting one run wider than ``SPLIT_WIDTH`` at its
+    faintest column in the middle third, widest first."""
+    runs = column_runs(image)
+    yield runs
+    gaps = sorted(range(len(runs) - 1), key=lambda k: runs[k + 1][0] - runs[k][1])
+    for k in gaps[:ALTERNATIVES]:
+        yield [*runs[:k], (runs[k][0], runs[k + 1][1]), *runs[k + 2:]]
+    wide = sorted((k for k, (s, e) in enumerate(runs) if e - s > SPLIT_WIDTH),
+                  key=lambda k: runs[k][0] - runs[k][1])
+    ink = (image > INK).sum(axis=0)
+    for k in wide[:SPLITS]:
+        start, end = runs[k]
+        third = (end - start) // 3
+        cut = start + third + int(np.argmin(ink[start + third:end - third]))
+        yield [*runs[:k], (start, cut), (cut, end), *runs[k + 1:]]

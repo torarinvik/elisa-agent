@@ -50,6 +50,7 @@ run the Python tests with `uv run pytest`.
 | [§36 Acquiring experts](theory/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
 | [§37 Calibration by groups of inputs](theory/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
 | [§38 In-situ audits](theory/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
+| [§39 Answering over alternatives](theory/39-alternatives.md) | `Alternatives` | `alternatives.answer_over_alternatives`, `alternatives.Choice`, `alternatives.Tabled`, `alternatives.fit_table` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -340,6 +341,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [36.1](theory/36-acquisition.md) | `split_test_le` | `Acquire` |
 | [37.1](theory/37-grouped-calibration.md) | `grouped_calibrated` | `Grouped` |
 | [38.1](theory/38-in-situ-audits.md) | `sampled_calibrated` | `Sampling` |
+| [39.1](theory/39-alternatives.md) | `alternatives_le`, `alternatives_lower` | `Alternatives` |
 
 ## Native kernels
 
@@ -1899,3 +1901,23 @@ callers pass final ledgers, such as those `refine_batch` returns, so the
 sample is of the invocations answers relied on.
 `evidence.audit_invocations(invocations, labels, correct)` audits them
 once labeled, and their `values` feed `recalibrate` or `fit_groups`.
+
+## 39. Answering over alternatives
+
+A fork is any expert with `candidates(*inputs) -> list[(output, q)]`.
+`alternatives.answer_over_alternatives(plan, available, rows, δ, exact,
+cache)` requires exactly one fork outside map bodies. It evaluates the
+fork's argument subplans compiled, with one ledger per row (charge `c₀`),
+expands each row into one row per candidate, and evaluates the rest of
+the route compiled, with the fork replaced by a `Given` of an extra
+available input and one ledger per candidate (charge `c`, 1 if
+uncertified). Candidates are grouped by their answer's `value_digest`;
+the answer with the largest support `Σ q (1 − c)` is returned in a
+`Choice` with bound `c₀ + 1 − support` if that is at most `δ`.
+`alternatives.Tabled(module, table, stratum)` makes a fork of an expert
+with ranked `alternatives`, giving candidate `k` the bound `table[(s, k)]`
+for `s = stratum(*inputs)`, and `alternatives.fit_table` estimates the
+table as per-cell Clopper–Pearson lower bounds at level `β` over the
+cells. The arithmetic segmenter's `alternatives` now also split runs too
+wide for a glyph, after the merges; `segmenter.segmentations` gives their
+column spans.

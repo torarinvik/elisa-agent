@@ -63,3 +63,4 @@ link for its definitions, arguments, and results.
 - [36. Acquiring experts](theory/36-acquisition.md)
 - [37. Calibration by groups of inputs](theory/37-grouped-calibration.md)
 - [38. In-situ audits](theory/38-in-situ-audits.md)
+- [39. Answering over alternatives](theory/39-alternatives.md)

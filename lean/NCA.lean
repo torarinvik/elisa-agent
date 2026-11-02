@@ -48,3 +48,4 @@ import NCA.Acquire
 import NCA.Grouped
 import NCA.Sampling
 import NCA.DepthPruning
+import NCA.Alternatives
