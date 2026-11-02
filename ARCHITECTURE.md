@@ -1280,6 +1280,9 @@ extends it over an arbitrary sequence of zero-preserving transitions.
 Without the kernel, or when the estimated cache exceeds 64 MiB by
 default, the cursor uses the rolling full partition. The limit is configurable;
 the estimate includes the immutable alphabet-membership set used by the cache.
+When no membership set is retained, a lower-bound check can choose the rolling
+path before allocating that set if the numeric cache or its symbol pointers
+cannot fit the configured budget.
 Selected symbols use the same exact native encoding as the full partition;
 changing that encoding invalidates the cached prefix, even if encoded values
 match an earlier selection. Unchanged contiguous readings are compared with

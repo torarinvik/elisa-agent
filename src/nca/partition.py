@@ -57,6 +57,14 @@ class PartitionCursor:
             raise ValueError("selected symbols must be integers")
         if _NATIVE is None or self.max_cache_bytes == 0:
             return self.prior.partition(rows, selected)
+        m, states = len(rows), len(self.prior.log_final)
+        cache_bytes = (m + 1) * (states * 8 + 32) + m * (rows.shape[1] + 1) * 8
+        # Each set entry must at least store a pointer to its alphabet symbol.
+        if (self._symbols is None and self.max_cache_bytes is not None
+                and (cache_bytes > self.max_cache_bytes
+                     or len(self.prior.alphabet) >
+                     (self.max_cache_bytes - cache_bytes) // np.dtype(np.intp).itemsize)):
+            return self.prior.partition(rows, selected)
         if self._symbols is None:
             self._symbols = frozenset(self.prior.alphabet)
         symbol_bytes = getsizeof(self._symbols)
@@ -71,9 +79,7 @@ class PartitionCursor:
         if unsupported:
             # The rolling fallback does not mutate the cached prefix snapshot.
             return self.prior.partition(rows, selected)
-        m, states = len(rows), len(self.prior.log_final)
-        cache_bytes = ((m + 1) * (states * 8 + 32) + m * (rows.shape[1] + 1) * 8
-                       + symbol_bytes)
+        cache_bytes += symbol_bytes
         if self.max_cache_bytes is not None and cache_bytes > self.max_cache_bytes:
             self._rows = self._selected = self._alphabet = self._result = None
             self._alternatives = self._bounds = self._matched_states = self._matched_weights = None

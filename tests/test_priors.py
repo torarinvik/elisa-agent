@@ -889,6 +889,49 @@ def test_partition_cursor_wide_alphabet_membership_and_cache_budget() -> None:
     assert limited._symbols is None and limited._alternatives is None
 
 
+def test_partition_cursor_rejects_uncacheable_input_before_building_membership(monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    alphabet = tuple(range(256))
+    prior = priors.ArityPrior(alphabet, np.zeros((1, len(alphabet)), dtype=np.int64),
+                              np.zeros((1, len(alphabet))), np.zeros(1))
+    rows = np.zeros((2, len(alphabet)))
+    selected = (0, 255)
+    expected = prior.partition(rows, selected)
+    def unexpected_set(_):
+        raise AssertionError("membership set should not be built")
+    monkeypatch.setattr(incremental, "frozenset", unexpected_set, raising=False)
+    cursor = incremental.PartitionCursor(prior, max_cache_bytes=128)
+    np.testing.assert_allclose(cursor.partition(rows, selected), expected)
+    assert cursor._symbols is None and cursor._alternatives is None
+    empty = np.empty((0, len(alphabet)))
+    np.testing.assert_allclose(cursor.partition(empty, ()), prior.partition(empty, ()))
+    assert cursor._symbols is None and cursor._alternatives is None
+
+
+def test_partition_cursor_oversized_unsupported_input_keeps_existing_cache() -> None:
+    import nca.partition as incremental
+
+    if incremental._NATIVE is None:
+        pytest.skip("incremental partition is not built")
+    prior = priors.ArityPrior((0, 1), np.zeros((1, 2), dtype=np.int64),
+                              np.zeros((1, 2)), np.zeros(1))
+    rows = np.zeros((4, 2))
+    selected = (0,) * len(rows)
+    cursor = incremental.PartitionCursor(prior, max_cache_bytes=2_000)
+    initial = cursor.partition(rows, selected)
+    snapshot = cursor._rows
+    oversized = np.zeros((100, 2))
+    unsupported = (0,) * 99 + (2,)
+    np.testing.assert_allclose(cursor.partition(oversized, unsupported),
+                               prior.partition(oversized, unsupported))
+    assert cursor._rows is snapshot
+    assert cursor.partition(rows, selected) == initial
+    assert cursor.last_start == len(rows)
+
+
 def test_partition_cursor_fallback_does_not_copy_input_before_partition(
         monkeypatch: pytest.MonkeyPatch) -> None:
     import nca.partition as incremental
