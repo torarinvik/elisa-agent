@@ -1505,6 +1505,25 @@ def indexed_alphabet(alphabet: view[i64]) -> bool can[Abort.Panic]:
                 valid <- false
                 break
 
+# Nondecreasing alphabets admit binary search, including duplicate symbols.
+def ordered_alphabet(alphabet: view[i64]) -> bool can[Abort.Panic]:
+    for c in 1..<alphabet.len.i64():
+        return false if alphabet[c - 1] > alphabet[c]
+    return true
+
+def ordered_contains(alphabet: view[i64], symbol: i64) -> bool can[Abort.Panic]:
+    low: mutable i64 = 0
+    high: mutable i64 = alphabet.len.i64()
+    while low < high:
+        middle: i64 = low + (high - low) / 2
+        value: i64 = alphabet[middle]
+        return true if value == symbol
+        if value < symbol:
+            low <- middle + 1
+        else:
+            high <- middle
+    return false
+
 # Map in-range symbols to their first column; other symbols remain unindexed.
 def alphabet_columns(alphabet: view[i64], limit: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
     columns: darray[i64] = [-1 for _ in 0..<limit]
@@ -1519,12 +1538,15 @@ def symbols_in_alphabet(alphabet: view[i64], selected: view[i64]) -> bool can[Me
     width: i64 = alphabet.len.i64()
     return true if selected.len.i64() == 0
     indexed: bool = selected.len.i64() >= 16 and indexed_alphabet(alphabet)
-    lookup: darray[i64] = alphabet_columns(alphabet, width) if selected.len.i64() >= 16 and width >= 16 and not indexed else []
+    ordered: bool = selected.len.i64() >= 16 and width >= 16 and not indexed and ordered_alphabet(alphabet)
+    lookup: darray[i64] = alphabet_columns(alphabet, width) if selected.len.i64() >= 16 and width >= 16 and not indexed and not ordered else []
     for k in 0..<selected.len.i64():
         symbol: i64 = selected[k]
         present: bool =
             if indexed:
                 symbol >= 0 and symbol < width
+            elif ordered:
+                ordered_contains(alphabet, symbol)
             elif lookup.count > 0 and symbol >= 0 and symbol < width:
                 lookup[symbol] >= 0
             else:

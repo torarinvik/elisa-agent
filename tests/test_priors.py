@@ -264,6 +264,20 @@ def test_native_symbol_membership_preserves_arbitrary_integer_values() -> None:
         assert native(alphabet, alphabet)
 
 
+def test_native_symbol_membership_sorted_boundaries_and_duplicates() -> None:
+    native = getattr(priors._NATIVE, "symbols_in_alphabet", None)
+    if native is None:
+        pytest.skip("native symbol membership is not built")
+    minimum, maximum = np.iinfo(np.int64).min, np.iinfo(np.int64).max
+    alphabet = np.array([minimum, *range(-9, 9), 8, maximum], dtype=np.int64)
+    selected = np.array([minimum, -9, 0, 8, maximum] * 5, dtype=np.int64)
+    assert native(alphabet, selected)
+    for missing in (-10, 9, minimum + 1, maximum - 1):
+        changed = selected.copy()
+        changed[-1] = missing
+        assert not native(alphabet, changed)
+
+
 @pytest.mark.parametrize("selected", [(0, 2**64, 1), (0, 2**64 + 1, 1), ()])
 def test_prior_partition_membership_matches_legacy_fallback(selected, monkeypatch) -> None:
     native = priors._NATIVE

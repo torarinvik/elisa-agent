@@ -81,6 +81,23 @@ theorem matrix_shape_division (size rows columns : ℕ) (positive : 0 < columns)
     subst size
     simp [Nat.ne_of_gt positive]
 
+/-- A midpoint selected from a nonempty half-open interval lies inside it. -/
+theorem search_midpoint_bounds (low high : ℕ) (nonempty : low < high) :
+    low ≤ low + (high - low) / 2 ∧ low + (high - low) / 2 < high := by
+  omega
+
+/-- Sorted values below a smaller midpoint cannot equal the sought value. -/
+theorem ordered_search_excludes_lower (value : ℕ → ℤ) (sorted : Monotone value)
+    (target : ℤ) (mid index : ℕ) (earlier : index ≤ mid) (smaller : value mid < target) :
+    value index ≠ target := by
+  exact ne_of_lt (lt_of_le_of_lt (sorted earlier) smaller)
+
+/-- Sorted values above a larger midpoint cannot equal the sought value. -/
+theorem ordered_search_excludes_upper (value : ℕ → ℤ) (sorted : Monotone value)
+    (target : ℤ) (mid index : ℕ) (later : mid ≤ index) (larger : target < value mid) :
+    value index ≠ target := by
+  exact ne_of_gt (lt_of_lt_of_le larger (sorted later))
+
 /-- A scored transition must lie in both the prefix and shifted suffix support. -/
 theorem split_support_intersection (n arity left_first left_last right_first right_last : ℤ) :
     (left_first ≤ n ∧ n ≤ left_last ∧

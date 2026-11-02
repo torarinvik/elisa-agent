@@ -538,5 +538,8 @@ general search. This does not change the automaton or its path weights.
 If any selected symbol is absent from the alphabet, the selected path has
 zero mass and the alternative partition is the full normalizer. Checking
 membership before partitioning therefore preserves the same result.
+For a sorted alphabet, binary search decides each membership query in
+`O(log A)` comparisons: monotonicity excludes the lower or upper half after
+each midpoint comparison. Checking the ordering costs `O(A)` once.
 
 [Theory index](../THEORY.md)
