@@ -98,6 +98,18 @@ theorem ordered_search_excludes_upper (value : ℕ → ℤ) (sorted : Monotone v
     value index ≠ target := by
   exact ne_of_gt (lt_of_lt_of_le larger (sorted later))
 
+/-- A matching lower bound is the first matching position in a sorted sequence. -/
+theorem ordered_lower_bound_is_first (value : ℕ → ℤ) (sorted : Monotone value)
+    (target : ℤ) (index : ℕ) (hit : value index = target)
+    (before : index = 0 ∨ value (index - 1) < target) :
+    value index = target ∧ ∀ earlier < index, value earlier ≠ target := by
+  refine ⟨hit, ?_⟩
+  intro earlier h
+  rcases before with zero | smaller
+  · omega
+  · have bound : earlier ≤ index - 1 := by omega
+    exact ne_of_lt (lt_of_le_of_lt (sorted bound) smaller)
+
 /-- A scored transition must lie in both the prefix and shifted suffix support. -/
 theorem split_support_intersection (n arity left_first left_last right_first right_last : ℤ) :
     (left_first ≤ n ∧ n ≤ left_last ∧

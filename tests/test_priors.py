@@ -1127,6 +1127,19 @@ def test_sequence_log_weight_wide_alphabet_preserves_arbitrary_symbols(reference
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_sequence_log_weight_sorted_alphabet_uses_first_duplicate(reference, monkeypatch) -> None:
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+    minimum, maximum = np.iinfo(np.int64).min, np.iinfo(np.int64).max
+    alphabet = (minimum, *range(-10, 10), 9, maximum)
+    selected = (minimum, -10, 0, 9, maximum) * 5
+    rows = np.arange(len(selected) * len(alphabet), dtype=float).reshape(len(selected), -1)
+    expected = sum(rows[k, alphabet.index(symbol)] for k, symbol in enumerate(selected))
+    assert priors.sequence_log_weight(rows, alphabet, selected) == expected
+    assert priors.sequence_log_weight(rows, alphabet, (*selected[:-1], 10)) == -np.inf
+
+
+@pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("outside", [2**63, 2**64 - 1])
 def test_mixed_signed_and_large_symbols_do_not_alias(reference, outside, monkeypatch) -> None:
     if reference:

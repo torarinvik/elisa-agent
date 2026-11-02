@@ -1070,8 +1070,10 @@ Prior path-weight evaluation rejects detected finite-addition loss while
 preserving zero mass for forbidden or zero-weight paths.
 Reading-sequence and accepted-format scoring use the same local arithmetic
 check; invalid syntax and zero-weight sequences retain their distinct results.
-For wide unordered alphabets, reading-sequence scoring indexes first occurrences
-of symbols in the column-count range and scans for other integer symbols.
+For wide alphabets, reading-sequence scoring uses lower-bound search when the
+alphabet is sorted; otherwise it indexes first occurrences in the column-count
+range and scans for other integer symbols. `ordered_lower_bound_is_first`
+checks the mathematical first-occurrence criterion, not the native search.
 Rolling prior partitioning checks selected-symbol membership in Elisa using
 indexed lookup, binary search for sorted alphabets, or a generic fallback,
 retaining the full-normalizer fallback for unsupported symbols.

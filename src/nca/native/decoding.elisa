@@ -1511,18 +1511,18 @@ def ordered_alphabet(alphabet: view[i64]) -> bool can[Abort.Panic]:
         return false if alphabet[c - 1] > alphabet[c]
     return true
 
-def ordered_contains(alphabet: view[i64], symbol: i64) -> bool can[Abort.Panic]:
+def ordered_column(alphabet: view[i64], symbol: i64, first: bool) -> i64 can[Abort.Panic]:
     low: mutable i64 = 0
     high: mutable i64 = alphabet.len.i64()
     while low < high:
         middle: i64 = low + (high - low) / 2
         value: i64 = alphabet[middle]
-        return true if value == symbol
+        return middle if value == symbol and not first
         if value < symbol:
             low <- middle + 1
         else:
             high <- middle
-    return false
+    return low if low < alphabet.len.i64() and alphabet[low] == symbol else -1
 
 # Map in-range symbols to their first column; other symbols remain unindexed.
 def alphabet_columns(alphabet: view[i64], limit: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
@@ -1546,7 +1546,7 @@ def symbols_in_alphabet(alphabet: view[i64], selected: view[i64]) -> bool can[Me
             if indexed:
                 symbol >= 0 and symbol < width
             elif ordered:
-                ordered_contains(alphabet, symbol)
+                ordered_column(alphabet, symbol, false) >= 0
             elif lookup.count > 0 and symbol >= 0 and symbol < width:
                 lookup[symbol] >= 0
             else:
@@ -1561,15 +1561,18 @@ def symbols_in_alphabet(alphabet: view[i64], selected: view[i64]) -> bool can[Me
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
     width: i64 = alphabet.len.i64()
     indexed: bool = indexed_alphabet(alphabet)
-    lookup: darray[i64] = alphabet_columns(alphabet, width) if width >= 16 and not indexed else []
+    ordered: bool = selected.len.i64() >= 16 and width >= 16 and not indexed and ordered_alphabet(alphabet)
+    lookup: darray[i64] = alphabet_columns(alphabet, width) if width >= 16 and not indexed and not ordered else []
     total, failed =
         for k in 0..<selected.len.i64() |total: f64 = 0.0, failed: bool = false| -> (total, failed):
             symbol: i64 = selected[k]
             column: i64 =
                 if indexed:
                     symbol if symbol >= 0 and symbol < width else -1
-                elif width >= 16 and symbol >= 0 and symbol < width:
+                elif lookup.count > 0 and symbol >= 0 and symbol < width:
                     lookup[symbol]
+                elif ordered:
+                    ordered_column(alphabet, symbol, true)
                 else:
                     for c in 0..<width |found: i64 = -1| -> found:
                         if alphabet[c] == symbol:

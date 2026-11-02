@@ -239,7 +239,9 @@ positions can be built in `O(m + A)` time and used for constant-time lookup.
 The first occurrence preserves the existing behavior for duplicate symbols.
 For an unconstrained sequence, symbols in a compact indexed range can use the
 same first-occurrence table; symbols outside that range still require a general
-lookup. This does not impose a bound on the alphabet's integer values.
+lookup. On a sorted alphabet, a lower-bound search finds the first occurrence
+in `O(log A)` comparisons, including when values repeat. This does not impose
+a bound on the alphabet's integer values.
 Validating all input weights still takes `O(mA)` for `m` rows.
 Reading weights must be finite or negative infinity; NaN and positive infinity
 are invalid inputs even if a sequence has zero mass.
