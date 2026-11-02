@@ -268,6 +268,15 @@ def partition_log_add(x: f64, y: f64) -> f64:
     return log(-1.0) if roundoff >= 1.01e-8 or roundoff <= -1.01e-8
     return result
 
+# TwoSum recovers the rounding residual of a finite log-weight addition.
+def partition_log_product(x: f64, y: f64) -> f64:
+    result: f64 = x + y
+    return log(-1.0) if result == log(0.0) or result == -log(0.0) or result != result
+    virtual: f64 = result - x
+    residual: f64 = (x - (result - virtual)) + (y - virtual)
+    return log(-1.0) if residual != residual or residual >= 1.01e-8 or residual <= -1.01e-8
+    return result
+
 # Sum off-reference masses and log(max(1, row mass)) without cancellation.
 def tail_mass_summary(log_probs: view[f64], reference: view[i64]) -> darray[f64] can[Memory.Allocate, Abort.Panic]:
     m: i64 = reference.len.i64()
@@ -387,13 +396,13 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
                 reading: f64 = log_probs[k * count + j]
                 source: f64 = alternatives[here + n]
                 if source != missing and reading != missing:
-                    through: f64 = source + reading
+                    through: f64 = partition_log_product(source, reading)
                     return [] if through == missing or through == -missing or through != through
                     combined: f64 = partition_log_add(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
                 if n == state[0] and matched[0] != missing and arity != selected[k] and reading != missing:
-                    through: f64 = matched[0] + reading
+                    through: f64 = partition_log_product(matched[0], reading)
                     return [] if through == missing or through == -missing or through != through
                     combined: f64 = partition_log_add(alternatives[next + target], through)
                     return [] if combined != combined
@@ -411,7 +420,7 @@ def format_partition(log_probs: view[f64], alphabet: view[i64], selected: view[i
             if state[0] > m - k - 1 or matched[0] == missing or reading == missing:
                 matched[0] <- missing
             else:
-                value: f64 = matched[0] + reading
+                value: f64 = partition_log_product(matched[0], reading)
                 return [] if value == missing or value == -missing or value != value
                 matched[0] <- value
     return [matched[0] if state[0] == 0 else missing, alternatives[(m % 2) * width]]
@@ -588,20 +597,20 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
                     reading: f64 = log_probs[k * width + j]
                     edge_weight: f64 = prior[edge]
                     continue if reading == unreachable or edge_weight == unreachable
-                    weight: f64 = reading + edge_weight
+                    weight: f64 = partition_log_product(reading, edge_weight)
                     continue if source == unreachable and (not same or alphabet[j] == selected[k])
-                    return [] if weight == unreachable or weight == -unreachable
+                    return [] if weight != weight
                     if source != unreachable:
-                        through: f64 = source + weight
-                        return [] if through == unreachable or through == -unreachable
+                        through: f64 = partition_log_product(source, weight)
+                        return [] if through != through
                         combined: f64 = partition_log_add(rows[next + target], through)
                         return [] if combined != combined
                         rows[next + target] <- combined
                     bounds[next_bound] <- target if target < bounds[next_bound] else bounds[next_bound]
                     bounds[next_bound + 1] <- target if target > bounds[next_bound + 1] else bounds[next_bound + 1]
                     if same and alphabet[j] != selected[k]:
-                        through: f64 = matched + weight
-                        return [] if through == unreachable or through == -unreachable
+                        through: f64 = partition_log_product(matched, weight)
+                        return [] if through != through
                         combined: f64 = partition_log_add(rows[next + target], through)
                         return [] if combined != combined
                         rows[next + target] <- combined
@@ -621,25 +630,25 @@ def prior_partition(log_probs: view[f64], alphabet: view[i64], transitions: view
                     if target < 0 or reading == unreachable or edge_weight == unreachable:
                         matched <- unreachable
                     else:
-                        weight: f64 = reading + edge_weight
-                        return [] if weight == unreachable or weight == -unreachable
-                        value: f64 = matched + weight
-                        return [] if value == unreachable or value == -unreachable
+                        weight: f64 = partition_log_product(reading, edge_weight)
+                        return [] if weight != weight
+                        value: f64 = partition_log_product(matched, weight)
+                        return [] if value != value
                         matched <- value
                         matched_state <- target
     selected_weight: f64 =
         if matched == unreachable or final[matched_state] == unreachable:
             unreachable
         else:
-            value: f64 = matched + final[matched_state]
-            return [] if value == unreachable or value == -unreachable
+            value: f64 = partition_log_product(matched, final[matched_state])
+            return [] if value != value
             value
     alternative: f64 =
         for state in bounds[(m % 2) * 2]..<(bounds[(m % 2) * 2 + 1] + 1) |total: f64 = unreachable| -> total:
             last: f64 = rows[(m % 2) * states + state]
             continue if last == unreachable or final[state] == unreachable
-            value: f64 = last + final[state]
-            return [] if value == unreachable or value == -unreachable
+            value: f64 = partition_log_product(last, final[state])
+            return [] if value != value
             combined: f64 = partition_log_add(total, value)
             return [] if combined != combined
             total <- combined

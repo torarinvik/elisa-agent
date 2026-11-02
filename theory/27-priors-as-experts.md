@@ -273,6 +273,10 @@ Partition calculations likewise reject a log-sum correction distorted by at
 least `1.01 × 10⁻⁸`; other numerical errors can remain undetected. Incremental
 partition updates invalidate their cached suffix after this arithmetic failure
 before a later retry.
+Finite log-weight additions use the same local TwoSum residual check as the
+format partition; it detects a materially rounded individual addition, not
+the accumulated error of an entire partition. The Lean identity establishes
+the corresponding exact-real algebra; it is not a proof of binary64 rounding.
 
 Both terms are instances of Theorem 27.1. The kernel selects the prior with
 the largest summed log-evidence over held-out formulas, a label-free audit.

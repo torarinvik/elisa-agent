@@ -189,10 +189,14 @@ Adding positive mass must increase the exact sum. The partition checks the
 difference between the intended log-sum correction and the correction retained
 after addition; distortion of at least `1.01 × 10⁻⁸` reports precision loss.
 This detects one failure mode, not every inaccurate partition or risk.
+For additions of finite log weights, TwoSum recovers the rounding residual
+under binary64 round-to-nearest arithmetic. A residual at least `1.01 × 10⁻⁸`
+also reports precision loss; smaller errors can accumulate, so this local
+check does not bound the error of the whole calculation.
 If adding two finite log weights overflows the representable log range, the
 general-arity partition reports the calculation as unavailable instead of
 interpreting the resulting infinity as a zero-weight path. This check does
-not bound ordinary finite rounding errors. The full format decoder likewise
+not bound all finite rounding errors. The full format decoder likewise
 reports non-finite sums of finite log weights; finite log weights whose
 exponentials overflow are handled by its log-space pass.
 

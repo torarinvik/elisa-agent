@@ -107,6 +107,17 @@ def _partition_log_add(left: float, right: float, context: str) -> float:
     return result
 
 
+def _partition_log_product(left: float, right: float, context: str) -> float:
+    result = left + right
+    if not math.isfinite(result):
+        raise ValueError(f"{context} partition arithmetic is not finite")
+    virtual = result - left
+    residual = (left - (result - virtual)) + (right - virtual)
+    if not math.isfinite(residual) or abs(residual) >= 1.01e-8:
+        raise ValueError(f"{context} partition arithmetic loses precision")
+    return result
+
+
 def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
                         selected: Sequence[int]) -> float:
     """Log product of a selected sequence's position-wise weights (§21.5)."""
@@ -284,14 +295,10 @@ class ArityPrior:
                     same = source == state and matched != -math.inf
                     if previous == -math.inf and (not same or self.alphabet[j] == symbol):
                         continue
-                    weight = reading + edge
-                    if not math.isfinite(weight):
-                        raise ValueError("prior partition arithmetic is not finite")
+                    weight = _partition_log_product(reading, edge, "prior")
                     for prefix in (previous, matched if same and self.alphabet[j] != symbol else -math.inf):
                         if prefix != -math.inf:
-                            value = prefix + weight
-                            if not math.isfinite(value):
-                                raise ValueError("prior partition arithmetic is not finite")
+                            value = _partition_log_product(prefix, weight, "prior")
                             following[target] = _partition_log_add(float(following[target]), value, "prior")
             if matched != -math.inf:
                 j = self.alphabet.index(symbol)
@@ -300,21 +307,16 @@ class ArityPrior:
                 if target < 0 or reading == -math.inf or edge == -math.inf:
                     matched = -math.inf
                 else:
-                    weight = reading + edge
-                    matched += weight
-                    if not math.isfinite(weight) or not math.isfinite(matched):
-                        raise ValueError("prior partition arithmetic is not finite")
+                    weight = _partition_log_product(reading, edge, "prior")
+                    matched = _partition_log_product(matched, weight, "prior")
                     state = target
             alternatives = following
-        chosen = -math.inf if matched == -math.inf or self.log_final[state] == -math.inf else matched + float(self.log_final[state])
-        if matched != -math.inf and self.log_final[state] != -math.inf and not math.isfinite(chosen):
-            raise ValueError("prior partition arithmetic is not finite")
+        chosen = (-math.inf if matched == -math.inf or self.log_final[state] == -math.inf
+                  else _partition_log_product(matched, float(self.log_final[state]), "prior"))
         other = -math.inf
         for value, final in zip(alternatives, self.log_final, strict=True):
             if value != -math.inf and final != -math.inf:
-                weight = float(value) + float(final)
-                if not math.isfinite(weight):
-                    raise ValueError("prior partition arithmetic is not finite")
+                weight = _partition_log_product(float(value), float(final), "prior")
                 other = _partition_log_add(other, weight, "prior")
         return chosen, other
 
@@ -486,14 +488,10 @@ def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], sel
                     continue
                 reading = float(rows[k, j])
                 if alternatives[n] != -math.inf and reading != -math.inf:
-                    through = float(alternatives[n]) + reading
-                    if not math.isfinite(through):
-                        raise ValueError("format partition arithmetic is not finite")
+                    through = _partition_log_product(float(alternatives[n]), reading, "format")
                     following[target] = _partition_log_add(float(following[target]), through, "format")
                 if n == state and arity != selected[k] and matched != -math.inf and reading != -math.inf:
-                    through = matched + reading
-                    if not math.isfinite(through):
-                        raise ValueError("format partition arithmetic is not finite")
+                    through = _partition_log_product(matched, reading, "format")
                     following[target] = _partition_log_add(float(following[target]), through, "format")
         column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
         if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
@@ -501,9 +499,7 @@ def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], sel
         else:
             reading = float(rows[k, column])
             if matched != -math.inf and reading != -math.inf:
-                matched += reading
-                if not math.isfinite(matched):
-                    raise ValueError("format partition arithmetic is not finite")
+                matched = _partition_log_product(matched, reading, "format")
             else:
                 matched = -math.inf
             state += int(selected[k]) - 1

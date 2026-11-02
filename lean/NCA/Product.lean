@@ -278,6 +278,11 @@ theorem equal_positive_mass_increases (mass : ℝ) (positive : 0 < mass) :
     mass < mass + mass := by
   linarith
 
+/-- The unrounded TwoSum residual expression is the exact addition error. -/
+theorem two_sum_residual_identity (x y result : ℝ) :
+    (x - (result - (result - x))) + (y - (result - x)) = x + y - result := by
+  ring
+
 /-- Combine selected and alternative mass from independent segments. -/
 def partitionCompose (left right : ℝ × ℝ) : ℝ × ℝ :=
   (left.1 * right.1, left.2 * (right.1 + right.2) + left.1 * right.2)

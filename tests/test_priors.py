@@ -253,6 +253,25 @@ def test_prior_risk_preserves_tiny_alternative_mass(
 
 
 @pytest.mark.parametrize("reference", [False, True])
+def test_prior_risk_rejects_lost_log_weight_addition(reference, monkeypatch) -> None:
+    import nca.partition as incremental
+
+    if reference:
+        monkeypatch.setattr(priors, "_NATIVE", None)
+        monkeypatch.setattr(incremental, "_NATIVE", None)
+    transitions = np.array([[1, 2], [1, -1], [-1, 2]])
+    prior = priors.ArityPrior((0, 1), transitions, np.zeros((3, 2)),
+                              np.array([-np.inf, 0.0, 0.0]))
+    large = float(2**54)
+    rows = np.array([[large, large], [1.0, 0.0]])
+    # The two valid paths differ by one log unit; their risk is 1/(1+e).
+    with pytest.raises(ValueError, match="partition.*precision"):
+        prior.sequence_risk(rows, (0, 0))
+    with pytest.raises(ValueError, match="partition.*precision"):
+        incremental.PartitionCursor(prior).partition(rows, (0, 0))
+
+
+@pytest.mark.parametrize("reference", [False, True])
 def test_prior_risk_rejects_partly_rounded_log_sum(reference, monkeypatch) -> None:
     import nca.partition as incremental
 

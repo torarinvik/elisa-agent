@@ -15,6 +15,14 @@ def add_logs(x: f64, y: f64) -> f64:
     return log(-1.0) if roundoff >= 1.01e-8 or roundoff <= -1.01e-8
     return result
 
+def multiply_logs(x: f64, y: f64) -> f64:
+    result: f64 = x + y
+    return log(-1.0) if result == log(0.0) or result == -log(0.0) or result != result
+    virtual: f64 = result - x
+    residual: f64 = (x - (result - virtual)) + (y - virtual)
+    return log(-1.0) if residual != residual or residual >= 1.01e-8 or residual <= -1.01e-8
+    return result
+
 # Find the earliest changed input row without allocating a comparison array.
 def first_change(rows: view[f64], old_rows: view[f64], selected: view[i64], old_selected: view[i64], width: i64) -> i64:
     for k in 0..<selected.len.i64():
@@ -54,17 +62,17 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
                 edge_weight: f64 = prior[edge]
                 continue if reading == unreachable or edge_weight == unreachable
                 continue if source == unreachable and (not same or alphabet[j] == selected[k])
-                weight: f64 = reading + edge_weight
-                return [] if weight == unreachable or weight == -unreachable
+                weight: f64 = multiply_logs(reading, edge_weight)
+                return [] if weight != weight
                 if source != unreachable:
-                    through: f64 = source + weight
-                    return [] if through == unreachable or through == -unreachable
+                    through: f64 = multiply_logs(source, weight)
+                    return [] if through != through
                     combined: f64 = add_logs(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
                 if same and alphabet[j] != selected[k]:
-                    through: f64 = match_weight + weight
-                    return [] if through == unreachable or through == -unreachable
+                    through: f64 = multiply_logs(match_weight, weight)
+                    return [] if through != through
                     combined: f64 = add_logs(alternatives[next + target], through)
                     return [] if combined != combined
                     alternatives[next + target] <- combined
@@ -84,10 +92,10 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
                 reading: f64 = log_probs[k * width + chosen]
                 edge_weight: f64 = prior[edge]
                 if target >= 0 and reading != unreachable and edge_weight != unreachable:
-                    weight: f64 = reading + edge_weight
-                    return [] if weight == unreachable or weight == -unreachable
-                    value: f64 = match_weight + weight
-                    return [] if value == unreachable or value == -unreachable
+                    weight: f64 = multiply_logs(reading, edge_weight)
+                    return [] if weight != weight
+                    value: f64 = multiply_logs(match_weight, weight)
+                    return [] if value != value
                     matched_states[k + 1] <- target
                     matched_weights[k + 1] <- value
     match_state: i64 = matched_states[m]
@@ -96,15 +104,15 @@ def update(log_probs: view[f64], alphabet: view[i64], transitions: view[i64], pr
         if match_weight == unreachable or final[match_state] == unreachable:
             unreachable
         else:
-            value: f64 = match_weight + final[match_state]
-            return [] if value == unreachable or value == -unreachable
+            value: f64 = multiply_logs(match_weight, final[match_state])
+            return [] if value != value
             value
     other: f64 =
         for state in bounds[m * 2]..<(bounds[m * 2 + 1] + 1) |total: f64 = unreachable| -> total:
             prefix: f64 = alternatives[m * states + state]
             continue if prefix == unreachable or final[state] == unreachable
-            value: f64 = prefix + final[state]
-            return [] if value == unreachable or value == -unreachable
+            value: f64 = multiply_logs(prefix, final[state])
+            return [] if value != value
             combined: f64 = add_logs(total, value)
             return [] if combined != combined
             total <- combined
