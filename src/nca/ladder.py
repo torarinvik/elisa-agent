@@ -261,7 +261,8 @@ def _temperature_scores(log: torch.Tensor, temperature: float) -> torch.Tensor:
 
 def _checked_calibrated_risk(value: float) -> float:
     if not math.isfinite(value):
-        raise ValueError("calibrated decision requires finite log weights with positive mass")
+        raise ValueError("calibrated decision requires finite log weights with positive mass "
+                         "and a finite nonnegative reading")
     return value
 
 
@@ -413,7 +414,8 @@ class Rung:
         A ranked observation chooses the winning class by its original weights;
         a tensor chooses from its numerical reading. Consumers must use the
         same choice: the numerical reading can contain ties. The optional
-        ``reading`` reuses the numerical reading of this observation.
+        ``reading`` reuses the numerical reading of this observation; callers
+        must supply the reading for this observation and calibration.
         """
         key = decision_key(classes)
         temperature = self.temperature(key)
@@ -423,9 +425,16 @@ class Rung:
             raise ValueError(f"{name} requires a positive finite temperature")
         if ranked is not None:
             log = ranked.logits
+        elif reading is not None and (not isinstance(reading, torch.Tensor)
+                                      or reading.shape != log.shape):
+            raise ValueError("reused reading must match the observation's shape")
+        elif reading is not None and reading.is_complex():
+            raise ValueError("reused reading must be finite and nonnegative")
         union = list(range(len(log))) if key is None else _layout(key)[0]
         probabilities = (self.reading(log) if reading is None else reading) if ranked is None else None
-        native_reading = getattr(_NATIVE, "calibrated_risk_for_reading", None)
+        native_reading = getattr(_NATIVE, "calibrated_risk_for_reading_checked", None)
+        if native_reading is None and reading is None and ranked is None:
+            native_reading = getattr(_NATIVE, "calibrated_risk_for_reading", None)
         if (native_reading is not None and log.device.type == "cpu" and not log.requires_grad
                 and (ranked is not None or (probabilities.device.type == "cpu"
                                             and not probabilities.requires_grad))):
@@ -446,6 +455,11 @@ class Rung:
         if ranked is not None:
             selected = union.index(ranked.top(union))
         else:
+            if reading is not None:
+                selected_reading = probabilities[union]
+                if (not bool(torch.isfinite(selected_reading).all())
+                        or bool((selected_reading < 0).any())):
+                    raise ValueError("reused reading must be finite and nonnegative")
             selected = int(probabilities[union].argmax())
         native = getattr(_NATIVE, "calibrated_risk_at", None)
         if native is not None and log.device.type == "cpu" and not log.requires_grad:

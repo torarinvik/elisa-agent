@@ -1663,6 +1663,52 @@ def test_native_unrestricted_risk_accepts_noncontiguous_readings(monkeypatch) ->
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("bad", [float('nan'), float('inf'), float('-inf'), -0.1])
+def test_reused_risk_reading_rejects_invalid_values(native, bad, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
+        pytest.skip("native reading-risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("invalid-cached-reading", (0.3, 0.7), 1.0))
+    logits = torch.tensor([0.0, 1.0], dtype=torch.float64)
+    for reading in (torch.tensor([0.5, bad]), torch.tensor([bad, 0.5])):
+        with pytest.raises(ValueError, match="finite.*nonnegative"):
+            rung.risk(logits, reading=reading)
+    with pytest.raises(ValueError, match="shape"):
+        rung.risk(logits, reading=torch.tensor([1.0]))
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        rung.risk(logits, reading=torch.tensor([0.5 + 1j, 0.5]))
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_reused_risk_reading_allows_zero_mass_restricted_ties(native, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and getattr(ladder_module._NATIVE, "calibrated_risk_for_reading", None) is None:
+        pytest.skip("native reading-risk kernel is not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("zero-cached-reading", (0.3, 0.3, 0.4), 1.0))
+    logits = torch.tensor([0.0, -1000.0, -1001.0], dtype=torch.float64)
+    reading = torch.tensor([1.0, 0.0, 0.0], dtype=torch.float64)
+    assert rung.risk(logits, ((1,), (2,)), reading=reading) == pytest.approx(1 / (1 + math.e))
+
+
+def test_reused_risk_reading_is_checked_with_legacy_kernel(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from nca import ladder as ladder_module
+
+    monkeypatch.setattr(ladder_module, "_NATIVE", SimpleNamespace(
+        calibrated_risk_for_reading=lambda *args: 0.0))
+    rung = Rung(constant("legacy-reading", (0.3, 0.7), 1.0))
+    logits = torch.tensor([0.0, 1.0], dtype=torch.float64)
+    with pytest.raises(ValueError, match="finite.*nonnegative"):
+        rung.risk(logits, reading=torch.tensor([0.5, math.nan]))
+
+
+@pytest.mark.parametrize("native", [False, True])
 @pytest.mark.parametrize("scale", [1e-320, 1.0, 1e308])
 def test_decision_risk_is_invariant_to_weight_scale(native, scale, monkeypatch) -> None:
     from nca import ladder as ladder_module

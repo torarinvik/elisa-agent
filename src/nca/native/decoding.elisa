@@ -1747,15 +1747,21 @@ def calibrated_risk_at(logits: view[f64], groups: view[i64], entries: i64, tempe
     return risk_at_anchor(logits, groups, groups[top], temperature, largest)
 
 # Choose from the caller's actual reading and charge its selected group.
-def calibrated_risk_for_reading(logits: view[f64], reading: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+def calibrated_risk_for_reading_checked(logits: view[f64], reading: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
     return log(-1.0) if logits.len.i64() == 0 or reading.len.i64() != logits.len.i64() or groups.len.i64() != logits.len.i64()
+    return log(-1.0) if reading[0] != reading[0] or reading[0] < 0.0 or reading[0] == -log(0.0)
     top: i64 =
         for k in 1..<reading.len.i64() |top: i64 = 0| -> top:
+            return log(-1.0) if reading[k] != reading[k] or reading[k] < 0.0 or reading[k] == -log(0.0)
             top <- k if reading[k] > reading[top] else top
     largest: f64 =
         for k in 0..<logits.len.i64() |largest: f64 = log(0.0)| -> largest:
             largest <- logits[k] if logits[k] > largest else largest
     return risk_at_anchor(logits, groups, groups[top], temperature, largest)
+
+# Retain the existing export for clients built against earlier kernels.
+def calibrated_risk_for_reading(logits: view[f64], reading: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
+    return calibrated_risk_for_reading_checked(logits, reading, groups, entries, temperature)
 
 # The legacy path selects the first largest individual logit.
 def calibrated_risk(logits: view[f64], groups: view[i64], entries: i64, temperature: f64) -> f64 can[Memory.Allocate, Abort.Panic]:
@@ -1820,3 +1826,4 @@ export pymodule decoding:
     fn calibrated_risk
     fn calibrated_risk_at
     fn calibrated_risk_for_reading
+    fn calibrated_risk_for_reading_checked

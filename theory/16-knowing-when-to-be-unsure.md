@@ -86,6 +86,11 @@ selects from the numerical reading, including its tie behavior. In unequal group
 weights can change the group risk substantially because other classes add
 mass to one group. Numerical probabilities returned by `reading` can still
 tie: a consumer using ranked risk must select with the same retained ordering.
+When a numerical reading is reused to select a class, its selected entries
+must be finite and nonnegative; all-zero restricted entries are allowed and
+tie in class order. This representation check cannot establish that a cached
+reading came from the same observation and calibration, which remains a caller
+obligation.
 The selective controller passes ranked observations to consumers or fusers
 that opt in to preserving this choice; other consumers use numerical readings.
 

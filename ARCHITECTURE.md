@@ -908,10 +908,14 @@ Mutable decisions are rechecked at every step. Experts and calibration
 parameters must remain fixed for the run. Gradient-bearing
 observations continue through PyTorch and retain differentiability.
 
-`Rung.risk` dispatches to native `calibrated_risk_for_reading` for supported
+`Rung.risk` dispatches to native `calibrated_risk_for_reading_checked` for supported
 CPU observations and partitioned groups, selecting and charging in one call. It chooses the group containing the
 class selected from the ranked weights or numerical reading, rather than
 choosing the group with greatest total mass. Full-class risk uses singleton groups.
+Reused readings must match the observation's shape; selected entries are
+checked for finite nonnegative values, but their provenance is the caller's
+responsibility. Restricted all-zero readings retain first-class tie behavior.
+With an older native kernel, reused readings take the validated fallback.
 It sums the other groups' weights directly instead of subtracting the chosen
 probability from one. The PyTorch risk path uses the same formulation. Decision groups must be a
 nonempty partition of distinct nonnegative class indices; overlapping and
