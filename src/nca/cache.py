@@ -9,14 +9,20 @@ pure or have no identity, are never cached.
 
 Cached outputs are shared, so consumers must not mutate the values they
 receive, which pure experts already guarantee for their inputs.
+
+A purity declaration is checked where the cache is read (§32.3): with
+``check_rate`` q, a hit is recomputed and compared with the stored output.
+A mismatch refutes the expert, whose entries are dropped and which is never
+cached again; ``checks`` records each expert's checks and mismatches.
 """
 
 from __future__ import annotations
 
 import hashlib
 import math
+import random
 from collections import OrderedDict
-from collections.abc import Hashable, Mapping
+from collections.abc import Collection, Hashable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -86,27 +92,69 @@ class CacheStats:
     stored: int = 0
 
 
-class ResultCache:
-    """Outputs of pure experts by (identity, input digests), keeping
-    at most ``limit`` entries, least recently used first out."""
+@dataclass
+class Checks:
+    """Spot checks of one expert's cached outputs."""
 
-    def __init__(self, limit: int | None = None) -> None:
+    checked: int = 0
+    mismatches: int = 0
+
+
+class ResultCache:
+    """Outputs of pure experts by keys whose first element is the expert's
+    identity (the runtime uses (identity, input digests)), keeping at most
+    ``limit`` entries, least recently used first out, and checking a
+    ``check_rate`` fraction of hits. ``refuted`` names experts never to
+    cache, such as those a purity attestation refutes."""
+
+    def __init__(self, limit: int | None = None, check_rate: float = 0.0, seed: int = 0,
+                 refuted: Collection[str] = ()) -> None:
+        if not 0.0 <= check_rate <= 1.0:
+            raise ValueError("check_rate must be in [0, 1]")
         self.limit = limit
+        self.check_rate = check_rate
         self.stats = CacheStats()
+        self.checks: dict[str, Checks] = {}
+        self.refuted = set(refuted)
+        self._random = random.Random(seed)
         self._entries: OrderedDict[Hashable, Any] = OrderedDict()
 
     def __len__(self) -> int:
         return len(self._entries)
 
     def lookup(self, key: Hashable) -> tuple[bool, Any]:
-        if key in self._entries:
+        if key in self._entries and key[0] not in self.refuted:
             self._entries.move_to_end(key)
             self.stats.hits += 1
             return True, self._entries[key]
         self.stats.misses += 1
         return False, None
 
+    def sample(self) -> bool:
+        """Whether to check the current hit."""
+        return self.check_rate > 0.0 and self._random.random() < self.check_rate
+
+    def check(self, key: Hashable, stored: Any, fresh: Any) -> bool:
+        """Record a check of the entry ``key``; ``False`` if ``fresh``, the
+        recomputed output, refutes the stored one. Outputs without a
+        canonical encoding cannot be compared and are not counted."""
+        stored_digest, fresh_digest = value_digest(stored), value_digest(fresh)
+        if stored_digest is None or fresh_digest is None:
+            return True
+        identity = key[0]
+        record = self.checks.setdefault(identity, Checks())
+        record.checked += 1
+        if stored_digest == fresh_digest:
+            return True
+        record.mismatches += 1
+        self.refuted.add(identity)
+        for other in [k for k in self._entries if k[0] == identity]:
+            del self._entries[other]
+        return False
+
     def store(self, key: Hashable, value: Any) -> None:
+        if key[0] in self.refuted:
+            return
         self._entries[key] = value
         self._entries.move_to_end(key)
         self.stats.stored += 1

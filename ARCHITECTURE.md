@@ -43,7 +43,7 @@ run the Python tests with `uv run pytest`.
 | [§29 Types as objects](theory/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 | [§31 Composing uncertainty](theory/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `packages.charge`, `optimize.plan_pareto` |
-| [§32 Trust](theory/32-trust.md) | `Trust` | `trust`, `objects.Attestation.signature`, `evidence.Issuers` |
+| [§32 Trust](theory/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -319,6 +319,7 @@ Numbered theorems in the theory chapters and their formal statements in `lean/NC
 | [31.1](theory/31-composing-uncertainty.md) | `risk_le_expected_failures` | `Risk` |
 | [31.2](theory/31-composing-uncertainty.md) | `expected_failures_eq`, `risk_le_charges` | `Risk` |
 | [32.1](theory/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
+| [32.2](theory/32-trust.md) | `undetected_le_exp` | `Spot` |
 
 ## Native kernels
 
@@ -1729,3 +1730,13 @@ decided where evidence is read. Every `issuers` parameter of `evidence`
 takes a `Trust` or, as before, a collection of plain issuer names, which
 nothing authenticates and which are meant for local tests and private
 deployments.
+
+`ResultCache(check_rate=q, seed=…, refuted=…)` checks purity where it is
+read: `sample()` picks a hit with probability q, the runtime then invokes
+the expert as on a miss (charging budget) and `check` compares the digests
+of the stored and fresh outputs. A mismatch adds the expert's identity to
+`refuted`, drops its entries and stops it being cached; `checks` counts
+each expert's checks and mismatches, skipping outputs without a canonical
+encoding. `evidence.purity` states those counts as a `purity` attestation,
+and `evidence.refuted` reports whether an accepted one shows a mismatch, so
+a deployment can start a cache with `refuted` filled from others' evidence.

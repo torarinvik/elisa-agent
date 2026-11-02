@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Module
-from nca.cache import value_digest
+from nca.cache import Checks, value_digest
 from nca.objects import Attestation, Ref, Store
 from nca.packages import Export, Requirement, Upcast, charge
 from nca.planner import Plan
@@ -192,3 +192,21 @@ def rates(bounds: Mapping[str, float], length: int = 1) -> Callable[[Module], fl
         return None if identity is None else bounds.get(identity)
 
     return rate
+
+
+PURITY = "purity"
+
+
+def purity(identity: str, checks: Checks, issuer: str = "") -> Attestation:
+    """An attestation of the spot checks of ``identity``'s cached outputs
+    (§32.3): how many were recomputed and how many did not match."""
+    claim = {"identity": identity, "checked": checks.checked, "mismatches": checks.mismatches}
+    return Attestation(identity.partition("#")[0], PURITY, claim, issuer)
+
+
+def refuted(store: Store, identity: str, issuers: Issuers) -> bool:
+    """Whether an accepted purity attestation reports a mismatch for
+    ``identity``: one mismatch refutes a purity declaration."""
+    return any(_trusted(a, issuers) and a.claim.get("identity") == identity
+               and a.claim.get("mismatches", 0) > 0
+               for a in store.attestations(identity.partition("#")[0], PURITY))

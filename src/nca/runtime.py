@@ -49,10 +49,12 @@ refusal for lack of budget as no answer instead of an exception
 With a ``ResultCache``, an application of an expert that declares itself
 pure, has a content identity and takes no slots is looked up by its identity
 and the digests of its inputs before it runs (THEORY §28.5,
-``NCA.cache_lookup_correct``). A hit is not an invocation and charges no budget: the
-result was paid for when it was computed. Only results the expert returned
-directly are stored; one that raised requests depends on how the kernel
-resolved them, not only on the inputs.
+``NCA.cache_lookup_correct``). A hit is not an invocation and charges no
+budget: the result was paid for when it was computed. A hit the cache
+samples for a purity check is invoked and charged as usual, and its fresh
+output is used (§32.3). Only results the expert returned directly are
+stored; one that raised requests depends on how the kernel resolved them,
+not only on the inputs.
 """
 
 from __future__ import annotations
@@ -190,12 +192,14 @@ def execute(
         contract = node.contract
         parents = tuple(a.message_id for a in args)
         key = cache_key(node, args)
+        checking = False
         if key is not None:
-            hit, payload = cache.lookup(key)
-            if hit:
-                result = Message(contract.output, payload, f"{manifest.ref}+cache", parents)
+            hit, stored = cache.lookup(key)
+            if hit and not cache.sample():
+                result = Message(contract.output, stored, f"{manifest.ref}+cache", parents)
                 workspace.post(result)
                 return result
+            checking = hit
         if remaining == 0:
             raise BudgetExceeded(f"budget of {budget} invocations exhausted")
         if funds is not None:
@@ -208,7 +212,10 @@ def execute(
                     for sub, (inputs, _) in zip(node.slots, contract.slots, strict=True)]
         payload = node.module.invoke(*fillings, *(a.payload for a in args))
         if key is not None and not isinstance(payload, (Generator, Request)):
-            cache.store(key, payload)
+            if checking:
+                cache.check(key, stored, payload)
+            else:
+                cache.store(key, payload)
         if isinstance(payload, Generator):
             payload = resume(payload, manifest.module_id, manifest.ref, parents, chain)
         if isinstance(payload, Request):

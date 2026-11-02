@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from nca.abi import Choice, Contract, Manifest, Message, Request
-from nca.cache import ResultCache, value_digest
+from nca.cache import Checks, ResultCache, value_digest
 from nca.planner import Apply, Given
 from nca.runtime import BudgetExceeded, execute
 from nca.workspace import Workspace
@@ -107,3 +107,43 @@ def test_inputs_without_digests_and_results_from_requests_are_not_cached() -> No
     assert run(asking, 4, cache) == 16
     assert run(asking, 4, cache) == 16
     assert asking.calls == 2 and len(cache) == 0
+
+
+class Drifting(Counting):
+    """Claims purity but answers differently after its first call."""
+
+    def invoke(self, value: int) -> Any:
+        self.calls += 1
+        return value * value + (self.calls > 1)
+
+
+def test_spot_checks_refute_a_false_purity_claim() -> None:
+    module, cache = Drifting(), ResultCache(check_rate=1.0)
+    assert run(module, 3, cache) == 9
+    assert run(module, 3, cache) == 10  # Checked: recomputed, refuted, fresh value used.
+    assert cache.refuted == {module.identity} and len(cache) == 0
+    assert cache.checks[module.identity] == Checks(1, 1)
+    run(module, 3, cache)
+    assert module.calls == 3 and len(cache) == 0
+
+
+def test_honest_experts_pass_spot_checks_at_the_sampled_rate() -> None:
+    module, cache = Counting(), ResultCache(check_rate=0.25, seed=1)
+    for _ in range(401):
+        assert run(module, 5, cache) == 25
+    checked = cache.checks[module.identity]
+    assert checked.mismatches == 0 and 70 <= checked.checked <= 130
+    assert module.calls == 1 + checked.checked
+
+
+def test_purity_attestations_carry_refutations_under_trust() -> None:
+    from nca.evidence import purity, refuted
+    from nca.objects import Primitive, Store
+
+    store = Store()
+    ref = store.put(Primitive(Counting().manifest, "builtins:object"))
+    store.put(purity(ref, Checks(10, 1), "lab"))
+    assert refuted(store, ref, {"lab"}) and not refuted(store, ref, {"other"})
+    cache = ResultCache(refuted={ref})
+    cache.store((ref, ()), 1)
+    assert cache.lookup((ref, ())) == (False, None)
