@@ -2043,3 +2043,18 @@ each node code correctly. Tests verify prediction equality, stable type identity
 distinct count profiles, type-object store round trips and planner composition.
 The tree/features must remain fixed; executable persistence is not implemented
 by this factory. Encoding and decoding costs are explicit caller declarations.
+
+`Primitive.dependencies` (§28.7) records ordered executable scope references.
+The canonical encoding omits empty dependencies, keeping old primitive references
+unchanged. Store admission checks dependency presence, executable kind and
+effect coverage; `walk` follows all declared object dependencies. `install`
+resolves each dependency scope before the factory runs, shares primitive lazy
+wrappers, and passes the scopes as the factory's reserved `dependencies` keyword.
+Factories must retain rather than invoke them while loading. Lazy prerequisites
+conservatively include all primitives reachable through the declared scopes;
+`route_experts` includes this closure so preparing a lazy route checks and pins
+its required declared bytes before loading. Existing composite visibility is
+unchanged. `dependency_rank_acyclic` proves acyclicity from strictly decreasing
+admission ranks; Python admission, shared loads, effect checks and byte budgets
+are regression-tested. Store reload also checks that decoded contents retain
+the digest of the saved object, including optional-field canonicalization.

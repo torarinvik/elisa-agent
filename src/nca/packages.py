@@ -199,7 +199,16 @@ def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
         if node not in made:
             obj = store.get(node)
             assert isinstance(obj, Primitive)
-            expert = LazyExpert(obj.manifest, obj.load, obj.size, experts, identity=node)
+            resolved: dict[Ref, tuple[Module, ...]] = {}
+            for dependency in obj.dependencies:
+                if dependency not in resolved:
+                    resolved[dependency] = tuple(scope(dependency))
+            prerequisites = dict.fromkeys(
+                ref for dependency in obj.dependencies for ref in store.walk(dependency)
+                if isinstance(store.get(ref), Primitive))
+            expert = LazyExpert(obj.manifest, lambda: obj.load(resolved.__getitem__),
+                                obj.size, experts, identity=node,
+                                dependencies=tuple(module(ref) for ref in prerequisites))
             expert.demand = _forward(expert, "demand", None)
             expert.relevant = _forward(expert, "relevant", True)
             expert.risk = _forward(expert, "risk", None)

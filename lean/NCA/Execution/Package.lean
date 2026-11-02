@@ -1,4 +1,5 @@
 import NCA.Planning.Routing
+import Mathlib.Logic.Relation
 
 /-!
 # Composite experts
@@ -177,5 +178,16 @@ end
 theorem export_identity_eq {Ref : Type} (r s : Ref) (i j : Nat) :
     (r, i) = (s, j) ↔ r = s ∧ i = j := by
   simp only [Prod.mk.injEq]
+
+/-- Dependencies that strictly decrease admission rank cannot form a cycle. -/
+theorem dependency_rank_acyclic {Ref : Type*} (rank : Ref → Nat)
+    (edge : Ref → Ref → Prop) (decreases : ∀ a b, edge a b → rank b < rank a)
+    (r : Ref) : ¬ Relation.TransGen edge r r := by
+  intro cycle
+  have descend {a b} (path : Relation.TransGen edge a b) : rank b < rank a := by
+    induction path with
+    | single h => exact decreases _ _ h
+    | tail _ h ih => exact Nat.lt_trans (decreases _ _ h) ih
+  exact Nat.lt_irrefl _ (descend cycle)
 
 end NCA

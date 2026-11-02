@@ -30,12 +30,12 @@ import hashlib
 import importlib
 import json
 import math
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Union
 
-from nca.abi import App, Calls, Contract, Manifest, Slot, Term, Var, format_type, parse_type
+from nca.abi import App, Calls, Contract, Manifest, Module, Slot, Term, Var, format_type, parse_type
 
 Ref = str
 """``"sha256:"`` followed by 64 hexadecimal digits."""
@@ -130,6 +130,9 @@ class Primitive:
     it with ``arguments`` and expects a module whose manifest equals this one.
     ``weights`` is the digest of the bytes the implementation loads, so
     implementations that differ only in their weights differ in reference.
+    Nonempty ``dependencies`` resolve to ordered executable scopes passed as
+    the factory's reserved ``dependencies`` keyword. Factories retain these
+    lazy modules; they must not invoke them during loading.
     """
 
     manifest: Manifest
@@ -138,22 +141,34 @@ class Primitive:
     weights: Ref | None = None
     size: int = 0
     """Resident bytes once loaded, for the expert store's budget."""
+    dependencies: tuple[Ref, ...] = ()
+    """Executable scopes passed lazily to the factory, in order (§28.7)."""
 
     def data(self) -> dict[str, Json]:
-        return {"kind": "primitive", "manifest": manifest_data(self.manifest),
-                "entry": self.entry, "arguments": dict(self.arguments),
-                "weights": self.weights, "size": self.size}
+        data: dict[str, Json] = {"kind": "primitive", "manifest": manifest_data(self.manifest),
+                                "entry": self.entry, "arguments": dict(self.arguments),
+                                "weights": self.weights, "size": self.size}
+        if self.dependencies:
+            data["dependencies"] = list(self.dependencies)
+        return data
 
     @property
     def ref(self) -> Ref:
         return digest(self.data())
 
-    def load(self) -> Any:
+    def load(self, resolve: Callable[[Ref], Sequence[Module]] | None = None) -> Any:
         module_name, _, attribute = self.entry.partition(":")
         target: Any = importlib.import_module(module_name)
         for part in attribute.split("."):
             target = getattr(target, part)
-        implementation = target(**self.arguments)
+        arguments: dict[str, Any] = dict(self.arguments)
+        if self.dependencies:
+            if resolve is None:
+                raise ValueError("loading dependencies needs a scope resolver")
+            if "dependencies" in arguments:
+                raise ValueError("dependencies is reserved for resolved expert scopes")
+            arguments["dependencies"] = tuple(tuple(resolve(ref)) for ref in self.dependencies)
+        implementation = target(**arguments)
         if implementation.manifest != self.manifest:
             raise ValueError(f"{self.entry} produced {implementation.manifest.ref}, "
                              f"not the declared {self.manifest.ref}")
@@ -254,7 +269,7 @@ def object_from(data: Mapping[str, Any]) -> Object:
     kind = data["kind"]
     if kind == "primitive":
         return Primitive(manifest_from(data["manifest"]), data["entry"], data["arguments"],
-                         data["weights"], data["size"])
+                         data["weights"], data["size"], tuple(data.get("dependencies", ())))
     if kind == "composite":
         exports = data["exports"]
         effects = data["effects"]
@@ -302,7 +317,9 @@ def _contracts(obj: Object) -> list[Contract]:
 
 def _requires(obj: Object) -> list[Ref]:
     """The references ``obj`` cannot be admitted without."""
-    if isinstance(obj, Composite):
+    if isinstance(obj, Primitive):
+        own = list(obj.dependencies)
+    elif isinstance(obj, Composite):
         own = list(obj.members)
     elif isinstance(obj, Attestation):
         own = [obj.subject]
@@ -321,8 +338,8 @@ class Store:
     """Objects by reference, and attestations by subject.
 
     ``put`` admits an object only once every reference it depends on is
-    present: a composite's members (whose effects its declaration must
-    cover), an attestation's subject, a constructor's refined constructors
+    present: a primitive's dependencies or a composite's members (whose effects
+    its declaration must cover), an attestation's subject, a constructor's refined constructors
     (of equal arity), and every constructor its contracts mention (applied
     to as many arguments as its arity), so every stored object is a
     well-formed DAG node. ``save`` and ``open`` keep one canonical JSON file per object,
@@ -356,12 +373,16 @@ class Store:
                 if not isinstance(found, Constructor) or found.arity != obj.arity:
                     raise ValueError(f"{obj.name} refines {refined}, "
                                      f"which is not a constructor of arity {obj.arity}")
-        if isinstance(obj, Composite):
-            for member in obj.members:
+        if isinstance(obj, Primitive) and obj.dependencies and "dependencies" in obj.arguments:
+            raise ValueError("dependencies is reserved for resolved expert scopes")
+        if isinstance(obj, (Primitive, Composite)):
+            declared = obj.manifest.effects if isinstance(obj, Primitive) else obj.effects
+            members = obj.dependencies if isinstance(obj, Primitive) else obj.members
+            for member in members:
                 if isinstance(self._objects[member], Attestation):
-                    raise ValueError("an attestation cannot be a composite member")
-                if not _effects_cover(obj.effects, self.effects(member)):
-                    raise ValueError(f"{obj.name} does not declare the effects of {member}")
+                    raise ValueError("an attestation cannot be an executable dependency or member")
+                if not _effects_cover(declared, self.effects(member)):
+                    raise ValueError(f"{ref} does not declare the effects of {member}")
         if isinstance(obj, Attestation):
             self._about.setdefault(obj.subject, []).append(ref)
         self._objects[ref] = obj
@@ -406,7 +427,7 @@ class Store:
         return order
 
     def walk(self, ref: Ref) -> Iterator[Ref]:
-        """Every object reachable from ``ref``, each once, members first."""
+        """Every object reachable from ``ref``, each once, dependencies first."""
         seen: set[Ref] = set()
 
         def visit(node: Ref) -> Iterator[Ref]:
@@ -414,9 +435,8 @@ class Store:
                 return
             seen.add(node)
             obj = self._objects[node]
-            if isinstance(obj, Composite):
-                for member in obj.members:
-                    yield from visit(member)
+            for needed in _requires(obj):
+                yield from visit(needed)
             yield node
 
         yield from visit(ref)
@@ -438,7 +458,10 @@ class Store:
             ref = digest(data)
             if ref != f"sha256:{path.stem}":
                 raise ValueError(f"{path.name} does not match its digest")
-            pending[ref] = object_from(data)
+            obj = object_from(data)
+            if obj.ref != ref:
+                raise ValueError(f"{path.name} does not match its decoded object's digest")
+            pending[ref] = obj
         while pending:
             ready = [ref for ref, obj in pending.items() if _ready(store, obj)]
             if not ready:
@@ -472,6 +495,7 @@ class Names:
 
 
 def primitive(module: Any, entry: str, arguments: Mapping[str, Json] | None = None,
-              weights: Ref | None = None, size: int = 0) -> Primitive:
+              weights: Ref | None = None, size: int = 0,
+              dependencies: tuple[Ref, ...] = ()) -> Primitive:
     """Describe an existing module as a primitive with the given loader."""
-    return Primitive(module.manifest, entry, dict(arguments or {}), weights, size)
+    return Primitive(module.manifest, entry, dict(arguments or {}), weights, size, dependencies)

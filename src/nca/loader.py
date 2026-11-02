@@ -16,6 +16,8 @@ for distinct implementations when provenance must distinguish them.
 Each lazy expert in a prepared route must belong to the preparing store.
 Loaders must not mutate or acquire experts from their own store while loading;
 they may use other stores.
+Preparation includes declared lazy dependencies. This closure is conservative
+for executable scopes; it need not be the smallest set an invocation uses.
 Every transition that makes a route resident loads at
 least its missing experts, and eager preparation loads exactly those
 (``NCA.routeAware_optimal``), so experts shared by consecutive routes are
@@ -23,6 +25,8 @@ never reloaded.
 ``NCA.WellTyped.contracts_subset`` and ``NCA.route_contracts_append`` state
 what this relies on: executing a route loads only the experts in it, and
 installing experts never adds to an existing route's working set.
+These formal results concern declared working sets and direct plan contracts;
+the executable dependency closure is checked by lifecycle tests.
 """
 
 from __future__ import annotations
@@ -202,7 +206,8 @@ class LazyExpert:
                  store: ExpertStore, *,
                  demand: Callable[[int, Demand], Demand] | None = None,
                  relevant: Callable[[int, list[Any]], bool] | None = None,
-                 identity: str | None = None) -> None:
+                 identity: str | None = None,
+                 dependencies: tuple[LazyExpert, ...] = ()) -> None:
         if isinstance(size, bool) or not isinstance(size, Integral) or size < 0:
             raise ValueError("expert size must be a nonnegative integer")
         self._manifest = manifest
@@ -213,6 +218,12 @@ class LazyExpert:
         self.relevant = relevant
         self.identity = identity
         """The content reference of the expert's object (§28), if it has one."""
+        self._dependencies = tuple(dependencies)
+
+    @property
+    def dependencies(self) -> tuple[LazyExpert, ...]:
+        """Conservative lazy prerequisites, available before loading."""
+        return self._dependencies
 
     @property
     def manifest(self) -> Manifest:
@@ -239,13 +250,21 @@ class LazyExpert:
 
 
 def route_experts(route: Plan) -> Iterator[LazyExpert]:
-    """The lazy experts a route may invoke, in preorder."""
+    """The lazy experts a route may invoke, including declared dependencies."""
     pending = [route]
     while pending:
         node = pending.pop()
         if isinstance(node, Apply):
             if isinstance(node.module, LazyExpert):
-                yield node.module
+                experts = [node.module]
+                seen: set[int] = set()
+                while experts:
+                    expert = experts.pop()
+                    if id(expert) in seen:
+                        continue
+                    seen.add(id(expert))
+                    yield expert
+                    experts.extend(reversed(expert.dependencies))
             pending.extend(reversed(node.slots))
             pending.extend(reversed(node.args))
         elif isinstance(node, Map):

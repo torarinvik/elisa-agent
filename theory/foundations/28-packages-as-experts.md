@@ -146,3 +146,33 @@ yields the same library, but a policy and not a measure of quality.
 Selecting by evidence instead reads attestations (§28.4). A name offered
 twice is ambiguous and is refused rather than resolved by an arbitrary
 rule.
+
+## 28.7 Explicit expert dependencies
+
+A primitive may name an ordered list of dependency object references in
+addition to its implementation arguments. These are executable scopes passed
+to its factory, not extra experts exposed in the outer planning scope. A
+factory receives the installed exports of each dependency in reference order;
+it may retain those lazy experts for later invocation. It must not invoke
+them during loading, since loading cannot re-enter the same residency store.
+Dependencies share the installation's ordinary primitive wrappers and budgets.
+
+Dependency references contribute to the primitive's content identity. Admission
+requires every dependency to be present, rejects attestations as executable
+dependencies, and requires the primitive's declared effects to cover theirs.
+Changing a dependency therefore changes the enclosing object's reference,
+under the existing digest collision assumption. Empty dependency lists keep
+the prior canonical encoding, preserving existing objects' references.
+
+**Proposition 28.4 (ranked dependencies are acyclic).** If every dependency
+edge strictly decreases a natural-number admission rank, no nonempty dependency
+path returns to its start. Strict decrease is transitive along a path and a
+rank cannot be strictly below itself. This is conditional on the rank invariant;
+its correspondence with store admission and executable factory behavior is
+not proved in Lean. Content references alone still do not establish that an
+entry point or external weights implement the declared object faithfully.
+
+Preparing a lazy route includes the conservative closure of its declared
+primitive dependencies when checking and pinning resident bytes. This closure
+can exceed what one invocation actually uses. Byte accounting depends on
+accurate size declarations; it is not a measurement of process-wide memory.
