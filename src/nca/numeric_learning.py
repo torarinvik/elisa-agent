@@ -1,6 +1,7 @@
 """Learn a partition interface over supplied numeric measurements (§36.13)."""
 
 import math
+from bisect import bisect_left, bisect_right
 from collections import Counter
 from collections.abc import Hashable, Sequence
 from dataclasses import replace
@@ -47,6 +48,20 @@ def propose_partition(incumbent: Module, measurement: Module,
     Sorting costs O(n log n); modal-count scans also depend on label cardinality.
     No persistence, calibration or unrestricted feature discovery is claimed.
     """
+    ordered = _ordered(incumbent, measurement, rows, labels, encoding_cost, decoder_cost)
+    best, _ = _best_split(ordered)
+    if best is None:
+        return []
+    boundary, lower_label, upper_label = best
+    encoder = PartitionEncoder(measurement, boundary, encoding_cost)
+    decoder = Decoder(Contract((encoder.constructor.type(),), incumbent.manifest.contract.output),
+                      {0: lower_label, 1: upper_label}, lower_label, decoder_cost)
+    return [Proposal(Decoded(encoder, decoder, incumbent.manifest.contract), (encoder.constructor,))]
+
+
+def _ordered(incumbent: Module, measurement: Module,
+             rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable],
+             encoding_cost: float, decoder_cost: float) -> list[tuple[float, Hashable]]:
     if len(rows) < 2 or len(rows) != len(labels):
         raise ValueError("partition training needs at least two aligned observations")
     if any(not math.isfinite(c) or c < 0 for c in (encoding_cost, decoder_cost)):
@@ -56,8 +71,12 @@ def propose_partition(incumbent: Module, measurement: Module,
         raise ValueError("measurement must preserve inputs, slots and relevance")
     if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
         raise ValueError("rows must supply slot fillings followed by inputs")
-    ordered = sorted(((_observation(measurement.invoke(*row)), label)
+    return sorted(((_observation(measurement.invoke(*row)), label)
                       for row, label in zip(rows, labels, strict=True)), key=lambda item: item[0])
+
+
+def _best_split(ordered: Sequence[tuple[float, Hashable]]) -> tuple[
+        tuple[float, Hashable, Hashable] | None, int]:
     left: Counter[Hashable] = Counter()
     right = Counter(label for _, label in ordered)
     best: tuple[float, Hashable, Hashable] | None = None
@@ -74,10 +93,63 @@ def propose_partition(incumbent: Module, measurement: Module,
         score = lower[1] + upper[1]
         if score > best_score:
             best, best_score = (ordered[i][0], lower[0], upper[0]), score
-    if best is None:
-        return []
-    boundary, lower_label, upper_label = best
-    encoder = PartitionEncoder(measurement, boundary, encoding_cost)
-    decoder = Decoder(Contract((encoder.constructor.type(),), contract.output),
-                      {0: lower_label, 1: upper_label}, lower_label, decoder_cost)
-    return [Proposal(Decoded(encoder, decoder, contract), (encoder.constructor,))]
+    return best, best_score
+
+
+class RegionsEncoder:
+    """Codes a learned, resource-bounded collection of scalar intervals."""
+
+    def __init__(self, measurement: Module, boundaries: tuple[float, ...], cost: float) -> None:
+        self.measurement, self.boundaries = measurement, boundaries
+        self.constructor = Constructor("learned-numeric-regions", "1", 0,
+            canonical({"source": measurement.manifest.contract.output, "boundaries": boundaries,
+                       "meaning": "code is the count of boundaries at or below the observation"}).decode())
+        self.manifest = replace(measurement.manifest,
+                                module_id=f"{measurement.manifest.module_id}/regions",
+                                contract=replace(measurement.manifest.contract,
+                                                 output=self.constructor.type()),
+                                cost=measurement.manifest.cost + cost)
+
+    def invoke(self, *inputs: Any) -> int:
+        return bisect_right(self.boundaries, _observation(self.measurement.invoke(*inputs)))
+
+
+def propose_regions(incumbent: Module, measurement: Module,
+                    rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
+                    max_regions: int, encoding_cost: float, decoder_cost: float) -> list[Proposal]:
+    """Greedily refine numeric intervals using training data alone (§36.14).
+
+    Pure intervals are not split. Zero-gain refinements remain eligible, up to
+    the explicit region budget. This is not a globally optimal segmentation.
+    Features remain fixed; modal scan costs depend on label cardinality.
+    """
+    if type(max_regions) is not int or max_regions < 1:
+        raise ValueError("maximum regions must be a positive integer")
+    ordered = _ordered(incumbent, measurement, rows, labels, encoding_cost, decoder_cost)
+    values = [value for value, _ in ordered]
+    regions = [(0, len(ordered))]
+    while len(regions) < max_regions:
+        chosen: tuple[int, int] | None = None
+        best_gain = -1
+        for index, (start, end) in enumerate(regions):
+            count = Counter(label for _, label in ordered[start:end])
+            if len(count) == 1:
+                continue
+            split, score = _best_split(ordered[start:end])
+            if split is not None:
+                gain = score - count.most_common(1)[0][1]
+                if gain > best_gain:
+                    chosen = index, bisect_left(values, split[0], start, end)
+                    best_gain = gain
+        if chosen is None:
+            break
+        index, middle = chosen
+        start, end = regions[index]
+        regions[index:index + 1] = [(start, middle), (middle, end)]
+    boundaries = tuple(values[start] for start, _ in regions[1:])
+    encoder = RegionsEncoder(measurement, boundaries, encoding_cost)
+    table = {index: Counter(label for _, label in ordered[start:end]).most_common(1)[0][0]
+             for index, (start, end) in enumerate(regions)}
+    decoder = Decoder(Contract((encoder.constructor.type(),), incumbent.manifest.contract.output),
+                      table, table[0], decoder_cost)
+    return [Proposal(Decoded(encoder, decoder, incumbent.manifest.contract), (encoder.constructor,))]

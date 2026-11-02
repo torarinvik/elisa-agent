@@ -2132,3 +2132,11 @@ result is an ordinary encoder/head proposal, with independent selection through
 candidate membership; the Python sweep is checked against exhaustive boundaries.
 This is threshold-family representation learning, not arbitrary raw-feature
 invention. The learned encoder is currently an in-memory model.
+
+`numeric_learning.propose_regions` (§36.14) greedily refines the best impure
+interval using the shared `_best_split` sweep, up to an explicit region budget.
+`RegionsEncoder` derives a constructor from sorted learned boundaries and uses
+binary search for region codes. Pure or constant-valued intervals stop refining.
+`modal_refinement_le` supplies the nonnegative local training-gain inequality;
+the greedy search policy is not formally verified or globally optimal. Tests
+cover region budgets, training-score monotonicity and duplicate observations.

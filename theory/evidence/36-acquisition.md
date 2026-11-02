@@ -284,3 +284,19 @@ result, not a generalization theorem. A finite maximum dominates every member;
 Lean proves that selection step conditional on membership. Completeness of the
 Python sweep and faithful float comparisons are regression-tested. Promotion
 still requires independent held-out evidence (§36.3).
+
+## 36.14 Learning several numeric regions
+
+Start with one interval carrying its modal target. At each step, consider the
+best two-region split (§36.13) in every impure interval and choose the greatest
+increase in training successes. Ties prefer the leftmost interval and then the
+smallest boundary. Stop when all intervals are pure or unsplittable, or an
+explicit maximum-region budget is reached. Zero-gain splits remain eligible.
+The resulting sorted boundaries define a learned finite interface, with one
+code per interval and a modal decoder.
+
+Each refinement has nonnegative empirical gain by Proposition 36.6: child
+modes can retain the parent's label. `modal_refinement_le` proves that local
+sum comparison. This is greedy refinement, not a globally optimal segmentation,
+and implies no held-out improvement. The budget is a caller-selected resource
+limit; the representation has no fixed architectural region count.
