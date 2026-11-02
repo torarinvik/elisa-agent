@@ -293,7 +293,8 @@ The cursor keeps its mapped arities read-only and caches their ordering;
 to mean the supplied arities are nondecreasing. Their compatibility entry
 points determine ordering independently. `trace_ragged_indexed` additionally
 requires a permutation of the original indices sorted by their arities; the
-cursor constructs and caches that permutation lazily for unordered alphabets.
+cursor constructs that permutation lazily for unordered alphabets and retains
+it across band rebuilds, which do not change the arities or row count.
 Sum and max tables use log weights in
 both the native kernel and the NumPy fallback, retaining finite path weights
 that would underflow even with per-row linear rescaling.

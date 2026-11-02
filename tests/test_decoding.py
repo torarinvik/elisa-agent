@@ -1589,6 +1589,36 @@ def test_indexed_trace_builds_order_lazily_and_reuses_it_after_updates() -> None
     assert cursor._trace_indices is order
 
 
+def test_certified_cursor_reuses_trace_order_after_band_rebuild() -> None:
+    if getattr(decoding._NATIVE, "trace_ragged_indexed", None) is None:
+        pytest.skip("native indexed traceback is not built")
+    m, width = 15, 32
+    alphabet = tuple(reversed(range(width)))
+    probabilities = np.full((m, width), 1e-8)
+    probabilities[:, alphabet.index(1)] = 1 - (width - 1) * 1e-8
+    probabilities[-1, alphabet.index(1)] = 1e-8
+    probabilities[-1, alphabet.index(0)] = 1 - (width - 1) * 1e-8
+    rows = np.log(probabilities)
+    cursor = decoding.CertifiedSplit(rows, alphabet)
+    assert cursor.changes == 1
+    assert cursor.result() is not None
+    previous_split = cursor.split
+    order = previous_split._trace_indices
+    assert order is not None
+
+    replacement = np.full(width, 1e-8)
+    replacement[alphabet.index(1)] = 0.2
+    replacement[alphabet.index(0)] = 0.8 - (width - 2) * 1e-8
+    rows[5] = np.log(replacement)
+    actual = cursor.climb(5, rows[5])
+    expected = decoding.decode_reference(rows, alphabet)
+    assert actual is not None and expected is not None and cursor.rebuilds > 0
+    assert cursor.split is not previous_split
+    assert cursor.split._trace_indices is order
+    assert expected.log_weight(rows, alphabet, actual.arities) == pytest.approx(
+        expected.log_weight(rows, alphabet, expected.arities))
+
+
 @pytest.mark.parametrize("reference_only", [False, True])
 def test_cursors_copy_fortran_input_to_contiguous_private_rows(
         reference_only: bool, monkeypatch: pytest.MonkeyPatch) -> None:

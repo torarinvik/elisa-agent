@@ -686,8 +686,12 @@ class CertifiedSplit:
             raise ValueError("rows must contain log probabilities with mass at most one")
 
     def _build(self) -> Split:
-        return Split(self.log_probs, self.alphabet, self.centre,
-                     self.arity_bound * (self.changes - 1))
+        split = Split(self.log_probs, self.alphabet, self.centre,
+                      self.arity_bound * (self.changes - 1))
+        previous = getattr(self, "split", None)
+        if previous is not None:
+            split._trace_indices = previous._trace_indices
+        return split
 
     def _certify(self, k: int, scores: tuple[float, float] | None,
                  maximum: bool) -> tuple[float, int] | None:
