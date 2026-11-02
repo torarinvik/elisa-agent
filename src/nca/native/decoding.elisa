@@ -1505,16 +1505,28 @@ def indexed_alphabet(alphabet: view[i64]) -> bool can[Abort.Panic]:
                 valid <- false
                 break
 
+# Map in-range symbols to their first column; other symbols remain unindexed.
+def alphabet_columns(alphabet: view[i64], limit: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    columns: darray[i64] = [-1 for _ in 0..<limit]
+    for c in 0..<alphabet.len.i64():
+        symbol: i64 = alphabet[c]
+        if symbol >= 0 and symbol < limit and columns[symbol] < 0:
+            columns[symbol] <- c
+    return columns
+
 # Log product of the selected sequence, preserving position order.
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
     width: i64 = alphabet.len.i64()
     indexed: bool = indexed_alphabet(alphabet)
+    lookup: darray[i64] = alphabet_columns(alphabet, width) if width >= 16 and not indexed else []
     total, failed =
         for k in 0..<selected.len.i64() |total: f64 = 0.0, failed: bool = false| -> (total, failed):
             symbol: i64 = selected[k]
             column: i64 =
                 if indexed:
                     symbol if symbol >= 0 and symbol < width else -1
+                elif width >= 16 and symbol >= 0 and symbol < width:
+                    lookup[symbol]
                 else:
                     for c in 0..<width |found: i64 = -1| -> found:
                         if alphabet[c] == symbol:
@@ -1543,12 +1555,7 @@ def accepted_log_weight(log_probs: view[f64], alphabet: view[i64], selected: vie
     m: i64 = selected.len.i64()
     return [] if not matrix_shape(log_probs.len.i64(), m, width)
     indexed: bool = width >= 16 and indexed_alphabet(alphabet)
-    lookup: darray[i64] = [-1 for _ in 0..<(m if width >= 16 and not indexed else 0)]
-    if lookup.count > 0:
-        for c in 0..<width:
-            symbol: i64 = alphabet[c]
-            if symbol >= 0 and symbol < m and lookup[symbol] < 0:
-                lookup[symbol] <- c
+    lookup: darray[i64] = alphabet_columns(alphabet, m) if width >= 16 and not indexed else []
     pending, total, zero, failed =
         for k in 0..<m |pending: i64 = 1, total: f64 = 0.0, zero: bool = false, failed: bool = false| -> (pending, total, zero, failed):
             arity: i64 = selected[k]

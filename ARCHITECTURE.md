@@ -1070,6 +1070,8 @@ Prior path-weight evaluation rejects detected finite-addition loss while
 preserving zero mass for forbidden or zero-weight paths.
 Reading-sequence and accepted-format scoring use the same local arithmetic
 check; invalid syntax and zero-weight sequences retain their distinct results.
+For wide unordered alphabets, reading-sequence scoring indexes first occurrences
+of symbols in the column-count range and scans for other integer symbols.
 Selected symbols are checked as integers before native conversion. When NumPy
 infers a non-integer dtype, native symbols are encoded from the original
 integers to preserve their identity. `decode`

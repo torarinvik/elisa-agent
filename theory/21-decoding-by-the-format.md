@@ -237,6 +237,9 @@ time per position instead of a linear alphabet search. For a complete prefix
 of length `m`, all arities are below `m`, so a table of their first alphabet
 positions can be built in `O(m + A)` time and used for constant-time lookup.
 The first occurrence preserves the existing behavior for duplicate symbols.
+For an unconstrained sequence, symbols in a compact indexed range can use the
+same first-occurrence table; symbols outside that range still require a general
+lookup. This does not impose a bound on the alphabet's integer values.
 Validating all input weights still takes `O(mA)` for `m` rows.
 Reading weights must be finite or negative infinity; NaN and positive infinity
 are invalid inputs even if a sequence has zero mass.
