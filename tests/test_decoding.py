@@ -1918,6 +1918,20 @@ def test_decode_accepts_arities_larger_than_any_possible_state(alphabet) -> None
         np.testing.assert_allclose(actual.marginals, expected.marginals, atol=1e-12)
 
 
+@pytest.mark.parametrize("extra", [7, 8, 9, 15, 10**100])
+def test_reference_decode_ignores_impossible_arity_near_table_width(extra: int) -> None:
+    m = 4
+    alphabet = (0, 1, extra)
+    rows = np.log(np.tile([0.2, 0.5, 0.3], (m, 1)))
+    actual = decoding.decode_reference(rows, alphabet)
+    expected = decoding.decode_reference(rows[:, :2], alphabet[:2])
+    assert actual is not None and expected is not None
+    assert actual.arities == expected.arities
+    assert actual.log_z == pytest.approx(expected.log_z)
+    np.testing.assert_allclose(actual.marginals[:, :2], expected.marginals)
+    np.testing.assert_array_equal(actual.marginals[:, 2], np.zeros(m))
+
+
 def test_native_decode_keeps_ternary_paths_alongside_unary_paths() -> None:
     alphabet = (0, 1, 3)
     rows = np.full((4, 3), -np.log(3.0))
