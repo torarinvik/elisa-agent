@@ -1072,6 +1072,9 @@ Reading-sequence and accepted-format scoring use the same local arithmetic
 check; invalid syntax and zero-weight sequences retain their distinct results.
 For wide unordered alphabets, reading-sequence scoring indexes first occurrences
 of symbols in the column-count range and scans for other integer symbols.
+Rolling prior partitioning checks selected-symbol membership in Elisa using
+the same generic lookup, retaining the full-normalizer fallback for unsupported
+symbols. `sum_excluding_absent` proves the corresponding real-sum identity.
 Selected symbols are checked as integers before native conversion. When NumPy
 infers a non-integer dtype, native symbols are encoded from the original
 integers to preserve their identity. `decode`

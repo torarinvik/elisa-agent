@@ -1514,6 +1514,27 @@ def alphabet_columns(alphabet: view[i64], limit: i64) -> darray[i64] can[Memory.
             columns[symbol] <- c
     return columns
 
+# Test support without imposing a fixed range on alphabet symbols.
+def symbols_in_alphabet(alphabet: view[i64], selected: view[i64]) -> bool can[Memory.Allocate, Abort.Panic]:
+    width: i64 = alphabet.len.i64()
+    return true if selected.len.i64() == 0
+    indexed: bool = selected.len.i64() >= 16 and indexed_alphabet(alphabet)
+    lookup: darray[i64] = alphabet_columns(alphabet, width) if selected.len.i64() >= 16 and width >= 16 and not indexed else []
+    for k in 0..<selected.len.i64():
+        symbol: i64 = selected[k]
+        present: bool =
+            if indexed:
+                symbol >= 0 and symbol < width
+            elif lookup.count > 0 and symbol >= 0 and symbol < width:
+                lookup[symbol] >= 0
+            else:
+                for j in 0..<width |found: bool = false| -> found:
+                    if alphabet[j] == symbol:
+                        found <- true
+                        break
+        return false if not present
+    return true
+
 # Log product of the selected sequence, preserving position order.
 def sequence_log_weight(log_probs: view[f64], alphabet: view[i64], selected: view[i64]) -> f64 can[Abort.Panic]:
     width: i64 = alphabet.len.i64()
@@ -1684,6 +1705,7 @@ export pymodule decoding:
     fn combine_shares
     fn prior_partition
     fn valid_log_weights
+    fn symbols_in_alphabet
     fn normalized_rows_fast
     fn decode
     fn decode_log

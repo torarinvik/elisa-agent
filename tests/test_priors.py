@@ -247,6 +247,37 @@ def test_prior_partition_matches_exhaustive_paths(
             assert prior.sequence_risk(rows, chosen) == pytest.approx(expected, abs=1e-12)
 
 
+def test_native_symbol_membership_preserves_arbitrary_integer_values() -> None:
+    native = getattr(priors._NATIVE, "symbols_in_alphabet", None)
+    if native is None:
+        pytest.skip("native symbol membership is not built")
+    rng = np.random.default_rng(827)
+    for width in (0, 1, 3, 16, 256):
+        alphabet = rng.permutation(width).astype(np.int64)
+        if width >= 16:
+            alphabet[0] = np.iinfo(np.int64).max
+            alphabet[-1] = -11
+        for _ in range(30):
+            selected = rng.integers(-15, width + 15, size=20, dtype=np.int64)
+            assert native(alphabet, selected) == all(int(x) in alphabet for x in selected)
+        assert native(alphabet, np.array([], dtype=np.int64))
+        assert native(alphabet, alphabet)
+
+
+@pytest.mark.parametrize("selected", [(0, 2**64, 1), (0, 2**64 + 1, 1), ()])
+def test_prior_partition_membership_matches_legacy_fallback(selected, monkeypatch) -> None:
+    native = priors._NATIVE
+    if getattr(native, "symbols_in_alphabet", None) is None:
+        pytest.skip("native symbol membership is not built")
+    prior = priors.ArityPrior((0, 1, 2**64), np.zeros((1, 3), dtype=np.int64),
+                              np.zeros((1, 3)), np.zeros(1))
+    rows = np.zeros((len(selected), 3))
+    actual = prior.partition(rows, selected)
+    monkeypatch.setattr(native, "symbols_in_alphabet", None)
+    expected = prior.partition(rows, selected)
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
 @pytest.mark.parametrize("reference", [False, True])
 @pytest.mark.parametrize("rows", [np.array([[0.0, -40.0]]), np.array([[-1.0, -41.0]]),
                                    np.array([[-41.0, -1.0]])])

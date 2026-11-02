@@ -458,13 +458,22 @@ class ArityPrior:
         selected = tuple(selected)
         if len(selected) != len(rows):
             raise ValueError("selected sequence must match the number of rows")
-        if not _integer_symbols(selected):
+        selected_values = np.asarray(selected)
+        if not _integer_symbols(selected, values=selected_values):
             raise ValueError("selected symbols must be integers")
-        if any(symbol not in self.alphabet for symbol in selected):
+        membership = getattr(_NATIVE, "symbols_in_alphabet", None)
+        encoded = alphabet = None
+        if membership is not None:
+            alphabet, encoded = _native_symbol_pair(self.alphabet, selected, values=selected_values)
+            unsupported = not membership(alphabet, encoded)
+        else:
+            unsupported = any(symbol not in self.alphabet for symbol in selected)
+        if unsupported:
             return -math.inf, self.log_normalizer(rows)
         native = getattr(_NATIVE, "prior_partition", None)
         if native is not None:
-            alphabet, encoded = _native_symbol_pair(self.alphabet, selected)
+            if alphabet is None or encoded is None:
+                alphabet, encoded = _native_symbol_pair(self.alphabet, selected, values=selected_values)
             result = native(np.ascontiguousarray(rows).reshape(-1), alphabet,
                             self.transitions.reshape(-1), self.log_weights.reshape(-1),
                             self.log_final, self.start, encoded)

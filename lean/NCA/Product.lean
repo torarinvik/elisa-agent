@@ -31,6 +31,24 @@ theorem sum_filter_zero_readings {α : Type} (symbols : List α) (reading factor
     simp only [ne_eq, decide_not] at ih
     by_cases h : reading a = 0 <;> simp [h, ih]
 
+/-- Excluding an absent selected path leaves the total path weight unchanged. -/
+theorem sum_excluding_absent {α : Type} [DecidableEq α] (paths : List α) (selected : α)
+    (weight : α → ℝ) (absent : selected ∉ paths) :
+    ((paths.filter fun path => path ≠ selected).map weight).sum = (paths.map weight).sum := by
+  induction paths with
+  | nil => simp
+  | cons path rest ih =>
+    have head : path ≠ selected := by
+      intro equal
+      apply absent
+      simp [equal]
+    have tail : selected ∉ rest := by
+      intro member
+      exact absent (List.mem_cons_of_mem _ member)
+    have rest_sum := ih tail
+    simp only [ne_eq, decide_not] at rest_sum
+    simp [head, rest_sum]
+
 /-- A zero weighted-automaton frontier stays zero after any transition. -/
 theorem zero_frontier_step {S : Type} [Fintype S] (front : S → ℝ) (edge : S → S → ℝ)
     (empty : ∀ s, front s = 0) (target : S) :
