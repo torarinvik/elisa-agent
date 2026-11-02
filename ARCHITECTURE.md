@@ -870,6 +870,9 @@ reuses the split result of §23.4 without altering its weights or arithmetic.
 without gradients and partitioned decision groups. The kernel subtracts the
 largest logit before exponentiation, sums probabilities by supplied group,
 and returns the original tensor dtype. Temperature fitting is unchanged.
+Reading, risk, and distribution paths require positive finite temperatures
+for both ordinary and ranked observations. `temperature_rank` proves the
+real-arithmetic ordering effect of the temperature's sign.
 PyTorch remains the fallback for gradients, other devices, nonpartitioned
 groups and missing kernels. Double intermediates may differ from PyTorch's
 float32 arithmetic by rounding, requiring outcome checks on full runs.

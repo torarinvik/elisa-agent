@@ -377,9 +377,10 @@ class Rung:
     def reading(self, log: torch.Tensor | RankedObservation) -> torch.Tensor:
         """Numerical probabilities; ranked ordering remains on the observation."""
         temperature = self.temperature()
+        if not math.isfinite(temperature) or temperature <= 0:
+            name = "ranked reading" if isinstance(log, RankedObservation) else "reading"
+            raise ValueError(f"{name} requires a positive finite temperature")
         if isinstance(log, RankedObservation):
-            if not math.isfinite(temperature) or temperature <= 0:
-                raise ValueError("ranked reading requires a positive finite temperature")
             log = log.logits
         result = torch.softmax(_temperature_scores(log, temperature), dim=-1)
         return result.to(log.dtype) if log.is_floating_point() else result
@@ -396,10 +397,11 @@ class Rung:
         key = decision_key(classes)
         temperature = self.temperature(key)
         ranked = log if isinstance(log, RankedObservation) else None
+        if not math.isfinite(temperature) or temperature <= 0:
+            name = "ranked risk" if ranked is not None else "risk"
+            raise ValueError(f"{name} requires a positive finite temperature")
         if ranked is not None:
             log = ranked.logits
-            if not math.isfinite(temperature) or temperature <= 0:
-                raise ValueError("ranked risk requires a positive finite temperature")
         union = list(range(len(log))) if key is None else _layout(key)[0]
         probabilities = (self.reading(log) if reading is None else reading) if ranked is None else None
         native_reading = getattr(_NATIVE, "calibrated_risk_for_reading", None)
@@ -461,10 +463,11 @@ class Rung:
     def distribution(self, log: torch.Tensor | RankedObservation, classes: Decision = None) -> torch.Tensor:
         """Calibrated probabilities of the decision's entries: each entry's
         share of the classes it ranges over, under the decision's temperature."""
+        temperature = self.temperature(classes)
+        if not math.isfinite(temperature) or temperature <= 0:
+            name = "ranked distribution" if isinstance(log, RankedObservation) else "distribution"
+            raise ValueError(f"{name} requires a positive finite temperature")
         if isinstance(log, RankedObservation):
-            temperature = self.temperature(classes)
-            if not math.isfinite(temperature) or temperature <= 0:
-                raise ValueError("ranked distribution requires a positive finite temperature")
             log = log.logits
         if classes is None:
             return self.reading(log)
@@ -473,10 +476,10 @@ class Rung:
         groups = _group_ids(decision_key(classes))
         if native is not None and log.device.type == "cpu" and not log.requires_grad:
             values = native(log[union].double().numpy(), groups,
-                            len(positions), self.temperature(classes))
+                            len(positions), temperature)
             return torch.tensor(values, dtype=log.dtype)
         values = log[union]
-        reading = torch.softmax(_temperature_scores(values, self.temperature(classes)), dim=-1)
+        reading = torch.softmax(_temperature_scores(values, temperature), dim=-1)
         if log.is_floating_point():
             reading = reading.to(log.dtype)
         return torch.stack([reading[part].sum() for part in positions])
@@ -485,9 +488,10 @@ class Rung:
                          classes: Decision = None) -> torch.Tensor:
         """Log probabilities for decision entries, retaining underflowed mass."""
         temperature = self.temperature(classes)
+        if not math.isfinite(temperature) or temperature <= 0:
+            name = "ranked distribution" if isinstance(log, RankedObservation) else "distribution"
+            raise ValueError(f"{name} requires a positive finite temperature")
         if isinstance(log, RankedObservation):
-            if not math.isfinite(temperature) or temperature <= 0:
-                raise ValueError("ranked distribution requires a positive finite temperature")
             log = log.logits
         if classes is None:
             return torch.log_softmax(_temperature_scores(log.double(), temperature), dim=-1)

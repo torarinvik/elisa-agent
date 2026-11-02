@@ -140,6 +140,16 @@ theorem monotone_normalized_rank (f : ℝ → ℝ) (hf : StrictMono f)
   rw [div_lt_div_iff_of_pos_right ht]
   exact hf.lt_iff_lt
 
+/-- Positive temperature preserves logit order; negative temperature reverses it. -/
+theorem temperature_rank (a b temperature : ℝ) :
+    (0 < temperature → (a / temperature < b / temperature ↔ a < b)) ∧
+    (temperature < 0 → (a / temperature < b / temperature ↔ b < a)) := by
+  constructor
+  · intro positive
+    exact div_lt_div_iff_of_pos_right positive
+  · intro negative
+    exact div_lt_div_right_of_neg negative
+
 /-- Choosing different groups can change risk by more than the gap between
 their leading classes, because the groups can contain other mass. -/
 theorem asymmetric_group_risk {x y z : ℝ} (ht : 0 < x + y + z)

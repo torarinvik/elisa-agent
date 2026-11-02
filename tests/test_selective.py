@@ -1411,6 +1411,32 @@ def test_ranked_distribution_rejects_invalid_temperature(decision, temperature) 
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("temperature", [0.0, -1.0, math.inf, math.nan])
+def test_calibration_paths_reject_invalid_temperature(native, temperature, monkeypatch) -> None:
+    from nca import ladder as ladder_module
+
+    if native and ladder_module._NATIVE is None:
+        pytest.skip("native calibration kernels are not built")
+    if not native:
+        monkeypatch.setattr(ladder_module, "_NATIVE", None)
+    rung = Rung(constant("invalid-temperature", (0.4, 0.6), 1.0))
+    ranked = rung.observe_ranked(None)
+    decision = ((0,), (1,))
+    rung.temperatures[None] = temperature
+    rung.temperatures[ladder_module.decision_key(decision)] = temperature
+    for observation in (ranked, ranked.logits):
+        for call in (lambda: rung.reading(observation),
+                     lambda: rung.risk(observation),
+                     lambda: rung.risk(observation, decision, reading=torch.tensor([0.4, 0.6])),
+                     lambda: rung.distribution(observation),
+                     lambda: rung.distribution(observation, decision),
+                     lambda: rung.log_distribution(observation),
+                     lambda: rung.log_distribution(observation, decision)):
+            with pytest.raises(ValueError, match="positive finite temperature"):
+                call()
+
+
+@pytest.mark.parametrize("native", [False, True])
 def test_legacy_risk_follows_numerical_reading_when_temperature_merges_order(native, monkeypatch) -> None:
     from nca import ladder as ladder_module
 

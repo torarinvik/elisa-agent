@@ -62,7 +62,12 @@ binary64 snapshot of the original weights; its `top` operation uses those
 weights for any supplied class subset. For positive temperature, the exact
 power transform is strictly increasing, and division by a common positive
 normalizer preserves its order. This is a building block for carrying
-ordering information. `Rung.risk` accepts a ranked observation and charges
+ordering information. Temperature scaling requires a finite positive
+temperature: a negative value reverses logit order, zero is undefined, and
+an infinite value does not retain the finite-temperature ordering guarantee.
+In exact real arithmetic, dividing logits by a positive temperature preserves
+their order and dividing by a negative temperature reverses it.
+`Rung.risk` accepts a ranked observation and charges
 the group containing the original highest-weight class; its tensor-only form
 selects from the numerical reading, including its tie behavior. In unequal groups, a tiny difference in the leading
 weights can change the group risk substantially because other classes add
