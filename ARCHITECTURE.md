@@ -1799,6 +1799,11 @@ agree.
 
 ## 30. Selection by evidence
 
+`evidence.attestations` owns evaluation, purity and exactness claim construction,
+issuer-policy checks and stored outcome lookup. The `evidence` package retains
+promotion, route bounds, execution checks and audits, and re-exports those claim
+helpers. Claim construction is not proof that the reported outcomes are true.
+
 `evidence` implements §30. `benchmark(samples)` identifies a benchmark by
 the `cache.value_digest` of its samples. `evaluation(identity, bench,
 outcomes, issuer)` is an `evaluation` attestation whose claim holds the
