@@ -1492,6 +1492,10 @@ audit call even when multiple audit draws are requested. Theorem 27.11 and
 They do not formalize the data-generation independence assumptions or
 upgrade a reused checking split into fresh validation.
 
+`nca.priors` exposes the structural-prior API; its `arithmetic` submodule owns
+checked log arithmetic, posterior-risk conversion and score comparisons. Existing
+imports through `nca.priors` retain the same functions and exception classes.
+
 `select_prior` owns snapshots of the base vector, alphabet and candidate
 order for the batch. A local cache retains each immutable prior model and
 base normalizer by candidate index and length; observation normalizers are
