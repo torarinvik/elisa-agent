@@ -40,3 +40,30 @@ grows linearly. This mechanism is working state only. Durable episodic storage,
 effect capabilities, state migration, eviction and continual-learning gates
 require additional mechanisms. Payload size, route complexity and effects can
 change transition cost; no constant-cost claim covers those changes.
+
+## 42.4 Declared effects and mediated authority
+
+Let G be the host-granted effect identifiers and D the expert's declared set.
+Admission under an explicit policy requires a known D ⊆ G. While running the
+expert, the effective grant is G ∩ D. Nested scopes intersect their requested
+grant with the current one, so no nested scope widens the original authority.
+A gateway operation e succeeds only if e belongs to both the active declaration
+and grant. In particular, e ∉ G or e ∉ D implies refusal before the gateway's
+operation, provided the gateway checks before acting.
+
+Declarations apply to expert callbacks, including demand, relevance and risk,
+not just the main invocation. Suspended continuations resume with the same
+declaration. Delegation and nested execution retain the caller's restriction;
+a requested sub-route cannot acquire effects absent from its caller. A supplied
+higher-order expert must therefore declare authority covering effects it
+intentionally delegates. Compiled per-row and batch callbacks use the same
+rule. Pure cache hits still undergo declaration admission.
+
+This is a conditional containment result for mediated operations only. An expert
+can bypass a cooperative gateway with ordinary Python or native system access;
+these mechanisms do not isolate hostile code, validate declarations or undo
+completed effects. Unknown declarations are refused under explicit restricted
+policies. Outside such policies, legacy execution is preserved. No permission
+identifier or resource implementation is built into the frame. Grant lookup and
+membership are independent of catalog size; grant-set intersection also depends
+on the sizes of the requested and inherited footprints.

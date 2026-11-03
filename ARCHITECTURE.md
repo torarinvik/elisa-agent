@@ -2488,3 +2488,12 @@ budgets apply per transition. `Execution/State.lean` proves conditional invarian
 preservation and failed-transition cursor preservation for immutable states.
 Mutable payloads and external effects are not rolled back or contained. Workspace
 history remains linear; this provides no durable or bounded episodic memory.
+
+`effects.effect_scope` establishes optional host grants; nested scopes intersect.
+`runtime` and `compile` admit declared effects before callbacks and use
+`effects.effect_call` to install each callback's declaration. Requests preserve
+the requester's authority across deferred resolution and continuation resumption.
+Contributor-owned resource gateways call `effects.require_effect` before acting.
+`Execution/Effects.lean` proves finite-set attenuation and conditional gateway
+refusal (§42.4). These checks do not intercept arbitrary host-language effects;
+untrusted implementations still need an OS/process isolation boundary.

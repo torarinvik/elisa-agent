@@ -26,6 +26,7 @@ from typing import Any
 
 from nca.abi import NOTHING, Demand, Module, Request, SequenceDemand, TypeId
 from nca.cache import ResultCache
+from nca.effects import check_effects, effect_call
 from nca.planner import Apply, Given, Map, Plan
 from nca.runtime import _LEDGER, RiskLedger, charge, result_key
 
@@ -66,13 +67,15 @@ class _Batch:
             for j, ledger in enumerate(ledgers):
                 token = _LEDGER.set(ledger)
                 try:
-                    outputs.append(module.invoke(*(column[j] for column in columns)))
+                    outputs.append(effect_call(module.manifest.effects, module.invoke,
+                                               *(column[j] for column in columns)))
                 finally:
                     _LEDGER.reset(token)
         elif batch is not None and columns:
-            outputs = list(batch(*columns))
+            outputs = effect_call(module.manifest.effects, lambda: list(batch(*columns)))
         else:
-            outputs = [module.invoke(*(column[j] for column in columns)) for j in range(rows)]
+            outputs = [effect_call(module.manifest.effects, module.invoke,
+                                   *(column[j] for column in columns)) for j in range(rows)]
         if any(isinstance(out, (Generator, Request)) for out in outputs):
             raise NotCompilable(f"{module.manifest.ref} needs the kernel")
         return outputs
@@ -150,12 +153,15 @@ class _Batch:
                        if elements else [])
             return [[None if j is None else results[j] for j in slots] for slots in where]
         module = node.module
+        check_effects(module.manifest.effects)
         declare = getattr(module, "demand", None)
         decides = getattr(module, "decides", None) or declare
         columns: list[list[Any]] = []
         for i, arg in enumerate(node.args):
-            arg_demands = [declare(i, d) if declare is not None else None for d in demands]
-            arg_decisions = [decides(i, d) if decides is not None else None for d in decisions]
+            arg_demands = [effect_call(module.manifest.effects, declare, i, d)
+                           if declare is not None else None for d in demands]
+            arg_decisions = [effect_call(module.manifest.effects, decides, i, d)
+                             if decides is not None else None for d in decisions]
             read = [j for j, d in enumerate(arg_demands) if d != NOTHING]
             column: list[Any] = [None] * len(envs)
             if read:

@@ -78,6 +78,7 @@ from typing import Any, Mapping, Protocol
 
 from nca.abi import NOTHING, Contract, Demand, Message, Module, Request, SequenceDemand, TypeId
 from nca.cache import ResultCache, value_digest
+from nca.effects import check_effects, effect_call, expert_scope
 from nca.planner import Given, Map, Plan, output_type
 from nca.workspace import Workspace
 
@@ -104,6 +105,7 @@ class Pending:
     output: TypeId
     parents: tuple[str, ...]
     chain: tuple[str, ...]
+    effects: frozenset[str] | None
 
 
 def _never(module: Module) -> bool:
@@ -150,12 +152,14 @@ def charge(ledger: RiskLedger | None, module: Module, payload: Any, decision: De
     if ledger is None or decision == NOTHING or getattr(module, "accounts_inside", False):
         return
     report = getattr(module, "risk", None)
-    reported = None if report is None else report(payload, *values)
+    reported = (None if report is None else
+                effect_call(module.manifest.effects, report, payload, *values))
     if reported is not None:
         ledger.charge += reported
         ledger.entries.append((module, tuple(values), reported))
         answering = getattr(module, "answering", None)
-        expert = module if answering is None else answering(*values)
+        expert = (module if answering is None else
+                  effect_call(module.manifest.effects, answering, *values))
         ledger.invocations.append(Invocation(expert, tuple(values), payload, reported))
     elif not ledger.exact(module):
         ledger.uncertified.append(module.manifest.module_id)
@@ -262,12 +266,15 @@ def execute(
             )
             workspace.post(result)
             return result
+        check_effects(node.module.manifest.effects)
         declare = getattr(node.module, "demand", None)
         decides = getattr(node.module, "decides", None) or declare
         args = []
         for i, arg in enumerate(node.args):
-            arg_demand = declare(i, demand) if declare is not None else None
-            arg_decision = decides(i, decision) if decides is not None else None
+            arg_demand = (effect_call(node.module.manifest.effects, declare, i, demand)
+                          if declare is not None else None)
+            arg_decision = (effect_call(node.module.manifest.effects, decides, i, decision)
+                            if decides is not None else None)
             args.append(unread(arg) if arg_demand == NOTHING
                         else run(arg, env, chain, arg_demand, arg_decision))
         relevant = getattr(node.module, "relevant", None)
@@ -277,7 +284,7 @@ def execute(
             if not isinstance(arg.payload, Pending):
                 continue
             if (relevant is not None and arg.payload.request.provisional is not None
-                    and not relevant(index, provisional)):
+                    and not effect_call(node.module.manifest.effects, relevant, index, provisional)):
                 args[index] = settle(arg.payload)
             else:
                 args[index] = force(arg)
@@ -304,20 +311,23 @@ def execute(
         workspace.spent += manifest.cost
         fillings = [filling(sub, inputs, manifest.ref, chain, demand)
                     for sub, (inputs, _) in zip(node.slots, contract.slots, strict=True)]
-        payload = node.module.invoke(*fillings, *(a.payload for a in args))
+        payload = effect_call(manifest.effects, node.module.invoke,
+                              *fillings, *(a.payload for a in args))
         if key is not None and not isinstance(payload, (Generator, Request)):
             if checking:
                 cache.check(key, stored, payload)
             else:
                 cache.store(key, payload)
         if isinstance(payload, Generator):
-            payload = resume(payload, manifest.module_id, manifest.ref, parents, chain)
+            payload = resume(payload, manifest.module_id, manifest.ref, parents, chain,
+                             manifest.effects)
         if isinstance(payload, Request):
             output = contract.output
             if payload.type_id != output:
                 raise UnresolvedRequest(
                     f"{manifest.ref} requested {payload.type_id}, not its output {output}")
-            pending = Pending(payload, manifest.module_id, manifest.ref, output, parents, chain)
+            pending = Pending(payload, manifest.module_id, manifest.ref, output, parents, chain,
+                              manifest.effects)
             return Message(output, pending, manifest.ref, parents)
         account(node.module, payload, decision, args)
         result = Message(contract.output, payload, manifest.ref, parents)
@@ -333,15 +343,18 @@ def execute(
                                                   [a.payload for a in args])
 
     def resume(program: Generator[Request, object, object], module_id: str, ref: str,
-               parents: tuple[str, ...], chain: tuple[str, ...]) -> object:
+               parents: tuple[str, ...], chain: tuple[str, ...],
+               effects: frozenset[str] | None) -> object:
         answer = None
         try:
             while True:
-                request = program.send(answer)
+                request = effect_call(effects, program.send, answer)
                 answer = delegate(request, module_id, ref, request.type_id, parents,
-                                  chain).payload
+                                  chain, effects).payload
         except StopIteration as done:
             return done.value
+        finally:
+            effect_call(effects, program.close)
 
     def settle(pending: Pending) -> Message:
         record = Message("kernel.skipped", pending.request, pending.ref, pending.parents)
@@ -356,10 +369,16 @@ def execute(
             return message
         pending = message.payload
         return delegate(pending.request, pending.module_id, pending.ref, pending.output,
-                        pending.parents, pending.chain)
+                        pending.parents, pending.chain, pending.effects)
 
     def delegate(request: Request, module_id: str, ref: str, output: TypeId,
-                 parents: tuple[str, ...], chain: tuple[str, ...]) -> Message:
+                 parents: tuple[str, ...], chain: tuple[str, ...],
+                 effects: frozenset[str] | None) -> Message:
+        with expert_scope(effects):
+            return serve_request(request, module_id, ref, output, parents, chain)
+
+    def serve_request(request: Request, module_id: str, ref: str, output: TypeId,
+                      parents: tuple[str, ...], chain: tuple[str, ...]) -> Message:
         chain = (*chain, module_id)
         sub_plan = None if resolver is None else resolver.resolve(request, chain)
         if sub_plan is None:
