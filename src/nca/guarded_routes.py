@@ -27,6 +27,28 @@ from nca.workspace import Workspace
 
 
 @dataclass(frozen=True)
+class ReplayContext:
+    """Memory, trust policy and per-execution resources for guarded publication.
+
+    This carries no permission grant: the caller still needs memory read access.
+    Router replay restricts effects to memory reads plus explicitly listed effects.
+    """
+
+    memory: MemoryStore
+    issuers: Issuers
+    max_cases: int
+    budget: int
+    cost_budget: float | None = None
+    max_losses: int = 0
+    effects: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if isinstance(self.effects, (str, bytes)):
+            raise TypeError("replay effects must be a collection of identifiers")
+        object.__setattr__(self, "effects", frozenset(self.effects))
+
+
+@dataclass(frozen=True)
 class ProtectedRoute:
     """A current plan with a stable retained-evaluation anchor, not a new content ID.
 
@@ -125,7 +147,7 @@ class RouteCatalog:
     def __init__(
         self,
         routes: Sequence[ProtectedRoute],
-        retained: Sequence[Attestation],
+        retained: Sequence[Attestation] | None,
         *,
         _previous: RouteCatalog | None = None,
     ) -> None:
@@ -168,18 +190,30 @@ class RouteCatalog:
             dependencies[route.anchor] = keys
             for key in keys:
                 dependents.setdefault(key, set()).add(route.anchor)
-        encoded = tuple(canonical(attestation.data()) for attestation in tuple(retained))
-        for data in encoded:
-            attestation = object_from(json.loads(data))
-            if (
-                not isinstance(attestation, Attestation)
-                or attestation.kind != EVALUATION
-                or attestation.claim.get("identity") not in entries
-            ):
-                raise ValueError("retained evaluation does not name a registered anchor")
+        if retained is None:
+            if _previous is None or entries.keys() != _previous.routes.keys():
+                raise ValueError("inherited evidence requires the same previous anchor set")
+            encoded = _previous._retained
+            by_anchor = _previous._by_anchor
+        else:
+            encoded = tuple(canonical(attestation.data()) for attestation in tuple(retained))
+            positions: dict[str, list[int]] = {}
+            for index, data in enumerate(encoded):
+                attestation = object_from(json.loads(data))
+                if (
+                    not isinstance(attestation, Attestation)
+                    or attestation.kind != EVALUATION
+                    or attestation.claim.get("identity") not in entries
+                ):
+                    raise ValueError("retained evaluation does not name a registered anchor")
+                positions.setdefault(attestation.claim["identity"], []).append(index)
+            by_anchor = MappingProxyType(
+                {anchor: tuple(indices) for anchor, indices in positions.items()}
+            )
         self._routes = MappingProxyType(entries)
         self._dependents = {key: frozenset(anchors) for key, anchors in dependents.items()}
         self._retained = encoded
+        self._by_anchor = by_anchor
         self._dependencies = MappingProxyType(dependencies)
         self._metadata = MappingProxyType(metadata)
 
@@ -212,10 +246,6 @@ class RouteCatalog:
         pairs; this method performs two executions per pair. Exceptions publish
         nothing. Snapshot copying/index rebuilding can cost linear catalog work.
         """
-        if isinstance(budget, bool) or not isinstance(budget, int) or budget < 0:
-            raise ValueError("budget must be a nonnegative integer")
-        if cost_budget is not None and (not math.isfinite(cost_budget) or cost_budget < 0):
-            raise ValueError("cost_budget must be finite and nonnegative")
         substitutions: dict[int, Module] = {}
         affected: set[str] = set()
         for old, new in tuple(changes):
@@ -236,14 +266,6 @@ class RouteCatalog:
             substitutions[id(old)] = new
             affected.update(self._dependents.get(id(old), ()))
         anchors = tuple(anchor for anchor in self.routes if anchor in affected)
-        assertions = tuple(
-            attestation
-            for attestation in self.retained
-            if attestation.claim["identity"] in affected
-        )
-        covered = {attestation.claim["identity"] for attestation in assertions}
-        if covered != affected:
-            raise ValueError("an affected route has no retained evaluation")
         memo: dict[int, Plan] = {}
         proposed = {
             anchor: replace(
@@ -251,10 +273,81 @@ class RouteCatalog:
             )
             for anchor in anchors
         }
+        return self._publish(
+            proposed,
+            memory,
+            issuers,
+            max_cases=max_cases,
+            budget=budget,
+            cost_budget=cost_budget,
+            max_losses=max_losses,
+        )
+
+    def validate_versions(self) -> None:
+        """Refuse metadata drift before activating or changing this snapshot."""
+        for module, declared in self._metadata.values():
+            if module.manifest != declared:
+                raise ValueError("active expert manifest changed in place")
+
+    def replan(
+        self,
+        plans: Mapping[str, Plan],
+        memory: MemoryStore,
+        issuers: Issuers,
+        *,
+        max_cases: int,
+        budget: int,
+        cost_budget: float | None = None,
+        max_losses: int = 0,
+    ) -> GuardedUpdate:
+        """Guard explicit root-plan changes without altering other expert versions.
+
+        Available inputs, output type, codec and scorer stay attached to the root.
+        Different internal wiring is allowed; opaque old objects are never edited.
+        """
+        proposed = {}
+        for anchor, candidate in tuple(plans.items()):
+            route = self.routes[anchor]
+            if output_type(candidate) != output_type(route.plan):
+                raise ValueError("candidate changes the protected route output type")
+            if candidate is not route.plan:
+                proposed[anchor] = replace(route, plan=candidate)
+        return self._publish(
+            proposed,
+            memory,
+            issuers,
+            max_cases=max_cases,
+            budget=budget,
+            cost_budget=cost_budget,
+            max_losses=max_losses,
+        )
+
+    def _publish(
+        self,
+        proposed: Mapping[str, ProtectedRoute],
+        memory: MemoryStore,
+        issuers: Issuers,
+        *,
+        max_cases: int,
+        budget: int,
+        cost_budget: float | None,
+        max_losses: int,
+    ) -> GuardedUpdate:
+        if isinstance(budget, bool) or not isinstance(budget, int) or budget < 0:
+            raise ValueError("budget must be a nonnegative integer")
+        if cost_budget is not None and (not math.isfinite(cost_budget) or cost_budget < 0):
+            raise ValueError("cost_budget must be finite and nonnegative")
+        self.validate_versions()
+        anchors = tuple(anchor for anchor in self.routes if anchor in proposed)
+        positions = sorted(index for anchor in anchors for index in self._by_anchor.get(anchor, ()))
+        assertions = tuple(object_from(json.loads(self._retained[index])) for index in positions)
+        covered = {attestation.claim["identity"] for attestation in assertions}
+        if covered != set(proposed):
+            raise ValueError("an affected route has no retained evaluation")
         candidate_catalog = (
             RouteCatalog(
                 tuple(proposed.get(anchor, route) for anchor, route in self.routes.items()),
-                self.retained,
+                None,
                 _previous=self,
             )
             if anchors

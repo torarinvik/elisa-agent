@@ -1,6 +1,6 @@
 """Managed explicit-route replacement cannot bypass affected-root replay."""
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -408,3 +408,34 @@ def test_in_place_manifest_changes_cannot_reuse_validation(
     with pytest.raises(ValueError, match="manifest changed in place"):
         catalog.replace(((old, Version("2")),), store, {"lab"}, max_cases=2, budget=1)
     assert old.calls == []
+
+
+def test_indexed_evidence_preserves_family_order_and_copy_isolation(
+    memory: tuple[MemoryStore, tuple[str, ...]],
+) -> None:
+    store, refs = memory
+    old, new = Version("1"), Version("2")
+    visited = []
+
+    def tracked(anchor: str) -> Callable[[MemoryRecord], tuple[Sequence[Message], bytes]]:
+        def read(record: MemoryRecord) -> tuple[Sequence[Message], bytes]:
+            visited.append(anchor)
+            return decode(record)
+
+        return read
+
+    first = replace(route("first", old), decode=tracked("first"))
+    second = replace(route("second", old), decode=tracked("second"))
+    catalog = RouteCatalog((first, second), (claim("second", refs[1:]), claim("first", refs[:1])))
+    result = catalog.replace(((old, new),), store, {"lab"}, max_cases=2, budget=1)
+    assert result.accepted
+    assert tuple(row.identity for row in result.retained.routes) == ("second", "first")
+    assert visited == ["second", "second", "first", "first"]
+    result.catalog.retained[0].claim["outcomes"] = "0"
+    assert catalog.retained[0].claim["outcomes"] == "1"
+    assert result.catalog.retained[0].claim["outcomes"] == "1"
+
+
+def test_evidence_inheritance_is_not_an_unchecked_public_constructor() -> None:
+    with pytest.raises(ValueError, match="inherited evidence"):
+        RouteCatalog((), None)

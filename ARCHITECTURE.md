@@ -115,6 +115,35 @@ They are not part of the core's tests or installation requirements.
 
 Numbered theorems in the theory chapters and their formal statements in `lean/NCA/`.
 
+### Guarantee status and proof debt
+
+The mappings below identify formal statements, not end-to-end verification of
+their Python implementations. In particular, the recent execution and memory
+lemmas are supporting special cases. None closes the following key obligations.
+Tests provide empirical evidence; they do not discharge universal statements.
+
+| Relied-on guarantee | Status | Evidence and remaining obligation |
+|---|---|---|
+| Deterministic state threading under replay | Open | Process tests cover supplied deterministic experts. Model transitions, nested execution and replay; expert determinism and immutable payloads remain trusted assumptions. |
+| Authority only narrows; every mediated operation is declared and granted | Open | Effect-scope tests cover runtime and compiled callbacks. Prove the full nested, batched, deferred and generator execution model. Cooperative gateways are trusted; arbitrary expert code is not isolated. |
+| Failed transitions preserve state, memory and ledgers | Open; not currently satisfied | Process cursors retain the committed state, but execution can retain charges and memory writes. Joint transaction semantics are required before claiming failure atomicity. |
+| Exact durable recall and bounded capacity | Open | `memoryInsert_recall`, `memoryInsert_preserves` and `memory_capacity` model a functional map and arithmetic admission. Model serialization, hash validation, concurrent transactions and persistent accounting; SQLite durability and hash collision resistance are trusted backend assumptions. |
+| Pinned routes and rejected updates preserve behavior | Open | Routing and publication lemmas cover abstract snapshots. Tests exercise old snapshots and rejected updates. Prove actual graph traversal, version pinning and publication; immutable expert implementations and resettable replay callbacks remain trusted. |
+| Every affected route is replayed | Open | Tests cover arguments, maps, slots and reverse-index rebuilding. Model the real dependency traversal and reverse index, including shared nodes; opaque implementations must remain pinned. |
+| Zero-loss admission preserves retained successes | Open end-to-end | `retained_zero_losses` proves the finite Boolean-list special case. Link attestation merging, record decoding, actual execution, scoring, both comparisons and atomic publication to that proposition. Scorer correctness is supplied by the caller. |
+| Sampled admission remains sound under adaptive updates | Open; not implemented | Exact replay gives no population or adaptive generalization bound. A sampled estimator needs finite-sample, multiplicity and adaptive-query accounting. |
+| Regional corrections preserve behavior outside their region | Open end-to-end | Existing regional tests and mathematical special cases do not verify the implementation and router error jointly for arbitrary contributed experts. |
+| Bounded retained evidence and safe eviction | Open; not implemented | Episodic byte admission does not bound evidence growth with task count. There is no eviction policy protecting live gate evidence or explicitly reducing stability when it is removed. |
+| Stable bounded plasticity; safe consolidation and migration | Open; not implemented | No universal regulator or composed update/eviction/consolidation/migration invariant is established. |
+| Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
+| Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
+| Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
+
+Every open row requires a mechanism-level theorem, explicit assumptions and
+executable differential or theorem-linked property tests before it is treated
+as proved. Interleavings between mechanisms are an additional obligation, not
+an inference from their separate tests.
+
 | THEORY.md | Lean name | File |
 |---|---|---|
 | [1.1](theory/foundations/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
@@ -2558,3 +2587,28 @@ calls. Existing snapshots retain their actual expert references. Active manifest
 changes. Exact unchanged route objects reuse validated dependency sets; every rewritten
 root is type-checked. Catalog copying/index rebuilding remains linear and is
 included in update measurements.
+
+`Router(catalog=...)` or `Router.protect` activates protected dispatch (§43.6).
+Bindings use available-input signatures and goals; unknown signatures return no
+route. Explicit binding choices resolve ambiguity without excluding other catalog
+roots from expert-update replay. Existing legacy pins must be represented by the
+same plan objects before activation. Protected legacy pin views are read-only.
+
+`Router.upgrade` and `rollback` require `ReplayContext` after activation and use
+`RouteCatalog.replan`, which preserves external signatures while allowing new
+internal wiring. `ReplayRejected` carries the complete refused result;
+`last_update` exposes the last completed check. `replace_experts` publishes the
+existing catalog-wide replacement result into the same router snapshot. A
+nonblocking mutation lock rejects reentrancy/concurrent mutation, and dispatch
+captures one state reference without waiting for replay. Refusal changes only
+its diagnostic receipt, not the catalog. `Execution/Memory.lean` proves abstract
+no-fallback dispatch and refusal lookup preservation, not Python concurrency.
+Unprotected routing remains an explicit research compatibility mode; supplying
+replay context to it is an error rather than silently skipping the gate.
+
+Router replay narrows effects to the memory-read effect plus `ReplayContext.effects`;
+the host must already grant them. Live irreversible actions must not be opted
+into replay. Plan-only catalog snapshots share frozen attestation bytes and their
+anchor index; selected assertions are parsed in original family order. Public
+`retained` views remain independent decoded objects. Root copying/index rebuilding
+still depends on total catalog size.

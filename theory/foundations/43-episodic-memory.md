@@ -129,3 +129,39 @@ rewritten roots require validation. Snapshot copying, index rebuilding and metad
 parsing can still require linear total catalog work even with few affected roots. Dynamic resolver changes, arbitrary
 manual router upgrades, evidence eviction and automatic artifact installation
 are outside this managed publication API.
+
+## 43.6 Protected dispatch, upgrades and rollback
+
+A protected dispatch snapshot contains a catalog C and a binding map B from
+(ordered available input types, goal type) to evidence anchors. A lookup uses one
+snapshot and returns C(B(request)); absent bindings return no route, with no
+fallback to an unregistered planner answer. Ambiguous signatures need an explicit
+binding. This is a configured coverage boundary, not a fixed catalog of tasks.
+
+Explicit replanning preserves a root's external input/output signature, codec and
+scoring rule while permitting arbitrary new internal wiring. Only that root's
+plan changes; opaque old experts and other roots retain their actual objects.
+Normal upgrades and rollback both use the same retained/current replay admission
+as expert replacement. Rollback is not automatically safe: an older version may
+lose a success acquired since its attestation. Removing a protected root is not
+an unchecked rollback operation.
+
+Mutations are serialized; lookups keep using the published snapshot while replay
+is running. Complete acceptance switches the catalog reference; refusal keeps the
+old catalog and records the refused check as diagnostic metadata. Reentrant or
+concurrent mutation is refused, not allowed to publish a stale prepared snapshot.
+This relies on the host's snapshot-selection and synchronization semantics; the
+functional no-fallback/refusal facts do not verify a language memory model.
+
+Activating protection must preserve every existing explicit pin and detach legacy
+mutable aliases. It cannot infer all tasks a previously unprotected planner might
+have answered. Once protected, arbitrary legacy pin edits, route removal, missing
+replay context and unregistered request signatures are refused. Initial task
+coverage and trusted case codecs remain host-supplied. Unprotected research
+routing still exists and makes no non-forgetting claim.
+
+Replay permissions default to the configured memory-read effect; additional
+resettable effects require an explicit replay allowlist and an existing host
+grant. Scope intersection never creates authority. Unknown/effectful experts
+without sufficient grants are refused before invocation. These are cooperative
+gateway checks, not interception of arbitrary Python/native system access.

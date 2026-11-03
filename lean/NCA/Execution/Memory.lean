@@ -67,3 +67,23 @@ theorem guardedPublish_invariant {S : Type} (P : S → Prop) (original proposed 
   cases retained <;> cases current <;> simp_all [guardedPublish]
 
 end NCA
+
+namespace NCA
+
+/-- Protected dispatch has no implicit fallback outside its registered bindings. -/
+def protectedLookup {Q A P : Type} (bindings : Q → Option A) (catalog : A → Option P)
+    (request : Q) : Option P := (bindings request).bind catalog
+
+theorem protectedLookup_missing {Q A P : Type} (bindings : Q → Option A)
+    (catalog : A → Option P) (request : Q) (missing : bindings request = none) :
+    protectedLookup bindings catalog request = none := by
+  simp [protectedLookup, missing]
+
+theorem protectedLookup_refused {Q A P : Type} (bindings : Q → Option A)
+    (original proposed : A → Option P) (request : Q) (retained current : Bool)
+    (refused : retained = false ∨ current = false) :
+    protectedLookup bindings (guardedPublish original proposed retained current) request =
+      protectedLookup bindings original request := by
+  rw [guardedPublish_refused original proposed retained current refused]
+
+end NCA
