@@ -134,3 +134,28 @@ attaching each to its predecessor lets depth grow linearly. Theorem 29.4(5)
 then adds the decoder's risk for a route. The bound is a worst case; errors at
 different depths may coincide on the same values, and in that case the risk
 grows more slowly.
+
+## 29.6 Migrating between hub versions
+
+A hub may be superseded: a new medium `H'` with its own members. Refitting
+every old member against `H'` costs one attachment per member. A *bridge*
+instead attaches `H'` to `H` once, yielding connectors `H → H'` and `H' → H`;
+both versions stay installed and the planner composes across them.
+
+**Theorem 29.6 (bridged migration).**
+
+1. Bridging keeps every connector of both versions, so every existing route
+   remains.
+2. A member `Tᵢ` of the old version reaches a member `Tⱼ` of the new one by
+   `Tᵢ → H → H' → Tⱼ`, and symmetrically.
+3. Bridging adds at most two connectors, whatever the number of members.
+4. A bridged route fails only if its encoder, the bridge or its decoder does,
+   so its risk is at most the sum of the three.
+
+*Proof.* (1) The bridged set is a union containing both versions. (2) The
+three connectors are present. (3) Cardinality of a union. (4) Union bound. ∎
+
+Migration therefore costs one attachment instead of one per member, and pays
+one extra hop of risk on cross-version routes. Members may later re-attach to
+`H'` directly, each through the ordinary gate, to remove that hop where the
+evidence warrants it; old members need never move.

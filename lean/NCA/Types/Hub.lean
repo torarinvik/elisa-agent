@@ -84,4 +84,42 @@ theorem attachment_depth_risk {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω
     _ ≤ ∑ _i ∈ range d, ε := sum_le_sum fun i _ => each i
     _ = d * ε := by rw [sum_const, card_range, nsmul_eq_mul]
 
+/-- Migration (§29.6): the connectors of an old and a new hub version over any
+vertex type, plus a bridge pair between the hubs `h` and `h'`. -/
+def bridged {V : Type*} [DecidableEq V] (old new : Finset (V × V)) (h h' : V) :
+    Finset (V × V) :=
+  old ∪ new ∪ {(h, h'), (h', h)}
+
+/-- Bridging keeps every connector of both versions, so every existing route
+remains. -/
+theorem bridged_keeps {V : Type*} [DecidableEq V] (old new : Finset (V × V)) (h h' : V) :
+    old ⊆ bridged old new h h' ∧ new ⊆ bridged old new h h' := by
+  unfold bridged
+  exact ⟨subset_union_left.trans subset_union_left, subset_union_right.trans subset_union_left⟩
+
+/-- A member of the old version reaches a member of the new one by encoder,
+bridge and decoder. -/
+theorem bridged_routes {V : Type*} [DecidableEq V] {old new : Finset (V × V)} {h h' i j : V}
+    (hi : (i, h) ∈ old) (hj : (h', j) ∈ new) :
+    (i, h) ∈ bridged old new h h' ∧ (h, h') ∈ bridged old new h h' ∧
+      (h', j) ∈ bridged old new h h' := by
+  unfold bridged
+  refine ⟨mem_union_left _ (mem_union_left _ hi), mem_union_right _ (by simp),
+    mem_union_left _ (mem_union_right _ hj)⟩
+
+/-- Bridging adds at most two connectors, whatever the number of members. -/
+theorem bridged_card {V : Type*} [DecidableEq V] (old new : Finset (V × V)) (h h' : V) :
+    (bridged old new h h').card ≤ old.card + new.card + 2 := by
+  unfold bridged
+  calc (old ∪ new ∪ {(h, h'), (h', h)}).card
+      ≤ (old ∪ new).card + ({(h, h'), (h', h)} : Finset (V × V)).card := card_union_le _ _
+    _ ≤ old.card + new.card + 2 := add_le_add (card_union_le _ _) (card_le_two)
+
+/-- A bridged route fails only if its encoder, the bridge or its decoder does. -/
+theorem bridged_route_risk {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (encoderFails bridgeFails decoderFails : Set Ω) {a b c : ENNReal}
+    (ha : μ encoderFails ≤ a) (hb : μ bridgeFails ≤ b) (hc : μ decoderFails ≤ c) :
+    μ (encoderFails ∪ bridgeFails ∪ decoderFails) ≤ a + b + c :=
+  (measure_union_le _ _).trans (add_le_add ((measure_union_le _ _).trans (add_le_add ha hb)) hc)
+
 end NCA

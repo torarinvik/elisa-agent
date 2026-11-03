@@ -4,7 +4,7 @@ from functools import partial
 
 import pytest
 
-from nca.abi import Contract, Message
+from nca.abi import Contract, Message, Module
 from nca.learning.discovery import fit_decoder
 from nca.learning.hub import attach
 from nca.planner import plan
@@ -46,3 +46,35 @@ def test_attachment_requires_a_partner_encoder_into_the_hub() -> None:
     founder = fit(Contract(("type0",), HUB), ["a"], ["a"])
     with pytest.raises(ValueError, match="paired"):
         attach("type1", HUB, founder, [], fit)
+
+
+
+def hub_version(hub: str, members: range) -> tuple[list[Module], Module]:
+    """A hub founded by its first member, every other member attached to it."""
+    values = list(range(17))
+    first = members[0]
+    exact = [code(first, v) for v in values]
+    founder = fit(Contract((f"type{first}",), hub), exact, exact)
+    modules = [founder, fit(Contract((hub,), f"type{first}"), exact, exact)]
+    for k in members[1:]:
+        modules += attach(f"type{k}", hub, founder,
+                          [(code(k, v), code(first, v)) for v in values], fit)
+    return modules, founder
+
+
+def test_a_bridge_joins_hub_versions_and_keeps_old_routes() -> None:
+    """``NCA.bridged_keeps`` and ``NCA.bridged_routes``: the new hub attaches
+    to the old one once, through the old founder."""
+    old, old_founder = hub_version(HUB, range(0, 3))
+    new, _ = hub_version("hub.next", range(3, 6))
+    pairs = [(code(3, v), code(0, v)) for v in range(17)]
+    bridged = [*old, *new, *attach("hub.next", HUB, old_founder, pairs, fit)]
+    for version, i, j in ((old, 0, 2), (new, 4, 5)):
+        assert plan(bridged, (f"type{i}",), f"type{j}") == plan(version, (f"type{i}",),
+                                                                f"type{j}")
+    for i, j in ((1, 5), (4, 2)):
+        route = plan(bridged, (f"type{i}",), f"type{j}")
+        assert route is not None
+        for v in range(17):
+            out = execute(route, (Message(f"type{i}", code(i, v), "input"),), Workspace(), 4)
+            assert out.payload == code(j, v)
