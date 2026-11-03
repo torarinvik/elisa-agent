@@ -12,9 +12,9 @@ decrease with every invocation (``NCA.serve``); chain exclusion is the
 default.
 
 With an ``acquire`` hook, a request no installed expert can serve becomes a
-typed sub-goal: the kernel asks the hook for a missing connector through
-``planner.gaps.fill`` (``NCA.gap_iff``), installs what it supplies and serves
-the request through it. Acquired experts are appended, so every route found
+typed sub-goal: the kernel asks the hook for the fewest missing connectors
+through ``planner.gaps.repair`` (``NCA.Repair``), installs what it supplies and
+serves the request through them. Acquired experts are appended, so every route found
 before remains (Theorem 3.3).
 
 Otherwise the library is fixed when the kernel is created. One planner index is kept per
@@ -30,17 +30,18 @@ from collections.abc import Sequence
 from nca.abi import Module, Request
 from nca.index import ProducerIndex
 from nca.planner import Plan, plan_stable_indexed
-from nca.planner.gaps import Acquire, fill
+from nca.planner.gaps import Acquire, repair
 
 
 class Kernel:
     def __init__(self, modules: Sequence[Module], recursive: bool = False,
                  index: ProducerIndex | None = None, acquire: Acquire | None = None,
-                 attempts: int = 8) -> None:
+                 attempts: int = 8, missing: int = 1) -> None:
         """``index``, if given, must index exactly ``modules``; it is shared.
-        ``acquire`` is asked for at most ``attempts`` gaps per request."""
+        ``acquire`` is asked at most ``attempts`` times per request, for
+        routes needing at most ``missing`` new connectors."""
         self.modules = tuple(modules)
-        self.acquire, self.attempts = acquire, attempts
+        self.acquire, self.attempts, self.missing = acquire, attempts, missing
         self.acquired: list[Module] = []
         self.recursive = recursive
         self.requests = 0
@@ -58,10 +59,11 @@ class Kernel:
         if route is not None or self.acquire is None:
             return route
         usable = [m for m in self.modules if m.manifest.module_id not in excluded]
-        filled = fill(usable, request.types, request.type_id, self.acquire, self.attempts)
-        if filled is None:
+        repaired = repair(usable, request.types, request.type_id, self.acquire, self.attempts,
+                          self.missing)
+        if repaired is None:
             return None
-        self.modules += (filled.module,)
-        self.acquired.append(filled.module)
+        self.modules += repaired.acquired
+        self.acquired += repaired.acquired
         self._indexes.clear()
-        return filled.route
+        return repaired.route

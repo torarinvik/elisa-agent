@@ -4,8 +4,9 @@ Types share one latent value under private permutation codes. The library is
 a sparse set of exact connectors; a task asks for a goal type the planner
 cannot reach from its input. Paired data exists for a random fraction of type
 pairs, and the acquirer fits a connector by ``fit_decoder`` from 256 pairs
-when data exists. ``gaps`` requests connectors in ``planner.gaps.fill`` order;
-``random`` requests untried pairs at random until a route exists. Measures
+when data exists and refuses otherwise. ``repair1`` and ``repair3`` acquire
+through ``planner.gaps.repair`` for routes needing at most one or three new
+connectors; ``random`` requests untried pairs at random until a route exists. Measures
 requests and acquisitions per task, acquisitions the final route does not use,
 repair rate and accuracy of the repaired route.
 Run: python benchmarks/gaps.py.
@@ -22,7 +23,7 @@ from typing import Any
 from nca.abi import Contract, Manifest, Message, Module
 from nca.learning.discovery import fit_decoder
 from nca.planner import Apply, Map, Plan, plan
-from nca.planner.gaps import fill, gaps
+from nca.planner.gaps import repair
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -65,9 +66,7 @@ def run(policy: str, seed: int) -> dict[str, float]:
     requests = acquisitions = unused = repaired = correct = total = tried = 0
     while tried < TASKS:
         s, g = rng.sample(range(TYPES), 2)
-        if plan(library, (names[s],), names[g]) is not None or not any(
-                (int(gap.contract.inputs[0][1:]), int(gap.contract.output[1:])) in data
-                for gap in gaps(library, (names[s],), names[g])):
+        if plan(library, (names[s],), names[g]) is not None:
             continue
         tried += 1
         acquired: list[Module] = []
@@ -85,9 +84,10 @@ def run(policy: str, seed: int) -> dict[str, float]:
             return module
 
         route = None
-        if policy == "gaps":
-            filled = fill(library, (names[s],), names[g], acquire, attempts=10 ** 6)
-            route = None if filled is None else filled.route
+        if policy.startswith("repair"):
+            result = repair(library, (names[s],), names[g], acquire, attempts=10 ** 6,
+                              missing=int(policy[-1]))
+            route = None if result is None else result.route
         else:
             pairs = [(i, j) for i in range(TYPES) for j in range(TYPES) if i != j]
             rng.shuffle(pairs)
@@ -116,7 +116,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3704, 3705, 3706])
     args = parser.parse_args()
-    for policy in ("gaps", "random"):
+    for policy in ("repair1", "repair3", "random"):
         runs = [run(policy, seed) for seed in args.seeds]
         print(json.dumps({"policy": policy, **{
             key: (statistics.mean(r[key] for r in runs), statistics.stdev(r[key] for r in runs))

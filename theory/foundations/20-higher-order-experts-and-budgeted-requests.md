@@ -310,3 +310,27 @@ requested connector, once supplied, is used. The theorem covers unary steps.
 For experts with several inputs, each candidate is confirmed by planning with
 a stand-in, so the set returned agrees with the planner; whether a candidate
 is learnable, and in what order to ask, is the acquirer's concern.
+
+When any connector may be requested, the direct connector `s → g` is always a
+gap, so one is always enough. Several are needed only when an acquirer refuses
+some, for lack of data or because what it learns fails the gate. Let `N`
+relate the types between which a connector may still be obtained, and let
+`Repair E N k s g` hold when `g` is reached from `s` by routes of `E` joined by
+at most `k` connectors allowed by `N`.
+
+**Theorem 20.12 (repairs).**
+
+1. Whatever connectors `F ⊆ N` are added, a route using them `n` times is a
+   repair with `n` connectors.
+2. A repair with `k` connectors is realized by adding a list of at most `k`
+   connectors from `N`, used at most `k` times.
+
+*Proof.* (1) By induction on the route: an installed step extends a repair,
+and an added one extends it by one connector. (2) By induction on `k`, adding
+each connector of the repair. ∎
+
+So the least `k` with a repair is the least number of connectors that must be
+obtained, and a 0-1 shortest-path search, where installed steps cost nothing
+and allowed connectors cost one, finds it. Each refusal removes a pair from
+`N`; the search is repeated over what remains, so connectors already supplied
+are reused and none is requested twice.
