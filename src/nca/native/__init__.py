@@ -38,12 +38,16 @@ def load(name: str, package: str = __name__) -> ModuleType | None:
 
 
 def build(compiler: Path, sources: list[Path]) -> None:
-    """Build each Elisa source into an extension module beside it."""
+    """Build strict-FP Elisa extensions beside their entry sources.
+
+    Reference equivalence and conservative error accounting require ordinary
+    division, including subnormal denominators, without reciprocal relaxation.
+    """
     suffix = sysconfig.get_config_var("EXT_SUFFIX")
     environment = dict(os.environ, PYTHON_BIN=sys.executable)
     for source in sources:
         out = source.with_suffix(suffix)
-        subprocess.run([str(compiler), "-emit", "pymodule-so", "-o", str(out), str(source)],
+        subprocess.run([str(compiler), "-fstrict-fp", "-emit", "pymodule-so", "-o", str(out), str(source)],
                        check=True, env=environment)
 
 

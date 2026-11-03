@@ -264,6 +264,13 @@ then at least `R` under round-to-nearest, gradual underflow, and correctly
 rounded `nextafter`. This is a coverage guarantee for the supplied binary64
 bound, not a certificate that the bound itself is accurate.
 
+These arithmetic assumptions apply to the stated primitive operation sequence:
+reassociation, contraction and replacement of division by reciprocal
+multiplication are excluded unless separately justified. Round-to-nearest alone
+does not exclude those transformations. For a sufficiently small positive
+subnormal `b`, `b / b` is finite while the intermediate `1 / b` overflows;
+the transformed expression need not agree with the original quotient.
+
 If each reported charge is at least the sum of its allocated share and its
 within-certificate risk, the sum of reported charges covers `R` plus the sum
 of those within-certificate risks. In binary64, each such addition must round

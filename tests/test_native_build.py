@@ -34,3 +34,20 @@ def test_builder_rejects_a_missing_package(monkeypatch: pytest.MonkeyPatch) -> N
                                       "hypothetical_missing_package"])
     with pytest.raises(SystemExit):
         native.main()
+
+
+def test_build_requires_strict_floating_point_for_reference_equivalence(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def run(command: list[str], *, check: bool, env: dict[str, str]) -> None:
+        calls.append((command, check, env))
+
+    monkeypatch.setattr(native.subprocess, "run", run)
+    compiler, source = tmp_path / "compiler", tmp_path / "kernel.elisa"
+    native.build(compiler, [source])
+    assert len(calls) == 1
+    command, check, environment = calls[0]
+    assert command[0] == str(compiler) and command[-1] == str(source)
+    assert "-fstrict-fp" in command
+    assert check and environment["PYTHON_BIN"] == sys.executable

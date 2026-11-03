@@ -132,6 +132,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Relied-on guarantee | Status | Evidence and remaining obligation |
 |---|---|---|
 | Artifact identity remains bound to admitted contents | Open; not currently enforced for mutable nested metadata | Frozen dataclasses do not freeze caller-owned primitive argument mappings or lists. Mutation after `Store.put` can make `store.get(ref).ref != ref`. Model admission, reads and persistence, and remove or explicitly constrain this mutation path before claiming immutable artifact identity. |
+| Native arithmetic implements the reference account | Open end-to-end | Differential tests include subnormal allocation and extreme temperatures. Builds require strict FP; compiler lowering, gradual underflow and external mathematical routines remain trusted. Exact-real lemmas and passing numerical tests do not prove arbitrary compiled floating-point execution. |
 | Deterministic state threading under replay | Open | Process tests cover supplied deterministic experts. Model transitions, nested execution and replay; expert determinism and immutable payloads remain trusted assumptions. |
 | Authority only narrows; every mediated operation is declared and granted | Open | Effect-scope tests cover runtime and compiled callbacks. Prove the full nested, batched, deferred and generator execution model. Cooperative gateways are trusted; arbitrary expert code is not isolated. |
 | Failed transitions preserve state, memory and ledgers | Open; not currently satisfied | Process cursors retain the committed state, but execution can retain charges and memory writes. Joint transaction semantics are required before claiming failure atomicity. |
@@ -421,6 +422,15 @@ the kernel is not built or `NCA_NATIVE=0`. Kernels that only a domain needs
 live in that independent package. Build any installed package's kernels with
 `python -m nca.native --package <import-namespace>`; the builder has no package catalog. `decoding.elisa` runs the exact
 passes of §21.4 in linear space with per-row rescaling (THEORY §23.7).
+Its implementation is grouped under `native/decoding_parts/` into weights,
+partitions, priors, cursors, decisions and calibration. The entry file uses
+Elisa's relative `include` mechanism and retains the Python export declaration.
+Include fragments use `.elisa.inc`; the generic builder discovers `.elisa`
+entry files, and distributions ship the fragments alongside them.
+The builder passes `-fstrict-fp`: conservative sums, compensated arithmetic and
+subnormal divisions rely on strict operation semantics. Default reciprocal
+relaxation can overflow an intermediate even when the original quotient is
+finite; the reference-equivalence tests include these boundary cases.
 It also exports `advance_ragged_log`, `retreat_ragged_log`, `scores_ragged_log`
 and `trace_ragged`, the banded cursor of §23.4
 (`trace_ragged` reads the decoded sequence off the max tables, `Split.best`, and
