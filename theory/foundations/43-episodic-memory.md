@@ -218,3 +218,12 @@ conservative: a proposal with `0 < ℓ ≤ ε` is admitted with probability only
 `(1-ℓ)^{mₖ}`. Pools are consumed, so sustained admission needs newly retained
 cases, which `add` appends behind every cursor; refusal for missing evidence
 is never acceptance. As in §43.4, the caller must name every affected route.
+
+A route catalog (§43.5) using sampled admission counts a drawn case as lost when
+the candidate fails where either the original baseline or the current route
+succeeds, so successes acquired after the original attestation stay protected
+as under exact replay. This is still a fixed per-case loss for each proposal,
+so Theorem 43.1 applies with `ℓ` the probability of that combined loss. One
+sampler is shared by every snapshot of a catalog, so decisions are numbered and
+cases retired across versions, and a router passes it through its replay
+context.

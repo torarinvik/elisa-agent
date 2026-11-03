@@ -2685,6 +2685,12 @@ route without enough unused cases refuses the decision without drawing or
 spending budget, and `add` appends newly retained cases behind every cursor.
 `Reliability/SampledGate.lean` proves the accounting of Theorem 43.1;
 `benchmarks/sampled_gate.py` compares it with exact replay.
+`RouteCatalog.replace`, `replan` and the router accept the gate through
+`ReplayContext.sampler`. In sampled mode the catalog requires zero losses,
+checks that the sampler holds evidence for every affected anchor, and counts a
+drawn case as lost when the proposed plan fails where the original baseline or
+the current plan succeeds; the current plan runs only when needed.
+`GuardedUpdate.sampled` then carries the decision and the exact gates are empty.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;

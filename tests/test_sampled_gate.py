@@ -60,11 +60,11 @@ def test_no_case_informs_two_decisions_even_after_refusal_or_error(memory: Memor
     store, refs = memory
     sampled = gate(store, (retained("old", refs, (True,) * len(refs)),))
     seen: list[str] = []
-    rejected = sampled.decide(["old"], lambda identity, record: False)
+    rejected = sampled.decide(["old"], lambda identity, record, baseline: baseline)
     assert not rejected.accepted and rejected.index == 0
     seen += rejected.routes[0].records
 
-    def failing(identity: str, record: MemoryRecord) -> bool:
+    def failing(identity: str, record: MemoryRecord, baseline: bool) -> bool:
         raise RuntimeError("evaluator failed")
 
     before = sampled.remaining("old")
@@ -72,7 +72,7 @@ def test_no_case_informs_two_decisions_even_after_refusal_or_error(memory: Memor
         sampled.decide(["old"], failing)
     assert sampled.remaining("old") < before
     while True:
-        decision = sampled.decide(["old"], lambda identity, record: True)
+        decision = sampled.decide(["old"], lambda identity, record, baseline: False)
         if decision.insufficient:
             break
         assert decision.accepted
@@ -86,9 +86,9 @@ def test_insufficient_evidence_refuses_without_drawing_or_spending(memory: Memor
                            retained("large", refs[2:], (True,) * 118)))
     called: list[str] = []
 
-    def evaluate(identity: str, record: MemoryRecord) -> bool:
+    def evaluate(identity: str, record: MemoryRecord, baseline: bool) -> bool:
         called.append(identity)
-        return True
+        return False
 
     refused = sampled.decide(["small", "large"], evaluate)
     assert refused.insufficient == ("small",) and refused.index is None
@@ -97,29 +97,30 @@ def test_insufficient_evidence_refuses_without_drawing_or_spending(memory: Memor
     assert sampled.decide(["large"], evaluate).index == 0
 
 
-def test_only_baseline_successes_are_replayed(memory: Memory) -> None:
+def test_losses_see_each_drawn_case_with_its_baseline(memory: Memory) -> None:
     store, refs = memory
     bits = tuple(i % 2 == 0 for i in range(len(refs)))
     sampled = gate(store, (retained("old", refs, bits),))
-    replayed: list[bytes] = []
+    seen: dict[bytes, bool] = {}
 
-    def evaluate(identity: str, record: MemoryRecord) -> bool:
-        replayed.append(record.payload)
-        return False
+    def loss(identity: str, record: MemoryRecord, baseline: bool) -> bool:
+        seen[record.payload] = baseline
+        return baseline
 
-    decision = sampled.decide(["old"], evaluate)
-    successes = {str(i).encode() for i in range(0, len(refs), 2)}
-    assert set(replayed) <= successes
+    decision = sampled.decide(["old"], loss)
     drawn = {store.get(ref).payload for ref in decision.routes[0].records}
-    assert decision.routes[0].losses == len(drawn & successes) == len(replayed)
+    assert seen.keys() == drawn
+    assert all(baseline == (int(payload) % 2 == 0) for payload, baseline in seen.items())
+    assert decision.routes[0].losses == sum(seen.values())
+    assert not decision.accepted
 
 
 def test_added_cases_queue_behind_the_cursor_and_conflicts_fail(memory: Memory) -> None:
     store, refs = memory
     sampled = gate(store, (retained("old", refs[:60], (True,) * 60),))
-    first = sampled.decide(["old"], lambda identity, record: True)
+    first = sampled.decide(["old"], lambda identity, record, baseline: False)
     sampled.add((retained("old", refs[:90], (True,) * 90),))
     assert sampled.remaining("old") == 90 - len(first.routes[0].records)
     with pytest.raises(ValueError, match="disagree"):
         sampled.add((retained("old", refs[:1], (False,)),))
-    assert sampled.decide([], lambda identity, record: False).accepted
+    assert sampled.decide([], lambda identity, record, baseline: baseline).accepted

@@ -212,6 +212,7 @@ class Router:
                 budget=replay.budget,
                 cost_budget=replay.cost_budget,
                 max_losses=replay.max_losses,
+                sampler=replay.sampler,
             )
         self._finish(state, update)
         if not update.accepted:
@@ -281,6 +282,7 @@ class Router:
                     budget=replay.budget,
                     cost_budget=replay.cost_budget,
                     max_losses=replay.max_losses,
+                    sampler=replay.sampler,
                 )
             self._finish(state, update)
             return update

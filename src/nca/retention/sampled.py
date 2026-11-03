@@ -1,7 +1,7 @@
 """Sampled admission on fresh retained cases (§43.7, Theorem 43.1).
 
 Each decision draws ``m`` unused cases from every affected route's retained
-pool and accepts only if no baseline success fails. Decision ``k`` spends
+pool and accepts only if the proposal loses none of them. Decision ``k`` spends
 ``δ / ((k+1)(k+2))`` of the confidence budget, split evenly over its routes,
 and ``m`` is the smallest size with ``log(1/level) ≤ ε·m``
 (``NCA.zeroLoss_miss``), so its cost depends on the tolerance, the confidence
@@ -48,7 +48,7 @@ class SampledRoute:
     records: tuple[Ref, ...]
     """The fresh cases drawn, baseline successes and failures alike."""
     losses: int
-    """Drawn baseline successes the proposal fails; failures need no replay."""
+    """Drawn cases the proposal loses."""
 
     @property
     def accepted(self) -> bool:
@@ -108,16 +108,23 @@ class SampledGate:
             pool.extend(fresh)
             self._cursors.setdefault(identity, 0)
 
+    def knows(self, identity: str) -> bool:
+        """Whether trusted retained cases were ever added for ``identity``."""
+        return identity in self._pools
+
     def remaining(self, identity: str) -> int:
         return len(self._pools.get(identity, ())) - self._cursors.get(identity, 0)
 
     def decide(self, identities: Sequence[str],
-               evaluate: Callable[[str, MemoryRecord], bool]) -> SampledDecision:
+               loss: Callable[[str, MemoryRecord, bool], bool]) -> SampledDecision:
         """Admit a proposal only if fresh cases show no loss on any route.
 
         Refusal for insufficient evidence draws nothing and spends no budget.
         Otherwise cases are consumed before evaluation, so an error still
-        retires them. ``evaluate`` scores the proposed version on one record.
+        retires them. ``loss(identity, record, baseline)`` says whether the
+        proposal loses the case, given whether the baseline succeeded on it;
+        the usual loss is ``baseline and not correct``, and a caller may count
+        further losses (Theorem 43.1 holds for any fixed per-case loss).
         """
         affected = tuple(dict.fromkeys(identities))
         if not affected:
@@ -138,11 +145,10 @@ class SampledGate:
         for identity in affected:
             losses = 0
             for reference, bit in drawn[identity]:
-                if bit == "1":
-                    answer = evaluate(identity, self._memory.get(reference))
-                    if type(answer) is not bool:
-                        raise TypeError("sampled evaluator must return a correctness boolean")
-                    losses += not answer
+                lost = loss(identity, self._memory.get(reference), bit == "1")
+                if type(lost) is not bool:
+                    raise TypeError("sampled loss must be a boolean")
+                losses += lost
             routes.append(SampledRoute(identity, tuple(ref for ref, _ in drawn[identity]),
                                        losses))
         return SampledDecision(index, cases, tuple(routes))

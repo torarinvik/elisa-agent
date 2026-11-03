@@ -16,14 +16,20 @@ import json
 import random
 import statistics
 import tempfile
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from time import perf_counter
 
+from nca.abi import Contract, Manifest, Message
 from nca.effects import effect_scope, expert_scope
 from nca.evidence import benchmark, evaluation
 from nca.memory import MemoryRecord, MemoryStore
 from nca.objects import Attestation
+from nca.planner import Apply, Given
 from nca.retention import replay_gate
+from nca.retention.routes import ProtectedRoute, RouteCatalog
 from nca.retention.sampled import SampledGate
 
 TOLERANCE, CONFIDENCE, SUCCESS = 0.05, 0.05, 0.8
@@ -82,7 +88,8 @@ def cost(steps: int, seed: int, routes: int = 8, growth: int = 80) -> dict[str, 
                     exact_refused += not exact.accepted
                     counted = 0
                     start = perf_counter()
-                    decision = gate.decide(affected, score)
+                    decision = gate.decide(affected, lambda identity, record, baseline:
+                                           baseline and not score(identity, record))
                     sampled_seconds += perf_counter() - start
                     sampled_cases += counted
                     last_sampled = counted
@@ -93,6 +100,64 @@ def cost(steps: int, seed: int, routes: int = 8, growth: int = 80) -> dict[str, 
             "last_exact": last_exact, "last_sampled": last_sampled,
             "exact_seconds": exact_seconds, "sampled_seconds": sampled_seconds,
             "exact_refused": exact_refused, "sampled_refused": sampled_refused}
+
+
+@dataclass
+class Reader:
+    version: str
+    faulty: bool = False
+    calls: int = 0
+
+    @property
+    def manifest(self) -> Manifest:
+        return Manifest("reader", self.version, Contract(("input",), "output"),
+                        effects=frozenset())
+
+    def invoke(self, value: bytes) -> bytes:
+        self.calls += 1
+        return b"fault" if self.faulty else value
+
+
+def decode(record: MemoryRecord) -> tuple[Sequence[Message], bytes]:
+    return (Message("input", record.payload, "input"),), record.payload
+
+
+def same(output: Any, label: Any) -> bool:
+    return output == label
+
+
+def catalog(size: int, seed: int) -> dict[str, int]:
+    """Expert invocations for a faulty then a faithful update, by gate."""
+    rng = random.Random(seed)
+    effects = frozenset({"bench.read", "bench.write"})
+    result: dict[str, int] = {"cases": size}
+    with tempfile.TemporaryDirectory(prefix="nca-sampled-catalog-") as directory:
+        memory = MemoryStore(Path(directory) / "memory.sqlite", capacity_bytes=size * 512,
+                             read_effect="bench.read", write_effect="bench.write")
+        try:
+            with effect_scope(effects), expert_scope(effects):
+                refs = [memory.append(MemoryRecord("case", rng.randbytes(16), "bench@1",
+                                                   float(i))) for i in range(size)]
+                claims = (evaluation("root", benchmark(refs), [True] * size, "lab",
+                                     records=refs),)
+                for mode in ("exact", "sampled"):
+                    old = Reader("1")
+                    routes = RouteCatalog((ProtectedRoute(
+                        "root", ("input",), Apply(old, (Given("input", 0),)), decode, same),),
+                        claims)
+                    gate = (SampledGate(memory, claims, {"lab"}, tolerance=TOLERANCE,
+                                        confidence=CONFIDENCE, seed=seed, max_cases=size)
+                            if mode == "sampled" else None)
+                    for label, candidate in (("faulty", Reader("2", faulty=True)),
+                                             ("faithful", Reader("3"))):
+                        old.calls = 0
+                        update = routes.replace(((old, candidate),), memory, {"lab"},
+                                                max_cases=size, budget=1, sampler=gate)
+                        result[f"{mode}_{label}_invocations"] = old.calls + candidate.calls
+                        result[f"{mode}_{label}_accepted"] = int(update.accepted)
+        finally:
+            memory.close()
+    return result
 
 
 class Table:
@@ -118,8 +183,9 @@ def validity(streams: int, decisions: int, loss: float, seed: int) -> dict[str, 
         any_admitted = False
         for k in range(decisions):
             proposal = stream * 1000 + k
-            decision = gate.decide(["a", "b"], lambda identity, record:
-                                   identity == "b" or not fails(proposal, record.ref, loss))
+            decision = gate.decide(["a", "b"], lambda identity, record, baseline:
+                                   baseline and identity == "a"
+                                   and fails(proposal, record.ref, loss))
             assert not decision.insufficient
             admitted += decision.accepted
             any_admitted |= decision.accepted
@@ -140,6 +206,9 @@ def main() -> None:
                          statistics.stdev(float(run[key]) for run in runs))
                    for key in runs[0] if key != "steps"}
         print(json.dumps({"steps": steps, **summary}))
+    for size in (1000, 4000, 16000):
+        for seed in (3683, 3684, 3685):
+            print(json.dumps(catalog(size, seed)))
     for loss in (1.05 * TOLERANCE, 2 * TOLERANCE):
         print(json.dumps(validity(args.streams, 20, loss, args.seeds[0])))
 

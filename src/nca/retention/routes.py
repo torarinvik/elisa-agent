@@ -21,6 +21,7 @@ from nca.memory import MemoryBackend, MemoryRecord
 from nca.objects import Attestation, canonical, object_from
 from nca.planner import Apply, Given, Map, Plan, output_type
 from nca.retention import ReplayGate, ReplayResult, replay_gate
+from nca.retention.sampled import SampledDecision, SampledGate
 from nca.router import infer
 from nca.runtime import Resolver, RiskLedger, execute
 from nca.workspace import Workspace
@@ -41,6 +42,8 @@ class ReplayContext:
     cost_budget: float | None = None
     max_losses: int = 0
     effects: frozenset[str] = frozenset()
+    sampler: SampledGate | None = None
+    """Admit on fresh sampled cases (§43.7) instead of exact replay."""
 
     def __post_init__(self) -> None:
         if isinstance(self.effects, (str, bytes)):
@@ -130,9 +133,13 @@ class GuardedUpdate:
     affected: tuple[str, ...]
     retained: ReplayGate
     current: ReplayGate
+    sampled: SampledDecision | None = None
+    """The sampled decision, when admission was sampled; exact gates are then empty."""
 
     @property
     def accepted(self) -> bool:
+        if self.sampled is not None:
+            return self.sampled.accepted
         return self.retained.accepted and self.current.accepted
 
 
@@ -235,6 +242,7 @@ class RouteCatalog:
         budget: int,
         cost_budget: float | None = None,
         max_losses: int = 0,
+        sampler: SampledGate | None = None,
     ) -> GuardedUpdate:
         """Publish a replacement snapshot only after all affected routes replay.
 
@@ -281,6 +289,7 @@ class RouteCatalog:
             budget=budget,
             cost_budget=cost_budget,
             max_losses=max_losses,
+            sampler=sampler,
         )
 
     def validate_versions(self) -> None:
@@ -299,6 +308,7 @@ class RouteCatalog:
         budget: int,
         cost_budget: float | None = None,
         max_losses: int = 0,
+        sampler: SampledGate | None = None,
     ) -> GuardedUpdate:
         """Guard explicit root-plan changes without altering other expert versions.
 
@@ -320,6 +330,7 @@ class RouteCatalog:
             budget=budget,
             cost_budget=cost_budget,
             max_losses=max_losses,
+            sampler=sampler,
         )
 
     def _publish(
@@ -332,6 +343,7 @@ class RouteCatalog:
         budget: int,
         cost_budget: float | None,
         max_losses: int,
+        sampler: SampledGate | None,
     ) -> GuardedUpdate:
         if isinstance(budget, bool) or not isinstance(budget, int) or budget < 0:
             raise ValueError("budget must be a nonnegative integer")
@@ -342,6 +354,8 @@ class RouteCatalog:
         positions = sorted(index for anchor in anchors for index in self._by_anchor.get(anchor, ()))
         assertions = tuple(object_from(json.loads(self._retained[index])) for index in positions)
         covered = {attestation.claim["identity"] for attestation in assertions}
+        if sampler is not None:
+            covered = {anchor for anchor in anchors if sampler.knows(anchor)}
         if covered != set(proposed):
             raise ValueError("an affected route has no retained evaluation")
         candidate_catalog = (
@@ -355,29 +369,46 @@ class RouteCatalog:
         )
         baseline: dict[str, list[bool]] = {anchor: [] for anchor in anchors}
 
-        def score(anchor: str, record: MemoryRecord) -> bool:
+        def run(anchor: str, plan: Plan, record: MemoryRecord) -> bool:
             route = self.routes[anchor]
-            outputs = []
-            for plan in (route.plan, candidate_catalog.routes[anchor].plan):
-                messages, label = route.decode(record)
-                messages = tuple(messages)
-                if tuple(message.type_id for message in messages) != route.available:
-                    raise ValueError("decoded memory inputs do not match the protected route")
-                output = execute(
-                    plan,
-                    messages,
-                    Workspace(),
-                    budget,
-                    route.resolver,
-                    cost_budget,
-                    ledger=RiskLedger(),
-                ).payload
-                correct = route.correct(output, label)
-                if type(correct) is not bool:
-                    raise TypeError("route correctness must be boolean")
-                outputs.append(correct)
-            baseline[anchor].append(outputs[0])
-            return outputs[1]
+            messages, label = route.decode(record)
+            messages = tuple(messages)
+            if tuple(message.type_id for message in messages) != route.available:
+                raise ValueError("decoded memory inputs do not match the protected route")
+            output = execute(
+                plan,
+                messages,
+                Workspace(),
+                budget,
+                route.resolver,
+                cost_budget,
+                ledger=RiskLedger(),
+            ).payload
+            correct = route.correct(output, label)
+            if type(correct) is not bool:
+                raise TypeError("route correctness must be boolean")
+            return correct
+
+        def score(anchor: str, record: MemoryRecord) -> bool:
+            baseline[anchor].append(run(anchor, self.routes[anchor].plan, record))
+            return run(anchor, candidate_catalog.routes[anchor].plan, record)
+
+        if sampler is not None:
+            if max_losses:
+                raise ValueError("sampled admission requires zero losses")
+
+            def loss(anchor: str, record: MemoryRecord, original: bool) -> bool:
+                # Lost if the candidate fails where the original baseline or
+                # the current route succeeds; the current route runs only when
+                # the candidate fails and the original baseline did too.
+                if run(anchor, candidate_catalog.routes[anchor].plan, record):
+                    return False
+                return original or run(anchor, self.routes[anchor].plan, record)
+
+            decision = sampler.decide(anchors, loss)
+            catalog = candidate_catalog if decision.accepted else self
+            empty = ReplayGate(())
+            return GuardedUpdate(self, catalog, anchors, empty, empty, decision)
 
         retained = replay_gate(
             memory, assertions, issuers, score, max_cases=max_cases, max_losses=max_losses
