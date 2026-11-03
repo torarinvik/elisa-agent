@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from nca.abi import Module, Request
+from nca.abi import Module, Request, TypeId
 from nca.index import ProducerIndex
 from nca.planner import Plan, plan_stable_indexed
 from nca.planner.gaps import Acquire, repair
@@ -36,12 +36,15 @@ from nca.planner.gaps import Acquire, repair
 class Kernel:
     def __init__(self, modules: Sequence[Module], recursive: bool = False,
                  index: ProducerIndex | None = None, acquire: Acquire | None = None,
-                 attempts: int = 8, missing: int = 1) -> None:
+                 attempts: int = 8, missing: int = 1,
+                 media: Sequence[TypeId] | None = None) -> None:
         """``index``, if given, must index exactly ``modules``; it is shared.
         ``acquire`` is asked at most ``attempts`` times per request, for
-        routes needing at most ``missing`` new connectors."""
+        routes needing at most ``missing`` new connectors, inventing media
+        grown over the types in ``media`` if given."""
         self.modules = tuple(modules)
         self.acquire, self.attempts, self.missing = acquire, attempts, missing
+        self.media = media
         self.acquired: list[Module] = []
         self.recursive = recursive
         self.requests = 0
@@ -60,7 +63,7 @@ class Kernel:
             return route
         usable = [m for m in self.modules if m.manifest.module_id not in excluded]
         repaired = repair(usable, request.types, request.type_id, self.acquire, self.attempts,
-                          self.missing)
+                          self.missing, media=self.media)
         if repaired is None:
             return None
         self.modules += repaired.acquired

@@ -133,4 +133,38 @@ theorem repair_sound {τ : Type*} {E N : τ → τ → Prop} :
     intro x y h
     exact List.mem_cons_of_mem _ h
 
+/-- A medium founded on `b` (§20.9): the types gain a fresh one, `none`, joined
+to `b` in both directions by identity connectors. -/
+def founded {τ : Type*} (E : τ → τ → Prop) (b : τ) : Option τ → Option τ → Prop
+  | some x, some y => E x y
+  | some x, none => x = b
+  | none, some y => y = b
+  | none, none => False
+
+theorem founded_project {τ : Type*} {E : τ → τ → Prop} {b : τ} {u v : Option τ}
+    (h : ReflTransGen (founded E b) u v) : ReflTransGen E (u.getD b) (v.getD b) := by
+  induction h with
+  | refl => exact ReflTransGen.refl
+  | @tail c d _ step ih =>
+    match c, d, step with
+    | some _, some _, e => exact ih.tail e
+    | some _, none, rfl => exact ih
+    | none, some _, rfl => exact ih
+
+theorem founded_embed {τ : Type*} {E : τ → τ → Prop} {b x y : τ} (h : ReflTransGen E x y) :
+    ReflTransGen (founded E b) (some x) (some y) := by
+  induction h with
+  | refl => exact ReflTransGen.refl
+  | tail _ e ih => exact ih.tail e
+
+/-- Founding a medium leaves reachability among existing types unchanged. -/
+theorem founded_keeps {τ : Type*} {E : τ → τ → Prop} {b x y : τ} :
+    ReflTransGen (founded E b) (some x) (some y) ↔ ReflTransGen E x y :=
+  ⟨founded_project, founded_embed⟩
+
+/-- The medium is reachable exactly from where its founder is. -/
+theorem founded_medium {τ : Type*} {E : τ → τ → Prop} {b x : τ} :
+    ReflTransGen (founded E b) (some x) none ↔ ReflTransGen E x b :=
+  ⟨founded_project, fun h => (founded_embed h).tail (show founded E b (some b) none from rfl)⟩
+
 end NCA

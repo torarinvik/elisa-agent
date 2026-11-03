@@ -334,3 +334,23 @@ obtained, and a 0-1 shortest-path search, where installed steps cost nothing
 and allowed connectors cost one, finds it. Each refusal removes a pair from
 `N`; the search is repeated over what remains, so connectors already supplied
 are reused and none is requested twice.
+
+**Inventing intermediate types.** Every connector so far joins existing types.
+A *medium* founded on a type `b` is a fresh content-addressed constructor (§29)
+joined to `b` by identity connectors in both directions. Model the types as
+`Option τ`, with `none` the medium.
+
+**Theorem 20.13 (founding).** Founding a medium on `b` leaves reachability
+among existing types unchanged, and the medium is reachable from `x` exactly
+when `b` is.
+
+*Proof.* Mapping the medium to `b` sends every route of the founded types to a
+route of the original ones, since both identity connectors become `b`'s
+trivial route; conversely every original route is a founded one, and a route
+to `b` extends to the medium. ∎
+
+So founding alone adds nothing. A medium adds routes only through members
+connected to it from evidence beyond the request at hand, each attached by
+data shared with any existing member (§29.5), and then every pair of members is
+two connectors apart. Its routes inherit the attachment-depth bound of
+Theorem 29.5.

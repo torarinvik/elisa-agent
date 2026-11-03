@@ -153,7 +153,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Refined pieces in general slots | Proved; empirically checked | `slot_risk_transfer` bounds a consumer's risk on refined inputs by `c` times its measured rate under a density-ratio certificate, and `slot_risk_unbounded` shows no rate transfers without one; `route_risk(shift=…)` charges `min(1, c · rate)` and returns `None` without a certificate, checked by `tests/test_slot_risk.py`. Obtaining certificates from data is not addressed. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
-| Unreachable goals become typed acquisition sub-goals | Proved; empirically checked | `gap_iff` characterizes single-connector repairs of unary routes exactly; `planner.gaps` confirms every candidate by planning with a stand-in, and `Kernel(acquire=…)` serves an unservable request through an acquired connector, checked by `tests/test_gaps.py` against the planner over every type pair. `repair_complete` and `repair_sound` characterize repairs with `k` allowed connectors; `planner.gaps.fewest_missing` is checked minimal against brute force. The 0-1 search itself is not formalized, experts with several inputs are approximated in the search and confirmed by the planner, and new intermediate types are not invented. |
+| Unreachable goals become typed acquisition sub-goals | Proved; empirically checked | `gap_iff` characterizes single-connector repairs of unary routes exactly; `planner.gaps` confirms every candidate by planning with a stand-in, and `Kernel(acquire=…)` serves an unservable request through an acquired connector, checked by `tests/test_gaps.py` against the planner over every type pair. `repair_complete` and `repair_sound` characterize repairs with `k` allowed connectors; `planner.gaps.fewest_missing` is checked minimal against brute force. The 0-1 search itself is not formalized, experts with several inputs are approximated in the search and confirmed by the planner, and media (invented intermediate types) are proved not to change reachability (`founded_keeps`, `founded_medium`); whether growing one is worth its requests is measured, not proved. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
 
 Every open row requires a mechanism-level theorem, explicit assumptions and
@@ -323,6 +323,7 @@ an inference from their separate tests.
 | [20.10](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `PPlan.uses_apply`, `PPlan.given_not_relevant`, `PTyped.uses_lt` | `Relevance` |
 | [20.11](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `gap_iff`, `gap_complete`, `gap_sound` | `Planning/Gaps` |
 | [20.12](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `repair_complete`, `repair_sound` | `Planning/Gaps` |
+| [20.13](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `founded_keeps`, `founded_medium` | `Planning/Gaps` |
 | [21.1](theory/decoding/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/decoding/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/decoding/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
@@ -667,6 +668,13 @@ searching again after each refusal (§20.9, Theorem 20.12).
 `kernel.Kernel(acquire=…, missing=…)` does so for a request it cannot serve,
 appending the acquired experts and serving the request through them.
 `benchmarks/gaps.py` compares these with random acquisition.
+With `media`, `repair` invents an intermediate type for an unreachable goal no
+existing medium reaches: `planner.gaps.medium` founds a content-addressed
+constructor on the goal with identity `Founder` connectors, and
+`planner.gaps.grow` asks the acquirer to connect each listed type into it
+until a pass adds none. An acquirer may return companions with the requested
+expert, such as the decoder learned with an encoder. `benchmarks/media.py`
+compares repair with and without media over a sequence of tasks.
 
 Available inputs are addressed by position where types do not tell them
 apart (THEORY §20.8): `planner.Given` carries an optional `position`, the

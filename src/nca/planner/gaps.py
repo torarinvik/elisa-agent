@@ -12,6 +12,14 @@ for experts with several inputs.
 missing connectors (``NCA.Repair``), asks a supplied acquirer, such as a
 learner whose result passed the upgrade gate, for each in turn, keeps what it
 supplies, and searches again around any it refuses.
+
+For an unreachable goal, ``repair`` with ``media`` invents an intermediate
+type: a *medium* founded on the goal, a fresh content-addressed constructor
+joined to the goal by identity connectors in both directions. Founding changes
+no reachability among existing types and the medium is reachable exactly when
+its founder is (``NCA.founded_keeps``, ``NCA.founded_medium``). A medium only
+helps once it has members besides its founder, so ``grow`` asks the acquirer to
+connect every other type into it, pass after pass, until a pass adds none.
 """
 
 from __future__ import annotations
@@ -22,10 +30,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Contract, Manifest, Module, TypeId
+from nca.objects import Constructor
 from nca.planner import Plan, plan
 
-Acquire = Callable[[Contract], Module | None]
-"""Returns an expert with the given contract, or ``None`` if it cannot."""
+Acquire = Callable[[Contract], Module | Sequence[Module] | None]
+"""Returns an expert with the given contract, or ``None`` if it cannot. It may
+return a sequence instead, the requested expert first, followed by companions
+learned with it, such as the decoder learned with an encoder."""
 
 
 @dataclass(frozen=True)
@@ -38,9 +49,54 @@ class Gap:
 @dataclass(frozen=True)
 class Repaired:
     acquired: tuple[Module, ...]
-    """Every expert supplied, in order, including any the route does not use."""
+    """Every expert supplied or founded, in order, including any the route
+    does not use."""
     route: Plan
     requests: int
+
+
+class Founder:
+    """An identity connector between a medium and the type it is founded on."""
+
+    def __init__(self, source: TypeId, target: TypeId, hub: TypeId) -> None:
+        self.hub = hub
+        self.manifest = Manifest(f"medium/{source}->{target}", "1", Contract((source,), target),
+                                 cost=0.0, effects=frozenset())
+
+    def invoke(self, value: Any) -> Any:
+        return value
+
+
+def medium(founder: TypeId) -> tuple[Constructor, Founder, Founder]:
+    """A medium founded on ``founder``, with its connectors in and out; the
+    same founder always gives the same medium."""
+    constructor = Constructor("medium", "1.0.0", 0, f"A shared medium founded on {founder}: "
+                              f"its values are those of {founder}.")
+    hub = constructor.type()
+    return constructor, Founder(founder, hub, hub), Founder(hub, founder, hub)
+
+
+def grow(modules: Sequence[Module], hub: TypeId, candidates: Sequence[TypeId],
+         acquire: Acquire) -> tuple[list[Module], int]:
+    """The experts connecting ``candidates`` into the medium ``hub`` that
+    ``acquire`` supplies, asked again after every pass that adds a member, and
+    the number of requests made."""
+    added: list[Module] = []
+    requests = 0
+    while True:
+        members = {m.manifest.contract.inputs[0] for m in (*modules, *added)
+                   if m.manifest.contract.output == hub}
+        before = len(added)
+        for candidate in candidates:
+            if candidate in members or candidate == hub:
+                continue
+            requests += 1
+            supplied = acquire(Contract((candidate,), hub))
+            if supplied is not None:
+                added += (supplied,) if not isinstance(supplied, Sequence) else supplied
+                members.add(candidate)
+        if len(added) == before:
+            return added, requests
 
 
 class _Missing:
@@ -149,13 +205,24 @@ def fewest_missing(modules: Sequence[Module], available: Sequence[TypeId], goal:
 
 
 def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
-           acquire: Acquire, attempts: int, missing: int = 1, fuel: int = 8) -> Repaired | None:
+           acquire: Acquire, attempts: int, missing: int = 1, fuel: int = 8, *,
+           media: Sequence[TypeId] | None = None) -> Repaired | None:
     """Acquire connectors until a route reaches ``goal``: each round requests
     the connectors of a route needing the fewest missing ones, at most
-    ``missing``, avoiding refused requests; at most ``attempts`` requests."""
+    ``missing``, avoiding refused requests; at most ``attempts`` requests.
+
+    With ``media``, a medium is first founded on an unreachable goal that no
+    existing medium reaches and grown over the types in ``media``; its
+    requests are counted, and later goals share it."""
     acquired: list[Module] = []
-    refused: set[tuple[TypeId, TypeId]] = set()
     requests = 0
+    if media is not None and plan(modules, available, goal, fuel) is None:
+        existing = {m.hub for m in modules if isinstance(m, Founder)}
+        if not any(plan(modules, (hub,), goal, fuel) for hub in existing):
+            constructor, into, out = medium(goal)
+            grown, requests = grow((*modules, into, out), constructor.type(), media, acquire)
+            acquired += [into, out, *grown]
+    refused: set[tuple[TypeId, TypeId]] = set()
     while True:
         library = (*modules, *acquired)
         route = plan(library, available, goal, fuel)
@@ -169,11 +236,11 @@ def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
                 return None
             requests += 1
             contract = Contract((source,), target)
-            module = acquire(contract)
-            if module is None:
+            supplied = acquire(contract)
+            if supplied is None:
                 refused.add((source, target))
                 break
-            if module.manifest.contract != contract:
-                raise ValueError(f"acquired {module.manifest.module_id} does not have the "
-                                 "requested contract")
-            acquired.append(module)
+            supplied = (supplied,) if not isinstance(supplied, Sequence) else tuple(supplied)
+            if not supplied or supplied[0].manifest.contract != contract:
+                raise ValueError("the acquired expert does not have the requested contract")
+            acquired += supplied

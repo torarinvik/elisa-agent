@@ -10,7 +10,7 @@ import pytest
 from nca.abi import Contract, Manifest, Message, Module, Request
 from nca.kernel import Kernel
 from nca.planner import plan
-from nca.planner.gaps import fewest_missing, gaps, repair
+from nca.planner.gaps import fewest_missing, gaps, medium, repair
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -117,6 +117,40 @@ def test_fewest_missing_is_minimal_against_brute_force() -> None:
     assert {2, 3} & sizes
 
 
+def test_founding_a_medium_changes_no_reachability() -> None:
+    """``NCA.founded_keeps`` and ``NCA.founded_medium``, against the planner."""
+    rng = random.Random(11)
+    types = [f"t{k}" for k in range(6)]
+    for _ in range(30):
+        library = [Step((a,), b) for a, b in (rng.sample(types, 2) for _ in range(5))]
+        founder = rng.choice(types)
+        constructor, into, out = medium(founder)
+        founded = [*library, into, out]
+        for x, y in product(types, types):
+            if x != y:
+                assert (plan(library, (x,), y) is None) == (plan(founded, (x,), y) is None)
+        for x in types:
+            reaches = x == founder or plan(library, (x,), founder) is not None
+            assert reaches == (plan(founded, (x,), constructor.type()) is not None)
+    assert medium("t0")[0].ref == medium("t0")[0].ref != medium("t1")[0].ref
+
+
+def test_repair_invents_a_medium_when_no_connector_is_allowed() -> None:
+    library = [Step(("s",), "x")]
+    hub = medium("g")[0].type()
+
+    def acquire(contract: Contract) -> Module | None:
+        return Step(contract.inputs, contract.output, 5) if contract.output == hub else None
+
+    assert repair(library, ("s",), "g", acquire, attempts=50, missing=2) is None
+    repaired = repair(library, ("s",), "g", acquire, attempts=50, missing=2, media=["x"])
+    assert repaired is not None
+    assert [m.manifest.contract for m in repaired.acquired[2:]] == [Contract(("x",), hub)]
+    assert repaired.requests == 1
+    result = execute(repaired.route, (Message("s", 0, "input"),), Workspace(), 10)
+    assert result.payload == 6
+
+
 def test_the_kernel_serves_an_unservable_request_by_acquisition() -> None:
     asker = Step(("s",), "answer", requests="g")
     route = plan([asker], ("s",), "answer")
@@ -134,3 +168,14 @@ def test_the_kernel_serves_an_unservable_request_by_acquisition() -> None:
         kernel.acquired[0].manifest.contract.inputs[0]]
     again = execute(route, (Message("s", 0, "input"),), Workspace(), 10, kernel)
     assert again.payload == result.payload and len(kernel.acquired) == 1
+
+
+def test_companions_are_installed_with_the_requested_expert() -> None:
+    def acquire(contract: Contract) -> tuple[Module, ...] | None:
+        source, target = contract.inputs[0], contract.output
+        return (Step((source,), target), Step((target,), source)) if source == "x" else None
+
+    repaired = repair([Step(("s",), "x")], ("s",), "g", acquire, attempts=20)
+    assert repaired is not None
+    assert [m.manifest.contract for m in repaired.acquired] == [
+        Contract(("x",), "g"), Contract(("g",), "x")]
