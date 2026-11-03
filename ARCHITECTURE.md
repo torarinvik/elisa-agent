@@ -148,7 +148,8 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Bounded retained evidence and safe eviction | Proved; empirically checked | `evict_keeps_protected` and `withdraw_fresh` prove that ordinary eviction keeps protected records and that withdrawal keeps later draws fresh; `MemoryStore.remove` refuses parents. SQLite deletion durability is a trusted backend assumption. Forced deletions are assumed independent of the estimated loss. |
 | Safe migration | Open; not implemented | Shared-representation migration, and its composition with updates, consolidation and eviction, is not established. |
 | Bounded connectors through a hub | Proved; empirically checked | `hubConnectors_card`, `hub_routes`, `direct_connectors_lower`, `hubConnectors_mono` and `hub_route_risk` prove 2N connectors, two-step routes, the N(N−1) pairwise lower bound, locality and additive route risk; `tests/test_hub.py` checks planning through a hub. |
-| Shared-medium substitution and migration | Open | Risk preservation when a refined piece fills a general slot, learned shared representations and safe migration between hub versions are not established. |
+| Hub learned by attachment | Proved; empirically checked | `attached_risk` and `attachment_depth_risk` bound a type's hub risk by its fit risk plus its partner's, and by `dε` at depth `d`; `tests/test_hub_learning.py` checks `learning.hub.attach`. The sampling bound for each fit is not formalized. |
+| Shared-medium substitution and migration | Open | Risk preservation when a refined piece fills a general slot, safe migration between hub versions are not established. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
@@ -395,6 +396,7 @@ an inference from their separate tests.
 | [28.4](theory/foundations/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
 | [28.5](theory/foundations/28-packages-as-experts.md) | `Artifacts.run_retains`, `Artifacts.admitted_read_stable`, `Artifacts.run_read_identity` | `Execution/Artifacts` |
 | [29.4](theory/foundations/29-types-as-objects.md) | `hubConnectors_card`, `hub_routes`, `direct_connectors_lower`, `hubConnectors_mono`, `hub_route_risk` | `Types/Hub` |
+| [29.5](theory/foundations/29-types-as-objects.md) | `attached_risk`, `attachment_depth_risk` | `Types/Hub` |
 | [28.6](theory/foundations/28-packages-as-experts.md) | `resolveLoader_perm`, `resolveLoader_unrelated`, `resolveLoader_conflict`, `resolveLoader_relocate` | `Execution/Loaders` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
@@ -2749,6 +2751,10 @@ contributor installs an encoder into it and a decoder out of it.
 joins and additive route risk; `Types/Hub.lean` proves Theorem 29.4; and
 `benchmarks/shared_medium.py` compares hub and pairwise connector growth with
 translators fit by `learning.discovery.fit_decoder`.
+`learning.hub.attach` learns a hub without hub labels (§29.5): it maps a
+partner member's paired values through that member's encoder and fits the new
+type's encoder and decoder with a supplied fitter. The same benchmark compares
+attaching to the founder, the predecessor or a random member.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;

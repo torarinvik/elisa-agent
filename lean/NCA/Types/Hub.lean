@@ -65,4 +65,23 @@ theorem hub_route_risk {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     μ (encoderFails ∪ decoderFails) ≤ a + b :=
   (measure_union_le _ _).trans (add_le_add ha hb)
 
+/-- Attachment (§29.5): a type learned by pairing with a partner member maps a
+value wrongly into the hub only if its own fit is wrong there or the partner's
+encoder is. -/
+theorem attached_risk {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (fitWrong partnerWrong : Set Ω) {a b : ENNReal}
+    (ha : μ fitWrong ≤ a) (hb : μ partnerWrong ≤ b) :
+    μ (fitWrong ∪ partnerWrong) ≤ a + b :=
+  (measure_union_le _ _).trans (add_le_add ha hb)
+
+/-- Along an attachment path of length `d` whose fits each err with
+probability at most `ε`, the hub error is at most `d ε`. -/
+theorem attachment_depth_risk {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (fitWrong : ℕ → Set Ω) {ε : ENNReal} (each : ∀ i, μ (fitWrong i) ≤ ε) (d : ℕ) :
+    μ (⋃ i ∈ range d, fitWrong i) ≤ d * ε := by
+  calc μ (⋃ i ∈ range d, fitWrong i) ≤ ∑ i ∈ range d, μ (fitWrong i) :=
+        measure_biUnion_finset_le _ _
+    _ ≤ ∑ _i ∈ range d, ε := sum_le_sum fun i _ => each i
+    _ = d * ε := by rw [sum_const, card_range, nsmul_eq_mul]
+
 end NCA

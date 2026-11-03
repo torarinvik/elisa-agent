@@ -108,3 +108,29 @@ two connectors, so its error is roughly that of two hops rather than one. A
 lossy hub (an encoder that is not injective on the values that matter) cannot
 be repaired downstream; whether a hub is adequate for a pair of types is an
 empirical question for its connectors' evidence.
+
+## 29.5 Learned hubs by attachment
+
+A hub need not be given. Let it be the first contributor's own type, with the
+identity as encoder. A new type `T` attaches by pairing its values with those
+of a member `P` already attached: mapping `P`'s side through `P`'s encoder
+yields hub values, from which a fitter learns `T → H` and `H → T`. No value is
+ever labeled in the hub itself. The *depth* of a type is one more than its
+partner's, with the founder at depth 0.
+
+**Theorem 29.5 (attachment error).**
+
+1. A type maps a value wrongly into the hub only if its own fit is wrong there
+   or its partner's encoder is, so its hub risk is at most its fit risk plus its
+   partner's hub risk.
+2. Along an attachment path of length `d` whose fits each err with
+   probability at most `ε`, the hub risk is at most `dε`.
+
+*Proof.* (1) Union bound. (2) Union bound over the path's `d` fits. ∎
+
+The bound depends on depth, not on the number of types, so the choice of
+partner matters: attaching every type to the founder keeps depth 1, while
+attaching each to its predecessor lets depth grow linearly. Theorem 29.4(5)
+then adds the decoder's risk for a route. The bound is a worst case; errors at
+different depths may coincide on the same values, and in that case the risk
+grows more slowly.
