@@ -66,6 +66,13 @@ decoding and incremental bands live in `decoding`; weighted automata and prior
 selection live in `priors`. Numerical kernels remain in `native/decoding.elisa`,
 with Python reference implementations for validation and fallback.
 
+`decoding.cursors` implements the incremental `Split` and `CertifiedSplit`
+tables; the `decoding` package retains whole-sequence passes, band selection,
+shared backend selection and the public cursor exports. `prefix.vocabulary`
+owns ranked vocabulary declarations and readout helpers; the `prefix` package
+retains correction state, evaluation and its public vocabulary exports. Each
+package initializes shared definitions before loading its implementation module.
+
 ## Development and optional packages
 
 Install and test the independent core with `uv sync --extra trust`,
