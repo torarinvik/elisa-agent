@@ -283,3 +283,30 @@ between fillings that use the same inputs differently, such as `s + a` and
 then fixed by a type that says more, by cost (§13), or explicitly.
 
 [Theory index](../THEORY.md)
+
+## 20.9 Capability gaps
+
+Requests and slots are served only from installed experts; a goal no route
+reaches has, so far, no answer at all. A *gap* names what is missing: a unary
+contract `A → B` such that installing any expert with it creates a route. The
+kernel can then pose the gap as a typed sub-goal to an acquirer, such as a
+learner whose result passes the upgrade gate (§43), rather than failing.
+
+Model the installed unary experts as steps `E` between types, and let
+`E + (a → b)` add one.
+
+**Theorem 20.11 (gaps).** If `E` has no route from `s` to `g`, then
+`E + (a → b)` has one if and only if `a` is reachable from `s` and `g` from
+`b` under `E`.
+
+*Proof.* (⇐) Follow `s →* a`, the new step, then `b →* g`. (⇒) By induction
+on the route: before its first use of the new step it is a route of `E` to
+`a`, and after its last use a route of `E` from `b`; a route never using it
+contradicts the hypothesis. ∎
+
+So the gaps are exactly the products of the types producible from the inputs
+with the types from which the goal is reachable: no gap is missed, and every
+requested connector, once supplied, is used. The theorem covers unary steps.
+For experts with several inputs, each candidate is confirmed by planning with
+a stand-in, so the set returned agrees with the planner; whether a candidate
+is learnable, and in what order to ask, is the acquirer's concern.
