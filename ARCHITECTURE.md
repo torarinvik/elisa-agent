@@ -131,6 +131,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 
 | Relied-on guarantee | Status | Evidence and remaining obligation |
 |---|---|---|
+| Artifact identity remains bound to admitted contents | Open; not currently enforced for mutable nested metadata | Frozen dataclasses do not freeze caller-owned primitive argument mappings or lists. Mutation after `Store.put` can make `store.get(ref).ref != ref`. Model admission, reads and persistence, and remove or explicitly constrain this mutation path before claiming immutable artifact identity. |
 | Deterministic state threading under replay | Open | Process tests cover supplied deterministic experts. Model transitions, nested execution and replay; expert determinism and immutable payloads remain trusted assumptions. |
 | Authority only narrows; every mediated operation is declared and granted | Open | Effect-scope tests cover runtime and compiled callbacks. Prove the full nested, batched, deferred and generator execution model. Cooperative gateways are trusted; arbitrary expert code is not isolated. |
 | Failed transitions preserve state, memory and ledgers | Open; not currently satisfied | Process cursors retain the committed state, but execution can retain charges and memory writes. Joint transaction semantics are required before claiming failure atomicity. |
@@ -1677,6 +1678,12 @@ the consumer's installed toolchain. Source/product and frozen-input integrity
 checks remain enabled.
 
 ## 28. Packages as experts
+
+`objects.store` implements artifact DAG admission, directory persistence and
+mutable name bindings. The `objects` package owns data definitions, canonical
+encoding and public exports. Frozen object fields do not make nested metadata
+immutable: callers must currently avoid mutating argument and claim contents
+after admission. This is an open identity-enforcement gap, not a storage proof.
 
 `objects` holds the content-addressed object model: `Primitive`, `Composite`
 and `Attestation`, each identified by the SHA-256 digest of its canonical

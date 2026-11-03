@@ -30,7 +30,7 @@ import hashlib
 import importlib
 import json
 import math
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Union
@@ -307,195 +307,17 @@ def constructors(contracts: Sequence[Contract]) -> dict[Ref, int]:
     return found
 
 
-def _contracts(obj: Object) -> list[Contract]:
-    if isinstance(obj, Primitive):
-        return [obj.manifest.contract]
-    if isinstance(obj, Composite):
-        return [*(obj.exports or ()), *(Contract(inputs, output) for inputs, output in obj.requires)]
-    return []
-
-
-def _requires(obj: Object) -> list[Ref]:
-    """The references ``obj`` cannot be admitted without."""
-    if isinstance(obj, Primitive):
-        own = list(obj.dependencies)
-    elif isinstance(obj, Composite):
-        own = list(obj.members)
-    elif isinstance(obj, Attestation):
-        own = [obj.subject]
-    elif isinstance(obj, Constructor):
-        own = list(obj.refines)
-    else:
-        own = []
-    return [*own, *constructors(_contracts(obj))]
-
-
-def _effects_cover(declared: frozenset[str] | None, member: frozenset[str] | None) -> bool:
-    return declared is None or (member is not None and member <= declared)
-
-
-class Store:
-    """Objects by reference, and attestations by subject.
-
-    ``put`` admits an object only once every reference it depends on is
-    present: a primitive's dependencies or a composite's members (whose effects
-    its declaration must cover), an attestation's subject, a constructor's refined constructors
-    (of equal arity), and every constructor its contracts mention (applied
-    to as many arguments as its arity), so every stored object is a
-    well-formed DAG node. ``save`` and ``open`` keep one canonical JSON file per object,
-    named by its digest.
-    """
-
-    def __init__(self) -> None:
-        self._objects: dict[Ref, Object] = {}
-        self._about: dict[Ref, list[Ref]] = {}
-
-    def __contains__(self, ref: object) -> bool:
-        return ref in self._objects
-
-    def __len__(self) -> int:
-        return len(self._objects)
-
-    def put(self, obj: Object) -> Ref:
-        ref = obj.ref
-        if ref in self._objects:
-            return ref
-        for needed in _requires(obj):
-            if needed not in self._objects:
-                raise KeyError(f"{needed}, needed by {ref}, is not in the store")
-        for constructor, arity in constructors(_contracts(obj)).items():
-            found = self._objects[constructor]
-            if not isinstance(found, Constructor) or found.arity != arity:
-                raise ValueError(f"{constructor} is not a constructor of arity {arity}")
-        if isinstance(obj, Constructor):
-            for refined in obj.refines:
-                found = self._objects[refined]
-                if not isinstance(found, Constructor) or found.arity != obj.arity:
-                    raise ValueError(f"{obj.name} refines {refined}, "
-                                     f"which is not a constructor of arity {obj.arity}")
-        if isinstance(obj, Primitive) and obj.dependencies and "dependencies" in obj.arguments:
-            raise ValueError("dependencies is reserved for resolved expert scopes")
-        if isinstance(obj, (Primitive, Composite)):
-            declared = obj.manifest.effects if isinstance(obj, Primitive) else obj.effects
-            members = obj.dependencies if isinstance(obj, Primitive) else obj.members
-            for member in members:
-                if isinstance(self._objects[member], Attestation):
-                    raise ValueError("an attestation cannot be an executable dependency or member")
-                if not _effects_cover(declared, self.effects(member)):
-                    raise ValueError(f"{ref} does not declare the effects of {member}")
-        if isinstance(obj, Attestation):
-            self._about.setdefault(obj.subject, []).append(ref)
-        self._objects[ref] = obj
-        return ref
-
-    def get(self, ref: Ref) -> Object:
-        return self._objects[ref]
-
-    def effects(self, ref: Ref) -> frozenset[str] | None:
-        obj = self._objects[ref]
-        if isinstance(obj, Primitive):
-            return obj.manifest.effects
-        if isinstance(obj, Composite):
-            return obj.effects
-        if isinstance(obj, Constructor):
-            return frozenset()  # Its upcasts return their input.
-        raise ValueError("attestations have no effects")
-
-    def attestations(self, subject: Ref, kind: str | None = None) -> list[Attestation]:
-        """The attestations about ``subject``, in the order they were stored."""
-        found = [self._objects[ref] for ref in self._about.get(subject, ())]
-        return [a for a in found if isinstance(a, Attestation) and (kind is None or a.kind == kind)]
-
-    def flatten(self, ref: Ref) -> list[Ref]:
-        """The primitives of ``ref`` in member order, each at its first
-        occurrence (§28.2). Exported and transparent composites alike are
-        expanded; this is the transparent view."""
-        seen: set[Ref] = set()
-        order: list[Ref] = []
-
-        def visit(node: Ref) -> None:
-            obj = self._objects[node]
-            if isinstance(obj, Primitive):
-                if node not in seen:
-                    seen.add(node)
-                    order.append(node)
-            elif isinstance(obj, Composite):
-                for member in obj.members:
-                    visit(member)
-
-        visit(ref)
-        return order
-
-    def walk(self, ref: Ref) -> Iterator[Ref]:
-        """Every object reachable from ``ref``, each once, dependencies first."""
-        seen: set[Ref] = set()
-
-        def visit(node: Ref) -> Iterator[Ref]:
-            if node in seen:
-                return
-            seen.add(node)
-            obj = self._objects[node]
-            for needed in _requires(obj):
-                yield from visit(needed)
-            yield node
-
-        yield from visit(ref)
-
-    def save(self, directory: Path) -> None:
-        directory.mkdir(parents=True, exist_ok=True)
-        for ref, obj in self._objects.items():
-            path = directory / f"{ref.removeprefix('sha256:')}.json"
-            if not path.exists():
-                path.write_bytes(canonical(obj.data()))
-
-    @classmethod
-    def open(cls, directory: Path) -> Store:
-        """Read every object in ``directory``, checking each file's digest."""
-        store = cls()
-        pending: dict[Ref, Object] = {}
-        for path in sorted(directory.glob("*.json")):
-            data = json.loads(path.read_bytes())
-            ref = digest(data)
-            if ref != f"sha256:{path.stem}":
-                raise ValueError(f"{path.name} does not match its digest")
-            obj = object_from(data)
-            if obj.ref != ref:
-                raise ValueError(f"{path.name} does not match its decoded object's digest")
-            pending[ref] = obj
-        while pending:
-            ready = [ref for ref, obj in pending.items() if _ready(store, obj)]
-            if not ready:
-                raise ValueError("objects refer to references missing from the store")
-            for ref in ready:
-                store.put(pending.pop(ref))
-        return store
-
-
-def _ready(store: Store, obj: Object) -> bool:
-    return all(needed in store for needed in _requires(obj))
-
-
-class Names:
-    """Mutable names for immutable references (§28.6)."""
-
-    def __init__(self) -> None:
-        self._names: dict[str, Ref] = {}
-
-    def bind(self, name: str, ref: Ref) -> Ref | None:
-        """Point ``name`` at ``ref`` and return what it pointed at before."""
-        previous = self._names.get(name)
-        self._names[name] = ref
-        return previous
-
-    def resolve(self, name: str) -> Ref:
-        return self._names[name]
-
-    def items(self) -> list[tuple[str, Ref]]:
-        return sorted(self._names.items())
-
-
 def primitive(module: Any, entry: str, arguments: Mapping[str, Json] | None = None,
               weights: Ref | None = None, size: int = 0,
               dependencies: tuple[Ref, ...] = ()) -> Primitive:
     """Describe an existing module as a primitive with the given loader."""
     return Primitive(module.manifest, entry, dict(arguments or {}), weights, size, dependencies)
+
+from nca.objects.store import (
+    Store as Store,
+    Names as Names,
+    _ready as _ready,
+    _contracts as _contracts,
+    _requires as _requires,
+    _effects_cover as _effects_cover,
+)
