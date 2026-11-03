@@ -498,7 +498,10 @@ against a ground goal and returns the binding of the one instance producing it;
 `Contract.instance` substitutes a binding. The planners (`planner`, and
 `optimize.plan_min` and `plan_pareto`) record that binding in `Apply.binding`,
 and `Apply.contract` is the applied instance, which `router.infer` checks and
-the runtime uses for message types. `index.ProducerIndex` keeps polymorphic producers
+the runtime uses for message types. `planner.terms` owns `Given`, `Apply`,
+`Map`, their `Plan` union and structural input/output inspection. The `planner`
+package retains search and re-exports those model definitions without wrappers.
+`index.ProducerIndex` keeps polymorphic producers
 apart from those indexed by exact output type and merges both in installation
 order; its forward closure counts every type a polymorphic producer has an
 instance for as reachable, so pruning stays sound.

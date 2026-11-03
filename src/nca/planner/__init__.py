@@ -31,62 +31,18 @@ from typing import Sequence, Union
 from nca.abi import (App, Binding, Contract, Module, ScopedName, Term, TypeId, Var, VarName, elem_type, format_type,
                      parse_type, resolve, seq_type, type_variables, unify)
 from nca.index import ProducerIndex, rename_apart
+from nca.planner.terms import (
+    Given as Given,
+    Apply as Apply,
+    Map as Map,
+    Plan as Plan,
+    uses as uses,
+    slot_goals as slot_goals,
+    output_type as output_type,
+)
 
 
-@dataclass(frozen=True)
-class Given:
-    """An available input: the one at ``position`` among the available types,
-    or the first of type ``type_id`` when ``position`` is ``None``."""
-
-    type_id: TypeId
-    position: int | None = None
-
-
-@dataclass(frozen=True)
-class Apply:
-    module: Module
-    args: tuple["Plan", ...]
-    slots: tuple["Plan", ...] = ()
-    """One plan per slot of the module's contract, each from the slot's inputs."""
-    binding: Binding = ()
-    """The instance of a polymorphic contract that is applied (THEORY §2.1)."""
-
-    @property
-    def contract(self) -> Contract:
-        """The applied instance of the module's contract."""
-        return self.module.manifest.contract.instance(self.binding)
-
-
-@dataclass(frozen=True)
-class Map:
-    """Run ``body`` on each element (of type ``element``) of ``source``."""
-
-    element: TypeId
-    body: "Plan"
-    source: "Plan"
-
-
-Plan = Union[Given, Apply, Map]
 Memo = dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]], Union[Given, Apply, Map, None]]
-
-
-def uses(node: Plan, available: Sequence[TypeId]) -> frozenset[int]:
-    """The positions of the available inputs ``node`` reads (THEORY §20.8). A
-    ``map`` body reads only its element, so a ``map`` uses what its source uses."""
-    if isinstance(node, Given):
-        position = available.index(node.type_id) if node.position is None else node.position
-        return frozenset((position,))
-    if isinstance(node, Apply):
-        return frozenset().union(*(uses(a, available) for a in node.args))
-    return uses(node.source, available)
-
-
-def slot_goals(contract: Contract) -> list[tuple[tuple[TypeId, ...], TypeId, frozenset[int]]]:
-    """Each slot of ``contract`` as a sub-goal: its inputs, its output, and the
-    positions of the inputs every filling must use."""
-    return [(inputs, output, frozenset(contract.relevant[i]) if i < len(contract.relevant)
-             else frozenset())
-            for i, (inputs, output) in enumerate(contract.slots)]
 
 
 def assignments(required: frozenset[int], count: int) -> Iterator[tuple[frozenset[int], ...]]:
@@ -104,14 +60,6 @@ def assignments(required: frozenset[int], count: int) -> Iterator[tuple[frozense
                                          choice))
     for choice in choices:
         yield tuple(frozenset(r for r, c in zip(ordered, choice) if c == j) for j in range(count))
-
-
-def output_type(node: Plan) -> TypeId:
-    if isinstance(node, Given):
-        return node.type_id
-    if isinstance(node, Apply):
-        return node.contract.output
-    return seq_type(output_type(node.body))
 
 
 def elem_candidates(modules: Sequence[Module], available: Sequence[TypeId]) -> list[TypeId]:
@@ -264,7 +212,6 @@ def _polymorphic_sources(index: ProducerIndex, limit: int, available: Sequence[T
 _SOURCE = App("seq", (Var("element"),))
 """The pattern of ``map`` sources. Elements of sequences that only
 polymorphic producers make are found by solving it (THEORY §2.2)."""
-
 
 
 @dataclass(frozen=True)
