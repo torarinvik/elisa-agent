@@ -824,6 +824,11 @@ can try higher rungs and abstains if none supplies a usable account.
 
 ## 25. Which word to climb, and when to stop
 
+`nca.refinement.policies` contains refinement state, climb-priority helpers, stopping
+policies and certification routines. `nca.ladder` re-exports the public names
+and uses the same priority-function objects. Numerical readings, calibration
+and native backend selection are implemented in `nca.ladder`.
+
 `nca.ladder.refine` accepts an optional generic climb-priority callback; its
 default ranks by charge, while `charge_per_cost` is an experimental heuristic
 using the next invocation's declared cost (§25.1). `solve`, `solve_many`, and
