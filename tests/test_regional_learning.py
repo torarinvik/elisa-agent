@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from nca.abi import Calls, Contract, Manifest
-from nca.affine_learning import fit_affine
-from nca.discovery import Proposal, discover
+from nca.learning.affine import fit_affine
+from nca.learning.discovery import Proposal, discover
 from nca.learning.regional import RegionalExpert, propose_regional_experts
 
 

@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.discovery import discover
+from nca.learning.discovery import discover
 from nca.learning.projections import ProjectionEncoder, propose_projections
 
 
@@ -241,7 +241,7 @@ def test_native_polynomials_validate_packed_indices() -> None:
 
 def test_auxiliary_projection_routes_original_object_targets() -> None:
     from collections import Counter
-    from nca.discovery import Proposal
+    from nca.learning.discovery import Proposal
     from nca.learning.numeric import midpoint_boundary
     from nca.learning.projections import fit_projection_encoders
     from nca.learning.regional import propose_failure_partitions
@@ -305,8 +305,8 @@ def test_projection_encoder_fitting_is_label_agnostic_and_bounded() -> None:
 
 
 def test_regression_projection_acquires_a_continuous_intermediate_type() -> None:
-    from nca.affine_learning import fit_affine
-    from nca.discovery import Proposal
+    from nca.learning.affine import fit_affine
+    from nca.learning.discovery import Proposal
     from nca.learning.interfaces import propose_heads
     from nca.learning.projections import fit_regression_projection
 
@@ -355,8 +355,8 @@ def test_regression_projection_finite_data_and_degenerate_design() -> None:
 
 
 def test_polynomial_growth_stops_when_training_feedback_is_explained() -> None:
-    from nca.affine_learning import fit_affine
-    from nca.discovery import Proposal
+    from nca.learning.affine import fit_affine
+    from nca.learning.discovery import Proposal
     from nca.learning.interfaces import propose_heads
     from nca.learning.projections import fit_polynomial_regression_features
 

@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest, Module
-from nca.acquisition_objects import store_acquired_model
-from nca.affine_learning import fit_affine
-from nca.discovery import Proposal, discover
+from nca.learning.acquisition_objects import store_acquired_model
+from nca.learning.affine import fit_affine
+from nca.learning.discovery import Proposal, discover
 from nca.learning.interfaces import propose_adapters
 from nca.objects import Constructor, Primitive, Store
 from nca.packages import install, install_scopes
@@ -111,7 +111,7 @@ def test_adapter_candidate_budget_and_retention_exclude_teacher_code(tmp_path: P
     with pytest.raises(ValueError, match="candidate budget"):
         propose_adapters(Baseline(), [], [], [], rows, max_candidates=0, decoder_cost=1)
 
-    from nca.acquisition_objects import store_acquired_models
+    from nca.learning.acquisition_objects import store_acquired_models
 
     shared = propose_adapters(Baseline(), [Proposal(source)], [Proposal(teacher)],
                     [bad, good], rows, max_candidates=2, decoder_cost=1, fit=fit_affine,
@@ -169,7 +169,7 @@ def test_standalone_and_shared_alignment_fit_once_without_inference_caching() ->
 
 
 def test_ordered_bridge_families_are_shared_locally_and_bounded() -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
 
     source, teacher = Reading(2.0, 1.0, "new"), Reading(1.0, 0.0, "old")
     rows = [(-1.0,), (-0.5,), (0.5,), (1.0,)]

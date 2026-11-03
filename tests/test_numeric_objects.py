@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest, Module
-from nca.discovery import train_tree
+from nca.learning.discovery import train_tree
 from nca.loader import ExpertStore
 from nca.learning.numeric import midpoint_boundary, propose_partition, propose_regions
 from nca.learning.numeric_objects import encoder_object, store_numeric_tree
@@ -96,7 +96,7 @@ class VectorMeasurement:
 
 
 def test_acquired_nonlinear_package_round_trips_lazily(tmp_path: Path) -> None:
-    from nca.discovery import decoder_object
+    from nca.learning.discovery import decoder_object
     from nca.learning.numeric_objects import store_encoder_chain
     from nca.objects import Composite
     from nca.learning.projections import propose_polynomial_partitions

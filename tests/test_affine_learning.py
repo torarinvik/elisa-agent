@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.affine_learning import affine_object, fit_affine
-from nca.discovery import Proposal, discover
+from nca.learning.affine import affine_object, fit_affine
+from nca.learning.discovery import Proposal, discover
 from nca.learning.interfaces import propose_adapter
 from nca.objects import Store
 from nca.packages import install

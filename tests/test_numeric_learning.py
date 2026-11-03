@@ -5,7 +5,7 @@ from collections import Counter
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.discovery import Decoded
+from nca.learning.discovery import Decoded
 from nca.learning.numeric import PartitionEncoder, propose_partition
 
 

@@ -7,7 +7,7 @@ import pytest
 from nca.abi import Contract
 from nca.objects import Store
 from nca.packages import install
-from nca.vector_learning import fit_vector_affine, vector_affine_object
+from nca.learning.vector import fit_vector_affine, vector_affine_object
 
 
 @pytest.mark.parametrize("inputs,outputs", [(0, 1), (1, 1), (2, 3), (4, 2), (2, 0)])

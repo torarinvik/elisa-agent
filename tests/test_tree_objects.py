@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.discovery import train_tree
+from nca.learning.discovery import train_tree
 from nca.loader import ExpertStore
 from nca.objects import Primitive, Store
 from nca.packages import install
-from nca.tree_objects import load_tree, tree_object
+from nca.learning.tree_objects import load_tree, tree_object
 
 
 class Projection:

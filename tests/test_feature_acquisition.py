@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest, Module
-from nca.discovery import Proposal, discover, train_tree
+from nca.learning.discovery import Proposal, discover, train_tree
 from nca.learning.numeric import propose_partition
 
 

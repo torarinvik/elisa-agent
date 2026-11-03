@@ -9,9 +9,9 @@ from typing import NoReturn
 import pytest
 
 from nca.abi import Calls, Contract, Manifest, Module
-from nca.acquisition_objects import store_acquired_model
-from nca.affine_learning import AffineAdapter, affine_object, fit_affine
-from nca.discovery import Decoded, Decoder, Proposal
+from nca.learning.acquisition_objects import store_acquired_model
+from nca.learning.affine import AffineAdapter, affine_object, fit_affine
+from nca.learning.discovery import Decoded, Decoder, Proposal
 from nca.loader import ExpertStore
 from nca.learning.numeric import midpoint_boundary
 from nca.objects import Primitive, Store
@@ -132,7 +132,7 @@ def test_cycles_and_opaque_subclasses_are_not_silently_serialized() -> None:
 
 
 def test_parameter_only_vector_model_needs_no_external_binding() -> None:
-    from nca.vector_learning import fit_vector_affine
+    from nca.learning.vector import fit_vector_affine
 
     model = fit_vector_affine(Contract(("input",), "output"),
                               [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
@@ -171,7 +171,7 @@ class PairedSlotSource:
 @pytest.mark.parametrize("slotted", [False, True])
 def test_nested_joint_retention_preserves_sharing_metadata_and_order(
         tmp_path: Path, slotted: bool) -> None:
-    from nca.discovery import JointFeature
+    from nca.learning.discovery import JointFeature
 
     store = Store()
     if slotted:
@@ -212,7 +212,7 @@ def test_nested_joint_retention_preserves_sharing_metadata_and_order(
 
 
 def test_joint_retention_rejects_cycles_subclasses_and_invalid_pairing_cost() -> None:
-    from nca.discovery import JointFeature
+    from nca.learning.discovery import JointFeature
 
     store = Store()
     source = sources(store)[0]
@@ -244,7 +244,7 @@ class CoordinateFeature:
 
 
 def test_joint_head_graph_retains_opaque_features(tmp_path: Path) -> None:
-    from nca.discovery import JointFeature
+    from nca.learning.discovery import JointFeature
 
     store = Store()
     children = []
@@ -264,7 +264,7 @@ def test_joint_head_graph_retains_opaque_features(tmp_path: Path) -> None:
 
 
 def test_learned_categorical_partition_and_head_can_be_retained(tmp_path: Path) -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import fit_categorical_partition, propose_heads
 
     store = Store()
@@ -288,7 +288,7 @@ def test_learned_categorical_partition_and_head_can_be_retained(tmp_path: Path) 
 
 
 def test_prototype_interface_graph_can_be_retained(tmp_path: Path) -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.projections import fit_prototype_encoder
     from test_projection_learning import Measurement as VectorMeasurement
 
@@ -311,8 +311,8 @@ def test_prototype_interface_graph_can_be_retained(tmp_path: Path) -> None:
 
 def test_multiple_roots_expose_a_reusable_representation_without_graph_inspection(
         tmp_path: Path) -> None:
-    from nca.acquisition_objects import store_acquired_models
-    from nca.discovery import fit_decoder
+    from nca.learning.acquisition_objects import store_acquired_models
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import propose_heads
     from nca.learning.projections import fit_prototype_encoder
     from test_projection_learning import Measurement as VectorMeasurement
@@ -364,7 +364,7 @@ def test_multiple_roots_expose_a_reusable_representation_without_graph_inspectio
 
 
 def test_empty_acquisition_roots_do_not_call_bind_or_size() -> None:
-    from nca.acquisition_objects import store_acquired_models
+    from nca.learning.acquisition_objects import store_acquired_models
 
     def unexpected(module: Module) -> NoReturn:
         pytest.fail("empty roots must not invoke callbacks")

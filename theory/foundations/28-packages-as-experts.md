@@ -215,3 +215,44 @@ semantics. It does not establish atomic filesystem publication, correctness of
 an external codec implementation, or behavior of loaded executable experts.
 Global agreement between independent stores still requires the cryptographic
 assumptions of §28.1.
+
+## 28.9 Loader identifiers
+
+A primitive's entry is part of its reference (§28.1), so it must name its
+factory by something that does not change when code is reorganized. Let `N` be
+identifiers and `L` code locations. A *registry* is a finite list of
+registrations `(n, l) ∈ N × L`, contributed by installed distributions in no
+particular order. Write `locs(R, n)` for the set of locations registered for
+`n` in `R`. Resolution is
+
+    resolve(R, n) = l     if locs(R, n) = {l},
+    resolve(R, n) = ⊥     otherwise,
+
+so an identifier with no registration, or with registrations that disagree,
+does not resolve. A primitive stores an identifier; its location is looked up
+only at load time.
+
+**Theorem 28.6 (loader resolution).** For registries `R`, `R'` and identifier `n`:
+
+1. if `R'` is a permutation of `R`, then `resolve(R', n) = resolve(R, n)`;
+2. if no registration in `E` names `n`, then `resolve(R ++ E, n) = resolve(R, n)`;
+3. if `(n, a), (n, b) ∈ R` with `a ≠ b`, then `resolve(R, n) = ⊥`;
+4. for an injective relocation `μ : L → L`, relabelling every location of `R`
+   by `μ` gives `resolve(μR, n) = μ(resolve(R, n))`.
+
+*Proof.* `locs` depends only on the multiset of registrations naming `n`, which
+permutation preserves and which `E` does not change, giving 1 and 2. Under 3,
+`locs(R, n)` contains `a` and `b`, so it is not a singleton. For 4, `locs(μR, n)`
+is the image of `locs(R, n)` under `μ`, and an injective image of a set is a
+singleton exactly when the set is, with image `{μ(l)}`. ∎
+
+Part 4 is the guarantee that matters: moving code changes locations, never
+stored identifiers, so a registry updated with the move resolves every stored
+primitive to its moved factory and every reference is unchanged. Part 2 bounds
+what a contributed distribution can affect: it can make only identifiers it
+registers ambiguous, and it cannot redirect an identifier another distribution
+registers without making that identifier refuse to load. Earlier references
+whose entries were import paths stay valid by registering those paths as
+identifiers. The result assumes each location's factory behaves as its
+identifier promises; versioned identifiers (`…@1`) change when a factory's
+arguments or behavior change.

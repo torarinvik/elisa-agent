@@ -59,7 +59,7 @@ def load_affine(contract: dict[str, Any], slope: float, offset: float, cost: flo
 
 def affine_object(adapter: AffineAdapter, *, size: int) -> Primitive:
     """Snapshot the generic fitted model; no task implementation or teacher is retained."""
-    return Primitive(adapter.manifest, "nca.affine_learning:load_affine",
+    return Primitive(adapter.manifest, "nca/affine@1",
                      {"contract": contract_data(adapter.manifest.contract),
                       "slope": adapter.slope, "offset": adapter.offset, "cost": adapter.manifest.cost},
                      size=size)

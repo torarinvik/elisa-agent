@@ -27,7 +27,6 @@ references, as branch names point at commits.
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
 import math
 from collections.abc import Callable, Mapping, Sequence
@@ -36,6 +35,7 @@ from pathlib import Path
 from typing import Any, Union
 
 from nca.abi import App, Calls, Contract, Manifest, Module, Slot, Term, Var, format_type, parse_type
+from nca.objects import loaders
 
 Ref = str
 """``"sha256:"`` followed by 64 hexadecimal digits."""
@@ -126,8 +126,10 @@ def manifest_from(data: Mapping[str, Any]) -> Manifest:
 class Primitive:
     """One expert: its manifest and how to load its implementation.
 
-    ``entry`` names a callable as ``"package.module:attribute"``; loading calls
-    it with ``arguments`` and expects a module whose manifest equals this one.
+    ``entry`` names a callable: a loader identifier registered under
+    ``nca.loaders`` (``loaders``), which survives code moves, or else a
+    ``"package.module:attribute"`` import path. Loading calls it with
+    ``arguments`` and expects a module whose manifest equals this one.
     ``weights`` is the digest of the bytes the implementation loads, so
     implementations that differ only in their weights differ in reference.
     Nonempty ``dependencies`` resolve to ordered executable scopes passed as
@@ -157,10 +159,7 @@ class Primitive:
         return digest(self.data())
 
     def load(self, resolve: Callable[[Ref], Sequence[Module]] | None = None) -> Any:
-        module_name, _, attribute = self.entry.partition(":")
-        target: Any = importlib.import_module(module_name)
-        for part in attribute.split("."):
-            target = getattr(target, part)
+        target = loaders.resolve(self.entry)
         arguments: dict[str, Any] = dict(self.arguments)
         if self.dependencies:
             if resolve is None:

@@ -105,7 +105,7 @@ def decoder_object(decoder: Decoder, *, size: int) -> Primitive:
                  "fallback": encode_value(decoder.fallback), "cost": decoder.manifest.cost}
     manifest = replace(decoder.manifest, module_id=f"learned-decoder/{digest(arguments)}")
     arguments["module_id"] = manifest.module_id
-    return Primitive(manifest, "nca.discovery:_load_decoder", arguments, size=size)
+    return Primitive(manifest, "nca/decoder@1", arguments, size=size)
 
 
 class Decoded:

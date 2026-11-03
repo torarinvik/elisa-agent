@@ -8,7 +8,7 @@ from dataclasses import replace
 from typing import Any
 
 from nca.abi import Contract, Module
-from nca.discovery import Decoded, Decoder, Proposal
+from nca.learning.discovery import Decoded, Decoder, Proposal
 from nca.objects import Constructor, canonical
 
 

@@ -8,6 +8,36 @@ dependencies = ["numpy>=1.24", "torch>=2.4"]
 [project.optional-dependencies]
 trust = ["cryptography>=42"]
 
+[project.entry-points."nca.loaders"]
+# Stable identifiers stored in primitive entries, then the import paths
+# that earlier artifacts stored, as aliases of the same factories.
+"nca/decoder@1" = "nca.learning.discovery:_load_decoder"
+"nca/joint@1" = "nca.learning.acquisition_objects:load_joint"
+"nca/composition@1" = "nca.learning.acquisition_objects:load_composition"
+"nca/affine@1" = "nca.learning.affine:load_affine"
+"nca/vector-affine@1" = "nca.learning.vector:load_vector_affine"
+"nca/tree@1" = "nca.learning.tree_objects:load_tree"
+"nca/regional@1" = "nca.learning.regional_objects:load_regional"
+"nca/regional-policy@1" = "nca.learning.regional_objects:load_policy"
+"nca/partition@1" = "nca.learning.numeric_objects:load_partition"
+"nca/regions@1" = "nca.learning.numeric_objects:load_regions"
+"nca/projection@1" = "nca.learning.numeric_objects:load_projection"
+"nca/polynomial@1" = "nca.learning.numeric_objects:load_polynomial"
+"nca/prototypes@1" = "nca.learning.numeric_objects:load_prototypes"
+"nca.discovery:_load_decoder" = "nca.learning.discovery:_load_decoder"
+"nca.acquisition_objects:load_joint" = "nca.learning.acquisition_objects:load_joint"
+"nca.acquisition_objects:load_composition" = "nca.learning.acquisition_objects:load_composition"
+"nca.affine_learning:load_affine" = "nca.learning.affine:load_affine"
+"nca.vector_learning:load_vector_affine" = "nca.learning.vector:load_vector_affine"
+"nca.tree_objects:load_tree" = "nca.learning.tree_objects:load_tree"
+"nca.regional_objects:load_regional" = "nca.learning.regional_objects:load_regional"
+"nca.regional_objects:load_policy" = "nca.learning.regional_objects:load_policy"
+"nca.numeric_objects:load_partition" = "nca.learning.numeric_objects:load_partition"
+"nca.numeric_objects:load_regions" = "nca.learning.numeric_objects:load_regions"
+"nca.numeric_objects:load_projection" = "nca.learning.numeric_objects:load_projection"
+"nca.numeric_objects:load_polynomial" = "nca.learning.numeric_objects:load_polynomial"
+"nca.numeric_objects:load_prototypes" = "nca.learning.numeric_objects:load_prototypes"
+
 [dependency-groups]
 dev = ["pytest>=8"]
 

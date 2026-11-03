@@ -10,6 +10,8 @@ from nca.packages import resolve_binding
 from nca.learning.regional import RegionalExpert, RegionalPolicy
 from nca.value_codec import decode_value, encode_value
 
+_ENTRIES = {"load_regional": "nca/regional@1", "load_policy": "nca/regional-policy@1"}
+
 
 def load_regional(manifest: dict[str, Any], key: Json, indices: list[int], cost: float,
                    dependencies: tuple[tuple[Module, ...], ...]) -> RegionalExpert:
@@ -76,5 +78,5 @@ def _snapshot(store: Store, model: RegionalPolicy, components: Sequence[Module],
     identity = digest({"parameters": arguments, "dependencies": references})
     manifest = replace(model.manifest, module_id=f"learned-regional/{identity}")
     arguments["manifest"] = manifest_data(manifest)
-    return Primitive(manifest, f"nca.regional_objects:{factory}", arguments,
+    return Primitive(manifest, _ENTRIES[factory], arguments,
                      size=size, dependencies=references)

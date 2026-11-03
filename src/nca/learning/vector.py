@@ -69,7 +69,7 @@ def load_vector_affine(contract: dict[str, Any], weights: list[list[float]],
 
 def vector_affine_object(adapter: VectorAffineAdapter, *, size: int) -> Primitive:
     """Snapshot parameters only; training teachers are not runtime dependencies."""
-    return Primitive(adapter.manifest, "nca.vector_learning:load_vector_affine",
+    return Primitive(adapter.manifest, "nca/vector-affine@1",
                      {"contract": contract_data(adapter.manifest.contract),
                       "weights": adapter._weights.tolist(), "cost": adapter.manifest.cost},
                      size=size)

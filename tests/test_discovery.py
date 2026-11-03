@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Calls, Contract, Manifest
-from nca.discovery import (Decoded, FeatureTree, JointFeature, Proposal, TreeStateEncoder,
+from nca.learning.discovery import (Decoded, FeatureTree, JointFeature, Proposal, TreeStateEncoder,
                            discover, discover_packages, factor_tree, joint_features,
                            propose_decoders, train_tree)
 from nca.objects import Composite, Constructor, Primitive, Store
@@ -498,7 +498,7 @@ def test_tree_state_scalar_labels_keep_their_values_and_types(label: Any) -> Non
 
 
 def test_learned_head_persists_values_fallback_and_canonical_identity(tmp_path: Path) -> None:
-    from nca.discovery import Decoder, decoder_object
+    from nca.learning.discovery import Decoder, decoder_object
     from nca.loader import ExpertStore
 
     contract = Contract(("state",), "target")
@@ -523,7 +523,7 @@ def test_learned_head_persists_values_fallback_and_canonical_identity(tmp_path: 
 
 
 def test_residual_learning_preserves_good_regions_and_unseen_keys() -> None:
-    from nca.discovery import Corrected, propose_corrections
+    from nca.learning.discovery import Corrected, propose_corrections
 
     class Baseline(Constant):
         def invoke(self, value: str) -> str:
@@ -550,7 +550,7 @@ def test_residual_learning_preserves_good_regions_and_unseen_keys() -> None:
 
 
 def test_residual_learning_does_not_patch_a_region_where_incumbent_is_better() -> None:
-    from nca.discovery import propose_corrections
+    from nca.learning.discovery import propose_corrections
 
     feature = Feature(Contract(("source",), "region"), lambda value: "same-key")
     rows = [(float(i),) for i in range(20)]

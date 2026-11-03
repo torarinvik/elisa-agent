@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest, Message
-from nca.discovery import Decoder, Decoded, Proposal, decoder_object, discover
+from nca.learning.discovery import Decoder, Decoded, Proposal, decoder_object, discover
 from nca.learning.interfaces import propose_adapter
 from nca.loader import ExpertStore
 from nca.objects import Primitive, Store, contract_data
@@ -96,7 +96,7 @@ def test_distinct_stored_bridges_coexist_and_legacy_heads_load(tmp_path: Path) -
 def test_acquire_continuous_heads_on_typed_representations() -> None:
     import random
 
-    from nca.affine_learning import fit_affine
+    from nca.learning.affine import fit_affine
     from nca.learning.interfaces import propose_heads
     from nca.objects import Constructor
 
@@ -166,7 +166,7 @@ def test_head_acquisition_bounds_and_contract_validation() -> None:
 def test_head_failures_trigger_training_only_feature_refinement() -> None:
     import random
 
-    from nca.affine_learning import fit_affine
+    from nca.learning.affine import fit_affine
     from nca.learning.interfaces import propose_heads
     from nca.learning.projections import (ProjectionEncoder,
                                          fit_polynomial_regression_features)
@@ -262,7 +262,7 @@ def test_feature_refinement_bootstraps_empty_head_families_with_total_budget() -
 def test_joint_refiner_learns_an_informative_companion_from_training_ambiguity() -> None:
     import random
 
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import propose_heads, propose_joint_refinements
     from nca.objects import Constructor
 
@@ -334,7 +334,7 @@ def test_joint_refinement_budget_and_signature_validation() -> None:
 def test_joint_lookahead_crosses_non_improving_pairings() -> None:
     from itertools import product
 
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import propose_heads, propose_joint_refinements
 
     class Feature:
@@ -383,7 +383,7 @@ def test_joint_lookahead_crosses_non_improving_pairings() -> None:
 
 
 def test_categorical_partition_generates_label_agnostic_codes_and_compact_heads() -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import fit_categorical_partition, propose_heads
 
     source = Source()
@@ -406,7 +406,7 @@ def test_categorical_partition_generates_label_agnostic_codes_and_compact_heads(
 
 
 def test_categorical_partition_preserves_conflicted_modal_fit_and_global_fallback() -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import fit_categorical_partition
 
     rows, labels = [], []
@@ -432,7 +432,7 @@ def test_categorical_partition_preserves_conflicted_modal_fit_and_global_fallbac
 def test_categorical_partition_matches_raw_modal_predictions_on_noisy_samples() -> None:
     import random
 
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import fit_categorical_partition
 
     rng = random.Random(3651)
@@ -450,7 +450,7 @@ def test_categorical_partition_matches_raw_modal_predictions_on_noisy_samples() 
 def test_growing_prototype_types_are_selected_on_independent_rows() -> None:
     import random
 
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import propose_heads
     from nca.learning.projections import fit_prototype_features
 
@@ -485,7 +485,7 @@ def test_growing_prototype_types_are_selected_on_independent_rows() -> None:
 
 def test_error_directed_prototype_growth_uses_an_asymmetric_budget(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import propose_heads
     import nca.learning.projections as learning
 
@@ -535,7 +535,7 @@ def test_error_directed_prototype_growth_uses_an_asymmetric_budget(
 
 def test_bounded_allocation_search_escapes_greedy_growth_and_deduplicates(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    from nca.discovery import fit_decoder
+    from nca.learning.discovery import fit_decoder
     from nca.learning.interfaces import propose_heads
     import nca.learning.projections as learning
 

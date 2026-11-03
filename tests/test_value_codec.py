@@ -28,7 +28,7 @@ def test_malformed_records_fail(data: Any) -> None:
 
 def test_learned_decoder_uses_the_structural_codec() -> None:
     from nca.abi import Contract
-    from nca.discovery import Decoder, decoder_object
+    from nca.learning.discovery import Decoder, decoder_object
 
     key = (("$tuple", None), 3)
     head = Decoder(Contract(("state",), "target"), {key: ("label", True)}, ("missing",), 1)

@@ -8,7 +8,7 @@ from itertools import chain, combinations, islice
 from typing import Any, Protocol
 
 from nca.abi import Contract, Module
-from nca.discovery import Decoded, Decoder, JointFeature, Proposal, fit_decoder
+from nca.learning.discovery import Decoded, Decoder, JointFeature, Proposal, fit_decoder
 from nca.objects import Constructor, canonical, digest
 from nca.value_codec import encode_value
 

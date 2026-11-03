@@ -5,7 +5,7 @@ from dataclasses import replace
 from typing import Any
 
 from nca.abi import Module
-from nca.discovery import FeatureTree, _Decision
+from nca.learning.discovery import FeatureTree, _Decision
 from nca.objects import (Json, Primitive, Ref, Store, digest,
                          manifest_data, manifest_from)
 from nca.packages import resolve_binding
@@ -74,5 +74,5 @@ def tree_object(store: Store, tree: FeatureTree, bindings: Sequence[tuple[Ref, i
     identity = digest({"model": arguments, "dependencies": references})
     manifest = replace(tree.manifest, module_id=f"learned-tree/{identity}")
     arguments["manifest"] = manifest_data(manifest)
-    return Primitive(manifest, "nca.tree_objects:load_tree", arguments,
+    return Primitive(manifest, "nca/tree@1", arguments,
                      size=size, dependencies=references)

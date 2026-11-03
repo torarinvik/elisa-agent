@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.affine_learning import affine_object, fit_affine
+from nca.learning.affine import affine_object, fit_affine
 from nca.loader import ExpertStore
 from nca.learning.numeric import fit_regions_encoder, midpoint_boundary, purity_tiebreak
 from nca.learning.numeric_objects import store_encoder_chain
 from nca.objects import Primitive, Store
 from nca.packages import install
 from nca.learning.regional import RegionalExpert
-from nca.regional_objects import regional_object
+from nca.learning.regional_objects import regional_object
 from test_numeric_learning import Measurement
 
 
@@ -94,7 +94,7 @@ def test_regional_keys_use_structural_codec_without_lossy_coercion() -> None:
 
 def test_combined_policy_round_trip_and_duplicate_key_rejection(tmp_path: Path) -> None:
     from nca.learning.regional import RegionalPolicy
-    from nca.regional_objects import policy_object
+    from nca.learning.regional_objects import policy_object
 
     store = Store()
     original, bindings = components(store)

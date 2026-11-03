@@ -12,11 +12,11 @@ from typing import Any
 import numpy as np
 
 from nca.abi import Module
-from nca.discovery import Proposal
+from nca.learning.discovery import Proposal
 from nca.native import load
 from nca.learning.numeric import _observation, _partition_from_ordered, propose_partition
 from nca.objects import Constructor, canonical
-from nca.vector_learning import _vector
+from nca.learning.vector import _vector
 
 
 _NATIVE = load("polynomial")

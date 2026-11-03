@@ -8,7 +8,7 @@ from heapq import heappop, heappush
 from typing import Any
 
 from nca.abi import Module
-from nca.discovery import Proposal, _total_calls
+from nca.learning.discovery import Proposal, _total_calls
 from nca.learning.numeric import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
 

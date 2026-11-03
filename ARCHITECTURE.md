@@ -39,7 +39,7 @@ run the Python tests with `uv run pytest`.
 | [§25 Climbing order and stopping](theory/reliability/25-which-word-to-climb-and-when-to-stop.md) | `Stopping` | `ladder.stopping_rule` |
 | [§26 Composing cascades](theory/reliability/26-composing-cascades.md) | `Composition` | not implemented |
 | [§27 Priors as experts](theory/decoding/27-priors-as-experts.md) | `Product`, `Decoding` | `priors.ArityPrior`, `priors.select_prior`, `nca_boolean.words`, `nca_boolean.logic` |
-| [§28 Packages as experts](theory/foundations/28-packages-as-experts.md) | `Package` | `objects`, `packages`, `cache` |
+| [§28 Packages as experts](theory/foundations/28-packages-as-experts.md) | `Package`, `Loaders` | `objects`, `objects.loaders`, `packages`, `cache` |
 | [§29 Types as objects](theory/foundations/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/evidence/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 | [§31 Composing uncertainty](theory/reliability/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
@@ -147,7 +147,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Stable bounded plasticity; safe consolidation and migration | Open; not implemented | No universal regulator or composed update/eviction/consolidation/migration invariant is established. |
 | Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
-| Stored artifacts survive core reorganization | Open; not currently satisfied | Primitive loader entries name Python import paths such as `nca.discovery:_load_decoder`, and identities include them. Moving a loader module breaks previously stored artifacts, so `discovery`, `acquisition_objects`, `affine_learning`, `vector_learning`, `tree_objects` and `regional_objects` stay at the package root. Stable, versioned loader identifiers independent of module layout are required before they can move. |
+| Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
 
 Every open row requires a mechanism-level theorem, explicit assumptions and
@@ -391,6 +391,7 @@ an inference from their separate tests.
 | [28.3](theory/foundations/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
 | [28.4](theory/foundations/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
 | [28.5](theory/foundations/28-packages-as-experts.md) | `Artifacts.run_retains`, `Artifacts.admitted_read_stable`, `Artifacts.run_read_identity` | `Execution/Artifacts` |
+| [28.6](theory/foundations/28-packages-as-experts.md) | `resolveLoader_perm`, `resolveLoader_unrelated`, `resolveLoader_conflict`, `resolveLoader_relocate` | `Execution/Loaders` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
 | [29.3](theory/foundations/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
@@ -1719,6 +1720,18 @@ canonical schema-valid fixtures and supplying their digest table. Schema-invalid
 inputs, view mutations, persistence conflicts and concurrent duplicates have
 separate Python regressions. This is an executable link, not a proof of Python,
 JSON, locks, hashing libraries or filesystem behavior.
+
+`objects.loaders` resolves primitive entries (§28.9). Distributions register
+factories under the `nca.loaders` entry-point group, naming a stable identifier
+(the core's own are `nca/<name>@1`, declared in `pyproject.toml`) or an earlier
+import-path entry kept as an alias; the value is the factory's current module
+path. `resolve` loads the unique registered location, refuses an identifier
+registered at two locations without affecting others, and imports unregistered
+`module:attribute` entries directly. Registrations are cached; `refresh` rereads
+them after installing distributions. Core primitives store only registered
+identifiers, which `tests/test_loaders.py` checks, so learner modules can move
+without changing any reference. `Execution/Loaders.lean` proves Theorem 28.6 and
+`Execution/LoaderReplay.lean` is its executable differential runner.
 
 `objects` holds the content-addressed object model: `Primitive`, `Composite`
 and `Attestation`, each identified by the SHA-256 digest of its canonical

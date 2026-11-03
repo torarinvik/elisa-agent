@@ -5,14 +5,14 @@ from dataclasses import replace
 from typing import Any
 
 from nca.abi import Module
-from nca.affine_learning import AffineAdapter, affine_object
-from nca.discovery import Decoded, Decoder, JointFeature, decoder_object
+from nca.learning.affine import AffineAdapter, affine_object
+from nca.learning.discovery import Decoded, Decoder, JointFeature, decoder_object
 from nca.learning.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
 from nca.objects import Primitive, Ref, Store, contract_data, contract_from, digest, manifest_data
 from nca.packages import install, resolve_binding
 from nca.learning.regional import RegionalExpert, RegionalPolicy
-from nca.regional_objects import policy_object, regional_object
-from nca.vector_learning import VectorAffineAdapter, vector_affine_object
+from nca.learning.regional_objects import policy_object, regional_object
+from nca.learning.vector import VectorAffineAdapter, vector_affine_object
 
 Binding = tuple[Ref, int]
 
@@ -107,7 +107,7 @@ def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
         identity = digest({"pair_cost": model.pair_cost, "indices": indices,
                            "dependencies": references})
         manifest = replace(rebuilt.manifest, module_id=f"learned-joint/{identity}")
-        return Primitive(manifest, "nca.acquisition_objects:load_joint",
+        return Primitive(manifest, "nca/joint@1",
                          {"manifest": manifest_data(manifest), "indices": indices,
                           "pair_cost": model.pair_cost}, size=size, dependencies=references)
     if kind is Decoded:
@@ -118,7 +118,7 @@ def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
         identity = digest({"contract": contract_data(model.manifest.contract),
                            "indices": indices, "dependencies": references})
         manifest = replace(rebuilt.manifest, module_id=f"learned-composition/{identity}")
-        return Primitive(manifest, "nca.acquisition_objects:load_composition",
+        return Primitive(manifest, "nca/composition@1",
                          {"manifest": manifest_data(manifest), "indices": indices},
                          size=size, dependencies=references)
     return None

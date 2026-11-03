@@ -6,12 +6,12 @@ from dataclasses import replace
 from typing import Any
 
 from nca.abi import Module
-from nca.discovery import FeatureTree
+from nca.learning.discovery import FeatureTree
 from nca.learning.numeric import PartitionEncoder, RegionsEncoder
 from nca.objects import Primitive, Ref, Store, digest, manifest_data
 from nca.packages import install, resolve_binding
 from nca.learning.projections import PolynomialEncoder, ProjectionEncoder, PrototypeEncoder
-from nca.tree_objects import tree_object
+from nca.learning.tree_objects import tree_object
 
 
 Binding = tuple[Ref, int]
@@ -103,7 +103,7 @@ def encoder_object(store: Store, encoder: Encoder, binding: Binding, *, size: in
                        "constructor": encoder.constructor.ref})
     manifest = replace(encoder.manifest, module_id=f"learned-numeric/{identity}")
     arguments["manifest"] = manifest_data(manifest)
-    return Primitive(manifest, f"{__name__}:{factory.__name__}", arguments,
+    return Primitive(manifest, f"nca/{factory.__name__.removeprefix('load_')}@1", arguments,
                      size=size, dependencies=(reference,))
 
 
