@@ -2557,7 +2557,16 @@ untrusted implementations still need an OS/process isolation boundary.
 
 [§43](theory/foundations/43-episodic-memory.md) maps to `memory.MemoryRecord` and
 `memory.MemoryStore`, with abstract exact-recall/lookup-preservation proofs in
-`Execution/Memory.lean`. The host provisions a dedicated SQLite database and
+`Execution/Memory.lean`. Replay and guarded catalogs accept the structural
+`memory.MemoryBackend` interface, independent of storage implementation.
+`memory.records` owns canonical records; `memory.sqlite.MemoryStore` implements
+the default backend and remains exported as `memory.MemoryStore`. Alternative
+backends are host-supplied and must meet the same identity, provenance,
+permission, append-atomicity, capacity and enumeration obligations. The protocol
+does not enforce these semantics or certify a backend. The following storage
+details describe the SQLite implementation.
+
+The host provisions a dedicated SQLite database and
 supplies read/write effect identifiers. Appends and indexed reads use the
 permission gateway; canonical records carry opaque bytes, type, producer, time,
 reported confidence, parents and optional same-type supersession. One writer

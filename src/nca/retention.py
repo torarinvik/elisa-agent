@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from nca.evidence import EVALUATION, Issuers, benchmark, trusted
-from nca.memory import MemoryRecord, MemoryStore
+from nca.memory import MemoryBackend, MemoryRecord
 from nca.objects import Attestation, Ref
 
 
@@ -35,7 +35,7 @@ class ReplayGate:
 
 
 def replay_gate(
-    memory: MemoryStore,
+    memory: MemoryBackend,
     retained: Sequence[Attestation],
     issuers: Issuers,
     evaluate: Callable[[str, MemoryRecord], bool],

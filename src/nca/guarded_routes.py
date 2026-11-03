@@ -17,7 +17,7 @@ from typing import Any
 
 from nca.abi import Contract, Manifest, Message, Module, TypeId
 from nca.evidence import EVALUATION, Issuers
-from nca.memory import MemoryRecord, MemoryStore
+from nca.memory import MemoryBackend, MemoryRecord
 from nca.objects import Attestation, canonical, object_from
 from nca.planner import Apply, Given, Map, Plan, output_type
 from nca.retention import ReplayGate, ReplayResult, replay_gate
@@ -34,7 +34,7 @@ class ReplayContext:
     Router replay restricts effects to memory reads plus explicitly listed effects.
     """
 
-    memory: MemoryStore
+    memory: MemoryBackend
     issuers: Issuers
     max_cases: int
     budget: int
@@ -228,7 +228,7 @@ class RouteCatalog:
     def replace(
         self,
         changes: Sequence[tuple[Module, Module]],
-        memory: MemoryStore,
+        memory: MemoryBackend,
         issuers: Issuers,
         *,
         max_cases: int,
@@ -292,7 +292,7 @@ class RouteCatalog:
     def replan(
         self,
         plans: Mapping[str, Plan],
-        memory: MemoryStore,
+        memory: MemoryBackend,
         issuers: Issuers,
         *,
         max_cases: int,
@@ -325,7 +325,7 @@ class RouteCatalog:
     def _publish(
         self,
         proposed: Mapping[str, ProtectedRoute],
-        memory: MemoryStore,
+        memory: MemoryBackend,
         issuers: Issuers,
         *,
         max_cases: int,
