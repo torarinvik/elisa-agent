@@ -2497,3 +2497,26 @@ Contributor-owned resource gateways call `effects.require_effect` before acting.
 `Execution/Effects.lean` proves finite-set attenuation and conditional gateway
 refusal (§42.4). These checks do not intercept arbitrary host-language effects;
 untrusted implementations still need an OS/process isolation boundary.
+
+## Episodic record storage
+
+[§43](theory/foundations/43-episodic-memory.md) maps to `memory.MemoryRecord` and
+`memory.MemoryStore`, with abstract exact-recall/lookup-preservation proofs in
+`Execution/Memory.lean`. The host provisions a dedicated SQLite database and
+supplies read/write effect identifiers. Appends and indexed reads use the
+permission gateway; canonical records carry opaque bytes, type, producer, time,
+reported confidence, parents and optional same-type supersession. One writer
+transaction validates parents, enforces persistent logical-byte capacity and
+inserts an immutable record. WAL mode is required and synchronous commits use
+FULL mode. Reopening preserves references; duplicate appends
+are idempotent. Reads verify content digests. Quota excludes SQLite physical
+storage overhead. There is no eviction, semantic retrieval strategy or bundled
+memory expert; external packages provide codecs, recall and consolidation.
+`MemoryStore.scan` provides bounded append-order reference pages for external
+index rebuilding. Its cursor survives reopen; concurrent appends get higher
+positions in the same serialized transaction. The position index is physical
+storage overhead, outside the logical record-byte quota.
+The artifact `objects.Store` retains its expert/type DAG semantics and eager
+whole-directory reopen. Episodic traffic uses an indexed transactional backend
+to support bounded reads and atomic cross-handle capacity admission without
+loading every experience into the artifact store.

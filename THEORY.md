@@ -69,3 +69,4 @@ link for its definitions, arguments, and results.
 - [40. Audits by agreement](theory/reliability/40-agreement-audits.md)
 - [41. Verification](theory/reliability/41-verification.md)
 - [42. Working state and bounded streams](theory/foundations/42-working-state.md)
+- [43. Durable typed episodic records](theory/foundations/43-episodic-memory.md)
