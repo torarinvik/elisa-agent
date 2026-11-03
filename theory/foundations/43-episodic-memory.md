@@ -227,3 +227,38 @@ so Theorem 43.1 applies with `ℓ` the probability of that combined loss. One
 sampler is shared by every snapshot of a catalog, so decisions are numbered and
 cases retired across versions, and a router passes it through its replay
 context.
+
+## 43.8 Self-regulating plasticity
+
+The gate decides whether a change is admitted; plasticity decides where change
+is attempted and how much acquisition effort each place receives. Let keys
+`κ` name (piece, region) pairs chosen by the caller. Each observation window
+supplies, per key, a *surprise* `s ∈ [0, 1]` (for example an excess failure
+rate, refuted calibration or detected shift) and a *stability* `w ∈ [0, 1]`
+(for example use-weighted dependents or attestation strength). With rate
+`η ∈ (0, 1]`, the default regulator updates plasticity by
+
+    p' = (1 - η)p + η · s(1 - w),
+
+and a key opens when `p ≥ hi` and closes when `p ≤ lo`, with `0 ≤ lo < hi ≤ 1`.
+An acquisition budget is divided among open keys in proportion to `p`. When
+the gate admits a change for `κ`, the key *settles*: it closes and `p` resets to
+an initial value `p₀ ≤ lo`.
+
+**Theorem 43.2 (bounded, non-oscillating plasticity).** If `p, s, w ∈ [0, 1]`
+then `p' ∈ [0, 1]` and `|p' - p| ≤ η`. Consequently, on any trajectory, an open
+key cannot close and a closed key cannot reopen in fewer than `(hi - lo)/η`
+observations, and the same bound holds for reopening after settling.
+
+*Proof.* `s(1 - w) ∈ [0, 1]`, and `p'` is a convex combination of `p` and
+`s(1 - w)`. Also `p' - p = η(s(1 - w) - p)` with `|s(1 - w) - p| ≤ 1`. By the
+triangle inequality, `n` observations move `p` by at most `nη`. Closing an open
+key needs `p` to fall from at least `hi` to at most `lo`, and reopening needs the
+reverse; after settling `p = p₀ ≤ lo`. ∎
+
+Plasticity never enters admission: Theorem 43.1 holds for any rule that chooses
+proposals from the history, so any regulator, learned or contributed, keeps the
+non-regression guarantee. Theorem 43.2 concerns only the default regulator;
+another regulator must stay in `[0, 1]`, which the implementation checks, but
+it gets no step or oscillation bound without its own proof. Signals are
+computed by the frame from ledgers and audits, never reported by pieces.

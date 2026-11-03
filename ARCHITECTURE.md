@@ -144,7 +144,8 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Sampled admission remains sound under adaptive updates | Proved except the sampling step; empirically checked | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh` and `sampledGate_sound` prove the sample size, the budget over unboundedly many decisions, that no case informs two decisions and the union over decisions and routes. That fresh i.i.d. cases give miss probability `(1-ℓ)^m` given the history is the stated sampling hypothesis, not proved in Lean; whether real retained pools are i.i.d. samples of a route's operating distribution is trusted. Tests name each theorem; the Python allocator is not differentially linked to `allocate`. |
 | Regional corrections preserve behavior outside their region | Open end-to-end | Existing regional tests and mathematical special cases do not verify the implementation and router error jointly for arbitrary contributed experts. |
 | Bounded retained evidence and safe eviction | Open; not implemented | Episodic byte admission does not bound evidence growth with task count. There is no eviction policy protecting live gate evidence or explicitly reducing stability when it is removed. |
-| Stable bounded plasticity; safe consolidation and migration | Open; not implemented | No universal regulator or composed update/eviction/consolidation/migration invariant is established. |
+| Stable bounded plasticity | Proved for the default regulator; empirically linked | `smooth_unit`, `smooth_step`, `hysteresis_gap` and `reopen_after_settle` prove bounds, per-step movement and no flapping; `retention.plasticity` matches `Reliability/PlasticityReplay.lean` exactly over rationals on 64 generated trajectories. Other regulators are checked only for staying in [0, 1]. Deriving signals from real ledgers and audits is not yet implemented. |
+| Safe consolidation and migration | Open; not implemented | No composed update/eviction/consolidation/migration invariant is established. |
 | Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
@@ -417,6 +418,7 @@ an inference from their separate tests.
 | [40.1](theory/reliability/40-agreement-audits.md) | `disagreement_le` with `audit_tail_le` | `Agreement`, `Audit` |
 | [41.1](theory/reliability/41-verification.md) | `verified_le` | `Verification` |
 | [43.1](theory/foundations/43-episodic-memory.md) | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh`, `sampledGate_sound` | `Reliability/SampledGate` |
+| [43.2](theory/foundations/43-episodic-memory.md) | `smooth_unit`, `smooth_step`, `hysteresis_gap`, `reopen_after_settle` | `Reliability/Plasticity` |
 
 ## Native kernels
 
@@ -2691,6 +2693,17 @@ checks that the sampler holds evidence for every affected anchor, and counts a
 drawn case as lost when the proposed plan fails where the original baseline or
 the current plan succeeds; the current plan runs only when needed.
 `GuardedUpdate.sampled` then carries the decision and the exact gates are empty.
+
+`retention.plasticity.PlasticityField` keeps a plasticity and an open flag per
+caller-chosen key (§43.8). `observe(key, surprise, stability)` applies a
+pluggable regulator (default `Smoothing(rate)`), rejects values outside [0, 1]
+and applies hysteresis between `close_at` and `open_at`; `allocate(budget)`
+divides attempts over open keys by largest remainder in proportion to
+plasticity; `settle(key)` closes a key after the gate admits a change for it.
+Arithmetic is generic, which lets `tests/test_plasticity.py` compare it exactly
+with `Reliability/PlasticityReplay.lean` over rationals.
+`benchmarks/plasticity.py` compares budget allocation with uniform and oracle
+policies under random shifts.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;
