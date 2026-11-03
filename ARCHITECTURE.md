@@ -855,8 +855,13 @@ can try higher rungs and abstains if none supplies a usable account.
 
 `nca.refinement.policies` contains refinement state, climb-priority helpers, stopping
 policies and certification routines. `nca.ladder` re-exports the public names
-and uses the same priority-function objects. Numerical readings, calibration
-and native backend selection are implemented in `nca.ladder`.
+and uses the same priority-function objects. `ladder.rungs` implements
+calibrated observations and temperature fitting; `engine` owns the refinement
+loop and result, `budgets` owns conservative sums and risk allocation, and
+`attestations` owns calibration serialization and calibrated expert adapters.
+`nca.ladder` retains decision/readout helpers, shared native backend selection
+and public exports. Implementation modules load after these shared definitions;
+calls through the public API retain the same backend and scoring overrides.
 
 `nca.ladder.refine` accepts an optional generic climb-priority callback; its
 default ranks by charge, while `charge_per_cost` is an experimental heuristic
