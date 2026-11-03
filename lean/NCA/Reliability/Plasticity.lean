@@ -2,6 +2,7 @@ import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import Mathlib.Algebra.Order.BigOperators.Group.List
 
 /-! Self-regulating plasticity (§43.8). Each key's plasticity is smoothed toward
 its signal `surprise · (1 - stability)`; a key opens at `hi` and closes at `lo`
@@ -80,5 +81,30 @@ omit [Field α] [IsStrictOrderedRing α] in
 /-- Closing requires `p ≤ lo`. -/
 theorem nextOpen_closes {lo hi p : α} (h : nextOpen lo hi true p = false) : p ≤ lo := by
   simpa [nextOpen] using h
+
+/-- Ledger surprise (§43.9): the mean of reported risks in `[0, 1]`, or 1 when an
+audit refutes, lies in `[0, 1]`, so it is a valid Theorem 43.2 input. -/
+theorem meanSignal_unit (reports : List α) (ne : reports ≠ [])
+    (unit : ∀ r ∈ reports, 0 ≤ r ∧ r ≤ 1) :
+    0 ≤ reports.sum / reports.length ∧ reports.sum / reports.length ≤ 1 := by
+  have len : (0 : α) < reports.length := by
+    exact_mod_cast List.length_pos_of_ne_nil ne
+  have lo : 0 ≤ reports.sum := List.sum_nonneg fun r hr => (unit r hr).1
+  have hi : reports.sum ≤ reports.length := by
+    have := List.sum_le_card_nsmul reports 1 (fun r hr => (unit r hr).2)
+    simpa using this
+  exact ⟨div_nonneg lo len.le, (div_le_one len).mpr hi⟩
+
+/-- Dependent stability `d / (d + h)` lies in `[0, 1)` and grows with `d`. -/
+theorem dependentStability_unit {h : α} (hh : 0 < h) (d : ℕ) :
+    0 ≤ (d : α) / (d + h) ∧ (d : α) / (d + h) < 1 := by
+  have : (0 : α) < d + h := by positivity
+  exact ⟨by positivity, (div_lt_one this).mpr (by linarith)⟩
+
+theorem dependentStability_mono {h : α} (hh : 0 < h) {d e : ℕ} (le : d ≤ e) :
+    (d : α) / (d + h) ≤ (e : α) / (e + h) := by
+  have hd : (d : α) ≤ e := by exact_mod_cast le
+  rw [div_le_div_iff₀ (by positivity) (by positivity)]
+  nlinarith
 
 end NCA

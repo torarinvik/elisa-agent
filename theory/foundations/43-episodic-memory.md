@@ -262,3 +262,26 @@ non-regression guarantee. Theorem 43.2 concerns only the default regulator;
 another regulator must stay in `[0, 1]`, which the implementation checks, but
 it gets no step or oscillation bound without its own proof. Signals are
 computed by the frame from ledgers and audits, never reported by pieces.
+
+## 43.9 Signals from ledgers, audits and dependents
+
+The frame computes plasticity signals from its own records. For a window of
+execution ledgers and a key function `κ` on charged invocations, let `I_κ` be
+the invocations with key `κ` and `r_i ∈ [0, 1]` their reported risks. The
+*surprise* of `κ` is
+
+    s(κ) = 1                                  if an audit of κ refutes calibration at level α,
+    s(κ) = (1/|I_κ|) Σ_{i ∈ I_κ} r_i          otherwise.
+
+When the reports are calibrated (§33), the mean report estimates the key's
+failure rate without labels. When they are not, an audit (§35, §38, §40)
+refutes them and surprise saturates; reports alone cannot reveal failures they
+do not announce. The *stability* of an expert with `d` dependent protected
+routes is `d/(d + h)` for a half-saturation `h > 0`.
+
+**Proposition 43.3.** Both signals lie in `[0, 1]`, and stability is
+nondecreasing in `d`. Hence a field fed by them satisfies Theorem 43.2.
+
+*Proof.* A mean of values in `[0, 1]` lies in `[0, 1]`, and so does the
+indicator. For `h > 0`, `0 ≤ d/(d + h) < 1`, and `d ≤ e` gives
+`d(e + h) ≤ e(d + h)`. ∎

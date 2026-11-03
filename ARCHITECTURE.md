@@ -144,7 +144,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Sampled admission remains sound under adaptive updates | Proved except the sampling step; empirically checked | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh` and `sampledGate_sound` prove the sample size, the budget over unboundedly many decisions, that no case informs two decisions and the union over decisions and routes. That fresh i.i.d. cases give miss probability `(1-ℓ)^m` given the history is the stated sampling hypothesis, not proved in Lean; whether real retained pools are i.i.d. samples of a route's operating distribution is trusted. Tests name each theorem; the Python allocator is not differentially linked to `allocate`. |
 | Regional corrections preserve behavior outside their region | Open end-to-end | Existing regional tests and mathematical special cases do not verify the implementation and router error jointly for arbitrary contributed experts. |
 | Bounded retained evidence and safe eviction | Open; not implemented | Episodic byte admission does not bound evidence growth with task count. There is no eviction policy protecting live gate evidence or explicitly reducing stability when it is removed. |
-| Stable bounded plasticity | Proved for the default regulator; empirically linked | `smooth_unit`, `smooth_step`, `hysteresis_gap` and `reopen_after_settle` prove bounds, per-step movement and no flapping; `retention.plasticity` matches `Reliability/PlasticityReplay.lean` exactly over rationals on 64 generated trajectories. Other regulators are checked only for staying in [0, 1]. Deriving signals from real ledgers and audits is not yet implemented. |
+| Stable bounded plasticity | Proved for the default regulator; empirically linked | `smooth_unit`, `smooth_step`, `hysteresis_gap` and `reopen_after_settle` prove bounds, per-step movement and no flapping; `retention.plasticity` matches `Reliability/PlasticityReplay.lean` exactly over rationals on 64 generated trajectories. Other regulators are checked only for staying in [0, 1]. `retention.signals` derives inputs from runtime ledgers, audits and dependents; `meanSignal_unit`, `dependentStability_unit` and `dependentStability_mono` prove them in range. Signal quality depends on expert calibration, which audits check. |
 | Safe consolidation and migration | Open; not implemented | No composed update/eviction/consolidation/migration invariant is established. |
 | Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
@@ -419,6 +419,7 @@ an inference from their separate tests.
 | [41.1](theory/reliability/41-verification.md) | `verified_le` | `Verification` |
 | [43.1](theory/foundations/43-episodic-memory.md) | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh`, `sampledGate_sound` | `Reliability/SampledGate` |
 | [43.2](theory/foundations/43-episodic-memory.md) | `smooth_unit`, `smooth_step`, `hysteresis_gap`, `reopen_after_settle` | `Reliability/Plasticity` |
+| [43.3](theory/foundations/43-episodic-memory.md) | `meanSignal_unit`, `dependentStability_unit`, `dependentStability_mono` | `Reliability/Plasticity` |
 
 ## Native kernels
 
@@ -2704,6 +2705,15 @@ Arithmetic is generic, which lets `tests/test_plasticity.py` compare it exactly
 with `Reliability/PlasticityReplay.lean` over rationals.
 `benchmarks/plasticity.py` compares budget allocation with uniform and oracle
 policies under random shifts.
+
+`retention.signals` computes those inputs (§43.9). `surprise(ledgers, key,
+audits=...)` averages reported risks of charged invocations per key, where
+`key` maps an `Invocation` to an expert identity and optionally an input
+region, and sets a key to one when its audit refutes calibration.
+`stability(catalog, module)` is `d / (d + half)` over
+`RouteCatalog.dependents(module)`, and `observe` feeds a window to a field.
+`benchmarks/ledger_signals.py` runs region experts through `execute` with
+silent and honest shifts.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;

@@ -224,6 +224,10 @@ class RouteCatalog:
         self._dependencies = MappingProxyType(dependencies)
         self._metadata = MappingProxyType(metadata)
 
+    def dependents(self, module: Module) -> frozenset[str]:
+        """The anchors of protected routes whose explicit plans use ``module``."""
+        return self._dependents.get(id(module), frozenset())
+
     @property
     def routes(self) -> Mapping[str, ProtectedRoute]:
         return self._routes
