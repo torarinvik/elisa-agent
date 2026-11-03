@@ -376,3 +376,22 @@ fitter generalizes is not assumed; it is what the test measures.
 The test may stop at its first disagreement: it then admits exactly when the
 full test would and never reads more cases, so Theorem 20.14 is unchanged and
 a rejection costs only the cases read up to its first error.
+
+**Experts with several inputs.** A unary connector cannot compute what depends
+on two inputs, so gaps must allow experts `(A₁, …, Aₙ) → b`. Read every ground
+expert as a Horn rule: a type is derivable from the given types when it is
+given or the output of an expert whose inputs are all derivable.
+
+**Theorem 20.15 (gaps with several inputs).** If the goal `g` is not
+derivable from `S`, adding an expert `A → b` makes it derivable if and only if
+every type in `A` is derivable from `S` and `g` is derivable from `S ∪ {b}`.
+
+*Proof.* (⇐) Derive `A`, apply the new expert, then cut `b` into the
+derivation of `g`. (⇒) By induction on the derivation, every derived type is
+either derivable without the new expert, or `A` is derivable and the type is
+derivable with `b` given. ∎
+
+Theorem 20.11 is the case `|A| = 1`. Candidates are the sets of at most `n`
+producible types with each target from which the goal is derivable; there are
+`O(|P|ⁿ)` of them for `|P|` producible types, so the arity bound is a
+resource limit stated by the caller, not a limit of the theory.

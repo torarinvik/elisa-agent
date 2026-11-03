@@ -179,3 +179,34 @@ def test_companions_are_installed_with_the_requested_expert() -> None:
     assert repaired is not None
     assert [m.manifest.contract for m in repaired.acquired] == [
         Contract(("x",), "g"), Contract(("g",), "x")]
+
+
+def test_gaps_with_several_inputs_are_exactly_the_one_expert_repairs() -> None:
+    """``NCA.horn_gap_iff``, against the planner over every binary contract."""
+    library = [Step(("s",), "x"), Step(("s",), "y"), Step(("x", "y"), "w"), Step(("z",), "g")]
+    found = {(frozenset(g.contract.inputs), g.contract.output)
+             for g in gaps(library, ("s",), "g", arity=2)}
+    names = ["s", "x", "y", "w", "z", "g", "u"]
+    for inputs in [*((a,) for a in names), *combinations(names, 2)]:
+        for target in names:
+            if target in inputs:
+                continue
+            repaired = plan([*library, Step(inputs, target)], ("s",), "g") is not None
+            assert repaired == ((frozenset(inputs), target) in found), (inputs, target)
+    assert (frozenset({"x", "y"}), "z") in found
+    assert [len(g.contract.inputs) for g in gaps(library, ("s",), "g", arity=2)] == sorted(
+        len(g.contract.inputs) for g in gaps(library, ("s",), "g", arity=2))
+
+
+def test_repair_acquires_an_expert_combining_two_inputs() -> None:
+    library = [Step(("s",), "x", 1), Step(("s",), "y", 2)]
+
+    def acquire(contract: Contract) -> Module | None:
+        return Step(contract.inputs, contract.output, 0) if len(contract.inputs) == 2 else None
+
+    assert repair(library, ("s",), "g", acquire, attempts=50) is None
+    repaired = repair(library, ("s",), "g", acquire, attempts=50, arity=2)
+    assert repaired is not None and len(repaired.acquired[0].manifest.contract.inputs) == 2
+    result = execute(repaired.route, (Message("s", 10, "input"),), Workspace(), 10)
+    inputs = repaired.acquired[0].manifest.contract.inputs
+    assert result.payload == sum({"s": 10, "x": 11, "y": 12}[t] for t in inputs)

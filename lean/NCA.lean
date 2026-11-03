@@ -61,4 +61,5 @@ import NCA.Execution.Loaders
 import NCA.Types.Hub
 import NCA.Types.SlotRisk
 import NCA.Planning.Gaps
+import NCA.Planning.Horn
 import NCA.Reliability.Vote

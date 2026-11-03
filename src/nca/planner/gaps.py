@@ -25,6 +25,7 @@ connect every other type into it, pass after pass, until a pass adds none.
 from __future__ import annotations
 
 from collections import deque
+from itertools import combinations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -130,10 +131,11 @@ def producible(modules: Sequence[Module], available: Sequence[TypeId]) -> list[T
 
 
 def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
-         fuel: int = 8) -> list[Gap]:
-    """Every single connector ``A → B`` completing a route to ``goal``, with
-    ``A`` producible and ``B`` consumed by some expert or the goal itself;
-    empty if a route exists already."""
+         fuel: int = 8, arity: int = 1) -> list[Gap]:
+    """Every single expert ``(A₁, …, Aₙ) → B`` with ``n ≤ arity`` completing a
+    route to ``goal``, with each ``Aᵢ`` producible and ``B`` consumed by some
+    expert or the goal itself (``NCA.horn_gap_iff``), fewest inputs first and
+    inputs in the order they are produced; empty if a route exists already."""
     if plan(modules, available, goal, fuel) is not None:
         return []
     sources = producible(modules, available)
@@ -144,11 +146,13 @@ def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
     for target in dict.fromkeys(targets):
         if plan(modules, (*available, target), goal, fuel) is None:
             continue
-        for source in sources:
-            contract = Contract((source,), target)
-            route = plan((*modules, _Missing(contract)), available, goal, fuel)
-            if route is not None:
-                found.append(Gap(contract, route))
+        for size in range(1, arity + 1):
+            for inputs in combinations(sources, size):
+                contract = Contract(inputs, target)
+                route = plan((*modules, _Missing(contract)), available, goal, fuel)
+                if route is not None:
+                    found.append(Gap(contract, route))
+    found.sort(key=lambda gap: len(gap.contract.inputs))
     return found
 
 
@@ -206,10 +210,13 @@ def fewest_missing(modules: Sequence[Module], available: Sequence[TypeId], goal:
 
 def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
            acquire: Acquire, attempts: int, missing: int = 1, fuel: int = 8, *,
-           media: Sequence[TypeId] | None = None) -> Repaired | None:
+           media: Sequence[TypeId] | None = None, arity: int = 1) -> Repaired | None:
     """Acquire connectors until a route reaches ``goal``: each round requests
     the connectors of a route needing the fewest missing ones, at most
     ``missing``, avoiding refused requests; at most ``attempts`` requests.
+    With ``arity`` above one, single gaps with up to ``arity`` inputs are
+    requested too, fewest inputs first: in place of the search when
+    ``missing`` is one, and once it finds nothing otherwise.
 
     With ``media``, a medium is first founded on an unreachable goal that no
     existing medium reaches and grown over the types in ``media``; its
@@ -222,23 +229,27 @@ def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
             constructor, into, out = medium(goal)
             grown, requests = grow((*modules, into, out), constructor.type(), media, acquire)
             acquired += [into, out, *grown]
-    refused: set[tuple[TypeId, TypeId]] = set()
+    refused: set[Contract] = set()
     while True:
         library = (*modules, *acquired)
         route = plan(library, available, goal, fuel)
         if route is not None:
             return Repaired(tuple(acquired), route, requests)
-        path = fewest_missing(library, available, goal, missing, frozenset(refused))
+        unary = frozenset((c.inputs[0], c.output) for c in refused if len(c.inputs) == 1)
+        path = [] if missing == 1 < arity else [Contract((a,), b) for a, b in fewest_missing(
+            library, available, goal, missing, unary) or ()]
+        if not path and arity > 1:
+            path = next(([gap.contract] for gap in gaps(library, available, goal, fuel, arity)
+                         if gap.contract not in refused), [])
         if not path:
             return None
-        for source, target in path:
+        for contract in path:
             if requests == attempts:
                 return None
             requests += 1
-            contract = Contract((source,), target)
             supplied = acquire(contract)
             if supplied is None:
-                refused.add((source, target))
+                refused.add(contract)
                 break
             supplied = (supplied,) if not isinstance(supplied, Sequence) else tuple(supplied)
             if not supplied or supplied[0].manifest.contract != contract:

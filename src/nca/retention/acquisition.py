@@ -29,11 +29,15 @@ Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | N
 """Fits a unary expert from keys and labels, or ``None`` if it cannot."""
 Sampler = Callable[[Contract, int], Sequence[tuple[Any, Any]] | None]
 """Up to the given number of fresh (input, output) cases for a contract, or
-``None`` if none exist."""
+``None`` if none exist; for several inputs, the input is their tuple."""
 
 
 def _equal(output: Any, label: Any) -> bool:
     return bool(output == label)
+
+
+def _invoke(module: Module, contract: Contract, key: Any) -> Any:
+    return module.invoke(*key) if len(contract.inputs) > 1 else module.invoke(key)
 
 
 class CertifiedAcquirer:
@@ -67,7 +71,7 @@ class CertifiedAcquirer:
             if held is None or len(held) < min(batch, fresh - tested):
                 return None
             self.labels += len(held)
-            if not all(self.agree(module.invoke(k), v) for k, v in held):
+            if not all(self.agree(_invoke(module, contract, k), v) for k, v in held):
                 return None
             tested, batch = tested + len(held), 2 * batch
         self.certified[module.manifest.module_id] = self.tolerance
