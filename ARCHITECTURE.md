@@ -150,7 +150,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Bounded connectors through a hub | Proved; empirically checked | `hubConnectors_card`, `hub_routes`, `direct_connectors_lower`, `hubConnectors_mono` and `hub_route_risk` prove 2N connectors, two-step routes, the N(N−1) pairwise lower bound, locality and additive route risk; `tests/test_hub.py` checks planning through a hub. |
 | Hub learned by attachment | Proved; empirically checked | `attached_risk` and `attachment_depth_risk` bound a type's hub risk by its fit risk plus its partner's, and by `dε` at depth `d`; `tests/test_hub_learning.py` checks `learning.hub.attach`. The sampling bound for each fit is not formalized. |
 | Hub migration by a bridge | Proved; empirically checked | `bridged_keeps`, `bridged_routes`, `bridged_card` and `bridged_route_risk` prove that bridging keeps both versions' routes, joins them in three steps with at most two new connectors and adds the bridge's risk; `tests/test_hub_learning.py` checks a bridged plan. |
-| Shared-medium substitution and migration | Open | Risk preservation when a refined piece fills a general slot is not established. |
+| Refined pieces in general slots | Proved; empirically checked | `slot_risk_transfer` bounds a consumer's risk on refined inputs by `c` times its measured rate under a density-ratio certificate, and `slot_risk_unbounded` shows no rate transfers without one; `route_risk(shift=…)` charges `min(1, c · rate)` and returns `None` without a certificate, checked by `tests/test_slot_risk.py`. Obtaining certificates from data is not addressed. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
@@ -399,6 +399,7 @@ an inference from their separate tests.
 | [29.4](theory/foundations/29-types-as-objects.md) | `hubConnectors_card`, `hub_routes`, `direct_connectors_lower`, `hubConnectors_mono`, `hub_route_risk` | `Types/Hub` |
 | [29.5](theory/foundations/29-types-as-objects.md) | `attached_risk`, `attachment_depth_risk` | `Types/Hub` |
 | [29.6](theory/foundations/29-types-as-objects.md) | `bridged_keeps`, `bridged_routes`, `bridged_card`, `bridged_route_risk` | `Types/Hub` |
+| [29.7](theory/foundations/29-types-as-objects.md) | `slot_risk_transfer`, `slot_risk_unbounded` | `Types/SlotRisk` |
 | [28.6](theory/foundations/28-packages-as-experts.md) | `resolveLoader_perm`, `resolveLoader_unrelated`, `resolveLoader_conflict`, `resolveLoader_relocate` | `Execution/Loaders` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
@@ -2761,6 +2762,13 @@ Hub migration (§29.6) is one more attachment: the new hub attaches to the old
 through the old founder, and the planner composes across versions;
 `benchmarks/hub_migration.py` compares this bridge with re-attaching every
 old member.
+
+A consumer fed refined values through an upcast is charged by `route_risk`
+with its rate taken in situ unless a `shift` certificate is passed (§29.7):
+`evidence.shifted` rewrites the plan so each expert fed through upcasts is
+charged `min(1, c · rate)` for the certificate of the types it actually
+receives, and the risk is `None` where none exists. `benchmarks/slot_risk.py`
+compares the in-situ and certified charges.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;

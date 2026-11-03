@@ -159,3 +159,27 @@ Migration therefore costs one attachment instead of one per member, and pays
 one extra hop of risk on cross-version routes. Members may later re-attach to
 `H'` directly, each through the ordinary gate, to remove that hop where the
 evidence warrants it; old members need never move.
+
+## 29.7 Risk of a refined piece in a general slot
+
+An upcast never fails (Theorem 29.2), but it changes what its consumer sees.
+A consumer of `T` has a failure rate measured on some distribution `μT` of
+`T`-values; filled through an upcast from a producer of `S ≤ T`, it receives
+values distributed as `μS`. The refinement says these values have `T`'s
+representation, not that they resemble the values the rate was measured on.
+
+**Theorem 29.7 (slot risk).**
+
+1. If `μS ≤ c · μT` for a constant `c`, the consumer fails on refined inputs
+   with probability at most `c` times its measured rate.
+2. Without such a bound no rate transfers: for every `ε ≤ 1` there are
+   probability measures under which the consumer's measured rate is `ε` and
+   it fails with certainty on the refined inputs.
+
+*Proof.* (1) Evaluate the measure inequality at the failure set. (2) Put mass
+`ε` of `μT` and all of `μS` on one failing point. ∎
+
+So a rate is in situ for refined inputs only with evidence for it: either a
+rate measured on the refined producer's own values, or a density-ratio
+certificate `c`. A route's charge then uses `min(1, c · r)` for each consumer
+fed through upcasts, and its risk is unknown where no certificate exists.

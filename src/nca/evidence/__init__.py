@@ -29,7 +29,7 @@ from nca.compile import compile_route
 from nca.objects import Attestation, Ref, Store
 from nca.packages import Export, Requirement, Upcast, charge
 from nca.optimize import slot_calls
-from nca.planner import Apply, Given, Map, Plan
+from nca.planner import Apply, Given, Map, Plan, output_type
 from nca.router import sign_test
 from nca.runtime import Invocation, Resolver, RiskLedger, execute
 from nca.stats import clopper_pearson_upper, family_audit_alpha, poisson_binomial_upper_bound
@@ -129,8 +129,50 @@ class _Unknown(Exception):
     pass
 
 
+Shift = Callable[[Module, tuple[TypeId, ...]], float | None]
+"""A certificate ``c`` for an expert receiving inputs of the given types
+through upcasts: their distribution is at most ``c`` times the one its rate
+was measured on (§29.7); ``None`` if nothing bounds it."""
+
+
+class _Shifted:
+    """An expert whose rate is scaled by ``factor`` because upcasts feed it."""
+
+    def __init__(self, inner: Module, factor: float) -> None:
+        self.inner, self.factor = inner, factor
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+
+def received(node: Plan) -> TypeId:
+    """The type a plan's value had before any upcasts applied to it."""
+    while isinstance(node, Apply) and isinstance(node.module, Upcast):
+        node = node.args[0]
+    return output_type(node)
+
+
+def shifted(node: Plan, shift: Shift) -> Plan:
+    """``node`` with every expert fed through an upcast scaled by its ``shift``
+    certificate; raises ``_Unknown`` where an expert has none."""
+    if isinstance(node, Given):
+        return node
+    if isinstance(node, Map):
+        return Map(node.element, shifted(node.body, shift), shifted(node.source, shift))
+    args = tuple(shifted(arg, shift) for arg in node.args)
+    slots = tuple(shifted(sub, shift) for sub in node.slots)
+    module: Any = node.module
+    fed = any(isinstance(arg, Apply) and isinstance(arg.module, Upcast) for arg in node.args)
+    if fed and not isinstance(module, (Upcast, Requirement)):
+        factor = shift(module, tuple(received(arg) for arg in node.args))
+        if factor is None:
+            raise _Unknown
+        module = _Shifted(module, factor)
+    return Apply(module, args, slots, node.binding)
+
+
 def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int = 1, *,
-               relevant: bool = False) -> float | None:
+               relevant: bool = False, shift: Shift | None = None) -> float | None:
     """The total charge of ``plan`` when each invocation of an expert costs its
     failure rate ``rate(expert)`` (§31.2): an upper bound on the probability
     of a wrong answer when the rates are in situ, ``length`` bounds every
@@ -145,8 +187,16 @@ def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int =
     is propagated from the answer through each expert's ``decides`` rule, or
     its ``demand`` rule, a map's body is charged at each element's demand,
     and an invocation whose output has empty demand costs nothing.
+
+    Without ``shift``, rates of experts fed through upcasts are taken to be in
+    situ for the refined inputs. With it, such an expert is charged
+    ``min(1, c · rate)`` for its certificate ``c`` (``NCA.slot_risk_transfer``),
+    and the risk is ``None`` where it has none, since a rate measured on
+    general inputs bounds nothing on refined ones (``NCA.slot_risk_unbounded``).
     """
     def unit(module: Module) -> float:
+        if isinstance(module, _Shifted):
+            return min(1.0, module.factor * unit(module.inner))
         if isinstance(module, Export):
             return charge(module.route, length, unit, strict=True)
         if isinstance(module, (Upcast, Requirement)):
@@ -175,6 +225,8 @@ def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int =
                       for n, sub in zip(calls, node.slots)))
 
     try:
+        if shift is not None:
+            plan = shifted(plan, shift)
         if relevant:
             return relevant_charge(plan, None)
         return charge(plan, length, unit, strict=True)
