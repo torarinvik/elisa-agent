@@ -9,7 +9,7 @@ pytest.importorskip("cryptography")
 
 from nca.evidence import evaluation, outcomes, promote  # noqa: E402
 from nca.objects import Store  # noqa: E402
-from nca.trust import Ed25519Signer, Trust, verified  # noqa: E402
+from nca.evidence.trust import Ed25519Signer, Trust, verified  # noqa: E402
 from test_evidence import BENCH, library  # noqa: E402
 
 

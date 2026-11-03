@@ -9,8 +9,8 @@ import pytest
 from nca.abi import Contract, Manifest, Module
 from nca.discovery import train_tree
 from nca.loader import ExpertStore
-from nca.numeric_learning import midpoint_boundary, propose_partition, propose_regions
-from nca.numeric_objects import encoder_object, store_numeric_tree
+from nca.learning.numeric import midpoint_boundary, propose_partition, propose_regions
+from nca.learning.numeric_objects import encoder_object, store_numeric_tree
 from nca.objects import Primitive, Store
 from nca.packages import install
 from test_feature_acquisition import Baseline, Measurement
@@ -97,9 +97,9 @@ class VectorMeasurement:
 
 def test_acquired_nonlinear_package_round_trips_lazily(tmp_path: Path) -> None:
     from nca.discovery import decoder_object
-    from nca.numeric_objects import store_encoder_chain
+    from nca.learning.numeric_objects import store_encoder_chain
     from nca.objects import Composite
-    from nca.projection_learning import propose_polynomial_partitions
+    from nca.learning.projections import propose_polynomial_partitions
 
     store = Store()
     source_ref = store.put(Primitive(VectorMeasurement.manifest, f"{__name__}:VectorMeasurement",
@@ -143,8 +143,8 @@ def test_acquired_nonlinear_package_round_trips_lazily(tmp_path: Path) -> None:
 
 
 def test_encoder_chain_rejects_wrong_external_binding_and_cycles() -> None:
-    from nca.numeric_objects import store_encoder_chain
-    from nca.projection_learning import PolynomialEncoder, ProjectionEncoder
+    from nca.learning.numeric_objects import store_encoder_chain
+    from nca.learning.projections import PolynomialEncoder, ProjectionEncoder
 
     store = Store()
     first, second = [store.put(Primitive(VectorMeasurement.manifest,

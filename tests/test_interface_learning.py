@@ -9,7 +9,7 @@ import pytest
 
 from nca.abi import Contract, Manifest, Message
 from nca.discovery import Decoder, Decoded, Proposal, decoder_object, discover
-from nca.interface_learning import propose_adapter
+from nca.learning.interfaces import propose_adapter
 from nca.loader import ExpertStore
 from nca.objects import Primitive, Store, contract_data
 from nca.packages import install
@@ -97,7 +97,7 @@ def test_acquire_continuous_heads_on_typed_representations() -> None:
     import random
 
     from nca.affine_learning import fit_affine
-    from nca.interface_learning import propose_heads
+    from nca.learning.interfaces import propose_heads
     from nca.objects import Constructor
 
     class Feature:
@@ -138,7 +138,7 @@ def test_acquire_continuous_heads_on_typed_representations() -> None:
 
 
 def test_head_acquisition_bounds_and_contract_validation() -> None:
-    from nca.interface_learning import propose_heads
+    from nca.learning.interfaces import propose_heads
 
     feature = Source()
     baseline = Consumer()
@@ -167,8 +167,8 @@ def test_head_failures_trigger_training_only_feature_refinement() -> None:
     import random
 
     from nca.affine_learning import fit_affine
-    from nca.interface_learning import propose_heads
-    from nca.projection_learning import (ProjectionEncoder,
+    from nca.learning.interfaces import propose_heads
+    from nca.learning.projections import (ProjectionEncoder,
                                          fit_polynomial_regression_features)
 
     class Vector:
@@ -211,7 +211,7 @@ def test_head_failures_trigger_training_only_feature_refinement() -> None:
 
 
 def test_feature_refinement_skips_solved_and_exhausted_searches() -> None:
-    from nca.interface_learning import propose_heads
+    from nca.learning.interfaces import propose_heads
 
     def fit(contract: Any, values: Any, targets: Any, budget: int) -> Any:
         return [Proposal(Decoder(contract, {values[0]: targets[0]}, targets[0], 0))]
@@ -229,7 +229,7 @@ def test_feature_refinement_skips_solved_and_exhausted_searches() -> None:
 
 
 def test_feature_refinement_bootstraps_empty_head_families_with_total_budget() -> None:
-    from nca.interface_learning import propose_heads
+    from nca.learning.interfaces import propose_heads
 
     seen, fitted = [], []
     source = Source()
@@ -263,7 +263,7 @@ def test_joint_refiner_learns_an_informative_companion_from_training_ambiguity()
     import random
 
     from nca.discovery import fit_decoder
-    from nca.interface_learning import propose_heads, propose_joint_refinements
+    from nca.learning.interfaces import propose_heads, propose_joint_refinements
     from nca.objects import Constructor
 
     class Feature:
@@ -317,7 +317,7 @@ def test_joint_refiner_learns_an_informative_companion_from_training_ambiguity()
 
 
 def test_joint_refinement_budget_and_signature_validation() -> None:
-    from nca.interface_learning import propose_joint_refinements
+    from nca.learning.interfaces import propose_joint_refinements
 
     seed = Proposal(Source())
     for kwargs, message in [({"max_candidates": 0, "limit": 1, "pair_cost": 0}, "budgets"),
@@ -335,7 +335,7 @@ def test_joint_lookahead_crosses_non_improving_pairings() -> None:
     from itertools import product
 
     from nca.discovery import fit_decoder
-    from nca.interface_learning import propose_heads, propose_joint_refinements
+    from nca.learning.interfaces import propose_heads, propose_joint_refinements
 
     class Feature:
         def __init__(self, index: int) -> None:
@@ -384,7 +384,7 @@ def test_joint_lookahead_crosses_non_improving_pairings() -> None:
 
 def test_categorical_partition_generates_label_agnostic_codes_and_compact_heads() -> None:
     from nca.discovery import fit_decoder
-    from nca.interface_learning import fit_categorical_partition, propose_heads
+    from nca.learning.interfaces import fit_categorical_partition, propose_heads
 
     source = Source()
     rows = [(i,) for i in range(4)] * 20
@@ -407,7 +407,7 @@ def test_categorical_partition_generates_label_agnostic_codes_and_compact_heads(
 
 def test_categorical_partition_preserves_conflicted_modal_fit_and_global_fallback() -> None:
     from nca.discovery import fit_decoder
-    from nca.interface_learning import fit_categorical_partition
+    from nca.learning.interfaces import fit_categorical_partition
 
     rows, labels = [], []
     for key, category in enumerate(["a", "b", "c"]):
@@ -433,7 +433,7 @@ def test_categorical_partition_matches_raw_modal_predictions_on_noisy_samples() 
     import random
 
     from nca.discovery import fit_decoder
-    from nca.interface_learning import fit_categorical_partition
+    from nca.learning.interfaces import fit_categorical_partition
 
     rng = random.Random(3651)
     rows = [(rng.randrange(4),) for _ in range(200)]
@@ -451,8 +451,8 @@ def test_growing_prototype_types_are_selected_on_independent_rows() -> None:
     import random
 
     from nca.discovery import fit_decoder
-    from nca.interface_learning import propose_heads
-    from nca.projection_learning import fit_prototype_features
+    from nca.learning.interfaces import propose_heads
+    from nca.learning.projections import fit_prototype_features
 
     class Vector:
         manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())
@@ -486,8 +486,8 @@ def test_growing_prototype_types_are_selected_on_independent_rows() -> None:
 def test_error_directed_prototype_growth_uses_an_asymmetric_budget(
         monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.discovery import fit_decoder
-    from nca.interface_learning import propose_heads
-    import nca.projection_learning as learning
+    from nca.learning.interfaces import propose_heads
+    import nca.learning.projections as learning
 
     class Vector:
         manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())
@@ -536,8 +536,8 @@ def test_error_directed_prototype_growth_uses_an_asymmetric_budget(
 def test_bounded_allocation_search_escapes_greedy_growth_and_deduplicates(
         monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.discovery import fit_decoder
-    from nca.interface_learning import propose_heads
-    import nca.projection_learning as learning
+    from nca.learning.interfaces import propose_heads
+    import nca.learning.projections as learning
 
     class Vector:
         manifest = Manifest("vector", "1", Contract(("input",), "vector"), effects=frozenset())

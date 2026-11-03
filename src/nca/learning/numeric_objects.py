@@ -7,10 +7,10 @@ from typing import Any
 
 from nca.abi import Module
 from nca.discovery import FeatureTree
-from nca.numeric_learning import PartitionEncoder, RegionsEncoder
+from nca.learning.numeric import PartitionEncoder, RegionsEncoder
 from nca.objects import Primitive, Ref, Store, digest, manifest_data
 from nca.packages import install, resolve_binding
-from nca.projection_learning import PolynomialEncoder, ProjectionEncoder, PrototypeEncoder
+from nca.learning.projections import PolynomialEncoder, ProjectionEncoder, PrototypeEncoder
 from nca.tree_objects import tree_object
 
 

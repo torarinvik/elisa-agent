@@ -14,7 +14,7 @@ import numpy as np
 from nca.abi import Module
 from nca.discovery import Proposal
 from nca.native import load
-from nca.numeric_learning import _observation, _partition_from_ordered, propose_partition
+from nca.learning.numeric import _observation, _partition_from_ordered, propose_partition
 from nca.objects import Constructor, canonical
 from nca.vector_learning import _vector
 

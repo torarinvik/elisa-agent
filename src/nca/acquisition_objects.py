@@ -7,10 +7,10 @@ from typing import Any
 from nca.abi import Module
 from nca.affine_learning import AffineAdapter, affine_object
 from nca.discovery import Decoded, Decoder, JointFeature, decoder_object
-from nca.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
+from nca.learning.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
 from nca.objects import Primitive, Ref, Store, contract_data, contract_from, digest, manifest_data
 from nca.packages import install, resolve_binding
-from nca.regional_learning import RegionalExpert, RegionalPolicy
+from nca.learning.regional import RegionalExpert, RegionalPolicy
 from nca.regional_objects import policy_object, regional_object
 from nca.vector_learning import VectorAffineAdapter, vector_affine_object
 

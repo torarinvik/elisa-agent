@@ -43,16 +43,16 @@ run the Python tests with `uv run pytest`.
 | [§29 Types as objects](theory/foundations/29-types-as-objects.md) | `Refinement` | `objects.Constructor`, `packages.Upcast`, `domains.*.types` |
 | [§30 Selection by evidence](theory/evidence/30-selection-by-evidence.md) | `Selection`, `Calibration` | `evidence` |
 | [§31 Composing uncertainty](theory/reliability/31-composing-uncertainty.md) | `Risk`, `Pareto` | `evidence.route_risk`, `evidence.error_bound`, `evidence.rates`, `evidence.route_bound`, `packages.charge`, `optimize.plan_pareto` |
-| [§32 Trust](theory/evidence/32-trust.md) | `Trust`, `Spot` | `trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
+| [§32 Trust](theory/evidence/32-trust.md) | `Trust`, `Spot` | `evidence.trust`, `objects.Attestation.signature`, `evidence.Issuers`, `cache.ResultCache` (checks), `evidence.purity` |
 | [§33 Per-input risk on any route](theory/reliability/33-per-input-risk.md) | `Selective`, `Risk` | `runtime.RiskLedger`, `ladder.Calibrated`, `evidence.answer_within`, `evidence.exact_by`, `evidence.refine_within`, `modules.refinement.Escalating` |
 | [§34 Compiled routes](theory/foundations/34-compiled-routes.md) | `Batch` | `compile.compile_route`, `compile.NotCompilable`, `evidence.refine_batch`, `loader.LazyExpert.invoke_batch` |
 | [§35 Calibration audits](theory/reliability/35-calibration-audits.md) | `Audit` | `evidence.Audit`, `evidence.audit`, `evidence.recalibrate` |
 | [§36 Acquiring experts](theory/evidence/36-acquisition.md) | `Acquire` | `evidence.hotspots`, `evidence.acquire`, `evidence.Acquisition` |
-| [§37 Calibration by groups of inputs](theory/reliability/37-grouped-calibration.md) | `Grouped` | `grouped.Grouped`, `grouped.fit_groups` |
+| [§37 Calibration by groups of inputs](theory/reliability/37-grouped-calibration.md) | `Grouped` | `evidence.grouped.Grouped`, `evidence.grouped.fit_groups` |
 | [§38 In-situ audits](theory/reliability/38-in-situ-audits.md) | `Sampling` | `runtime.Invocation`, `RiskLedger.invocations`, `evidence.sample_invocations`, `evidence.audit_invocations`, `Escalating.answering` |
-| [§39 Answering over alternatives](theory/reliability/39-alternatives.md) | `Alternatives` | `alternatives.answer_over_alternatives`, `alternatives.Choice`, `alternatives.Tabled`, `alternatives.fit_table` |
+| [§39 Answering over alternatives](theory/reliability/39-alternatives.md) | `Alternatives` | `evidence.alternatives.answer_over_alternatives`, `evidence.alternatives.Choice`, `evidence.alternatives.Tabled`, `evidence.alternatives.fit_table` |
 | [§40 Audits by agreement](theory/reliability/40-agreement-audits.md) | `Agreement` | `evidence.cross_audit` |
-| [§41 Verification](theory/reliability/41-verification.md) | `Verification` | `verification.answer_verified`, `verification.verified_bound`, `verification.verifier_rates` |
+| [§41 Verification](theory/reliability/41-verification.md) | `Verification` | `evidence.verification.answer_verified`, `evidence.verification.verified_bound`, `evidence.verification.verifier_rates` |
 
 `prefix.PrefixEvaluator` reads per-position distributions over any
 `RankedVocabulary` as a prefix term and evaluates it with semantics the domain
@@ -147,6 +147,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Stable bounded plasticity; safe consolidation and migration | Open; not implemented | No universal regulator or composed update/eviction/consolidation/migration invariant is established. |
 | Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
+| Stored artifacts survive core reorganization | Open; not currently satisfied | Primitive loader entries name Python import paths such as `nca.discovery:_load_decoder`, and identities include them. Moving a loader module breaks previously stored artifacts, so `discovery`, `acquisition_objects`, `affine_learning`, `vector_learning`, `tree_objects` and `regional_objects` stay at the package root. Stable, versioned loader identifiers independent of module layout are required before they can move. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
 
 Every open row requires a mechanism-level theorem, explicit assumptions and
@@ -1907,7 +1908,7 @@ sound but coarser.
 
 `objects.Attestation` has an optional `signature` over `unsigned()`, its
 data without the signature; the signature is stored and is part of the
-reference. `trust` keeps a registry of verifiers by scheme (`register`),
+reference. `evidence.trust` keeps a registry of verifiers by scheme (`register`),
 so the core depends on no scheme; `ed25519` is registered when the optional
 `cryptography` package is installed (the `trust` extra), and
 `Ed25519Signer` signs attestations as issuer `ed25519:<public key hex>`.
@@ -2025,9 +2026,9 @@ labeled glyphs, and `SymbolRecognizer.fine_tuned` wraps it as a trainer.
 
 ## 37. Calibration by groups of inputs
 
-`grouped.fit_groups(module, group, values, labels)` routes labeled values
+`evidence.grouped.fit_groups(module, group, values, labels)` routes labeled values
 by the grouping function `group` and fits one `ladder.Rung` per group
-present. `grouped.Grouped(module, group, rungs)` is an expert with the
+present. `evidence.grouped.Grouped(module, group, rungs)` is an expert with the
 module's manifest that reads each input through its group's rung, as
 `ladder.Calibrated` does, and reports that rung's risk; an input whose
 group has no rung is read uncalibrated and reports `None`. Groups are
@@ -2052,7 +2053,7 @@ once labeled, and their `values` feed `recalibrate` or `fit_groups`.
 ## 39. Answering over alternatives
 
 A fork is any expert with `candidates(*inputs) -> list[(output, q)]`.
-`alternatives.answer_over_alternatives(plan, available, rows, δ, exact,
+`evidence.alternatives.answer_over_alternatives(plan, available, rows, δ, exact,
 cache)` requires exactly one fork outside map bodies. It evaluates the
 fork's argument subplans compiled, with one ledger per row (charge `c₀`),
 expands each row into one row per candidate, and evaluates the rest of
@@ -2061,9 +2062,9 @@ available input and one ledger per candidate (charge `c`, 1 if
 uncertified). Candidates are grouped by their answer's `value_digest`;
 the answer with the largest support `Σ q (1 − c)` is returned in a
 `Choice` with bound `c₀ + 1 − support` if that is at most `δ`.
-`alternatives.Tabled(module, table, stratum)` makes a fork of an expert
+`evidence.alternatives.Tabled(module, table, stratum)` makes a fork of an expert
 with ranked `alternatives`, giving candidate `k` the bound `table[(s, k)]`
-for `s = stratum(*inputs)`, and `alternatives.fit_table` estimates the
+for `s = stratum(*inputs)`, and `evidence.alternatives.fit_table` estimates the
 table as per-cell Clopper–Pearson lower bounds at level `β` over the
 cells. The arithmetic segmenter's first segmentation cuts each run into
 `round(width / PITCH)` glyphs at its faintest columns
@@ -2084,13 +2085,13 @@ both are miscalibrated on the sampled inputs.
 ## 41. Verification
 
 A verifier is any callable `verify(*inputs, answer) -> bool`.
-`verification.answer_verified(plan, available, rows, δ, verify, miss,
+`evidence.verification.answer_verified(plan, available, rows, δ, verify, miss,
 false_reject, exact, cache)` runs the compiled route with one ledger per
 row, answers nothing for a rejected answer, and otherwise returns a
-`Choice` with `verification.verified_bound(charge, miss, false_reject)`,
+`Choice` with `evidence.verification.verified_bound(charge, miss, false_reject)`,
 the bound of Theorem 41.1 (0 for `miss == 0`, 1 for a charge of 1 or an
 uncertified ledger), answering if it is at most `δ`.
-`verification.verifier_rates(accepted, correct, β)` gives Clopper–Pearson
+`evidence.verification.verifier_rates(accepted, correct, β)` gives Clopper–Pearson
 upper bounds on the miss and false-rejection rates at level `β / 2`
 each.
 The arithmetic domain's `components.ComponentSegmenter` segments by
@@ -2231,7 +2232,7 @@ bounds are composed generically. `residual_successes_le` proves training-count
 dominance; held-out improvement is evaluated by the existing discovery split.
 These are in-memory learned proposals, without persisted identity or calibration.
 
-`numeric_learning.propose_partition` (§36.13) learns an observed-value boundary
+`learning.numeric.propose_partition` (§36.13) learns an observed-value boundary
 and modal decoder from training data over a supplied finite-float measurement.
 `PartitionEncoder` generates a constructor describing the source type, boundary
 and code convention. A sorted sweep updates left/right label counts without
@@ -2242,7 +2243,7 @@ candidate membership; the Python sweep is checked against exhaustive boundaries.
 This is threshold-family representation learning, not arbitrary raw-feature
 invention. The learned encoder is currently an in-memory model.
 
-`numeric_learning.propose_regions` (§36.14) greedily refines the best impure
+`learning.numeric.propose_regions` (§36.14) greedily refines the best impure
 interval using the shared `_best_split` sweep, up to an explicit region budget.
 `RegionsEncoder` derives a constructor from sorted learned boundaries and uses
 binary search for region codes. Pure or constant-valued intervals stop refining.
@@ -2271,7 +2272,7 @@ from the measurement and parameters; ordinary primitive loading checks metadata.
 composition argument. Parameter fidelity and complete acquired-tree reload are
 regression-tested; external feature code/weight fidelity remains an assumption.
 
-`interface_learning.propose_adapter` (§36.17) pairs source/teacher outputs on
+`learning.interfaces.propose_adapter` (§36.17) pairs source/teacher outputs on
 training rows, fits a categorical `source-type → teacher-type` decoder, and
 proposes source/adapter/consumer composition for the external contract. Exact
 types remain distinct. Selection uses existing independent end-to-end outcomes;
@@ -2301,7 +2302,7 @@ minimum-norm solution for rank-deficient data; independent task selection is
 still required. `vector_adapter_composition_eq` proves conditional downstream
 agreement from exact coordinatewise alignment, not solver correctness.
 
-`projection_learning.propose_projections` (§36.20) learns budgeted centroid-pair
+`learning.projections.propose_projections` (§36.20) learns budgeted centroid-pair
 projection directions from supplied tuple-vector measurements and opaque training
 targets. Each direction feeds the generic scalar partition learner, proposing
 two generated constructors plus an encoder/head route for independent selection.
@@ -2347,7 +2348,7 @@ export the final encoder with a separately stored decoder. Installs remain lazy.
 `restored_chain_eq` proves conditional composition fidelity for endomorphism
 lists, not executable factories or heterogeneous typed serialization.
 
-`regional_learning.propose_regional_experts` (§36.26) spends an explicit region
+`learning.regional.propose_regional_experts` (§36.26) spends an explicit region
 budget where incumbent training errors concentrate. A supplied proposer trains
 arbitrary contract-preserving experts on complete regional training subsets.
 `RegionalExpert` gates the specialist and delegates other inputs to the incumbent;
@@ -2427,7 +2428,7 @@ fixed feature/head wiring; `decoded_reloaded_eq` proves conditional pure
 composition fidelity, not executable serialization or mutable-state equivalence.
 
 
-`regional_learning.propose_failure_partitions` (§36.35) optionally accepts a
+`learning.regional.propose_failure_partitions` (§36.35) optionally accepts a
 training-only `routing_signal(row, prediction, target)`. Its opaque labels fit
 the router, while specialists receive original targets. The default remains
 binary failure routing; no-error samples produce no proposals. The callback is
@@ -2446,28 +2447,28 @@ signal accuracy, with stable ties; only `max_measurements` receive specialist
 training. `max_measurement_candidates=None` preserves prefix allocation.
 `router_score_selection` proves the two-score comparison special case only.
 
-`projection_learning.fit_projection_encoders` (§36.38) exposes the same
+`learning.projections.fit_projection_encoders` (§36.38) exposes the same
 centroid-pair fitting used by `propose_projections` without a task decoder.
 Auxiliary categories train directions; regional trainers keep original targets.
 Each returned encoder exposes its constructor for proposal propagation and
 existing numeric graph retention. `feedback_group_invariance` proves only
 filter equality when opaque category membership is unchanged.
 
-`regional_learning.MeasurementProposer` (§36.39) receives training rows, opaque
+`learning.regional.MeasurementProposer` (§36.39) receives training rows, opaque
 feedback and remaining candidate slots. `propose_failure_partitions` appends a
 bounded prefix of its measurement proposals, validates external signatures and
 propagates their constructors through router screening and specialist acquisition.
 It never retains the training callback. `measurement_prefix_bound` proves only
 the retained-list length bound, not callback computation or model correctness.
 
-`interface_learning.propose_heads` (§36.40) derives a unary head contract per
+`learning.interfaces.propose_heads` (§36.40) derives a unary head contract per
 candidate representation, observes training inputs and requests a bounded head
 family through `HeadProposer`. It validates exact head contracts and emits fixed
 `Decoded` compositions with feature/head constructors. Existing graph retention
 supports known heads; unknown experts remain opaque bindings.
 `head_fiber_consistency` proves only the necessary equal-feature target condition.
 
-`projection_learning.fit_regression_projection` (§36.41) fits centered vector
+`learning.projections.fit_regression_projection` (§36.41) fits centered vector
 observations against continuous training feedback, returning an ordinary
 `ProjectionEncoder` or no candidate for an exactly zero direction. It retains
 no teacher or targets. Existing head/measurement acquisition and numeric graph
@@ -2487,14 +2488,14 @@ shared `_regression_direction` fitting for each degree. Fitted models retain
 original dependencies, not snapshots. `training_snapshot_map_eq` proves only
 conditional mapped-observation equality; runtime equivalence is regression tested.
 
-`interface_learning.FeatureRefiner` (§36.44) extends `propose_heads` with
+`learning.interfaces.FeatureRefiner` (§36.44) extends `propose_heads` with
 training-error-driven representation proposals. A bounded queue shares one total
 feature budget; a separate call budget limits refinement. Best training heads
 use success/cost/stable-order ranking, and no-head families can bootstrap with a
 None seed. `feature_admission_bound` proves the natural-number admission bound,
 not callback runtime, training fitness or generalization.
 
-`interface_learning.propose_joint_refinements` (§36.45) screens bounded companion
+`learning.interfaces.propose_joint_refinements` (§36.45) screens bounded companion
 features by empirical modal label improvement, emitting ranked `JointFeature`
 proposals with both constructor sets. It can implement a `FeatureRefiner` without
 specializing generic search to a task. `joint_key_refines_seed` proves the key
@@ -2512,13 +2513,13 @@ are explicit; original features are observed once per row and their products
 remain ordinary persistable `JointFeature` graphs. `modal_refinement_dominates`
 proves the conditional finite child-score comparison, not search completeness.
 
-`interface_learning.fit_categorical_partition` (§36.48) learns a key-to-code
+`learning.interfaces.fit_categorical_partition` (§36.48) learns a key-to-code
 `Decoder` inside a `Decoded` feature, returning its generated constructor. It
 can feed `propose_heads` and existing graph retention without a new runtime.
 `grouped_modal_dominates` proves the finite summed-count condition only, not
 executable fitting, category-renaming invariance or cross-task sufficiency.
 
-`projection_learning.fit_prototype_encoder` (§36.49) fits category centroids as a
+`learning.projections.fit_prototype_encoder` (§36.49) fits category centroids as a
 generated vector partition. `PrototypeEncoder` uses finite Euclidean distances
 and stable first-center ties, without retaining categories. The numeric encoder
 factories and acquired-model graph visitor retain its parameters and constructor.
@@ -2538,7 +2539,7 @@ interval ordering. CPython's reference uses its shared vector norm implementatio
 ([source](https://github.com/python/cpython/blob/3.12/Modules/mathmodule.c));
 platform/compiler/libm fidelity remains an assumption.
 
-`projection_learning.fit_prototype_features` (§36.52) grows per-category prototype
+`learning.projections.fit_prototype_features` (§36.52) grows per-category prototype
 allowances while modal training errors remain above a supplied budget. Complete
 allocation bounds stop resource overflow before fitting; all fitted encoders
 remain proposals for head acquisition and independent selection.
@@ -2565,14 +2566,14 @@ Reinstalled representations can feed new head
 acquisition through ordinary contracts/invocations, preserving expert opacity.
 `retained_root_outputs_eq` proves only conditional ordered output equality.
 
-`interface_learning.propose_adapters` (§36.56) searches a bounded compatible
+`learning.interfaces.propose_adapters` (§36.56) searches a bounded compatible
 source/teacher/consumer family through public contracts and paired training
 invocations, emitting completed routes and constructor declarations. It reuses
 `propose_adapter`; teacher implementations are absent from retained inference
 closures. `adapter_consumer_family_eq` proves conditional family agreement only,
 not learned alignment quality or end-to-end task correctness.
 
-`interface_learning.fit_interface_bridge` (§36.57) exposes alignment independently
+`learning.interfaces.fit_interface_bridge` (§36.57) exposes alignment independently
 of a consumer. `propose_adapters(share_alignment=True)` shares one fitted bridge
 per compatible source/teacher pair while retaining completed-route budgets.
 Multi-root retention/installation preserves the shared artifact and optional
@@ -2659,7 +2660,7 @@ must include every affected route, control evaluator resources/effects and commi
 only on whole-family acceptance. No route or memory update is performed by the
 gate. Existing artifact serialization preserves the retained reference bindings.
 
-`guarded_routes.RouteCatalog` generalizes pinned routes to immutable multi-root
+`retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;
 `replace` rewrites contract-equal expert versions, requires evidence for every
 affected anchor and executes actual current/proposed plans using each registered

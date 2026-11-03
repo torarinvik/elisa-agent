@@ -11,7 +11,7 @@ from nca.abi import Contract, Manifest, Module
 from nca.acquisition_objects import store_acquired_model
 from nca.affine_learning import fit_affine
 from nca.discovery import Proposal, discover
-from nca.interface_learning import propose_adapters
+from nca.learning.interfaces import propose_adapters
 from nca.objects import Constructor, Primitive, Store
 from nca.packages import install, install_scopes
 from nca.planner import plan_stable
@@ -133,7 +133,7 @@ def test_adapter_candidate_budget_and_retention_exclude_teacher_code(tmp_path: P
 
 
 def test_standalone_and_shared_alignment_fit_once_without_inference_caching() -> None:
-    from nca.interface_learning import fit_interface_bridge
+    from nca.learning.interfaces import fit_interface_bridge
 
     source, teacher = Reading(2.0, 1.0, "new"), Reading(1.0, 0.0, "old")
     consumers = [Consumer("old", 1.0), Consumer("old", 0.0)]

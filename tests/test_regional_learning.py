@@ -10,7 +10,7 @@ import pytest
 from nca.abi import Calls, Contract, Manifest
 from nca.affine_learning import fit_affine
 from nca.discovery import Proposal, discover
-from nca.regional_learning import RegionalExpert, propose_regional_experts
+from nca.learning.regional import RegionalExpert, propose_regional_experts
 
 
 @dataclass
@@ -97,8 +97,8 @@ def test_regional_dispatch_preserves_slots_and_conservative_metadata() -> None:
 
 
 def test_failure_boundaries_are_learned_without_a_supplied_region() -> None:
-    from nca.numeric_learning import midpoint_boundary
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
     measurement = Expert(Manifest("measurement", "1", replace(CONTRACT, output="reading")),
@@ -130,7 +130,7 @@ def test_failure_boundaries_are_learned_without_a_supplied_region() -> None:
 
 
 def test_failure_partition_degenerate_signal_and_measurement_budget() -> None:
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
     contract = replace(CONTRACT, output="reading")
@@ -152,8 +152,8 @@ def test_failure_partition_degenerate_signal_and_measurement_budget() -> None:
 
 
 def test_multi_interval_failure_routing_isolates_an_interior_specialist() -> None:
-    from nca.numeric_learning import midpoint_boundary, purity_tiebreak
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary, purity_tiebreak
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
     measurement = Expert(Manifest("measurement", "1", replace(CONTRACT, output="reading")),
@@ -179,8 +179,8 @@ def test_multi_interval_failure_routing_isolates_an_interior_specialist() -> Non
 
 
 def test_combined_specialists_cover_disjoint_regions_with_one_routing_read() -> None:
-    from nca.numeric_learning import midpoint_boundary, purity_tiebreak
-    from nca.regional_learning import RegionalPolicy, propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary, purity_tiebreak
+    from nca.learning.regional import RegionalPolicy, propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
     reads = []
@@ -229,7 +229,7 @@ def test_combination_budget_limits_cartesian_prefix() -> None:
 def test_ranked_product_matches_exhaustive_small_family_order() -> None:
     from itertools import product
 
-    from nca.regional_learning import _ranked_combinations
+    from nca.learning.regional import _ranked_combinations
 
     families = []
     for axis, values in enumerate([[(8, 1.0), (5, 0.5)],
@@ -313,8 +313,8 @@ def test_skipped_baseline_and_singles_do_not_consume_joint_output_budget() -> No
 
 
 def test_refinement_targets_only_the_unsolved_region_with_its_best_seed() -> None:
-    from nca.numeric_learning import midpoint_boundary
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: x)
     feature = Expert(Manifest("coarse", "1", replace(CONTRACT, output="region")),
@@ -369,8 +369,8 @@ def test_refinement_budget_applies_even_without_direct_alternatives() -> None:
 
 
 def test_refined_proposals_carry_seed_and_new_constructor_declarations() -> None:
-    from nca.numeric_learning import midpoint_boundary, propose_partition
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary, propose_partition
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
     feature = Expert(Manifest("coarse", "1", replace(CONTRACT, output="key")), lambda x: 0)
@@ -399,8 +399,8 @@ def test_refined_proposals_carry_seed_and_new_constructor_declarations() -> None
 
 
 def test_learned_failure_routing_forwards_the_refinement_budget() -> None:
-    from nca.numeric_learning import midpoint_boundary
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
     reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
@@ -419,8 +419,8 @@ def test_learned_failure_routing_forwards_the_refinement_budget() -> None:
 
 
 def test_auxiliary_feedback_bootstraps_an_all_wrong_incumbent() -> None:
-    from nca.numeric_learning import midpoint_boundary
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0.0)
     reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)
@@ -456,7 +456,7 @@ def test_auxiliary_feedback_bootstraps_an_all_wrong_incumbent() -> None:
 
 
 def test_auxiliary_feedback_does_not_acquire_for_a_perfect_incumbent() -> None:
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("identity", "1", CONTRACT), lambda x: x)
     seen = []
@@ -469,8 +469,8 @@ def test_auxiliary_feedback_does_not_acquire_for_a_perfect_incumbent() -> None:
 
 
 def test_router_screening_spends_specialist_budget_on_training_signal() -> None:
-    from nca.numeric_learning import midpoint_boundary
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda xy: 0.0)
     reading_contract = replace(CONTRACT, output="reading")
@@ -516,7 +516,7 @@ def test_router_screening_spends_specialist_budget_on_training_signal() -> None:
 
 def test_measurement_acquisition_budget_and_degenerate_feedback() -> None:
     from nca.objects import Constructor
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.regional import propose_failure_partitions
 
     incumbent = Expert(Manifest("incumbent", "1", CONTRACT), lambda x: 0)
     reading = Expert(Manifest("reading", "1", replace(CONTRACT, output="reading")), lambda x: x)

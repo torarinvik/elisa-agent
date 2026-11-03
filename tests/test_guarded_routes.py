@@ -10,7 +10,7 @@ import pytest
 from nca.abi import Contract, Manifest, Message, seq_type
 from nca.effects import effect_scope, expert_scope
 from nca.evidence import benchmark, evaluation
-from nca.guarded_routes import ProtectedRoute, RouteCatalog
+from nca.retention.routes import ProtectedRoute, RouteCatalog
 from nca.memory import MemoryRecord, MemoryStore
 from nca.planner import Apply, Given, Map
 from nca.runtime import BudgetExceeded
@@ -324,7 +324,7 @@ def test_signed_retained_metadata_survives_catalog_snapshot(
     memory: tuple[MemoryStore, tuple[str, ...]],
 ) -> None:
     pytest.importorskip("cryptography")
-    from nca.trust import Ed25519Signer, Trust
+    from nca.evidence.trust import Ed25519Signer, Trust
 
     store, refs = memory
     old = Version("1")

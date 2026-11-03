@@ -22,7 +22,7 @@ from typing import Any
 from nca.abi import Contract, Manifest, Message
 from nca.effects import effect_scope, expert_scope
 from nca.evidence import benchmark, evaluation
-from nca.guarded_routes import ProtectedRoute, ReplayContext, RouteCatalog
+from nca.retention.routes import ProtectedRoute, ReplayContext, RouteCatalog
 from nca.memory import MemoryRecord, MemoryStore
 from nca.planner import Apply, Given
 from nca.router import ReplayRejected, Router

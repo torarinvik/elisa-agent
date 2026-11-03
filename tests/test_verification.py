@@ -6,7 +6,7 @@ import pytest
 
 from nca.abi import Contract, Manifest
 from nca.planner import Apply, Given
-from nca.verification import answer_verified, verified_bound, verifier_rates
+from nca.evidence.verification import answer_verified, verified_bound, verifier_rates
 
 TEXT, TOTAL = "text.v1", "total.v1"
 

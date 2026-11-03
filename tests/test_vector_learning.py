@@ -47,7 +47,7 @@ def test_invalid_data_and_rank_deficiency() -> None:
 
 def test_typed_bridge_uses_teacher_only_during_training() -> None:
     from nca.abi import Manifest
-    from nca.interface_learning import propose_adapter
+    from nca.learning.interfaces import propose_adapter
 
     class Source:
         manifest = Manifest("source", "1", Contract(("input",), "source"), effects=frozenset())

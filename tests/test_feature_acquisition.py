@@ -7,7 +7,7 @@ import pytest
 
 from nca.abi import Contract, Manifest, Module
 from nca.discovery import Proposal, discover, train_tree
-from nca.numeric_learning import propose_partition
+from nca.learning.numeric import propose_partition
 
 
 class Measurement:

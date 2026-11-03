@@ -7,7 +7,7 @@ from typing import Any
 from nca.abi import Module
 from nca.objects import Json, Primitive, Ref, Store, digest, manifest_data
 from nca.packages import resolve_binding
-from nca.regional_learning import RegionalExpert, RegionalPolicy
+from nca.learning.regional import RegionalExpert, RegionalPolicy
 from nca.value_codec import decode_value, encode_value
 
 

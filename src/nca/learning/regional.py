@@ -9,7 +9,7 @@ from typing import Any
 
 from nca.abi import Module
 from nca.discovery import Proposal, _total_calls
-from nca.numeric_learning import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
+from nca.learning.numeric import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
 
 MeasurementProposer = Callable[

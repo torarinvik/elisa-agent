@@ -27,7 +27,7 @@ from nca.effects import effect_scope
 from nca.planner import Apply, Given, Plan, output_type, plan_stable, slot_goals, uses
 
 if TYPE_CHECKING:
-    from nca.guarded_routes import GuardedUpdate, ReplayContext, RouteCatalog
+    from nca.retention.routes import GuardedUpdate, ReplayContext, RouteCatalog
 
 RouteKey = tuple[tuple[TypeId, ...], TypeId]
 

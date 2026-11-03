@@ -164,7 +164,7 @@ def test_evaluator_must_return_boolean(memory: tuple[MemoryStore, tuple[str, ...
 
 def test_signed_baseline_is_verified(memory: tuple[MemoryStore, tuple[str, ...]]) -> None:
     pytest.importorskip("cryptography")
-    from nca.trust import Ed25519Signer, Trust
+    from nca.evidence.trust import Ed25519Signer, Trust
 
     store, refs = memory
     signer = Ed25519Signer()

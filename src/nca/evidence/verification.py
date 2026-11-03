@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from nca.abi import Module, TypeId
-from nca.alternatives import Choice
+from nca.evidence.alternatives import Choice
 from nca.cache import ResultCache
 from nca.compile import compile_route
 from nca.planner import Plan

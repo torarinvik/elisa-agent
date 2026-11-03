@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.alternatives import Tabled, answer_over_alternatives, fit_table
+from nca.evidence.alternatives import Tabled, answer_over_alternatives, fit_table
 from nca.planner import Apply, Given, Map
 
 TEXT, WORD, LENGTH, TOTAL = "text.v1", "word.v1", "len.v1", "total.v1"

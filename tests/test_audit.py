@@ -130,7 +130,7 @@ class Shifting:
 
 def test_grouped_calibration_holds_in_each_group_and_any_mixture() -> None:
     pytest.importorskip("torch")
-    from nca.grouped import Grouped, fit_groups
+    from nca.evidence.grouped import Grouped, fit_groups
     from nca.ladder import Calibrated, Rung
 
     rng = random.Random(3)

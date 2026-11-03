@@ -22,7 +22,7 @@ from collections.abc import Sequence
 from nca.abi import Contract, Manifest, Message
 from nca.effects import effect_scope, expert_scope
 from nca.evidence import benchmark, evaluation
-from nca.guarded_routes import ProtectedRoute, RouteCatalog
+from nca.retention.routes import ProtectedRoute, RouteCatalog
 from nca.memory import MemoryRecord, MemoryStore
 from nca.planner import Apply, Given
 

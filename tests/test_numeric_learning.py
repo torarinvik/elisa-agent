@@ -6,7 +6,7 @@ import pytest
 
 from nca.abi import Contract, Manifest
 from nca.discovery import Decoded
-from nca.numeric_learning import PartitionEncoder, propose_partition
+from nca.learning.numeric import PartitionEncoder, propose_partition
 
 
 class Measurement:
@@ -49,7 +49,7 @@ def test_constant_and_invalid_measurements() -> None:
 
 
 def test_refinement_learns_multiple_regions_under_explicit_budget() -> None:
-    from nca.numeric_learning import RegionsEncoder, propose_regions
+    from nca.learning.numeric import RegionsEncoder, propose_regions
 
     rows = [(i / 100,) for i in range(100)]
     labels = ["a" if x[0] < 0.25 else "b" if x[0] < 0.75 else "c" for x in rows]
@@ -73,7 +73,7 @@ def test_refinement_learns_multiple_regions_under_explicit_budget() -> None:
 
 
 def test_refinement_keeps_equal_measurements_together() -> None:
-    from nca.numeric_learning import propose_regions
+    from nca.learning.numeric import propose_regions
 
     proposal = propose_regions(Incumbent(), Measurement(), [(1.0,)] * 4,
                                 ["a", "b", "a", "b"], max_regions=100,
@@ -83,7 +83,7 @@ def test_refinement_keeps_equal_measurements_together() -> None:
 
 
 def test_gap_policy_preserves_training_predictions_and_changes_unseen_gap() -> None:
-    from nca.numeric_learning import midpoint_boundary, propose_regions
+    from nca.learning.numeric import midpoint_boundary, propose_regions
 
     rows = [(-2.0,), (-2.0,), (-1.0,), (3.0,), (4.0,), (10.0,), (11.0,)]
     labels = ["a", "a", "a", "b", "b", "c", "c"]
@@ -113,7 +113,7 @@ def test_midpoint_float_extremes_and_adjacent_values() -> None:
     import math
     import sys
 
-    from nca.numeric_learning import midpoint_boundary
+    from nca.learning.numeric import midpoint_boundary
 
     assert midpoint_boundary(-sys.float_info.max, sys.float_info.max) == 0.0
     for lower, upper in [(1.0, math.nextafter(1.0, math.inf)),
@@ -125,7 +125,7 @@ def test_midpoint_float_extremes_and_adjacent_values() -> None:
 
 
 def test_purity_breaks_zero_gain_ties_without_reducing_modal_training_score() -> None:
-    from nca.numeric_learning import propose_regions, purity_tiebreak
+    from nca.learning.numeric import propose_regions, purity_tiebreak
 
     rows = [(float(i),) for i in range(12)]
     labels = ["a"] * 5 + ["b"] * 3 + ["a"] * 4

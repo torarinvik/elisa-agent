@@ -8,7 +8,7 @@ import pytest
 
 from nca.abi import Contract, Manifest
 from nca.discovery import discover
-from nca.projection_learning import ProjectionEncoder, propose_projections
+from nca.learning.projections import ProjectionEncoder, propose_projections
 
 
 @dataclass
@@ -69,7 +69,7 @@ def test_pair_search_budget() -> None:
 
 
 def test_polynomial_lift_budget_semantics_and_finiteness() -> None:
-    from nca.projection_learning import PolynomialEncoder
+    from nca.learning.projections import PolynomialEncoder
 
     lift = PolynomialEncoder(Measurement(), 2, 2, max_terms=5, cost=1)
     assert lift.invoke((2.0, 3.0)) == (2.0, 3.0, 4.0, 6.0, 9.0)
@@ -86,7 +86,7 @@ def test_polynomial_lift_budget_semantics_and_finiteness() -> None:
 
 
 def test_nonlinear_decomposition_overcomes_equal_centroids() -> None:
-    from nca.projection_learning import propose_polynomial_partitions
+    from nca.learning.projections import propose_polynomial_partitions
 
     rows = [((s * a, t * a),) for a in (0.1, 1.0)
             for s, t in ((1, 1), (-1, -1), (1, -1), (-1, 1))]
@@ -106,8 +106,8 @@ def test_nonlinear_decomposition_overcomes_equal_centroids() -> None:
 
 
 def test_gap_policy_reaches_nonlinear_partition_without_runtime_callback() -> None:
-    from nca.numeric_learning import midpoint_boundary
-    from nca.projection_learning import propose_polynomial_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.projections import propose_polynomial_partitions
 
     calls = []
 
@@ -127,7 +127,7 @@ def test_gap_policy_reaches_nonlinear_partition_without_runtime_callback() -> No
 
 
 def test_reuse_preserves_models_and_avoids_repeated_training_measurements() -> None:
-    from nca.projection_learning import propose_polynomial_partitions
+    from nca.learning.projections import propose_polynomial_partitions
 
     class Counting(Measurement):
         def __init__(self) -> None:
@@ -163,7 +163,7 @@ def test_reuse_preserves_models_and_avoids_repeated_training_measurements() -> N
 def test_reuse_rejects_unknown_or_nonempty_effects_before_invocation(effects: Any) -> None:
     from dataclasses import replace
 
-    from nca.projection_learning import propose_polynomial_partitions
+    from nca.learning.projections import propose_polynomial_partitions
 
     class Unusable(Measurement):
         manifest = replace(Measurement.manifest, effects=effects)
@@ -200,7 +200,7 @@ def test_reuse_rejects_slots_even_with_empty_declared_effects() -> None:
 def test_native_polynomials_match_reference_bits_and_failures(monkeypatch: pytest.MonkeyPatch) -> None:
     from array import array
 
-    import nca.projection_learning as learning
+    import nca.learning.projections as learning
 
     native = learning._NATIVE
     if native is None:
@@ -225,7 +225,7 @@ def test_native_polynomials_match_reference_bits_and_failures(monkeypatch: pytes
 def test_native_polynomials_validate_packed_indices() -> None:
     from array import array
 
-    import nca.projection_learning as learning
+    import nca.learning.projections as learning
 
     native = learning._NATIVE
     if native is None:
@@ -242,9 +242,9 @@ def test_native_polynomials_validate_packed_indices() -> None:
 def test_auxiliary_projection_routes_original_object_targets() -> None:
     from collections import Counter
     from nca.discovery import Proposal
-    from nca.numeric_learning import midpoint_boundary
-    from nca.projection_learning import fit_projection_encoders
-    from nca.regional_learning import propose_failure_partitions
+    from nca.learning.numeric import midpoint_boundary
+    from nca.learning.projections import fit_projection_encoders
+    from nca.learning.regional import propose_failure_partitions
 
     class Expert:
         def __init__(self, manifest: Manifest, function: Any) -> None:
@@ -289,7 +289,7 @@ def test_auxiliary_projection_routes_original_object_targets() -> None:
 
 
 def test_projection_encoder_fitting_is_label_agnostic_and_bounded() -> None:
-    from nca.projection_learning import fit_projection_encoders
+    from nca.learning.projections import fit_projection_encoders
 
     rows = [((-2.0, 0.0),), ((-1.0, 0.0),), ((1.0, 0.0),), ((2.0, 0.0),)]
     first = fit_projection_encoders(Measurement(), rows, ["a", "a", "b", "b"],
@@ -307,8 +307,8 @@ def test_projection_encoder_fitting_is_label_agnostic_and_bounded() -> None:
 def test_regression_projection_acquires_a_continuous_intermediate_type() -> None:
     from nca.affine_learning import fit_affine
     from nca.discovery import Proposal
-    from nca.interface_learning import propose_heads
-    from nca.projection_learning import fit_regression_projection
+    from nca.learning.interfaces import propose_heads
+    from nca.learning.projections import fit_regression_projection
 
     rng = random.Random(3644)
     rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(400)]
@@ -333,7 +333,7 @@ def test_regression_projection_acquires_a_continuous_intermediate_type() -> None
 
 
 def test_regression_projection_finite_data_and_degenerate_design() -> None:
-    from nca.projection_learning import fit_regression_projection
+    from nca.learning.projections import fit_regression_projection
 
     fit = fit_regression_projection
     assert fit(Measurement(), [((1.0,),), ((2.0,),)], [1.0, 1.0], projection_cost=0) is None
@@ -357,8 +357,8 @@ def test_regression_projection_finite_data_and_degenerate_design() -> None:
 def test_polynomial_growth_stops_when_training_feedback_is_explained() -> None:
     from nca.affine_learning import fit_affine
     from nca.discovery import Proposal
-    from nca.interface_learning import propose_heads
-    from nca.projection_learning import fit_polynomial_regression_features
+    from nca.learning.interfaces import propose_heads
+    from nca.learning.projections import fit_polynomial_regression_features
 
     rng = random.Random(3645)
     rows = [((rng.uniform(-1, 1), rng.uniform(-1, 1)),) for _ in range(400)]
@@ -383,7 +383,7 @@ def test_polynomial_growth_stops_when_training_feedback_is_explained() -> None:
 
 
 def test_polynomial_regression_growth_respects_structural_budgets() -> None:
-    from nca.projection_learning import fit_polynomial_regression_features
+    from nca.learning.projections import fit_polynomial_regression_features
 
     rows = [((x, y),) for x in (-1.0, 0.0, 1.0) for y in (-1.0, 0.0, 1.0)]
     targets = [x + x * y for (x, y), in rows]
@@ -404,7 +404,7 @@ def test_polynomial_regression_growth_respects_structural_budgets() -> None:
 
 
 def test_polynomial_growth_snapshot_reuse_preserves_models_and_runtime_source() -> None:
-    from nca.projection_learning import fit_polynomial_regression_features
+    from nca.learning.projections import fit_polynomial_regression_features
 
     class Counting(Measurement):
         def __init__(self) -> None:
@@ -443,7 +443,7 @@ def test_polynomial_growth_snapshot_reuse_requires_pure_slot_free_source(
         effects: Any, slotted: bool) -> None:
     from dataclasses import replace
 
-    from nca.projection_learning import fit_polynomial_regression_features
+    from nca.learning.projections import fit_polynomial_regression_features
 
     class NeverCalled(Measurement):
         def invoke(self, value: Any) -> Any:
@@ -462,7 +462,7 @@ def test_polynomial_growth_snapshot_reuse_requires_pure_slot_free_source(
 
 
 def test_prototype_encoder_generates_vector_groups_with_stable_ties() -> None:
-    from nca.projection_learning import PrototypeEncoder, fit_prototype_encoder
+    from nca.learning.projections import PrototypeEncoder, fit_prototype_encoder
 
     rows = [((-2.0, 0.0),), ((-1.0, 0.0),), ((1.0, 0.0),), ((2.0, 0.0),)]
     model = fit_prototype_encoder(Measurement(), rows, ["a", "a", "b", "b"],
@@ -492,7 +492,7 @@ def test_prototype_encoder_generates_vector_groups_with_stable_ties() -> None:
 
 
 def test_multiple_prototypes_resolve_separated_modes_with_shared_category_means() -> None:
-    from nca.projection_learning import fit_prototype_encoder
+    from nca.learning.projections import fit_prototype_encoder
 
     rows = [((-2.0, -2.0),), ((2.0, 2.0),), ((-2.0, 2.0),), ((2.0, -2.0),)] * 5
     labels = ["a", "a", "b", "b"] * 5
@@ -520,7 +520,7 @@ def test_multiple_prototypes_resolve_separated_modes_with_shared_category_means(
 def test_native_prototype_choices_match_reference_and_extremes(monkeypatch: pytest.MonkeyPatch) -> None:
     import math
 
-    import nca.projection_learning as learning
+    import nca.learning.projections as learning
 
     native = learning._PROTOTYPE_NATIVE
     if native is None:
@@ -551,7 +551,7 @@ def test_native_prototype_packed_shapes_and_ambiguous_cases() -> None:
     import math
     from array import array
 
-    import nca.projection_learning as learning
+    import nca.learning.projections as learning
 
     native = learning._PROTOTYPE_NATIVE
     if native is None:
@@ -564,7 +564,7 @@ def test_native_prototype_packed_shapes_and_ambiguous_cases() -> None:
 
 
 def test_prototype_growth_stops_after_explaining_training_ambiguity() -> None:
-    from nca.projection_learning import fit_prototype_features
+    from nca.learning.projections import fit_prototype_features
 
     rows = [((-2.0, -2.0),), ((2.0, 2.0),), ((-2.0, 2.0),), ((2.0, -2.0),)] * 5
     labels = ["a", "a", "b", "b"] * 5

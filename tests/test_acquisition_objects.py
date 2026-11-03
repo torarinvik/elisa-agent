@@ -13,10 +13,10 @@ from nca.acquisition_objects import store_acquired_model
 from nca.affine_learning import AffineAdapter, affine_object, fit_affine
 from nca.discovery import Decoded, Decoder, Proposal
 from nca.loader import ExpertStore
-from nca.numeric_learning import midpoint_boundary
+from nca.learning.numeric import midpoint_boundary
 from nca.objects import Primitive, Store
 from nca.packages import install
-from nca.regional_learning import propose_failure_partitions, propose_regional_experts
+from nca.learning.regional import propose_failure_partitions, propose_regional_experts
 from test_numeric_learning import Measurement
 from test_regional_objects import Identity
 
@@ -108,7 +108,7 @@ def test_feature_head_composition_is_retained_with_exact_wiring(tmp_path: Path, 
 
 
 def test_cycles_and_opaque_subclasses_are_not_silently_serialized() -> None:
-    from nca.regional_learning import RegionalPolicy
+    from nca.learning.regional import RegionalPolicy
 
     store = Store()
     incumbent, feature, _ = sources(store)
@@ -265,7 +265,7 @@ def test_joint_head_graph_retains_opaque_features(tmp_path: Path) -> None:
 
 def test_learned_categorical_partition_and_head_can_be_retained(tmp_path: Path) -> None:
     from nca.discovery import fit_decoder
-    from nca.interface_learning import fit_categorical_partition, propose_heads
+    from nca.learning.interfaces import fit_categorical_partition, propose_heads
 
     store = Store()
     ref = store.put(Primitive(CoordinateFeature(0).manifest,
@@ -289,7 +289,7 @@ def test_learned_categorical_partition_and_head_can_be_retained(tmp_path: Path) 
 
 def test_prototype_interface_graph_can_be_retained(tmp_path: Path) -> None:
     from nca.discovery import fit_decoder
-    from nca.projection_learning import fit_prototype_encoder
+    from nca.learning.projections import fit_prototype_encoder
     from test_projection_learning import Measurement as VectorMeasurement
 
     store = Store()
@@ -313,8 +313,8 @@ def test_multiple_roots_expose_a_reusable_representation_without_graph_inspectio
         tmp_path: Path) -> None:
     from nca.acquisition_objects import store_acquired_models
     from nca.discovery import fit_decoder
-    from nca.interface_learning import propose_heads
-    from nca.projection_learning import fit_prototype_encoder
+    from nca.learning.interfaces import propose_heads
+    from nca.learning.projections import fit_prototype_encoder
     from test_projection_learning import Measurement as VectorMeasurement
 
     store = Store()

@@ -6,7 +6,7 @@ from typing import Any
 
 from nca.cache import Checks, value_digest
 from nca.objects import Attestation, Json, Ref, Store
-from nca.trust import Trust
+from nca.evidence.trust import Trust
 
 
 EVALUATION = "evaluation"

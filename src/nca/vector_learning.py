@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from nca.abi import Contract, Manifest
-from nca.numeric_learning import _observation
+from nca.learning.numeric import _observation
 from nca.objects import Primitive, contract_data, contract_from, digest
 
 
