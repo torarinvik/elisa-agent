@@ -165,3 +165,56 @@ resettable effects require an explicit replay allowlist and an existing host
 grant. Scope intersection never creates authority. Unknown/effectful experts
 without sufficient grants are refused before invocation. These are cooperative
 gateway checks, not interception of arbitrary Python/native system access.
+
+## 43.7 Sampled admission on fresh cases
+
+The gate of §43.4 replays every retained case, so its cost grows with retained
+history, and its guarantee covers only those cases. This section bounds
+regression on a route's operating distribution instead, at a cost set by the
+tolerance.
+
+Fix a tolerance `ε ∈ (0, 1)` and a confidence budget `δ ∈ (0, 1)`. Each route `r`
+has a pool of retained cases with baseline bits, and a cursor. Decisions are
+numbered `k = 0, 1, …` in the order they draw cases. Decision `k` with affected
+routes `Aₖ` uses level `αₖ = δ / ((k+1)(k+2)|Aₖ|)` and sample size `mₖ`, the
+smallest `m` with `log(1/αₖ) ≤ εm`. If some affected route has fewer than `mₖ`
+unused cases, the decision is refused, draws nothing and keeps its number.
+Otherwise it takes the next `mₖ` cases of every affected pool, advancing the
+cursors, and admits the proposal only if no drawn baseline success fails.
+Drawn cases are retired whether the proposal is admitted, rejected or the
+evaluation fails.
+
+For a proposal `P` and route `r`, the *loss rate* `ℓ(P, r)` is the probability,
+on `r`'s operating distribution `Dᵣ`, that the baseline succeeds and `P` fails.
+
+**Sampling hypothesis.** Each pool lists independent draws from `Dᵣ`, in an
+order fixed before any proposal is made (the implementation shuffles each batch
+of added cases once, with a seed fixed at construction), and evaluation is
+deterministic.
+
+**Theorem 43.1 (sampled admission).** Under the sampling hypothesis, for any
+rule choosing proposals and affected routes from everything observed so far,
+the probability that some decision admits a proposal `P` with
+`ℓ(P, r) > ε` on some affected route `r` is at most `δ`.
+
+*Proof.* (i) Freshness: cursors only advance, so the case ranges drawn by
+different decisions are disjoint. (ii) Hence the cases of decision `k` are
+independent of everything that chose its proposal, and conditionally on that
+history its `mₖ` losses on route `r` are independent Bernoulli(`ℓ`) variables.
+Zero losses then has probability `(1-ℓ)^{mₖ}`. (iii) If `ℓ > ε` then
+`(1-ℓ)^{mₖ} ≤ (1-ε)^{mₖ} ≤ e^{-εmₖ} ≤ αₖ`, by `1 - x ≤ e^{-x}` and the choice of
+`mₖ`. (iv) Summing over the routes of decision `k` gives at most
+`δ/((k+1)(k+2))`, and `Σₖ δ/((k+1)(k+2)) = δ(1 - 1/(n+1)) < δ` for any number
+`n` of decisions. A union bound finishes. ∎
+
+Steps (i), (iii) and (iv), and the union over decisions and routes, are proved
+in Lean. Step (ii) is the sampling hypothesis applied to fresh cases; it is
+assumed, not proved.
+
+Each decision evaluates at most `mₖ = ⌈log((k+1)(k+2)|Aₖ|/δ)/ε⌉` cases per
+affected route, growing only logarithmically in `k` and `|Aₖ|`, and independent
+of pool size. Only drawn baseline successes need replay. The zero-loss rule is
+conservative: a proposal with `0 < ℓ ≤ ε` is admitted with probability only
+`(1-ℓ)^{mₖ}`. Pools are consumed, so sustained admission needs newly retained
+cases, which `add` appends behind every cursor; refusal for missing evidence
+is never acceptance. As in §43.4, the caller must name every affected route.

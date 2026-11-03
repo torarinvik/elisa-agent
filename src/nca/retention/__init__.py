@@ -34,29 +34,14 @@ class ReplayGate:
         return all(route.accepted for route in self.routes)
 
 
-def replay_gate(
-    memory: MemoryBackend,
-    retained: Sequence[Attestation],
-    issuers: Issuers,
-    evaluate: Callable[[str, MemoryRecord], bool],
-    *,
-    max_cases: int,
-    max_losses: int = 0,
-) -> ReplayGate:
-    """Score proposed versions against each trusted baseline's durable records.
+def baselines(retained: Sequence[Attestation], issuers: Issuers, *,
+              max_cases: int) -> dict[str, dict[Ref, str]]:
+    """Each route's trusted baseline bits by record, merged in first-seen order.
 
-    Freeze/validate attestation metadata before callbacks; load records as scored.
-    ``max_cases`` bounds distinct route/record pairs, not callback work, I/O
-    bytes or runtime invocation cost. The
-    evaluator must enforce its own resources/permissions and version selection.
-    Callbacks must not install updates or repeat irreversible actions. Read
-    permission is needed for memory access. Any error prevents a result;
-    there is no partially accepted update. Empty families cover no old routes.
+    Untrusted, malformed or conflicting assertions and more than ``max_cases``
+    distinct route/record pairs are errors.
     """
-    for value in (max_cases, max_losses):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise ValueError("replay budgets must be nonnegative integers")
-    frozen: dict[str, dict[str, str]] = {}
+    frozen: dict[str, dict[Ref, str]] = {}
     cases = 0
     for attestation in tuple(retained):
         if attestation.kind != EVALUATION or not trusted(attestation, issuers):
@@ -89,6 +74,32 @@ def replay_gate(
             cases += 1
             if cases > max_cases:
                 raise ValueError("retained replay exceeds case budget")
+    return frozen
+
+
+def replay_gate(
+    memory: MemoryBackend,
+    retained: Sequence[Attestation],
+    issuers: Issuers,
+    evaluate: Callable[[str, MemoryRecord], bool],
+    *,
+    max_cases: int,
+    max_losses: int = 0,
+) -> ReplayGate:
+    """Score proposed versions against each trusted baseline's durable records.
+
+    Freeze/validate attestation metadata before callbacks; load records as scored.
+    ``max_cases`` bounds distinct route/record pairs, not callback work, I/O
+    bytes or runtime invocation cost. The
+    evaluator must enforce its own resources/permissions and version selection.
+    Callbacks must not install updates or repeat irreversible actions. Read
+    permission is needed for memory access. Any error prevents a result;
+    there is no partially accepted update. Empty families cover no old routes.
+    """
+    for value in (max_cases, max_losses):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("replay budgets must be nonnegative integers")
+    frozen = baselines(retained, issuers, max_cases=max_cases)
     results = []
     for identity, baseline in frozen.items():
         references, bits = tuple(baseline), tuple(baseline.values())

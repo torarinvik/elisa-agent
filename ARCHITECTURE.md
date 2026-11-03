@@ -141,7 +141,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Pinned routes and rejected updates preserve behavior | Open | Routing and publication lemmas cover abstract snapshots. Tests exercise old snapshots and rejected updates. Prove actual graph traversal, version pinning and publication; immutable expert implementations and resettable replay callbacks remain trusted. |
 | Every affected route is replayed | Open | Tests cover arguments, maps, slots and reverse-index rebuilding. Model the real dependency traversal and reverse index, including shared nodes; opaque implementations must remain pinned. |
 | Zero-loss admission preserves retained successes | Open end-to-end | `retained_zero_losses` proves the finite Boolean-list special case. Link attestation merging, record decoding, actual execution, scoring, both comparisons and atomic publication to that proposition. Scorer correctness is supplied by the caller. |
-| Sampled admission remains sound under adaptive updates | Open; not implemented | Exact replay gives no population or adaptive generalization bound. A sampled estimator needs finite-sample, multiplicity and adaptive-query accounting. |
+| Sampled admission remains sound under adaptive updates | Proved except the sampling step; empirically checked | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh` and `sampledGate_sound` prove the sample size, the budget over unboundedly many decisions, that no case informs two decisions and the union over decisions and routes. That fresh i.i.d. cases give miss probability `(1-ℓ)^m` given the history is the stated sampling hypothesis, not proved in Lean; whether real retained pools are i.i.d. samples of a route's operating distribution is trusted. Tests name each theorem; the Python allocator is not differentially linked to `allocate`. |
 | Regional corrections preserve behavior outside their region | Open end-to-end | Existing regional tests and mathematical special cases do not verify the implementation and router error jointly for arbitrary contributed experts. |
 | Bounded retained evidence and safe eviction | Open; not implemented | Episodic byte admission does not bound evidence growth with task count. There is no eviction policy protecting live gate evidence or explicitly reducing stability when it is removed. |
 | Stable bounded plasticity; safe consolidation and migration | Open; not implemented | No universal regulator or composed update/eviction/consolidation/migration invariant is established. |
@@ -416,6 +416,7 @@ an inference from their separate tests.
 | [39.1](theory/reliability/39-alternatives.md) | `alternatives_le`, `alternatives_lower` | `Alternatives` |
 | [40.1](theory/reliability/40-agreement-audits.md) | `disagreement_le` with `audit_tail_le` | `Agreement`, `Audit` |
 | [41.1](theory/reliability/41-verification.md) | `verified_le` | `Verification` |
+| [43.1](theory/foundations/43-episodic-memory.md) | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh`, `sampledGate_sound` | `Reliability/SampledGate` |
 
 ## Native kernels
 
@@ -2672,6 +2673,18 @@ special case, not population generalization after adaptive replay. The caller
 must include every affected route, control evaluator resources/effects and commit
 only on whole-family acceptance. No route or memory update is performed by the
 gate. Existing artifact serialization preserves the retained reference bindings.
+
+`retention.sampled.SampledGate` implements sampled admission (§43.7). It shares
+`retention.baselines` with the exact gate to validate and merge trusted
+evaluations, shuffles each added batch once with a seed fixed at construction,
+and keeps a cursor per route. `decide` numbers decisions as they draw cases,
+spends `decision_level(δ, k)` split over the affected routes, draws
+`required_cases(ε, level)` unused cases per route, retires them before
+evaluating, and replays only drawn baseline successes; zero losses admit. A
+route without enough unused cases refuses the decision without drawing or
+spending budget, and `add` appends newly retained cases behind every cursor.
+`Reliability/SampledGate.lean` proves the accounting of Theorem 43.1;
+`benchmarks/sampled_gate.py` compares it with exact replay.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;
