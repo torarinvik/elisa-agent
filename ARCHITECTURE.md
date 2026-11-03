@@ -484,6 +484,11 @@ complements, avoiding loss of probability mass from independent rounding.
 
 ## 1. Types and contracts
 
+`abi.types` owns type terms, canonical syntax and substitution/matching/unification
+operations. The `abi` package owns contracts, manifests and message/demand
+envelopes and re-exports the type definitions and cached functions. There is one
+shared parser/cache and one class identity per type-term constructor.
+
 A type id is the canonical text of a type term (`nca.abi.TypeId`): a constructor
 name, either the `sha256:` reference of a constructor object (§29) or a
 textual name with its namespace and version, optionally applied to bracketed,
