@@ -2475,3 +2475,16 @@ families, keeping sharing local to each entry and bounding completed routes.
 The singular fitter remains the default. `adapter_family_contains_route` proves
 only mapped-family membership for a present adapter, not prefix coverage,
 provider success or generalization.
+
+## Working state and streams
+
+[§42](theory/foundations/42-working-state.md) defines state-threaded ordinary
+routes. `runtime.Process` keeps the last completed state message and executes
+each event with `execute`, sharing provenance, cache, resolver and risk ledger.
+The external contract places state first and returns the same contributor-defined
+type. Callers supply a well-typed route; no route is selected merely because its
+output matches the state type. `stream` is lazy and bounded by caller steps;
+budgets apply per transition. `Execution/State.lean` proves conditional invariant
+preservation and failed-transition cursor preservation for immutable states.
+Mutable payloads and external effects are not rolled back or contained. Workspace
+history remains linear; this provides no durable or bounded episodic memory.
