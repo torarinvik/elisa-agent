@@ -372,3 +372,7 @@ probability `(1 − ℓ)^{m_k} ≤ α_k` (Theorem 43.1's zero-loss step), and th
 
 Each admitted connector then carries rate `ε` into route risk (§31). Whether a
 fitter generalizes is not assumed; it is what the test measures.
+
+The test may stop at its first disagreement: it then admits exactly when the
+full test would and never reads more cases, so Theorem 20.14 is unchanged and
+a rejection costs only the cases read up to its first error.

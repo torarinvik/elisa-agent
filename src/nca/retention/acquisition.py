@@ -7,7 +7,11 @@ draws fresh cases and admits the result only if it agrees on all of them. The
 ``required_cases`` fresh cases, so across all requests the probability of
 admitting any connector whose error rate exceeds ``tolerance`` is at most
 ``confidence`` (``NCA.zeroLoss_miss``, ``NCA.acquisition_sound``), assuming
-the fresh cases are independent draws from the distribution of use. Each
+the fresh cases are independent draws from the distribution of use. Fresh
+cases are drawn in doubling batches and the test stops at the first
+disagreement: it admits exactly when the full test would and never draws more
+(``NCA.earlyTest_admits``, ``NCA.earlyTest_reads``), so a rejection costs at
+most about twice the cases read up to the first error. Each
 admitted connector carries ``tolerance`` as its certified rate, for
 ``evidence.route_risk``. What generalizes is the fitter's concern; the test
 only measures it.
@@ -50,14 +54,22 @@ class CertifiedAcquirer:
         level = decision_level(self.confidence, self.decisions)
         self.decisions += 1
         fresh = required_cases(self.tolerance, level)
-        cases = self.sample(contract, self.train + fresh)
-        if cases is None or len(cases) < self.train + fresh:
+        training = self.sample(contract, self.train)
+        if training is None or len(training) < self.train:
             return None
-        self.labels += len(cases)
-        training, held = cases[:self.train], cases[self.train:]
+        self.labels += len(training)
         module = self.fit(contract, [k for k, _ in training], [v for _, v in training])
-        if module is None or not all(self.agree(module.invoke(k), v) for k, v in held):
+        if module is None:
             return None
+        tested, batch = 0, 1
+        while tested < fresh:
+            held = self.sample(contract, min(batch, fresh - tested))
+            if held is None or len(held) < min(batch, fresh - tested):
+                return None
+            self.labels += len(held)
+            if not all(self.agree(module.invoke(k), v) for k, v in held):
+                return None
+            tested, batch = tested + len(held), 2 * batch
         self.certified[module.manifest.module_id] = self.tolerance
         return module
 

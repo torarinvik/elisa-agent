@@ -42,18 +42,22 @@ def test_a_memorizing_fitter_is_refused_on_fresh_values() -> None:
     assert acquirer(Contract(("a",), "b")) is None and acquirer.certified == {}
 
 
-def test_later_requests_test_more_cases_and_missing_data_refuses() -> None:
-    sizes: list[int] = []
-
+def test_admissions_read_every_case_and_rejections_stop_early() -> None:
+    """``NCA.earlyTest_reads``: an admission draws all its fresh cases, later
+    requests more of them; a memorized table is rejected after a few."""
     def sample(contract: Contract, count: int) -> list[tuple[Any, Any]] | None:
-        sizes.append(count)
         return None if contract.output == "none" else linear(contract, count)
 
     acquirer = CertifiedAcquirer(partial(fit_affine, cost=1.0), sample, train=8,
                                  tolerance=0.1, confidence=0.1, agree=close)
-    assert acquirer(Contract(("a",), "none")) is None
+    assert acquirer(Contract(("a",), "none")) is None and acquirer.labels == 0
     assert acquirer(Contract(("a",), "b")) is not None
-    assert sizes[1] > sizes[0] and acquirer.decisions == 2
+    assert acquirer.labels == 8 + required_cases(0.1, decision_level(0.1, 1))
+    assert required_cases(0.1, decision_level(0.1, 1)) > required_cases(0.1, decision_level(0.1, 0))
+    table = CertifiedAcquirer(partial(fit_decoder, cost=1.0), linear, train=256,
+                              tolerance=0.01, confidence=0.01, agree=close)
+    assert table(Contract(("a",), "b")) is None
+    assert table.labels == 256 + 1 < 256 + required_cases(0.01, decision_level(0.01, 0))
 
 
 class Flaky:

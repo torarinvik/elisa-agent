@@ -325,7 +325,7 @@ an inference from their separate tests.
 | [20.11](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `gap_iff`, `gap_complete`, `gap_sound` | `Planning/Gaps` |
 | [20.12](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `repair_complete`, `repair_sound` | `Planning/Gaps` |
 | [20.13](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `founded_keeps`, `founded_medium` | `Planning/Gaps` |
-| [20.14](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_sound` (with `zeroLoss_miss`) | `Reliability/SampledGate` |
+| [20.14](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_sound` (with `zeroLoss_miss`), `earlyTest_admits`, `earlyTest_reads` | `Reliability/SampledGate` |
 | [21.1](theory/decoding/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/decoding/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/decoding/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
@@ -680,7 +680,9 @@ compares repair with and without media over a sequence of tasks.
 `retention.acquisition.CertifiedAcquirer` (Theorem 20.14) wraps any fitter
 and case sampler as an acquirer: request `k` fits on training cases and is
 admitted only after zero errors on `required_cases(ε, decision_level(δ, k))`
-fresh cases, and admitted experts report `ε` through `rate` for
+fresh cases, drawn in doubling batches and stopping at the first
+disagreement (`earlyTest_admits`, `earlyTest_reads`), and admitted experts
+report `ε` through `rate` for
 `evidence.route_risk`. `benchmarks/certified_acquisition.py` compares
 memorizing and generalizing fitters with and without certification.
 

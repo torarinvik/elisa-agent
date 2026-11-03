@@ -168,4 +168,29 @@ theorem acquisition_sound {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     (fun k hk r _ => by simpa using each k hk)
   simpa [Set.iUnion_const] using this
 
+/-- Early rejection (§20.9): a test reading held-out outcomes in order (`true`
+for agreement) until the first disagreement. It returns whether it admits and
+how many cases it read. -/
+def earlyTest : List Bool → Bool × ℕ
+  | [] => (true, 0)
+  | true :: rest => ((earlyTest rest).1, (earlyTest rest).2 + 1)
+  | false :: _ => (false, 1)
+
+/-- Stopping at the first disagreement admits exactly when every case agrees,
+so the guarantee of `acquisition_sound` is unchanged. -/
+theorem earlyTest_admits : ∀ cases : List Bool, (earlyTest cases).1 = cases.all id
+  | [] => rfl
+  | true :: rest => by simp [earlyTest, earlyTest_admits rest]
+  | false :: _ => rfl
+
+/-- It never reads more cases than the full test, and an admission reads them all. -/
+theorem earlyTest_reads : ∀ cases : List Bool,
+    (earlyTest cases).2 ≤ cases.length ∧ ((earlyTest cases).1 = true → (earlyTest cases).2 = cases.length)
+  | [] => by simp [earlyTest]
+  | true :: rest => by
+    have := earlyTest_reads rest
+    simp only [earlyTest, List.length_cons]
+    exact ⟨by omega, fun h => by rw [this.2 h]⟩
+  | false :: _ => by simp [earlyTest]
+
 end NCA
