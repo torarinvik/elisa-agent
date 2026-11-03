@@ -2542,3 +2542,19 @@ special case, not population generalization after adaptive replay. The caller
 must include every affected route, control evaluator resources/effects and commit
 only on whole-family acceptance. No route or memory update is performed by the
 gate. Existing artifact serialization preserves the retained reference bindings.
+
+`guarded_routes.RouteCatalog` generalizes pinned routes to immutable multi-root
+snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;
+`replace` rewrites contract-equal expert versions, requires evidence for every
+affected anchor and executes actual current/proposed plans using each registered
+codec/scorer. It applies both original-baseline and current-outcome replay checks.
+Only complete acceptance returns the prepared replacement catalog; refusal returns
+the old catalog unchanged. Metadata is snapshotted as canonical bytes, and public
+route maps are read-only. `Execution/Memory.lean` proves abstract refusal identity
+and conditional invariant preservation; it does not verify dependency traversal
+or Python immutability. Opaque experts/resolvers stay pinned; changed internals
+need a new outer expert. This API does not guard arbitrary manual `Router.upgrade`
+calls. Existing snapshots retain their actual expert references. Active manifests are checked against stored snapshots, refusing in-place metadata
+changes. Exact unchanged route objects reuse validated dependency sets; every rewritten
+root is type-checked. Catalog copying/index rebuilding remains linear and is
+included in update measurements.

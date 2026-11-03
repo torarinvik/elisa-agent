@@ -90,3 +90,42 @@ cases. No population regression bound follows without fresh held-out samples or
 an appropriate uniform/adaptive-valid argument. The gate does not mutate routes,
 install replacements, infer dependency coverage, consolidate records or evict
 anything. Those mechanisms must preserve its explicit assumptions.
+
+## 43.5 Guarded multi-root route snapshots
+
+A protected catalog maps retained-evidence anchors to current typed plans and
+contributor-supplied case codecs/scorers. An anchor identifies the original
+attested evaluation, not the content identity of every subsequent plan. Each
+applied expert must obey version immutability; replacing a version constructs new
+plan nodes and never edits an active expert or old route snapshot.
+
+A simultaneous replacement maps old expert objects to contract-equal, distinctly
+identified new versions. Its affected roots are precisely registered explicit
+plans containing an old object in an argument, map source/body or slot filling.
+Shared nodes are rewritten once per update. Opaque experts and resolver objects
+are pinned boundaries: replacing something outside them cannot change their
+hidden code. To update a hidden implementation, replace its outer expert version.
+Mutation of an existing expert/resolver bypasses these assumptions and is not
+contained by the host-language implementation.
+
+Every affected root must have retained evidence. The prepared current/candidate
+plans execute through the ordinary runtime on independently decoded copies of
+each record, with invocation/cost budgets and fresh ledgers. The candidate must
+pass both the trusted original baseline and a replay against actual current
+correctness. The second comparison protects successes acquired since the original
+attestation. With zero loss allowance, successful retained answers persist through
+a sequence of accepted snapshots by induction, assuming deterministic evaluation
+or a faithfully reset fixed replay environment. With stochastic components the
+gate protects observed replay outcomes only. This remains finite-case protection,
+not an adaptive population guarantee. Codecs must faithfully reconstruct the same
+case and isolate mutable state; replay must not repeat irreversible live actions.
+
+Publication returns a new catalog only after all required comparisons accept.
+Refusal returns the identical old catalog; exceptions return no update. Old
+snapshots and their expert references remain usable. The reverse index finds
+explicit dependencies without guessing them from implementation names. Unchanged roots with unchanged declared manifests may reuse their established
+type/dependency checks;
+rewritten roots require validation. Snapshot copying, index rebuilding and metadata
+parsing can still require linear total catalog work even with few affected roots. Dynamic resolver changes, arbitrary
+manual router upgrades, evidence eviction and automatic artifact installation
+are outside this managed publication API.

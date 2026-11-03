@@ -50,4 +50,20 @@ theorem retained_zero_losses (cases : List (Bool × Bool))
     rcases head with ⟨old, current⟩
     cases old <;> cases current <;> simp_all [List.filter]
 
+
+/-- A managed publication is the old snapshot unless both replay checks accept. -/
+def guardedPublish {S : Type} (original proposed : S) (retained current : Bool) : S :=
+  if retained && current then proposed else original
+
+theorem guardedPublish_refused {S : Type} (original proposed : S) (retained current : Bool)
+    (refused : retained = false ∨ current = false) :
+    guardedPublish original proposed retained current = original := by
+  rcases refused with h | h <;> simp [guardedPublish, h]
+
+theorem guardedPublish_invariant {S : Type} (P : S → Prop) (original proposed : S)
+    (retained current : Bool) (old : P original)
+    (checked : retained = true → current = true → P proposed) :
+    P (guardedPublish original proposed retained current) := by
+  cases retained <;> cases current <;> simp_all [guardedPublish]
+
 end NCA
