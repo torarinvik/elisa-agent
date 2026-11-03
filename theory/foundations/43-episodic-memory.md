@@ -55,3 +55,38 @@ a strictly increasing position in the same transaction; duplicate appends get
 no new position. Continuing after the last returned position includes later
 committed appends. Scans expose storage order, not observation-time order, and
 perform no semantic selection or payload decoding.
+
+## 43.4 Retained evaluations and replay admission
+
+An existing expert evaluation may bind its ordered outcome vector to an ordered
+nonempty sequence of distinct episodic record references. Its benchmark identity
+is the digest of those references. The evaluator interprets their typed payloads;
+the frame does not supply a task codec or correctness rule. Trusted outcome
+assertions and record identity bind a reproducible finite evaluation, not a
+statement that all possible observations have been retained.
+
+Compatible evaluations for the same route are combined in first-seen order,
+counting a record only once. Conflicting trusted outcomes for the same route and
+record are errors. Different routes still have separate cases and loss budgets.
+
+For each affected route r, freeze its references and baseline correctness bits
+bᵣᵢ before evaluating a proposed replacement. Replay gives bits cᵣᵢ. Define
+Lᵣ = |{i : bᵣᵢ = true and cᵣᵢ = false}|. Admit the replacement only when every
+route has Lᵣ at most the caller's loss budget. Wins on another route never offset
+these losses. For zero budget, every retained baseline success remains successful.
+In general, retained failure count increases by at most Lᵣ, since new successes
+can only reduce failures.
+
+This guarantee assumes the caller includes every affected route, evaluates the
+actual proposed version, supplies truthful trusted baselines and a sound scoring
+rule, and commits only after the complete result accepts. Missing/corrupt records,
+untrusted or malformed assertions and exceeded replay budgets are errors, never
+acceptance. An empty affected-route set protects no routes and is vacuously
+accepted; it is no evidence of new-task correctness. Invocation budgets, effects
+and cost limits belong to the supplied evaluator, ordinarily using the runtime.
+
+This is a deterministic finite-evidence gate. Repeated use can overfit the retained
+cases. No population regression bound follows without fresh held-out samples or
+an appropriate uniform/adaptive-valid argument. The gate does not mutate routes,
+install replacements, infer dependency coverage, consolidate records or evict
+anything. Those mechanisms must preserve its explicit assumptions.

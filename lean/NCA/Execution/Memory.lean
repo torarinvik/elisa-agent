@@ -29,4 +29,25 @@ theorem memory_capacity {used charge capacity : Nat}
     (admitted : used + charge ≤ capacity) : used ≤ used + charge ∧ used + charge ≤ capacity := by
   exact ⟨Nat.le_add_right used charge, admitted⟩
 
+
+/-- Zero replay losses preserve each retained success (finite evidence only). -/
+theorem retained_success_preserved {I : Type} (baseline candidate : I → Bool)
+    (noLoss : ∀ i, ¬ (baseline i = true ∧ candidate i = false)) :
+    ∀ i, baseline i = true → candidate i = true := by
+  intro i good
+  cases current : candidate i with
+  | false => exact False.elim (noLoss i ⟨good, current⟩)
+  | true => rfl
+
+
+/-- The executable finite loss count being zero preserves every baseline success. -/
+theorem retained_zero_losses (cases : List (Bool × Bool))
+    (zero : (cases.filter (fun p => p.1 && !p.2)).length = 0) :
+    ∀ p ∈ cases, p.1 = true → p.2 = true := by
+  induction cases with
+  | nil => simp
+  | cons head tail ih =>
+    rcases head with ⟨old, current⟩
+    cases old <;> cases current <;> simp_all [List.filter]
+
 end NCA

@@ -2520,3 +2520,20 @@ The artifact `objects.Store` retains its expert/type DAG semantics and eager
 whole-directory reopen. Episodic traffic uses an indexed transactional backend
 to support bounded reads and atomic cross-handle capacity admission without
 loading every experience into the artifact store.
+
+## Retained replay admission
+
+[§43.4](theory/foundations/43-episodic-memory.md) extends existing evaluation
+attestations with ordered durable `records` references. `evidence.evaluation`
+checks benchmark identity, alignment and distinctness; `evidence.trusted` is the
+shared issuer/signature policy used by existing evidence and `retention.replay_gate`.
+The replay gate unions compatible baselines per route, rejecting conflicting
+outcomes and counting each route/record pair once. It freezes these baselines,
+checks a total case budget and scores
+supplied proposed route versions on those records. Each route has its own loss
+count; wins elsewhere cannot compensate. Missing/corrupt evidence and invalid
+claims raise errors. `Execution/Memory.lean` proves the zero-loss retained-success
+special case, not population generalization after adaptive replay. The caller
+must include every affected route, control evaluator resources/effects and commit
+only on whole-family acceptance. No route or memory update is performed by the
+gate. Existing artifact serialization preserves the retained reference bindings.
