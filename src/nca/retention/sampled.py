@@ -112,6 +112,12 @@ class SampledGate:
         """Whether trusted retained cases were ever added for ``identity``."""
         return identity in self._pools
 
+    def unused(self, identity: str) -> frozenset[Ref]:
+        """Cases of ``identity`` no decision has drawn yet; proposals must not
+        be trained on them (``NCA.allocate_skips_drawn``)."""
+        pool = self._pools.get(identity, ())
+        return frozenset(reference for reference, _ in pool[self._cursors.get(identity, 0):])
+
     def remaining(self, identity: str) -> int:
         return len(self._pools.get(identity, ())) - self._cursors.get(identity, 0)
 

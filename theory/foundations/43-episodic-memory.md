@@ -285,3 +285,32 @@ nondecreasing in `d`. Hence a field fed by them satisfies Theorem 43.2.
 *Proof.* A mean of values in `[0, 1]` lies in `[0, 1]`, and so does the
 indicator. For `h > 0`, `0 ≤ d/(d + h) < 1`, and `d ≤ e` gives
 `d(e + h) ≤ e(d + h)`. ∎
+
+## 43.10 Consolidation
+
+Let a protected catalog use a piece `P` that has accumulated local corrections.
+Consolidation chooses training records, runs each through a protected route
+that uses `P`, records `P`'s inputs and outputs, and gives these examples to a
+caller's distiller, which returns a compact piece `Q` with `P`'s contract. It
+then proposes replacing `P` by `Q` through the gate on every protected route
+that uses `P`. If admitted, `P` has no protected dependents and is reported as
+retirable. Examples come from `P`'s own behavior, so no labels are spent.
+
+**Proposition 43.4 (consolidation is gated and fresh).** (i) Whatever `Q` the
+distiller returns, the catalog changes only if the gate admits `Q`, so
+consolidation inherits Theorem 43.1 under the sampled gate and the finite
+guarantee of §43.4 under exact replay. (ii) Under the sampled gate, if every
+training record has already been drawn, no later decision draws it, so `Q` is
+independent of the cases that judge it.
+
+*Proof.* (i) Publication returns the old snapshot unless the gate accepts.
+(ii) Drawn cases lie before their route's cursor, and every later allocation
+starts at or after the cursor. ∎
+
+Part (ii) is why training on undrawn cases is refused: a proposal fitted to
+cases the gate may still draw would make those cases a biased test, and the
+sampling hypothesis of Theorem 43.1 would no longer apply. The cost is
+coverage: training is limited to drawn cases, so consolidation under a sampled
+gate needs enough of them, or a distiller that generalizes. Retirement here
+means only that no protected route uses `P`; removing stored artifacts or
+episodes is eviction, which must preserve evidence that gates rely on.

@@ -145,7 +145,8 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Regional corrections preserve behavior outside their region | Open end-to-end | Existing regional tests and mathematical special cases do not verify the implementation and router error jointly for arbitrary contributed experts. |
 | Bounded retained evidence and safe eviction | Open; not implemented | Episodic byte admission does not bound evidence growth with task count. There is no eviction policy protecting live gate evidence or explicitly reducing stability when it is removed. |
 | Stable bounded plasticity | Proved for the default regulator; empirically linked | `smooth_unit`, `smooth_step`, `hysteresis_gap` and `reopen_after_settle` prove bounds, per-step movement and no flapping; `retention.plasticity` matches `Reliability/PlasticityReplay.lean` exactly over rationals on 64 generated trajectories. Other regulators are checked only for staying in [0, 1]. `retention.signals` derives inputs from runtime ledgers, audits and dependents; `meanSignal_unit`, `dependentStability_unit` and `dependentStability_mono` prove them in range. Signal quality depends on expert calibration, which audits check. |
-| Safe consolidation and migration | Open; not implemented | No composed update/eviction/consolidation/migration invariant is established. |
+| Safe consolidation | Proved; empirically checked | `published_only_if_admitted` and `allocate_skips_drawn` prove that a consolidated piece is published only through the gate and that training on drawn cases keeps later gate cases fresh; `retention.consolidation.consolidate` enforces the freshness rule. Distiller quality is the caller's; the gate checks it. |
+| Safe migration and eviction | Open; not implemented | Shared-representation migration and evidence-preserving eviction, and their composition with updates and consolidation, are not established. |
 | Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
@@ -420,6 +421,7 @@ an inference from their separate tests.
 | [43.1](theory/foundations/43-episodic-memory.md) | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh`, `sampledGate_sound` | `Reliability/SampledGate` |
 | [43.2](theory/foundations/43-episodic-memory.md) | `smooth_unit`, `smooth_step`, `hysteresis_gap`, `reopen_after_settle` | `Reliability/Plasticity` |
 | [43.3](theory/foundations/43-episodic-memory.md) | `meanSignal_unit`, `dependentStability_unit`, `dependentStability_mono` | `Reliability/Plasticity` |
+| [43.4](theory/foundations/43-episodic-memory.md) | `published_only_if_admitted`, `allocate_skips_drawn` | `Reliability/SampledGate` |
 
 ## Native kernels
 
@@ -2714,6 +2716,16 @@ region, and sets a key to one when its audit refutes calibration.
 `RouteCatalog.dependents(module)`, and `observe` feeds a window to a field.
 `benchmarks/ledger_signals.py` runs region experts through `execute` with
 silent and honest shifts.
+
+`retention.consolidation.consolidate(catalog, piece, distill, training, ...)`
+implements §43.10. `record` rewrites each training route's plan with a
+forwarding recorder in place of the piece and runs it on decoded training
+records, collecting the piece's inputs and outputs; the distiller turns these
+into a candidate with the same contract, which `RouteCatalog.replace` gates on
+every dependent route. With a sampler, training records still listed by
+`SampledGate.unused` for an affected route are refused. An admitted
+consolidation reports the replaced piece as retired when no protected route
+uses it. `benchmarks/consolidation.py` consolidates accumulated patch chains.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;

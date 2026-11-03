@@ -91,6 +91,24 @@ theorem allocate_fresh (pool : ℕ) :
       intro y _ a b c d hx
       cases hx
 
+/-- Consolidation freshness (§43.10): a case at a position before the cursor,
+already drawn, lies in no later allocation, so training on drawn cases keeps
+every future decision's cases independent of the proposal. -/
+theorem allocate_skips_drawn (pool cursor : ℕ) (requests : List ℕ) {a b x : ℕ}
+    (mem : some (a, b) ∈ allocate pool cursor requests) (drawn : x < cursor) :
+    ¬ (a ≤ x ∧ x < b) := by
+  have := (allocate_bounds pool cursor requests a b mem).1
+  omega
+
+/-- A catalog changes only through admission: whatever a consolidation
+proposes, the published snapshot differs from the old one only if the gate
+accepted. -/
+theorem published_only_if_admitted {S : Type*} (old proposed : S) (admitted : Bool)
+    (changed : (if admitted then proposed else old) ≠ old) : admitted = true := by
+  cases admitted
+  · exact absurd rfl changed
+  · rfl
+
 /-- Union over decisions and affected routes: if each acceptance of a regressed
 route has probability at most its share `decisionLevel δ k / |A k|` of decision
 `k`'s budget, any acceptance of a regression across all decisions has
