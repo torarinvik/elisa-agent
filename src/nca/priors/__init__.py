@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from functools import lru_cache
 from itertools import chain, repeat
 from typing import Any
 
 import numpy as np
 
 from nca.native import load
+from nca.priors.symbols import (
+    _integer_symbols as _integer_symbols,
+    _dense_alphabet_needed as _dense_alphabet_needed,
+    _dense_native_alphabet as _dense_native_alphabet,
+    _native_alphabet as _native_alphabet,
+    _native_symbol_pair as _native_symbol_pair,
+    _native_decoded_symbols as _native_decoded_symbols,
+)
 from nca.priors.arithmetic import (
     risk_from_log_weight as risk_from_log_weight,
     risk_from_partition as risk_from_partition,
@@ -29,82 +36,6 @@ from nca.priors.arithmetic import (
 )
 
 _NATIVE = load("decoding")
-
-
-def _integer_symbols(symbols: Sequence[int], *, values: np.ndarray | None = None) -> bool:
-    values = np.asarray(symbols) if values is None else values
-    if values.ndim != 1:
-        return False
-    if values.size == 0 or values.dtype.kind in "iu":
-        return True
-    return all(isinstance(a, (int, np.integer)) for a in symbols)
-
-
-@lru_cache(maxsize=32)
-def _dense_alphabet_needed(alphabet: tuple[int, ...]) -> bool:
-    return any(not -(2**63) <= int(a) < 2**63 for a in alphabet)
-
-
-@lru_cache(maxsize=32)
-def _dense_native_alphabet(size: int) -> np.ndarray:
-    return np.frombuffer(np.arange(size, dtype=np.int64).tobytes(), dtype=np.int64)
-
-
-@lru_cache(maxsize=32)
-def _native_alphabet(alphabet: tuple[int, ...]) -> np.ndarray:
-    """Immutable native buffer shared by priors with the same alphabet."""
-    if _dense_alphabet_needed(alphabet):
-        return _dense_native_alphabet(len(alphabet))
-    return np.frombuffer(np.asarray(alphabet, dtype=np.int64).tobytes(), dtype=np.int64)
-
-
-def _native_symbol_pair(alphabet: tuple[int, ...], selected: Sequence[int], *,
-                        values: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
-    dense = _dense_alphabet_needed(alphabet)
-    values = np.asarray(selected) if values is None else values
-    # NumPy may infer float64 for mixed signed and out-of-range integers,
-    # losing their identity before an integer cast. Encode those from the
-    # original Python values instead.
-    if values.size and values.dtype.kind not in "iu":
-        dense = True
-    if values.dtype.kind == "u" and np.any(values > np.iinfo(np.int64).max):
-        dense = True
-    if not dense:
-        try:
-            return _native_alphabet(alphabet), np.ascontiguousarray(values, dtype=np.int64)
-        except OverflowError:
-            dense = True
-    indices: dict[int, int] = {}
-    for j, symbol in enumerate(alphabet):
-        indices.setdefault(int(symbol), j)
-    encoded = np.fromiter((indices.get(int(symbol), -1) for symbol in selected),
-                          dtype=np.int64, count=len(selected))
-    return _dense_native_alphabet(len(alphabet)), encoded
-
-
-def _native_decoded_symbols(alphabet: tuple[int, ...], selected: Sequence[int]) -> tuple[int, ...]:
-    if _dense_alphabet_needed(alphabet):
-        return tuple(int(alphabet[int(index)]) for index in selected)
-    return tuple(int(symbol) for symbol in selected)
-
-
-def _native_format_symbols(symbols: Sequence[int], length: int) -> np.ndarray:
-    """Map arities that cannot fit a complete prefix to an unreachable sentinel."""
-    native = getattr(_NATIVE, "clamp_format_symbols", None)
-    if native is not None and len(symbols) >= 32:
-        values = np.asarray(symbols)
-        if values.dtype.kind == "i":
-            result = np.array(values, dtype=np.int64, order="C", copy=True)
-            native(result, length)
-            return result
-        unsigned = getattr(_NATIVE, "clamp_unsigned_format_symbols", None)
-        if unsigned is not None and values.dtype.kind == "u":
-            # Values with the high bit set exceed any representable sequence length.
-            result = np.array(values, dtype=np.uint64, order="C", copy=True).view(np.int64)
-            unsigned(result, length)
-            return result
-    return np.fromiter((max(-1, min(int(a), length)) for a in symbols),
-                       dtype=np.int64, count=len(symbols))
 
 
 def _center_prior(rows: np.ndarray, prior: ArityPrior, *,
@@ -172,46 +103,6 @@ def _restore_centered_decoded(rows: np.ndarray, decoded: Decoded | None, *,
         raise _MarginalPrecisionError("restored decoder normalizer is not finite")
     return Decoded(decoded.arities, log_z, decoded.marginals, prior if prior is not None else decoded.prior)
 
-
-def sequence_log_weight(log_probs: np.ndarray, alphabet: Sequence[int],
-                        selected: Sequence[int]) -> float:
-    """Log product of selected weights; reject detected arithmetic loss (§21.5)."""
-    if log_probs.shape != (len(selected), len(alphabet)):
-        raise ValueError("weights must have one row per selected symbol and one column per class")
-    if not _integer_symbols(alphabet) or not _integer_symbols(selected):
-        raise ValueError("alphabet and selected symbols must be integers")
-    rows = np.ascontiguousarray(log_probs, dtype=np.float64)
-    validate = getattr(_NATIVE, "valid_log_weights", None)
-    valid = (validate(rows.reshape(-1)) if validate is not None
-             else not (np.any(np.isnan(rows)) or np.any(np.isposinf(rows))))
-    if not valid:
-        raise ValueError("weights must be finite or negative infinity")
-    native_weight = getattr(_NATIVE, "sequence_log_weight", None)
-    if native_weight is not None:
-        symbols, encoded = _native_symbol_pair(tuple(alphabet), selected)
-        result = float(native_weight(rows.reshape(-1),
-                                     symbols, encoded))
-        if math.isnan(result) or result == math.inf:
-            raise _WeightArithmeticError("sequence log weight arithmetic is not finite or loses precision")
-        return result
-    symbols = tuple(alphabet)
-    total, failed = 0.0, False
-    for k, symbol in enumerate(selected):
-        try:
-            column = symbols.index(symbol)
-        except ValueError:
-            return -math.inf
-        reading = float(rows[k, column])
-        if reading == -math.inf:
-            return -math.inf
-        if not failed:
-            try:
-                total = _partition_log_product(total, reading, "sequence log weight")
-            except _PartitionArithmeticError:
-                failed = True
-    if failed:
-        raise _WeightArithmeticError("sequence log weight arithmetic is not finite or loses precision")
-    return total
 
 @dataclass(frozen=True)
 class ArityPrior:
@@ -636,367 +527,23 @@ def tilt_prior(prior: ArityPrior, log_factors: Sequence[float]) -> ArityPrior:
     return ArityPrior(prior.alphabet, prior.transitions, weights, prior.log_final, prior.start)
 
 
-@lru_cache(maxsize=32)
-def format_prior(length: int) -> ArityPrior:
-    """Unit-weight prefix counter as a prior automaton for a fixed length."""
-    if not isinstance(length, int) or length < 1:
-        raise ValueError("length must be a positive integer")
-    states = length + 2
-    transitions = np.full((states, 3), -1, dtype=np.int64)
-    for state in range(1, states):
-        for arity in range(3):
-            if state - 1 + arity < states:
-                transitions[state, arity] = state - 1 + arity
-    final = np.full(states, -np.inf)
-    final[0] = 0.0
-    return ArityPrior((0, 1, 2), transitions, np.zeros((states, 3)), final, start=1)
+from nca.priors.factories import (
+    format_prior as format_prior,
+    complete_prior as complete_prior,
+    height_prior as height_prior,
+)
 
 
-def _generic_format_sequence_risk(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
-    """Format risk with a checked rescaling retry after arithmetic failure."""
-    try:
-        return _generic_format_sequence_risk_once(rows, alphabet, selected)
-    except _PartitionArithmeticError as failure:
-        centered = _center_log_rows(rows)
-        if centered is None:
-            raise
-        try:
-            return _generic_format_sequence_risk_once(centered, alphabet, selected)
-        except _PartitionArithmeticError:
-            raise failure from None
+from nca.priors.decoding import (
+    _native_format_symbols as _native_format_symbols,
+    sequence_log_weight as sequence_log_weight,
+    _generic_format_sequence_risk as _generic_format_sequence_risk,
+    _generic_format_sequence_risk_once as _generic_format_sequence_risk_once,
+    format_sequence_risk as format_sequence_risk,
+    Decoded as Decoded,
+)
 
-
-def _generic_format_sequence_risk_once(rows: np.ndarray, alphabet: Sequence[int], selected: Sequence[int]) -> float:
-    """Exact model risk with selected and alternative paths summed separately."""
-    native = getattr(_NATIVE, "format_partition", None)
-    if native is not None:
-        m = len(rows)
-        partition = native(np.ascontiguousarray(rows, dtype=np.float64).reshape(-1),
-                           _native_format_symbols(alphabet, m),
-                           _native_format_symbols(selected, m))
-        if len(partition) == 2:
-            return risk_from_partition(*partition)
-        raise _PartitionArithmeticError("format partition arithmetic is not finite or loses precision")
-    m = len(rows)
-    alternatives = np.full(m + 2, -np.inf)
-    matched, state = 0.0, 1
-    for k in range(m):
-        following = np.full(m + 2, -np.inf)
-        for n in range(1, m - k + 1):
-            for j, value in enumerate(alphabet):
-                arity = int(value)
-                target = n - 1 + arity
-                if target > m - k - 1:
-                    continue
-                reading = float(rows[k, j])
-                if alternatives[n] != -math.inf and reading != -math.inf:
-                    through = _partition_log_product(float(alternatives[n]), reading, "format")
-                    following[target] = _partition_log_add(float(following[target]), through, "format")
-                if n == state and arity != selected[k] and matched != -math.inf and reading != -math.inf:
-                    through = _partition_log_product(matched, reading, "format")
-                    following[target] = _partition_log_add(float(following[target]), through, "format")
-        column = next((j for j, value in enumerate(alphabet) if value == selected[k]), None)
-        if column is None or state < 1 or state - 1 + int(selected[k]) > m - k - 1:
-            matched = -math.inf
-        else:
-            reading = float(rows[k, column])
-            if matched != -math.inf and reading != -math.inf:
-                matched = _partition_log_product(matched, reading, "format")
-            else:
-                matched = -math.inf
-            state += int(selected[k]) - 1
-        alternatives = following
-    return risk_from_partition(matched if state == 0 else -math.inf, float(alternatives[0]))
-
-
-def format_sequence_risk(log_probs: np.ndarray, alphabet: Sequence[int],
-                         selected: Sequence[int]) -> float:
-    """Risk of an arity sequence under the complete prefix format."""
-    alphabet = tuple(alphabet)
-    if (not alphabet or len(set(alphabet)) != len(alphabet)
-            or any(not isinstance(a, (int, np.integer)) or a < 0 for a in alphabet)):
-        raise ValueError("format risk requires distinct nonnegative arities")
-    rows = np.asarray(log_probs, dtype=np.float64)
-    if (rows.ndim != 2 or rows.shape[1] != len(alphabet) or not len(rows)
-            or len(selected) != len(rows) or np.any(np.isnan(rows)) or np.any(np.isposinf(rows))):
-        raise ValueError("format risk requires nonempty rows over the alphabet")
-    if not _integer_symbols(selected):
-        raise ValueError("selected symbols must be integers")
-    if any(a > 2 for a in alphabet):
-        return _generic_format_sequence_risk(rows, alphabet, selected)
-    if alphabet != (0, 1, 2):
-        canonical = np.full((len(rows), 3), -np.inf)
-        for column, arity in enumerate(alphabet):
-            canonical[:, arity] = rows[:, column]
-        rows = canonical
-    return format_prior(len(rows)).sequence_risk(rows, selected)
-
-
-@dataclass(frozen=True)
-class PriorSelection:
-    index: int
-    scores: tuple[float, ...]
-    samples: int
-    score_error: float = 0.0
-    score_clip: float | None = None
-    alpha: float | None = None
-
-def select_prior(candidates: Sequence[Callable[[int], ArityPrior | None]],
-                 readings: Iterable[np.ndarray], log_base: np.ndarray,
-                 alphabet: Sequence[int] = (0, 1, 2), *,
-                 score_error: float = 0.0, score_clip: float | None = None,
-                 alpha: float | None = None) -> PriorSelection:
-    """Empirical summed-evidence selection on unlabeled held-out readings.
-
-    With a supplied uniform error bound on summed scores, choose the first
-    candidate within twice that bound of the empirical best (§27.9). Order
-    must be declared in advance, broadest support first if that is the policy.
-    The default is empirical maximization with exact ties. This API does not
-    estimate or certify score_error; it also performs no risk certification
-    or automatic installation. Without clipping, None providers are excluded;
-    with clipping, unavailability receives -B. Zero base mass in a provided
-    model remains invalid rather than zero evidence.
-    Supplying score_clip B and alpha clips each log evidence to [-B,B] and
-    derives B*sqrt(2*n*log(2*K/alpha)) as the simultaneous total-score error.
-    Its outward rounding assumes the platform logarithm is within one ulp.
-    This requires IID observations, fixed models/base/B/K, and valid base
-    normalizers wherever a provider supplies a model. It bounds clipped-score means, not raw evidence
-    or answer errors. Each reading is copied before provider callbacks so all
-    candidates score the same snapshot. The concentration step is not formalized in Lean.
-    """
-    if not math.isfinite(score_error) or score_error < 0:
-        raise ValueError("score_error must be finite and nonnegative")
-    if (score_clip is None) != (alpha is None):
-        raise ValueError("score_clip and alpha must be supplied together")
-    if score_clip is not None:
-        if (not math.isfinite(score_clip) or score_clip <= 0 or alpha is None
-                or not math.isfinite(alpha) or not 0 < alpha < 1 or score_error != 0):
-            raise ValueError("bounded scoring requires positive finite clipping, 0 < alpha < 1, and no manual error")
-    candidates = tuple(candidates)
-    alphabet = tuple(alphabet)
-    base = np.array(log_base, dtype=np.float64, copy=True)
-    base.setflags(write=False)
-    if (not candidates or base.shape != (len(alphabet),)
-            or np.any(np.isnan(base)) or np.any(base > 0)
-            or not np.isclose(np.exp(base).sum(), 1.0, rtol=0, atol=1e-12)):
-        raise ValueError("requires candidates and a normalized shared base vector")
-    scores = [0.0] * len(candidates)
-    corrections = [0.0] * len(candidates)
-    models: dict[tuple[int, int], tuple[ArityPrior, float | None] | None] = {}
-    count = 0
-    for observation in readings:
-        # Freeze each reading before invoking providers, which may mutate caller storage.
-        rows = np.array(observation, dtype=np.float64, copy=True)
-        if rows.ndim != 2 or rows.shape[1] != len(alphabet):
-            raise ValueError("readings must be matrices over the shared alphabet")
-        # Validate every observation even after some candidates become unavailable.
-        fast_validate = getattr(_NATIVE, "normalized_rows_fast", None)
-        fast_valid = (fast_validate is not None
-                      and fast_validate(rows.reshape(-1), base))
-        if (not fast_valid and (np.any(np.isnan(rows)) or np.any(rows > 0)
-                or not np.allclose(np.exp(rows).sum(axis=1), 1.0, rtol=0, atol=1e-12)
-                or np.any(np.isneginf(base) & np.isfinite(rows)))):
-            raise ValueError("readings must be normalized and supported by the shared base")
-        for i, provider in enumerate(candidates):
-            if scores[i] == -math.inf:
-                continue
-            key = (i, len(rows))
-            if key not in models:
-                prior = provider(len(rows))
-                if prior is None:
-                    models[key] = None
-                else:
-                    if prior.alphabet != alphabet:
-                        raise ValueError("candidate alphabet must match the shared base")
-                    base_rows = np.broadcast_to(base, rows.shape)
-                    prior = _evidence_prior(base_rows, prior)
-                    if not prior.supports(base_rows):
-                        raise ValueError("candidate prior has zero mass under the base")
-                    # The base normalizer is needed only for readings unlike the base.
-                    models[key] = prior, None
-            model = models[key]
-            if model is None:
-                if score_clip is None:
-                    scores[i] = -math.inf
-                    continue
-                evidence = -score_clip
-            else:
-                prior, denominator = model
-                base_rows = np.broadcast_to(base, rows.shape)
-                if np.array_equal(rows, base_rows):
-                    evidence = 0.0
-                else:
-                    if denominator is None:
-                        denominator = _base_normalizer(prior, base_rows)
-                        models[key] = prior, denominator
-                    evidence = _evidence_difference(prior.log_normalizer(rows), denominator,
-                                                    rows, base_rows)
-            if math.isnan(evidence) or evidence == math.inf:
-                raise ValueError("candidate evidence must be finite or negative infinity")
-            if score_clip is not None:
-                evidence = max(-score_clip, min(score_clip, evidence))
-            if evidence == -math.inf:
-                scores[i] = -math.inf
-            else:
-                scores[i], corrections[i] = _add_evidence(scores[i], corrections[i], evidence)
-        count += 1
-    for i, score in enumerate(scores):
-        if math.isfinite(score):
-            try:
-                scores[i] = _partition_log_product(score, corrections[i], "summed evidence")
-            except _PartitionArithmeticError as exc:
-                raise ValueError("summed evidence overflow or loses precision") from exc
-    if not count or not any(math.isfinite(score) for score in scores):
-        raise ValueError("requires observations and at least one finite-evidence candidate")
-    if score_clip is not None:
-        assert alpha is not None
-        # Outward steps cover binary64 rounding; log accuracy remains a libm assumption.
-        log_upper = math.nextafter(math.log(2 * len(candidates)), math.inf)
-        log_lower = math.nextafter(math.log(alpha), -math.inf)
-        log_ratio = math.nextafter(log_upper - log_lower, math.inf)
-        sample_count = float(count)
-        if sample_count < count:
-            sample_count = math.nextafter(sample_count, math.inf)
-        scale = math.nextafter(2.0 * sample_count, math.inf)
-        variance = math.nextafter(scale * log_ratio, math.inf)
-        root = math.nextafter(math.sqrt(variance), math.inf)
-        score_error = math.nextafter(score_clip * root, math.inf)
-        if not math.isfinite(score_error):
-            raise ValueError("derived score error overflow")
-    best = max(range(len(scores)), key=scores.__getitem__)
-    chosen = (best if score_error == 0 else next(
-        i for i, score in enumerate(scores) if math.isfinite(score)
-        and _within_score_error(scores[best], score, score_error)))
-    return PriorSelection(chosen, tuple(scores), count, score_error, score_clip, alpha)
-
-@lru_cache(maxsize=32)
-def complete_prior(length: int) -> ArityPrior | None:
-    """Unit-weight complete binary skeleton prior inferred from length (§27.4).
-
-    Leaves may be constants or unary negations of constants. Unsupported
-    lengths return None. This is a structural prior, not a reader calibration.
-    """
-    if not isinstance(length, int) or length < 1:
-        raise ValueError("length must be a positive integer")
-    depth = (length + 1).bit_length() - 2
-    if length + 1 > 3 * 2 ** depth:
-        return None
-    pending = [(depth,)]
-    indices = {pending[0]: 0}
-    transitions: list[list[int]] = []
-    for stack in pending:
-        row = [-1, -1, -1]
-        if stack:
-            head, rest = stack[0], stack[1:]
-            successors = ({2: (head - 1, head - 1, *rest)} if head > 0 else
-                          {0: rest, 1: (-1, *rest)} if head == 0 else {0: rest})
-            for arity, target in successors.items():
-                if target not in indices:
-                    indices[target] = len(pending)
-                    pending.append(target)
-                row[arity] = indices[target]
-        transitions.append(row)
-    final = np.full(len(pending), -np.inf)
-    final[indices[()]] = 0.0
-    return ArityPrior((0, 1, 2), np.array(transitions, dtype=np.int64),
-                      np.zeros((len(pending), 3)), final)
-
-@lru_cache(maxsize=16)
-def height_prior(height: int) -> ArityPrior:
-    """Unit-weight prefix trees of height at most ``height`` (§27.4).
-
-    Height counts edges; a constant has height zero. Unlike the complete-tree
-    prior, branches may end early and unary nodes may occur at any level.
-    """
-    if not isinstance(height, int) or height < 0:
-        raise ValueError("height must be a nonnegative integer")
-    pending = [(height,)]
-    indices = {pending[0]: 0}
-    transitions: list[list[int]] = []
-    for stack in pending:
-        row = [-1, -1, -1]
-        if stack:
-            head, rest = stack[0], stack[1:]
-            successors = {0: rest}
-            if head:
-                successors |= {1: (head - 1, *rest), 2: (head - 1, head - 1, *rest)}
-            for arity, target in successors.items():
-                if target not in indices:
-                    indices[target] = len(pending)
-                    pending.append(target)
-                row[arity] = indices[target]
-        transitions.append(row)
-    final = np.full(len(pending), -np.inf)
-    final[indices[()]] = 0.0
-    return ArityPrior((0, 1, 2), np.array(transitions, dtype=np.int64),
-                      np.zeros((len(pending), 3)), final)
-
-@dataclass(frozen=True)
-class Decoded:
-    """Maximum-weight accepted arity sequence, log normalizer and marginals.
-
-    Acceptance is the prefix format by default, or the supplied prior automaton.
-    Posterior weights include the prior when present.
-    Marginal rows are checked for finite nonnegative values and approximate
-    unit sum; this check does not certify their numerical accuracy.
-    """
-
-    arities: tuple[int, ...]
-    log_z: float
-    marginals: np.ndarray
-    prior: ArityPrior | None = None
-
-    def __post_init__(self) -> None:
-        if (self.marginals.ndim != 2 or self.marginals.shape[0] != len(self.arities)
-                or (self.prior is not None and self.marginals.shape[1] != len(self.prior.alphabet))):
-            raise ValueError("decoder marginal shape must match the sequence and prior alphabet")
-        # This detects gross numerical loss; it is not a roundoff certificate.
-        check = getattr(_NATIVE, "posterior_rows_valid", None)
-        if check is not None and self.marginals.ndim == 2 and self.marginals.shape[1]:
-            valid = check(np.ascontiguousarray(self.marginals, dtype=np.float64).ravel(),
-                          self.marginals.shape[1], 1.01e-8)
-        else:
-            with np.errstate(over="ignore", invalid="ignore"):
-                totals = self.marginals.sum(axis=1)
-            valid = (np.all(np.isfinite(self.marginals)) and np.all(self.marginals >= 0)
-                     and np.allclose(totals, 1.0, rtol=1e-8, atol=1e-10))
-        if not valid:
-            raise _MarginalPrecisionError("decoder marginals are not normalized; numerical precision was lost")
-
-    def log_weight(self, log_probs: np.ndarray, alphabet: Sequence[int],
-                   arities: Sequence[int]) -> float:
-        """Log weight of a sequence under readings and the optional prior."""
-        if self.prior is not None and tuple(alphabet) != self.prior.alphabet:
-            raise ValueError("alphabet must match the decoded prior")
-        try:
-            reading = sequence_log_weight(log_probs, alphabet, arities)
-        except _WeightArithmeticError:
-            if self.prior is not None and self.prior.log_weight(arities) == -math.inf:
-                return -math.inf
-            raise
-        if self.prior is None or reading == -math.inf:
-            return reading
-        prior_weight = self.prior.log_weight(arities)
-        if prior_weight == -math.inf:
-            return -math.inf
-        try:
-            return _partition_log_product(reading, prior_weight, "decoded log weight")
-        except _PartitionArithmeticError as exc:
-            raise _WeightArithmeticError(
-                "decoded log weight arithmetic is not finite or loses precision"
-            ) from exc
-
-    def risk(self, log_probs: np.ndarray, alphabet: Sequence[int],
-             arities: Sequence[int] | None = None) -> float:
-        """Posterior probability that the true sequence differs from
-        ``arities`` (default: the decoded one), ``1 − weight / Z``."""
-        chosen = self.arities if arities is None else arities
-        if self.prior is not None:
-            if tuple(alphabet) != self.prior.alphabet:
-                raise ValueError("alphabet must match the decoded prior")
-            return self.prior.sequence_risk(log_probs, chosen)
-        symbols = tuple(alphabet)
-        if symbols and len(set(symbols)) == len(symbols) and all(
-                isinstance(a, (int, np.integer)) and a >= 0 for a in symbols):
-            return format_sequence_risk(log_probs, symbols, chosen)
-        return risk_from_log_weight(self.log_weight(log_probs, symbols, chosen), self.log_z)
+from nca.priors.selection import (
+    PriorSelection as PriorSelection,
+    select_prior as select_prior,
+)

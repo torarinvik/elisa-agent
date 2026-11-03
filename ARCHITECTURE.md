@@ -1493,8 +1493,13 @@ They do not formalize the data-generation independence assumptions or
 upgrade a reused checking split into fresh validation.
 
 `nca.priors` exposes the structural-prior API; its `arithmetic` submodule owns
-checked log arithmetic, posterior-risk conversion and score comparisons. Existing
-imports through `nca.priors` retain the same functions and exception classes.
+checked log arithmetic, posterior-risk conversion and score comparisons.
+`symbols` handles lossless integer-alphabet encoding, `factories` constructs
+cached shape automata, `decoding` computes posterior sequence results, and
+`selection` compares held-out evidence. The weighted automaton remains in
+`nca.priors`; implementation modules load after its class definition. Existing
+imports through `nca.priors` retain their public names and exception classes.
+Native backend selection remains shared with the Python reference paths.
 
 `select_prior` owns snapshots of the base vector, alphabet and candidate
 order for the batch. A local cache retains each immutable prior model and
