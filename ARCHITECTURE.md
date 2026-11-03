@@ -154,6 +154,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
 | Unreachable goals become typed acquisition sub-goals | Proved; empirically checked | `gap_iff` characterizes single-connector repairs of unary routes exactly; `planner.gaps` confirms every candidate by planning with a stand-in, and `Kernel(acquire=…)` serves an unservable request through an acquired connector, checked by `tests/test_gaps.py` against the planner over every type pair. `repair_complete` and `repair_sound` characterize repairs with `k` allowed connectors; `planner.gaps.fewest_missing` is checked minimal against brute force. The 0-1 search itself is not formalized, experts with several inputs are approximated in the search and confirmed by the planner, and media (invented intermediate types) are proved not to change reachability (`founded_keeps`, `founded_medium`); whether growing one is worth its requests is measured, not proved. |
+| Acquired connectors are certified before use | Proved; empirically checked | `acquisition_sound` with `zeroLoss_miss` bounds the probability of admitting any connector erring above `ε` by `δ` across all requests; `retention.acquisition.CertifiedAcquirer` implements the test and `tests/test_certified_acquisition.py` checks admissions, refusals and the false-admission rate. Independence of fresh cases is assumed, not established. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
 
 Every open row requires a mechanism-level theorem, explicit assumptions and
@@ -324,6 +325,7 @@ an inference from their separate tests.
 | [20.11](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `gap_iff`, `gap_complete`, `gap_sound` | `Planning/Gaps` |
 | [20.12](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `repair_complete`, `repair_sound` | `Planning/Gaps` |
 | [20.13](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `founded_keeps`, `founded_medium` | `Planning/Gaps` |
+| [20.14](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_sound` (with `zeroLoss_miss`) | `Reliability/SampledGate` |
 | [21.1](theory/decoding/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/decoding/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
 | [21.3](theory/decoding/21-decoding-by-the-format.md) | `accepts_iff_codes` | `Decoding` |
@@ -675,6 +677,12 @@ constructor on the goal with identity `Founder` connectors, and
 until a pass adds none. An acquirer may return companions with the requested
 expert, such as the decoder learned with an encoder. `benchmarks/media.py`
 compares repair with and without media over a sequence of tasks.
+`retention.acquisition.CertifiedAcquirer` (Theorem 20.14) wraps any fitter
+and case sampler as an acquirer: request `k` fits on training cases and is
+admitted only after zero errors on `required_cases(ε, decision_level(δ, k))`
+fresh cases, and admitted experts report `ε` through `rate` for
+`evidence.route_risk`. `benchmarks/certified_acquisition.py` compares
+memorizing and generalizing fitters with and without certification.
 
 Available inputs are addressed by position where types do not tell them
 apart (THEORY §20.8): `planner.Given` carries an optional `position`, the

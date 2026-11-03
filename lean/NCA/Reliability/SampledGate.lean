@@ -155,4 +155,17 @@ theorem sampledGate_sound {Ω R : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
         unfold decisionLevel; positivity
     _ ≤ ENNReal.ofReal δ := ENNReal.ofReal_le_ofReal (decisionLevel_total hδ n)
 
+/-- Certified acquisition (§20.9): acquisition `k` admits a learned connector
+only after zero errors on fresh cases at level `decisionLevel δ k`. If each
+admission of a connector whose error exceeds its certified rate has at most
+that probability (`zeroLoss_miss`), then across any number of acquisitions
+some such admission happens with probability at most `δ`. -/
+theorem acquisition_sound {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    {δ : ℝ} (hδ : 0 ≤ δ) (n : ℕ) (wronglyAdmitted : ℕ → Set Ω)
+    (each : ∀ k ∈ range n, μ (wronglyAdmitted k) ≤ ENNReal.ofReal (decisionLevel δ k)) :
+    μ (⋃ k ∈ range n, wronglyAdmitted k) ≤ ENNReal.ofReal δ := by
+  have := sampledGate_sound μ hδ n (fun _ => ({()} : Finset Unit)) (fun k _ => wronglyAdmitted k)
+    (fun k hk r _ => by simpa using each k hk)
+  simpa [Set.iUnion_const] using this
+
 end NCA

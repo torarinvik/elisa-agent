@@ -354,3 +354,21 @@ connected to it from evidence beyond the request at hand, each attached by
 data shared with any existing member (§29.5), and then every pair of members is
 two connectors apart. Its routes inherit the attachment-depth bound of
 Theorem 29.5.
+
+**Certified acquisition.** An acquirer may supply anything with the requested
+contract, including a memorized table that fails on every value it has not
+seen. Admission therefore tests what was learned: the `k`-th request fits on
+training cases and is admitted only after zero errors on `m_k` fresh cases,
+with `log(1/α_k) ≤ ε m_k` and `α_k = δ/((k+1)(k+2))` (§43.7).
+
+**Theorem 20.14 (certified acquisition).** If the fresh cases are independent
+draws from the distribution of use, the probability that any admission, over
+any number of requests, admits a connector whose error rate exceeds `ε` is at
+most `δ`.
+
+*Proof.* A connector erring at rate `ℓ > ε` passes `m_k` cases with
+probability `(1 − ℓ)^{m_k} ≤ α_k` (Theorem 43.1's zero-loss step), and the
+`α_k` sum to below `δ`. ∎
+
+Each admitted connector then carries rate `ε` into route risk (§31). Whether a
+fitter generalizes is not assumed; it is what the test measures.
