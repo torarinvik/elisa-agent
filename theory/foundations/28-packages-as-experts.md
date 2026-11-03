@@ -176,3 +176,42 @@ Preparing a lazy route includes the conservative closure of its declared
 primitive dependencies when checking and pinning resident bytes. This closure
 can exceed what one invocation actually uses. Byte accounting depends on
 accurate size declarations; it is not a measurement of process-wide memory.
+
+## 28.8 Canonical snapshots and retained identity
+
+Let a store be a finite map from references to immutable byte sequences. Let
+`E` encode a value, `D` decode bytes, and `H` compute a reference. These functions
+are pure, but no injectivity or codec round-trip axiom is assumed. A checked
+decode of `b` succeeds only when `D(b) = v` and `E(v) = b`.
+
+Admission encodes its input once to `b`, computes `k = H(b)`, and checks the
+decoded snapshot. A failed check leaves the store unchanged. Under serialized
+admission, an existing `k` accepts identical bytes idempotently and refuses
+different bytes. An absent `k` is inserted only if a supplied policy accepts
+the current store and decoded snapshot. The policy may depend on the entire
+preceding state and may change on every admission.
+
+A read captures the stored bytes, checks their reference and performs checked
+decoding. Decoded values are views rather than storage: a caller-side edit does
+not alter the stored byte sequence. Resubmitting an edited view is a new
+admission. The serialized identity of a returned view is guaranteed at the read
+boundary, not after a caller deliberately edits that view.
+
+**Theorem 28.5 (admitted bytes retain their identity).** After successful fresh
+admission of `b` at `k = H(b)`, every finite interleaving of admissions, reads and
+caller-side operations retains `b` at `k`. Reading `k` returns a checked view
+whose encoding is exactly `b`. This holds for every codec, digest and sequence
+of admission policies, including digests with collisions.
+
+*Proof.* Induct on the interleaving. Reads and caller-side operations do not
+change the map. Admission at an existing key never replaces its bytes, including
+when the proposed bytes collide with a retained reference. Insertion at another
+key preserves lookup at `k`. The successful checked decode established on
+admission therefore remains available; its re-encoding equals `b`, and its
+reference remains `H(b) = k`. ∎
+
+This is an in-memory result under immutable-byte and serialized-transition
+semantics. It does not establish atomic filesystem publication, correctness of
+an external codec implementation, or behavior of loaded executable experts.
+Global agreement between independent stores still requires the cryptographic
+assumptions of §28.1.

@@ -131,7 +131,8 @@ Tests provide empirical evidence; they do not discharge universal statements.
 
 | Relied-on guarantee | Status | Evidence and remaining obligation |
 |---|---|---|
-| Artifact identity remains bound to admitted contents | Open; not currently enforced for mutable nested metadata | Frozen dataclasses do not freeze caller-owned primitive argument mappings or lists. Mutation after `Store.put` can make `store.get(ref).ref != ref`. Model admission, reads and persistence, and remove or explicitly constrain this mutation path before claiming immutable artifact identity. |
+| Serialized in-memory artifact identity | Model proved; empirically linked | `Artifacts.run_retains`, `admitted_read_stable` and `run_read_identity` model checked decoding and non-overwriting hash-map admission for arbitrary codecs, digests, policies and operation interleavings. Python/Lean differential tests cover 512 operations, including real and colliding digests. Immutable bytes, lock linearization and codec/runtime fidelity are trusted library boundaries; decoded views are independently tested. |
+| Artifact persistence, DAG validation and runtime fidelity | Open | The identity model does not prove filesystem atomicity, the dependency/index validation algorithm, JSON implementation correctness or loaded-expert behavior. Save/reopen, collision, malformed schema and concurrent duplicate-admission tests provide empirical coverage only. |
 | Native arithmetic implements the reference account | Open end-to-end | Differential tests include subnormal allocation and extreme temperatures. Builds require strict FP; compiler lowering, gradual underflow and external mathematical routines remain trusted. Exact-real lemmas and passing numerical tests do not prove arbitrary compiled floating-point execution. |
 | Deterministic state threading under replay | Open | Process tests cover supplied deterministic experts. Model transitions, nested execution and replay; expert determinism and immutable payloads remain trusted assumptions. |
 | Authority only narrows; every mediated operation is declared and granted | Open | Effect-scope tests cover runtime and compiled callbacks. Prove the full nested, batched, deferred and generator execution model. Cooperative gateways are trusted; arbitrary expert code is not isolated. |
@@ -388,6 +389,7 @@ an inference from their separate tests.
 | [28.2](theory/foundations/28-packages-as-experts.md) | `install_stable` | `Package` |
 | [28.3](theory/foundations/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
 | [28.4](theory/foundations/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
+| [28.5](theory/foundations/28-packages-as-experts.md) | `Artifacts.run_retains`, `Artifacts.admitted_read_stable`, `Artifacts.run_read_identity` | `Execution/Artifacts` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
 | [29.3](theory/foundations/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
@@ -1696,9 +1698,26 @@ checks remain enabled.
 
 `objects.store` implements artifact DAG admission, directory persistence and
 mutable name bindings. The `objects` package owns data definitions, canonical
-encoding and public exports. Frozen object fields do not make nested metadata
-immutable: callers must currently avoid mutating argument and claim contents
-after admission. This is an open identity-enforcement gap, not a storage proof.
+encoding and public exports. Admission serializes once, validates the canonical
+round trip, and stores immutable bytes. Existing references accept identical
+bytes idempotently and reject differing bytes, including hash collisions.
+Reads and attestation lookup decode independent views; callers can edit those
+views without changing the stored artifact. A reentrant lock serializes admission
+and index publication, while reads capture bytes before decoding. `save` captures
+a record snapshot and refuses conflicting existing files. Pickle restoration
+requires a fresh instance and rebuilds validated admissions, including legacy
+object-valued states. Directory publication is not a multi-file transaction.
+
+`Execution/Artifacts.lean` proves the in-memory retention theorem of §28.8 using
+a hash map of byte sequences. The codec and digest are arbitrary functions;
+decode/re-encode checks replace a round-trip hypothesis, and collision rejection
+replaces a collision-freedom hypothesis for retention within one store.
+`tests/test_artifact_identity.py` compares generated operation traces with
+`Execution/ArtifactReplay.lean`, instantiating the codec boundary with UTF-8 for
+canonical schema-valid fixtures and supplying their digest table. Schema-invalid
+inputs, view mutations, persistence conflicts and concurrent duplicates have
+separate Python regressions. This is an executable link, not a proof of Python,
+JSON, locks, hashing libraries or filesystem behavior.
 
 `objects` holds the content-addressed object model: `Primitive`, `Composite`
 and `Attestation`, each identified by the SHA-256 digest of its canonical

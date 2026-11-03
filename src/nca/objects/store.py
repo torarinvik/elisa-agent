@@ -1,9 +1,11 @@
 """Artifact DAG admission, directory persistence and mutable reference names."""
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from threading import RLock
 
 from nca import objects as _api
 from nca.abi import Contract
@@ -36,6 +38,16 @@ def _effects_cover(declared: frozenset[str] | None, member: frozenset[str] | Non
     return declared is None or (member is not None and member <= declared)
 
 
+def _decode(reference: _api.Ref, encoded: bytes) -> _api.Object:
+    """Decode an independent canonical view, checking its stored identity."""
+    if "sha256:" + hashlib.sha256(encoded).hexdigest() != reference:
+        raise ValueError("artifact digest mismatch")
+    obj = _api.object_from(json.loads(encoded))
+    if _api.canonical(obj.data()) != encoded:
+        raise ValueError("artifact encoding does not round-trip canonically")
+    return obj
+
+
 class Store:
     """Objects by reference, and attestations by subject.
 
@@ -45,33 +57,45 @@ class Store:
     (of equal arity), and every constructor its contracts mention (applied
     to as many arguments as its arity), so every stored object is a
     well-formed DAG node. ``save`` and ``open`` keep one canonical JSON file per object,
-    named by its digest.
+    named by its digest. Stored contents are canonical immutable bytes; decoded
+    objects are independent views. Admission and index publication are serialized.
     """
 
     def __init__(self) -> None:
-        self._objects: dict[_api.Ref, _api.Object] = {}
+        self._objects: dict[_api.Ref, bytes] = {}
+        self._lock = RLock()
         self._about: dict[_api.Ref, list[_api.Ref]] = {}
 
     def __contains__(self, ref: object) -> bool:
-        return ref in self._objects
+        with self._lock:
+            return ref in self._objects
 
     def __len__(self) -> int:
-        return len(self._objects)
+        with self._lock:
+            return len(self._objects)
 
     def put(self, obj: _api.Object) -> _api.Ref:
-        ref = obj.ref
+        encoded = _api.canonical(obj.data())
+        ref = "sha256:" + hashlib.sha256(encoded).hexdigest()
+        snapshot = _decode(ref, encoded)
+        with self._lock:
+            return self._put(ref, encoded, snapshot)
+
+    def _put(self, ref: _api.Ref, encoded: bytes, obj: _api.Object) -> _api.Ref:
         if ref in self._objects:
+            if self._objects[ref] != encoded:
+                raise ValueError("artifact identity collision")
             return ref
         for needed in _requires(obj):
             if needed not in self._objects:
                 raise KeyError(f"{needed}, needed by {ref}, is not in the store")
         for constructor, arity in _api.constructors(_contracts(obj)).items():
-            found = self._objects[constructor]
+            found = self.get(constructor)
             if not isinstance(found, _api.Constructor) or found.arity != arity:
                 raise ValueError(f"{constructor} is not a constructor of arity {arity}")
         if isinstance(obj, _api.Constructor):
             for refined in obj.refines:
-                found = self._objects[refined]
+                found = self.get(refined)
                 if not isinstance(found, _api.Constructor) or found.arity != obj.arity:
                     raise ValueError(f"{obj.name} refines {refined}, "
                                      f"which is not a constructor of arity {obj.arity}")
@@ -81,20 +105,45 @@ class Store:
             declared = obj.manifest.effects if isinstance(obj, _api.Primitive) else obj.effects
             members = obj.dependencies if isinstance(obj, _api.Primitive) else obj.members
             for member in members:
-                if isinstance(self._objects[member], _api.Attestation):
+                if isinstance(self.get(member), _api.Attestation):
                     raise ValueError("an attestation cannot be an executable dependency or member")
                 if not _effects_cover(declared, self.effects(member)):
                     raise ValueError(f"{ref} does not declare the effects of {member}")
         if isinstance(obj, _api.Attestation):
             self._about.setdefault(obj.subject, []).append(ref)
-        self._objects[ref] = obj
+        self._objects[ref] = encoded
         return ref
 
+    def __getstate__(self) -> dict[str, object]:
+        with self._lock:
+            return {"_objects": dict(self._objects)}
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        if hasattr(self, "_objects"):
+            raise ValueError("artifact restore requires a fresh instance")
+        self.__init__()
+        records = state["_objects"]
+        if not isinstance(records, dict):
+            raise ValueError("invalid artifact store state")
+        pending = {
+            ref: _decode(ref, value if isinstance(value, bytes) else _api.canonical(value.data()))
+            for ref, value in records.items()
+        }
+        while pending:
+            ready = [ref for ref, obj in pending.items() if _ready(self, obj)]
+            if not ready:
+                raise ValueError("objects refer to references missing from the store")
+            for ref in ready:
+                self.put(pending.pop(ref))
+
     def get(self, ref: _api.Ref) -> _api.Object:
-        return self._objects[ref]
+        """Return a freshly decoded view; its mutations cannot change the store."""
+        with self._lock:
+            encoded = self._objects[ref]
+        return _decode(ref, encoded)
 
     def effects(self, ref: _api.Ref) -> frozenset[str] | None:
-        obj = self._objects[ref]
+        obj = self.get(ref)
         if isinstance(obj, _api.Primitive):
             return obj.manifest.effects
         if isinstance(obj, _api.Composite):
@@ -105,7 +154,9 @@ class Store:
 
     def attestations(self, subject: _api.Ref, kind: str | None = None) -> list[_api.Attestation]:
         """The attestations about ``subject``, in the order they were stored."""
-        found = [self._objects[ref] for ref in self._about.get(subject, ())]
+        with self._lock:
+            references = tuple(self._about.get(subject, ()))
+        found = [self.get(ref) for ref in references]
         return [a for a in found if isinstance(a, _api.Attestation) and (kind is None or a.kind == kind)]
 
     def flatten(self, ref: _api.Ref) -> list[_api.Ref]:
@@ -116,7 +167,7 @@ class Store:
         order: list[_api.Ref] = []
 
         def visit(node: _api.Ref) -> None:
-            obj = self._objects[node]
+            obj = self.get(node)
             if isinstance(obj, _api.Primitive):
                 if node not in seen:
                     seen.add(node)
@@ -136,7 +187,7 @@ class Store:
             if node in seen:
                 return
             seen.add(node)
-            obj = self._objects[node]
+            obj = self.get(node)
             for needed in _requires(obj):
                 yield from visit(needed)
             yield node
@@ -145,10 +196,15 @@ class Store:
 
     def save(self, directory: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
-        for ref, obj in self._objects.items():
+        with self._lock:
+            records = tuple(self._objects.items())
+        for ref, encoded in records:
             path = directory / f"{ref.removeprefix('sha256:')}.json"
-            if not path.exists():
-                path.write_bytes(_api.canonical(obj.data()))
+            if path.exists():
+                if path.read_bytes() != encoded:
+                    raise ValueError(f"{path.name} conflicts with the stored artifact")
+            else:
+                path.write_bytes(encoded)
 
     @classmethod
     def open(cls, directory: Path) -> Store:
