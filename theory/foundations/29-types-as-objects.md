@@ -76,3 +76,35 @@ after a library keeps every route the library already had (Theorem 3.3).
 An upcast consumes only values of the refining constructor, so a wrong
 refinement can affect only routes through such values, all of which pass
 through experts that use the refining constructor.
+
+## 29.4 Hub types
+
+Refinement (§29.2) relates a constructor to more general ones its author names.
+It does not connect independently designed types that mean the same thing. A
+*hub* is a constructor `H` chosen by contributors as a shared medium: each
+contributor type `Tᵢ` supplies an encoder `Tᵢ → H` and a decoder `H → Tᵢ`. The
+core defines no hub; it is an ordinary constructor, and its connectors are
+ordinary experts, planned, costed and replaced by evidence.
+
+**Theorem 29.4 (hub connectors).** For a set `S` of contributor types:
+
+1. the hub connectors number exactly `2|S|`;
+2. every ordered pair `(Tᵢ, Tⱼ)` is joined by a two-step route
+   `Tᵢ → H → Tⱼ`;
+3. without a shared type, single-step translators joining every ordered pair
+   of distinct types number at least `|S|(|S| - 1)`;
+4. adding a contributor type adds only connectors touching it, so every
+   existing connector and route remains (with Theorem 3.3);
+5. a hub route fails only if its encoder or its decoder fails, so its risk is
+   at most the sum of theirs, whatever `|S|` is.
+
+*Proof.* (1) The encoders and decoders are images of `S` under injective maps
+with disjoint ranges. (2) Both connectors are present. (3) The required
+translators contain the off-diagonal pairs of `S`. (4) The connector set is
+monotone in `S`. (5) Union bound. ∎
+
+A hub trades quadratic growth for one extra hop: every translation composes
+two connectors, so its error is roughly that of two hops rather than one. A
+lossy hub (an encoder that is not injective on the values that matter) cannot
+be repaired downstream; whether a hub is adequate for a pair of types is an
+empirical question for its connectors' evidence.

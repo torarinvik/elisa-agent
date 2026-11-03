@@ -147,7 +147,8 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Safe consolidation | Proved; empirically checked | `published_only_if_admitted` and `allocate_skips_drawn` prove that a consolidated piece is published only through the gate and that training on drawn cases keeps later gate cases fresh; `retention.consolidation.consolidate` enforces the freshness rule. Distiller quality is the caller's; the gate checks it. |
 | Bounded retained evidence and safe eviction | Proved; empirically checked | `evict_keeps_protected` and `withdraw_fresh` prove that ordinary eviction keeps protected records and that withdrawal keeps later draws fresh; `MemoryStore.remove` refuses parents. SQLite deletion durability is a trusted backend assumption. Forced deletions are assumed independent of the estimated loss. |
 | Safe migration | Open; not implemented | Shared-representation migration, and its composition with updates, consolidation and eviction, is not established. |
-| Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
+| Bounded connectors through a hub | Proved; empirically checked | `hubConnectors_card`, `hub_routes`, `direct_connectors_lower`, `hubConnectors_mono` and `hub_route_risk` prove 2N connectors, two-step routes, the N(N−1) pairwise lower bound, locality and additive route risk; `tests/test_hub.py` checks planning through a hub. |
+| Shared-medium substitution and migration | Open | Risk preservation when a refined piece fills a general slot, learned shared representations and safe migration between hub versions are not established. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
 | Remaining foundation guarantees | Open | Depth-bounded risk, adaptive label efficiency, compression, shape-parametric refinement, semantic planning, arbitrary-policy preservation and distributed consistency require their own mechanism-level proofs and scaling curves. Existing numbered lemmas alone do not close these obligations. |
@@ -393,6 +394,7 @@ an inference from their separate tests.
 | [28.3](theory/foundations/28-packages-as-experts.md) | `WellTyped.inline` (via `WellTyped.instantiate`, `lookupArg_typed`) | `Package` |
 | [28.4](theory/foundations/28-packages-as-experts.md) | `cache_lookup_correct`, `cache_store_sound`, `cache_evict_sound` | `Selective` |
 | [28.5](theory/foundations/28-packages-as-experts.md) | `Artifacts.run_retains`, `Artifacts.admitted_read_stable`, `Artifacts.run_read_identity` | `Execution/Artifacts` |
+| [29.4](theory/foundations/29-types-as-objects.md) | `hubConnectors_card`, `hub_routes`, `direct_connectors_lower`, `hubConnectors_mono`, `hub_route_risk` | `Types/Hub` |
 | [28.6](theory/foundations/28-packages-as-experts.md) | `resolveLoader_perm`, `resolveLoader_unrelated`, `resolveLoader_conflict`, `resolveLoader_relocate` | `Execution/Loaders` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
@@ -2739,6 +2741,14 @@ protected ones unless `forced`, withdraws every removed case from the sampler
 (`SampledGate.withdraw`) and, when forced, reports routes that lost unused
 cases or retained-evaluation records. `benchmarks/eviction.py` runs a long
 stream in a store of fixed capacity.
+
+Hub types (§29.4) need no kernel support beyond ordinary planning: a
+contributor-chosen constructor serves as the shared medium, and each
+contributor installs an encoder into it and a decoder out of it.
+`tests/test_hub.py` checks two-step routes, route stability when a contributor
+joins and additive route risk; `Types/Hub.lean` proves Theorem 29.4; and
+`benchmarks/shared_medium.py` compares hub and pairwise connector growth with
+translators fit by `learning.discovery.fit_decoder`.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;
