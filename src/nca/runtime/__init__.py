@@ -70,17 +70,23 @@ the cache while a ledger is kept.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
-from contextvars import ContextVar
-from dataclasses import dataclass, field
+from collections.abc import Callable, Generator, Sequence
+from dataclasses import dataclass
 from math import isfinite
 from typing import Any, Mapping, Protocol
 
-from nca.abi import NOTHING, Contract, Demand, Message, Module, Request, SequenceDemand, TypeId
+from nca.abi import NOTHING, Demand, Message, Module, Request, SequenceDemand, TypeId
 from nca.cache import ResultCache, value_digest
 from nca.effects import check_effects, effect_call, expert_scope
 from nca.planner import Given, Map, Plan, output_type
 from nca.workspace import Workspace
+from nca.runtime.ledger import (
+    _never as _never,
+    Invocation as Invocation,
+    RiskLedger as RiskLedger,
+    _LEDGER as _LEDGER,
+    charge as charge,
+)
 
 
 class BudgetExceeded(RuntimeError):
@@ -106,63 +112,6 @@ class Pending:
     parents: tuple[str, ...]
     chain: tuple[str, ...]
     effects: frozenset[str] | None
-
-
-def _never(module: Module) -> bool:
-    return False
-
-
-@dataclass(frozen=True)
-class Invocation:
-    """A charged invocation: the expert that answered it (an escalating
-    expert's ``answering`` rung, else the expert itself), its inputs, its
-    output and its report."""
-
-    expert: Module
-    values: tuple[Any, ...]
-    output: Any
-    report: float
-
-
-@dataclass
-class RiskLedger:
-    """The per-input charge of one execution (§33.2)."""
-
-    exact: Callable[[Module], bool] = _never
-    """Experts charged nothing without reporting, such as attested exact ones."""
-    charge: float = 0.0
-    uncertified: list[str] = field(default_factory=list)
-    """Experts invoked without a reported risk, by module id."""
-    entries: list[tuple[Module, tuple[Any, ...], float]] = field(default_factory=list)
-    """Each charged invocation: the expert, its input values and its report."""
-    invocations: list[Invocation] = field(default_factory=list)
-    """Each charged invocation as audits sample it (§38)."""
-
-    @property
-    def certified(self) -> bool:
-        return not self.uncertified
-
-
-_LEDGER: ContextVar[RiskLedger | None] = ContextVar("nca_risk_ledger", default=None)
-
-
-def charge(ledger: RiskLedger | None, module: Module, payload: Any, decision: Demand,
-           values: Sequence[Any]) -> None:
-    """Charge ``module``'s invocation on ``values`` to ``ledger`` (§33.2)."""
-    if ledger is None or decision == NOTHING or getattr(module, "accounts_inside", False):
-        return
-    report = getattr(module, "risk", None)
-    reported = (None if report is None else
-                effect_call(module.manifest.effects, report, payload, *values))
-    if reported is not None:
-        ledger.charge += reported
-        ledger.entries.append((module, tuple(values), reported))
-        answering = getattr(module, "answering", None)
-        expert = (module if answering is None else
-                  effect_call(module.manifest.effects, answering, *values))
-        ledger.invocations.append(Invocation(expert, tuple(values), payload, reported))
-    elif not ledger.exact(module):
-        ledger.uncertified.append(module.manifest.module_id)
 
 
 def result_key(cache: ResultCache | None, ledger: RiskLedger | None, module: Module,
@@ -424,73 +373,4 @@ def attempt(
         return None
 
 
-class Process:
-    """A well-typed route threaded through successive working-state messages.
-
-    ``contract`` describes state at input position zero, followed by event inputs,
-    and the same state type as output. The route and expert versions are retained
-    as supplied; no replanning occurs. Payloads must be immutable or treated as
-    immutable by experts. This is an in-process state cursor, not a sandbox or
-    durable memory: workspace rollback cannot undo payload mutations or effects.
-    """
-
-    def __init__(self, plan: Plan, contract: Contract, initial: Message,
-                 workspace: Workspace, *, resolver: Resolver | None = None,
-                 cache: ResultCache | None = None, ledger: RiskLedger | None = None) -> None:
-        if (not contract.inputs or contract.slots
-                or contract.inputs[0] != contract.output
-                or initial.type_id != contract.output
-                or output_type(plan) != contract.output):
-            raise ValueError("process requires state-first inputs and the same state output")
-        self.plan = plan
-        self.contract = contract
-        self.workspace = workspace
-        self.resolver = resolver
-        self.cache = cache
-        self.ledger = ledger
-        self._state = initial
-        self._running = False
-
-    @property
-    def state(self) -> Message:
-        """Last successfully completed transition, or the initial state."""
-        return self._state
-
-    def step(self, events: Sequence[Message], *, budget: int,
-             cost_budget: float | None = None) -> Message:
-        """Commit one transition, using ordinary runtime accounting and rollback.
-
-        Budgets apply to this transition, including nested requests and slots.
-        Earlier transitions stay committed if this one fails. Failed invocation
-        costs and ledger charges retain the ordinary runtime semantics.
-        """
-        if self._running:
-            raise RuntimeError("process transition is already running")
-        events = tuple(events)
-        if tuple(event.type_id for event in events) != self.contract.inputs[1:]:
-            raise ValueError("event types do not match the process contract")
-        self._running = True
-        try:
-            result = execute(self.plan, (self._state, *events), self.workspace, budget,
-                             self.resolver, cost_budget, self.cache, self.ledger)
-            self._state = result
-            return result
-        finally:
-            self._running = False
-
-    def stream(self, events: Iterable[Sequence[Message]], *, max_steps: int,
-               budget: int, cost_budget: float | None = None) -> Iterator[Message]:
-        """Consume at most ``max_steps`` events lazily; stopping stops execution.
-
-        Each event gets its own declared budgets. There is no background task or
-        implicit retry. A failed event is consumed, and the exception propagates.
-        """
-        if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0:
-            raise ValueError("max_steps must be a nonnegative integer")
-        source = iter(events)
-        for _ in range(max_steps):
-            try:
-                event = next(source)
-            except StopIteration:
-                return
-            yield self.step(event, budget=budget, cost_budget=cost_budget)
+from nca.runtime.process import Process as Process

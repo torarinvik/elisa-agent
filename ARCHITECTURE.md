@@ -1885,6 +1885,11 @@ a deployment can start a cache with `refuted` filled from others' evidence.
 
 ## 33. Per-input risk on any route
 
+`runtime.ledger` owns invocation records, risk charges and the single context
+variable shared by interpreted and compiled execution. The `runtime` package
+re-exports these definitions; nested execution does not create another ledger
+context merely by importing an implementation module.
+
 `execute(..., ledger=RiskLedger(exact))` keeps the per-input charge of
 §33. Alongside the read demand the runtime propagates a decision demand
 from the answer through each expert's `decides` rule, or its `demand`
@@ -2539,6 +2544,9 @@ provider success or generalization.
 [§42](theory/foundations/42-working-state.md) defines state-threaded ordinary
 routes. `runtime.Process` keeps the last completed state message and executes
 each event with `execute`, sharing provenance, cache, resolver and risk ledger.
+Its implementation is in `runtime.process`; the `runtime` package owns the
+interpreter and re-exports the cursor. Process dispatch uses the public
+`runtime.execute` binding.
 The external contract places state first and returns the same contributor-defined
 type. Callers supply a well-typed route; no route is selected merely because its
 output matches the state type. `stream` is lazy and bounded by caller steps;
