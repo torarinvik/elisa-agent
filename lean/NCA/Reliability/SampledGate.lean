@@ -109,6 +109,23 @@ theorem published_only_if_admitted {S : Type*} (old proposed : S) (admitted : Bo
   · exact absurd rfl changed
   · rfl
 
+/-- Eviction (§43.11): removing requested records unless protected keeps every
+protected record that was stored. -/
+theorem evict_keeps_protected {α : Type*} [DecidableEq α] (stored requested protected_ : List α)
+    {x : α} (hx : x ∈ protected_) (stored_x : x ∈ stored) :
+    x ∈ stored.filter (fun y => y ∉ requested ∨ y ∈ protected_) :=
+  List.mem_filter.mpr ⟨stored_x, by simp [hx]⟩
+
+/-- Forced withdrawal keeps sampled cases fresh: with distinct cases split into
+drawn and unused, the next draw after removing any set of cases takes only
+cases that were unused and never drawn. -/
+theorem withdraw_fresh {α : Type*} (drawn unused : List α) (keep : α → Bool) (m : ℕ)
+    (distinct : (drawn ++ unused).Nodup) {x : α}
+    (hx : x ∈ (unused.filter keep).take m) : x ∈ unused ∧ x ∉ drawn := by
+  have mem : x ∈ unused := (List.mem_filter.mp (List.mem_of_mem_take hx)).1
+  refine ⟨mem, fun hd => ?_⟩
+  exact (List.disjoint_of_nodup_append distinct) hd mem
+
 /-- Union over decisions and affected routes: if each acceptance of a regressed
 route has probability at most its share `decisionLevel δ k / |A k|` of decision
 `k`'s budget, any acceptance of a regression across all decisions has

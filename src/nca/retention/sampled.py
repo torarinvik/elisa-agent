@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 
 from nca.evidence import Issuers
@@ -111,6 +111,34 @@ class SampledGate:
     def knows(self, identity: str) -> bool:
         """Whether trusted retained cases were ever added for ``identity``."""
         return identity in self._pools
+
+    @property
+    def identities(self) -> tuple[str, ...]:
+        return tuple(self._pools)
+
+    def drawn(self, identity: str) -> tuple[Ref, ...]:
+        """Cases of ``identity`` already drawn, in draw order: no decision will
+        use them again, so they are the first candidates for eviction."""
+        return tuple(reference for reference, _ in
+                     self._pools.get(identity, ())[:self._cursors.get(identity, 0)])
+
+    def withdraw(self, references: Collection[Ref]) -> dict[str, int]:
+        """Remove cases from every pool, as forced deletion requires; returns
+        the unused cases each route lost. Later draws come only from what
+        remains unused (``NCA.withdraw_fresh``), so fewer cases can mean
+        refusals for insufficient evidence, never acceptance without it."""
+        gone = frozenset(references)
+        lost: dict[str, int] = {}
+        for identity, pool in self._pools.items():
+            cursor = self._cursors[identity]
+            drawn = [case for case in pool[:cursor] if case[0] not in gone]
+            unused = [case for case in pool[cursor:] if case[0] not in gone]
+            if len(drawn) + len(unused) != len(pool):
+                if len(unused) != len(pool) - cursor:
+                    lost[identity] = len(pool) - cursor - len(unused)
+                self._pools[identity] = drawn + unused
+                self._cursors[identity] = len(drawn)
+        return lost
 
     def unused(self, identity: str) -> frozenset[Ref]:
         """Cases of ``identity`` no decision has drawn yet; proposals must not

@@ -314,3 +314,34 @@ coverage: training is limited to drawn cases, so consolidation under a sampled
 gate needs enough of them, or a distiller that generalizes. Retirement here
 means only that no protected route uses `P`; removing stored artifacts or
 episodes is eviction, which must preserve evidence that gates rely on.
+
+## 43.11 Evidence-preserving eviction
+
+Memory has fixed capacity, so records must be removed. Call a record
+*protected* if a retained evaluation of a registered route names it (exact
+replay scores every such record), if it is a case a sampled gate has not drawn,
+or if the caller has stored it but not yet given it to a gate. A record named as
+a parent by another record is never removed, so provenance never dangles.
+Ordinary eviction removes only unprotected records, preferring cases sampled
+gates have drawn (no decision uses them again) and then older records. A forced
+removal, such as a deletion request, may remove protected records. It withdraws
+them from every sampled pool and reports the routes whose unused evidence
+shrank and the routes whose retained evaluations name removed records.
+
+**Proposition 43.5 (eviction preserves gate evidence).** (i) Ordinary eviction
+leaves every protected record in the store. (ii) After any withdrawal, forced
+or not, a sampled gate's later draws take only cases that were unused before
+the withdrawal and were never drawn, so freshness, and with it Theorem 43.1,
+is unaffected; fewer remaining cases can only cause refusals for insufficient
+evidence. (iii) Removing a record named by an exact gate's retained evaluation
+makes that gate's replay fail, never accept.
+
+*Proof.* (i) The removed set excludes protected records. (ii) Withdrawal filters
+the drawn and unused parts of a pool separately; later draws are prefixes of
+the filtered unused part, a sublist of the original unused part, which is
+disjoint from the drawn part. (iii) Missing records are errors in §43.4. ∎
+
+Forced removal can bias a pool if what is deleted depends on the loss being
+estimated; the sampling hypothesis of Theorem 43.1 then needs deletions to be
+independent of it. The reported shrinkage makes this visible rather than
+silent.

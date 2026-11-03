@@ -8,7 +8,7 @@ from nca.objects import Ref
 
 
 class MemoryBackend(Protocol):
-    """Append-only storage contract, independent of database implementation.
+    """Episodic storage contract, independent of database implementation.
 
     Implementations must mediate reads and writes through the configured effects,
     verify record identities, enforce provenance and persistent byte admission,
@@ -34,6 +34,11 @@ class MemoryBackend(Protocol):
 
     def append(self, record: MemoryRecord) -> Ref:
         """Atomically admit a record and its logical byte charge, or change nothing."""
+        ...
+
+    def remove(self, reference: Ref) -> int:
+        """Atomically delete a record that no record names as a parent, freeing
+        and returning its logical byte charge."""
         ...
 
     def usage(self) -> tuple[int, int]:

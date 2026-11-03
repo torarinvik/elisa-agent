@@ -1,4 +1,4 @@
-"""Durable SQLite backend for permission-checked append-only episodic memory."""
+"""Durable SQLite backend for permission-checked episodic memory with removal."""
 from __future__ import annotations
 
 import hashlib
@@ -13,8 +13,10 @@ from nca.objects import Ref
 class MemoryStore:
     """A host-provisioned SQLite store. Reads/appends require configured effects.
 
-    Independent handles serialize append transactions. No update, deletion or
-    eviction API exists. Opening an existing store requires the same capacity;
+    Independent handles serialize append and remove transactions. Records are
+    never updated; ``remove`` deletes one record and frees its charge, refusing
+    records other records name as parents, and choosing what to remove is an
+    eviction policy's job (§43.11). Opening an existing store requires the same capacity;
     provision a dedicated database path. Effect names are host policy, not saved
     in the database, so reopening cannot silently grant an expert authority.
     """
@@ -44,6 +46,17 @@ class MemoryStore:
                                  "position INTEGER UNIQUE NOT NULL) WITHOUT ROWID")
                 self._db.execute("INSERT OR IGNORE INTO memory_meta VALUES (1, 1, ?, 0, 0)",
                                  (capacity_bytes,))
+                indexed = self._db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name='memory_parents'").fetchone()
+                self._db.execute("CREATE TABLE IF NOT EXISTS memory_parents "
+                                 "(parent TEXT NOT NULL, child TEXT NOT NULL, "
+                                 "PRIMARY KEY (parent, child)) WITHOUT ROWID")
+                if indexed is None:
+                    # Stores created before removal existed get their parent index once.
+                    for child, encoded in self._db.execute(
+                            "SELECT ref, encoded FROM memory_records").fetchall():
+                        self._db.executemany("INSERT INTO memory_parents VALUES (?, ?)",
+                                             [(parent, child) for parent in _decode(encoded).parents])
                 version, capacity = self._db.execute(
                     "SELECT version, capacity FROM memory_meta WHERE id=1").fetchone()
                 if version != 1 or capacity != capacity_bytes:
@@ -100,7 +113,7 @@ class MemoryStore:
                 if existing[0] != encoded:
                     raise ValueError("memory identity collision or corruption")
                 return reference
-            capacity, used, count = self._db.execute(
+            capacity, used, _ = self._db.execute(
                 "SELECT capacity, used, records FROM memory_meta WHERE id=1").fetchone()
             if charge > capacity - used:
                 raise MemoryFull("memory logical-byte capacity exhausted")
@@ -114,8 +127,35 @@ class MemoryStore:
                         raise ValueError("superseded memory digest mismatch")
                     if _decode(row[0]).type_id != record.type_id:
                         raise ValueError("superseded record has a different type")
+            position = self._db.execute(
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM memory_records").fetchone()[0]
             self._db.execute("INSERT INTO memory_records VALUES (?, ?, ?)",
-                             (reference, encoded, count + 1))
+                             (reference, encoded, position))
+            self._db.executemany("INSERT INTO memory_parents VALUES (?, ?)",
+                                 [(parent, reference) for parent in dict.fromkeys(record.parents)])
             self._db.execute("UPDATE memory_meta SET used=used+?, records=records+1 WHERE id=1",
                              (charge,))
         return reference
+
+    def remove(self, reference: Ref) -> int:
+        """Delete one record and free its logical charge, which is returned.
+
+        Missing references raise KeyError; a record still named as a parent by
+        another record is refused, so provenance never dangles.
+        """
+        require_effect(self.write_effect)
+        with self._db:
+            self._db.execute("BEGIN IMMEDIATE")
+            row = self._db.execute("SELECT encoded FROM memory_records WHERE ref=?",
+                                   (reference,)).fetchone()
+            if row is None:
+                raise KeyError(reference)
+            if self._db.execute("SELECT 1 FROM memory_parents WHERE parent=? LIMIT 1",
+                                (reference,)).fetchone() is not None:
+                raise ValueError("memory record is a parent of a retained record")
+            charge = len(row[0]) + len(reference.encode())
+            self._db.execute("DELETE FROM memory_records WHERE ref=?", (reference,))
+            self._db.execute("DELETE FROM memory_parents WHERE child=?", (reference,))
+            self._db.execute("UPDATE memory_meta SET used=used-?, records=records-1 WHERE id=1",
+                             (charge,))
+        return charge

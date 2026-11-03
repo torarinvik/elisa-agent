@@ -143,10 +143,10 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Zero-loss admission preserves retained successes | Open end-to-end | `retained_zero_losses` proves the finite Boolean-list special case. Link attestation merging, record decoding, actual execution, scoring, both comparisons and atomic publication to that proposition. Scorer correctness is supplied by the caller. |
 | Sampled admission remains sound under adaptive updates | Proved except the sampling step; empirically checked | `zeroLoss_miss`, `decisionLevel_total`, `allocate_fresh` and `sampledGate_sound` prove the sample size, the budget over unboundedly many decisions, that no case informs two decisions and the union over decisions and routes. That fresh i.i.d. cases give miss probability `(1-ℓ)^m` given the history is the stated sampling hypothesis, not proved in Lean; whether real retained pools are i.i.d. samples of a route's operating distribution is trusted. Tests name each theorem; the Python allocator is not differentially linked to `allocate`. |
 | Regional corrections preserve behavior outside their region | Open end-to-end | Existing regional tests and mathematical special cases do not verify the implementation and router error jointly for arbitrary contributed experts. |
-| Bounded retained evidence and safe eviction | Open; not implemented | Episodic byte admission does not bound evidence growth with task count. There is no eviction policy protecting live gate evidence or explicitly reducing stability when it is removed. |
 | Stable bounded plasticity | Proved for the default regulator; empirically linked | `smooth_unit`, `smooth_step`, `hysteresis_gap` and `reopen_after_settle` prove bounds, per-step movement and no flapping; `retention.plasticity` matches `Reliability/PlasticityReplay.lean` exactly over rationals on 64 generated trajectories. Other regulators are checked only for staying in [0, 1]. `retention.signals` derives inputs from runtime ledgers, audits and dependents; `meanSignal_unit`, `dependentStability_unit` and `dependentStability_mono` prove them in range. Signal quality depends on expert calibration, which audits check. |
 | Safe consolidation | Proved; empirically checked | `published_only_if_admitted` and `allocate_skips_drawn` prove that a consolidated piece is published only through the gate and that training on drawn cases keeps later gate cases fresh; `retention.consolidation.consolidate` enforces the freshness rule. Distiller quality is the caller's; the gate checks it. |
-| Safe migration and eviction | Open; not implemented | Shared-representation migration and evidence-preserving eviction, and their composition with updates and consolidation, are not established. |
+| Bounded retained evidence and safe eviction | Proved; empirically checked | `evict_keeps_protected` and `withdraw_fresh` prove that ordinary eviction keeps protected records and that withdrawal keeps later draws fresh; `MemoryStore.remove` refuses parents. SQLite deletion durability is a trusted backend assumption. Forced deletions are assumed independent of the estimated loss. |
+| Safe migration | Open; not implemented | Shared-representation migration, and its composition with updates, consolidation and eviction, is not established. |
 | Shared-medium substitution and bounded connectors | Open | Exact type identity and polymorphic composition do not establish subtyping risk preservation, bounded connectors or reader migration safety. |
 | Containment and complete effect attribution | Open | Permission checks are cooperative. There is no OS-isolation guarantee or complete transactional audit of arbitrary expert effects. |
 | Stored artifacts survive core reorganization | Model proved; empirically linked | `resolveLoader_relocate`, `resolveLoader_perm`, `resolveLoader_unrelated` and `resolveLoader_conflict` prove that resolution of stored identifiers is order-free, unaffected by other identifiers' registrations, refuses conflicts and follows injective code moves. `objects.loaders.location` matches `Execution/LoaderReplay.lean` on 256 generated registries; legacy import-path entries are registered aliases. Entry-point metadata parsing and each factory's fidelity to its identifier are trusted. |
@@ -422,6 +422,7 @@ an inference from their separate tests.
 | [43.2](theory/foundations/43-episodic-memory.md) | `smooth_unit`, `smooth_step`, `hysteresis_gap`, `reopen_after_settle` | `Reliability/Plasticity` |
 | [43.3](theory/foundations/43-episodic-memory.md) | `meanSignal_unit`, `dependentStability_unit`, `dependentStability_mono` | `Reliability/Plasticity` |
 | [43.4](theory/foundations/43-episodic-memory.md) | `published_only_if_admitted`, `allocate_skips_drawn` | `Reliability/SampledGate` |
+| [43.5](theory/foundations/43-episodic-memory.md) | `evict_keeps_protected`, `withdraw_fresh` | `Reliability/SampledGate` |
 
 ## Native kernels
 
@@ -2726,6 +2727,18 @@ every dependent route. With a sampler, training records still listed by
 `SampledGate.unused` for an affected route are refused. An admitted
 consolidation reports the replaced piece as retired when no protected route
 uses it. `benchmarks/consolidation.py` consolidates accumulated patch chains.
+
+`MemoryStore.remove` deletes one record and frees its charge, refusing records
+named as parents through a `memory_parents` index that older stores backfill
+when opened; positions continue from the largest used. `retention.eviction`
+implements §43.11: `protected` collects records named by a catalog's retained
+evaluations, unused sampled cases and caller-pending records; `candidates`
+orders drawn sampled cases first, then unprotected records in append order;
+`evict` removes requested records until enough bytes are freed, keeps
+protected ones unless `forced`, withdraws every removed case from the sampler
+(`SampledGate.withdraw`) and, when forced, reports routes that lost unused
+cases or retained-evaluation records. `benchmarks/eviction.py` runs a long
+stream in a store of fixed capacity.
 
 `retention.routes.RouteCatalog` generalizes pinned routes to immutable multi-root
 snapshots (§43.5). Its reverse index covers explicit arguments, maps and slots;
