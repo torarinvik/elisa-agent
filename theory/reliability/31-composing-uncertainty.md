@@ -141,3 +141,29 @@ element's own demand: an expression parser that reads digits only at even
 positions charges a digit reader for half the glyphs and an operator reader
 for the other half, where §31.2 charged both for every glyph. The bound is
 as sound as the declared demands, which are claims of the experts' authors.
+
+## 31.7 Majority over redundant routes
+
+A route's risk adds over its experts (Theorem 31.1), so it grows linearly with
+depth. Redundancy reverses that. Let `k` routes to the same goal share no
+expert, let `Fᵢ` be the event that route `i` fails, and let
+`t = ⌈(k+1)/2⌉`. The *vote* answers the value produced by more than half of
+the routes and abstains otherwise.
+
+**Theorem 31.6 (majority).**
+
+1. If fewer than `t` routes fail, the correct value has more than half the
+   votes, so the vote answers it.
+2. If every set `S` of `t` routes fails jointly with probability at most
+   `∏_{i∈S} pᵢ` (independent failures), then the vote is wrong or abstains
+   with probability at most `e_t(p) = Σ_{|S|=t} ∏_{i∈S} pᵢ`.
+
+*Proof.* (1) At least `k − t + 1 > k/2` routes are correct and agree. (2) If
+`t` or more fail, some `t`-subset fails jointly; take the union bound over
+the `t`-subsets. ∎
+
+For equal risks `p`, `e_t(p) = C(k, t) pᵗ`, which falls exponentially in `k`
+whenever `p < 1/4`, while a single route's risk grows with depth. Independence
+is an assumption about how the routes' experts were obtained; sharing no
+expert is necessary for it, not sufficient. Abstention is safe (§17): a vote
+without a majority answers nothing rather than something wrong.
