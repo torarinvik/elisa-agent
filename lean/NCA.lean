@@ -66,3 +66,4 @@ import NCA.Reliability.Vote
 import NCA.Reliability.Screening
 import NCA.Planning.Acquisition
 import NCA.Reliability.DependentVote
+import NCA.Reliability.Ensemble

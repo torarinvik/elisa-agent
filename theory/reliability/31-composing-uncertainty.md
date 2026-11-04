@@ -195,3 +195,33 @@ routes are added. Observed frequencies qualify as marginal bounds only for
 the distribution they exactly describe, or with an additional statistical
 coverage guarantee. Neither separate implementations nor independent fitting
 datasets establishes independent errors for fixed fitted routes.
+
+## 31.9 Acquire toward a jointly certified error target
+
+Declare increasing route counts `k₁ < … < k_R` and an error target `ε`.
+Acquire routes up to each declared count, freeze the resulting vote, then
+test it on fresh labeled cases. Disagreement and abstention both count as
+failure. Stop at the first vote passing every case; if none passes or
+resources are unavailable, return no certified vote. Routes may share experts
+and have dependent failures: the test measures the whole vote's error.
+
+**Theorem 31.8 (jointly certified ensemble search).** On search `j`, give
+each declared size level `α_j/R`, where `α_j = δ/((j+1)(j+2))`, and test at
+least `m` cases with `ε m ≥ log(R/α_j)`. Under the fresh conditional IID
+sampling hypothesis and fixed candidate/scoring semantics, the probability
+of ever returning a vote whose error exceeds `ε` is at most `δ`.
+
+*Proof.* Conditional on the history before a test, its entire vote is fixed.
+If its error is `ℓ > ε`, the probability of zero errors in `m` fresh cases
+is `(1−ℓ)^m ≤ exp(−εm) ≤ α_j/R`. A union bound over tested sizes gives
+`α_j`; summing over searches gives `δ`, as in Theorem 20.18. This argument
+uses no independence among routes. Durable non-reused spending indices may
+skip levels without weakening the bound (Theorem 20.17). ∎
+
+This guarantees admission quality, not that any vote will be admitted.
+Correlated failure can persist at every size, and even a vote below the target
+may fail a finite zero-error test. At most `k_R` route requests and `R`
+candidate tests are made. Label and execution cost depend on the target,
+spending level and stopping stage. The acquisition procedure may learn from
+past observations, but certification cases must remain fresh for each new
+candidate. A refusal is not a proof that no better ensemble can be acquired.

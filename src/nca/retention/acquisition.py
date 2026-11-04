@@ -37,6 +37,7 @@ from nca.abi import Contract, Module
 from nca.retention.sampled import decision_level, required_cases
 from nca.retention.screening import FeasibilityScreen
 from nca.retention.history import AcquisitionHistory
+from nca.retention.certification import zero_loss_test
 from nca.stats import family_audit_alpha
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
@@ -149,21 +150,16 @@ class CertifiedAcquirer:
               retain: int) -> tuple[bool | None, list[tuple[Any, Any]]]:
         """Freeze this candidate for one fresh test. Retain bounded drawn
         examples for fitting a later candidate only after this test returns."""
-        fresh = required_cases(self.tolerance, level)
-        observed: list[tuple[Any, Any]] = []
-        tested, batch = 0, 1
-        while tested < fresh:
-            count = min(batch, fresh - tested)
+        def draw(count: int) -> Sequence[tuple[Any, Any]] | None:
             held = self.sample(contract, count)
             if held is not None:
                 self.labels += len(held)
-            if held is None or len(held) != count:
-                return None, observed
-            observed.extend(held[:max(0, retain - len(observed))])
-            if not all(self.agree(_invoke(module, contract, k), v) for k, v in held):
-                return False, observed
-            tested, batch = tested + len(held), 2 * batch
-        return True, observed
+            return held
+
+        result = zero_loss_test(draw, lambda case: self.agree(
+            _invoke(module, contract, case[0]), case[1]),
+            cases=required_cases(self.tolerance, level), retain=retain)
+        return result.passed, list(result.retained)
 
     def rate(self, module: Module) -> float | None:
         """The certified error rate of an expert this acquirer admitted."""
