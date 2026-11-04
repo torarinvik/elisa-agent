@@ -15,12 +15,13 @@ from dataclasses import dataclass
 from typing import Any
 from time import perf_counter, process_time
 
-from nca.abi import Contract, Manifest, Message
+from nca.abi import Contract, Manifest, Message, Module
 from nca.planner import Apply, Given
-from nca.effects import EffectDenied, effect_scope, require_effect
+from nca.effects import EffectDenied, effect_scope, expert_scope, require_effect
 from nca.runtime import Process, RiskLedger, execute
 from nca.workspace import Workspace
 from nca.learning.discovery import Decoded
+from nca.retention import acquisition
 
 
 @dataclass
@@ -198,6 +199,72 @@ def component_authority_trial(legacy: bool, scenario: str, repeats: int = 1000) 
             "labels": 0, "cpu_seconds": process_time() - started}
 
 
+def legacy_candidate_invoke(module: Module, contract: Contract, key: Any) -> Any:
+    """Previous unscoped certification callback, benchmark reference only."""
+    return module.invoke(key) if len(contract.inputs) == 1 else module.invoke(*key)
+
+
+def evaluation_authority_trial(legacy: bool, scenario: str, repeats: int = 1000) -> dict[str, float | int]:
+    capability = frozenset({"benchmark.audit.write"})
+    calls = protected = host_operations = fits = labels = decisions = accepted = denied = 0
+
+    class Candidate:
+        def __init__(self, contract: Contract) -> None:
+            self.manifest = Manifest("candidate", "1", contract,
+                                     effects=capability if scenario == "declared" else frozenset())
+
+        def invoke(self, value: Any) -> int:
+            nonlocal calls, protected
+            calls += 1
+            if scenario != "pure":
+                require_effect("benchmark.audit.write")
+                protected += 1
+            return 0
+
+    def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        nonlocal host_operations
+        require_effect("benchmark.audit.write")
+        host_operations += 1
+        return [(0, 0)] * count
+
+    def fit(contract: Contract, keys: Any, targets: Any) -> Module:
+        nonlocal host_operations, fits
+        require_effect("benchmark.audit.write")
+        host_operations += 1
+        fits += 1
+        return Candidate(contract)
+
+    def agree(output: Any, label: Any) -> bool:
+        nonlocal host_operations
+        require_effect("benchmark.audit.write")
+        host_operations += 1
+        return bool(output == label)
+
+    old = acquisition._invoke
+    if legacy:
+        acquisition._invoke = legacy_candidate_invoke
+    started = process_time()
+    try:
+        with effect_scope(capability), expert_scope(capability):
+            for _ in range(repeats):
+                acquire = acquisition.CertifiedAcquirer(fit, sample, train=1, tolerance=0.5,
+                                                        confidence=0.5, agree=agree)
+                try:
+                    accepted += acquire(Contract(("input",), "output")) is not None
+                except EffectDenied:
+                    denied += 1
+                labels += acquire.labels
+                decisions += acquire.decisions
+                require_effect("benchmark.audit.write")
+                host_operations += 1
+    finally:
+        acquisition._invoke = old
+    return {"requests": repeats, "accepted": accepted, "denied": denied, "fits": fits,
+            "decisions": decisions, "labels": labels, "candidate_calls": calls,
+            "candidate_protected_accesses": protected, "host_operations": host_operations,
+            "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=[100, 1000, 10000])
@@ -207,7 +274,16 @@ def main() -> None:
     parser.add_argument("--fault-rate", type=float, default=0.0)
     parser.add_argument("--workspace-identity", action="store_true")
     parser.add_argument("--component-authority", action="store_true")
+    parser.add_argument("--evaluation-authority", action="store_true")
     args = parser.parse_args()
+    if args.evaluation_authority:
+        for scenario in ("forbidden", "declared", "pure"):
+            for legacy in (True, False):
+                samples = [evaluation_authority_trial(legacy, scenario) for _ in range(3)]
+                print(json.dumps({"scenario": scenario, "legacy": legacy,
+                                  **{key: statistics.mean(sample[key] for sample in samples)
+                                     for key in samples[0]}}), flush=True)
+        return
     if args.component_authority:
         for scenario in ("forbidden", "legitimate", "pure"):
             for legacy in (True, False):

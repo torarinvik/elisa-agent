@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from nca.abi import Module, TypeId
+from nca.effects import invoke_scoped
 from nca.cache import ResultCache, value_digest
 from nca.compile import compile_route
 from nca.planner import Apply, Given, Map, Plan
@@ -113,7 +114,7 @@ class Tabled:
         self.stratum = stratum
 
     def invoke(self, *inputs: Any) -> Any:
-        return self.module.invoke(*inputs)
+        return invoke_scoped(self.module, *inputs)
 
     def candidates(self, *inputs: Any) -> list[tuple[Any, float]]:
         outputs = list(self.module.alternatives(*inputs))

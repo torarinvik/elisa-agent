@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import NOTHING, Demand, Message, Module, SequenceDemand, TypeId
+from nca.effects import effect_call, invoke_scoped
 from nca.cache import ResultCache, value_digest
 from nca.compile import compile_route
 from nca.objects import Attestation, Ref, Store
@@ -219,7 +220,7 @@ def route_risk(plan: Plan, rate: Callable[[Module], float | None], length: int =
         if node.slots and not calls:
             raise ValueError(f"{module.manifest.module_id} declares no slot calls")
         own = (relevant_charge(module.route, None) if isinstance(module, Export) else unit(module))
-        return (own + sum(relevant_charge(arg, None if rule is None else rule(i, demand))
+        return (own + sum(relevant_charge(arg, None if rule is None else effect_call(module.manifest.effects, rule, i, demand))
                           for i, arg in enumerate(node.args))
                 + sum(n * charge(sub, length, unit, strict=True)
                       for n, sub in zip(calls, node.slots)))
@@ -436,8 +437,8 @@ def recalibrate(rung: Any, values: Sequence[Any], labels: Sequence[int], subject
     refit = Rung(rung.module)
     refit.calibrate(list(values[:half]), torch.tensor(list(labels[:half])))
     reader = Calibrated(refit)
-    outputs = [reader.invoke(value) for value in values[half:]]
-    result = audit([reader.risk(output) for output in outputs],
+    outputs = [invoke_scoped(reader, value) for value in values[half:]]
+    result = audit([effect_call(reader.manifest.effects, reader.risk, output) for output in outputs],
                    [max(range(len(o)), key=o.__getitem__) != label
                     for o, label in zip(outputs, labels[half:], strict=True)], independent)
     return (None if result.refutes(alpha) else calibration(refit, subject, issuer=issuer)), result
@@ -478,8 +479,8 @@ def acquire(incumbent: Module, train: Callable[[Sequence[Any], Sequence[Any]], M
     if challenger.manifest.contract != incumbent.manifest.contract:
         raise ValueError("the challenger must have the incumbent's contract")
     held = list(zip(values[half:], labels[half:], strict=True))
-    base = tuple(correct(incumbent.invoke(v), y) for v, y in held)
-    found = tuple(correct(challenger.invoke(v), y) for v, y in held)
+    base = tuple(correct(invoke_scoped(incumbent, v), y) for v, y in held)
+    found = tuple(correct(invoke_scoped(challenger, v), y) for v, y in held)
     accepted, p_value = sign_test(base, found, alpha)
     promotion = _promotion(incumbent, challenger, base, found, p_value, alpha) if accepted else None
     return Acquisition(challenger, base, found, promotion)
@@ -520,9 +521,10 @@ def cross_audit(invocations: Sequence[Invocation], reference: Module,
     for invocation in invocations:
         if invocation.expert.manifest.contract != reference.manifest.contract:
             raise ValueError("the reference must have the audited expert's contract")
-        output = reference.invoke(*invocation.values)
+        output = invoke_scoped(reference, *invocation.values)
         report = getattr(reference, "risk", None)
-        second = None if report is None else report(output, *invocation.values)
+        second = (None if report is None else
+                  effect_call(reference.manifest.effects, report, output, *invocation.values))
         if second is None:
             raise ValueError(f"{reference.manifest.ref} reports no risk")
         reports.append(min(1.0, invocation.report + second))

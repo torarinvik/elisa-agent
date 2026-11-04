@@ -14,6 +14,7 @@ from typing import Any
 import torch
 
 from nca.abi import Module
+from nca.effects import effect_call, invoke_scoped
 from nca.ladder import Calibrated, Rung
 
 
@@ -27,11 +28,11 @@ class Grouped:
 
     def invoke(self, value: Any) -> tuple[float, ...]:
         reader = self.readers.get(self.group(value))
-        return tuple(self.module.invoke(value)) if reader is None else reader.invoke(value)
+        return tuple(invoke_scoped(self.module, value)) if reader is None else invoke_scoped(reader, value)
 
     def risk(self, output: Sequence[float], *inputs: Any) -> float | None:
         reader = self.readers.get(self.group(inputs[0]))
-        return None if reader is None else reader.risk(output)
+        return None if reader is None else effect_call(reader.manifest.effects, reader.risk, output)
 
 
 def fit_groups(module: Module, group: Callable[[Any], Hashable], values: Sequence[Any],

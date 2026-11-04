@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from torch import nn
 from nca.abi import Module
+from nca.effects import invoke_scoped
 from nca import ladder as _ladder
 
 
@@ -57,7 +58,7 @@ class Rung:
     def _observe(self, value: Any, *, ranked: Literal[True]) -> _ladder.RankedObservation: ...
 
     def _observe(self, value: Any, *, ranked: bool) -> torch.Tensor | _ladder.RankedObservation:
-        output = self.module.invoke(value)
+        output = invoke_scoped(self.module, value)
         if isinstance(output, np.ma.MaskedArray) and np.ma.is_masked(output):
             raise ValueError("expert output must not contain masked weights")
         if isinstance(output, torch.Tensor) and output.is_complex():

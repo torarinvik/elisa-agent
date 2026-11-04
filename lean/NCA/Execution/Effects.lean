@@ -1,4 +1,5 @@
 import Mathlib.Data.Finset.Basic
+import Mathlib.Data.List.Basic
 
 /-! Finite declared-effect permissions. These results assume all resource
 operations pass through the checked gateway; they do not establish a sandbox. -/
@@ -46,5 +47,33 @@ theorem sibling_cannot_authorize (parent child sibling : Finset E) (effect : E)
     effect ∉ effectAllowance (effectAllowance parent (child ∪ sibling)) child := by
   rw [composed_child_allowance]
   exact denied_gateway (Or.inr undeclared)
+
+/-- A callback's active allowance is the intersection along its call path. -/
+def effectPath (parent : Finset E) (declarations : List (Finset E)) : Finset E :=
+  declarations.foldl effectAllowance parent
+
+theorem effectPath_subset_parent (parent : Finset E) (declarations : List (Finset E)) :
+    effectPath parent declarations ⊆ parent := by
+  induction declarations generalizing parent with
+  | nil => exact Finset.Subset.refl _
+  | cons first rest ih =>
+    exact Finset.Subset.trans (ih (effectAllowance parent first)) (effectAllowance_subset _ _)
+
+theorem effectPath_subset_owner (parent owner : Finset E) (declarations : List (Finset E))
+    (present : owner ∈ declarations) : effectPath parent declarations ⊆ owner := by
+  induction declarations generalizing parent with
+  | nil => simp at present
+  | cons first rest ih =>
+    rcases List.mem_cons.mp present with same | later
+    · subst owner
+      exact Finset.Subset.trans (effectPath_subset_parent _ rest) Finset.inter_subset_right
+    · exact ih (effectAllowance parent first) later
+
+/-- An admitted gateway operation belongs to every callback declaration on
+its path, including the candidate being evaluated by a privileged auditor. -/
+theorem effectPath_gateway_owner (parent owner : Finset E) (declarations : List (Finset E))
+    (present : owner ∈ declarations) {operation : E}
+    (allowed : operation ∈ effectPath parent declarations) : operation ∈ owner :=
+  effectPath_subset_owner parent owner declarations present allowed
 
 end NCA

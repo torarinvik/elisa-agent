@@ -127,3 +127,32 @@ return or exception. Immediate callback scoping alone does not attach origin
 authority to returned requests, generators, callbacks or other deferred objects;
 their later use requires explicit runtime mediation. This result establishes
 neither arbitrary-code isolation nor rollback of operations already performed.
+
+## 42.7 Evaluation authority follows callback ownership
+
+Under an explicit finite host policy G, let D₁,…,Dₙ be the known finite
+declared footprints of the active callback path. Its allowance is G∩D₁∩…∩Dₙ. An evaluator may have a larger
+footprint than a candidate or reference expert; entering that expert's callback
+must intersect the evaluator's current grant with the expert's own declaration.
+A per-use implementation delegated by an expert retains that expert's declaration
+when it has no independent ownership interface. If it also declares an independent
+footprint, both declarations constrain its callback.
+
+**Theorem 42.3 (callback path ownership).** Every operation admitted by the
+checked gateway at the end of a finite callback path belongs to G and to every
+Dᵢ on the path. In particular, an evaluator-only operation absent from the
+candidate's declaration is unavailable during candidate evaluation, at any
+finite nesting depth.
+
+*Proof.* Each intersection is a subset of its preceding allowance and of the
+new declaration. Induction over the path gives the subset of G and of each
+path member. Gateway membership transfers through those subset inclusions. ∎
+
+Returning or raising from the callback restores the evaluator's scope. This
+lets trusted sampling, fitting and agreement procedures retain their own
+permissions while candidate callbacks use theirs. Scopes must faithfully track
+actual ownership; parameter or factory metadata does not prove an arbitrary
+implementation honest. The result applies to immediate callback execution,
+including owned per-use implementation calls. Returned active objects and
+other deferred callbacks need origin authority when later activated. It does
+not isolate hostile code or roll back work, labels or effects already incurred.

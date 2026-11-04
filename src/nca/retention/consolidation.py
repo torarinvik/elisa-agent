@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Module
+from nca.effects import invoke_scoped
 from nca.evidence import Issuers
 from nca.memory import MemoryBackend
 from nca.objects import Ref
@@ -42,7 +43,7 @@ class _Recorder:
         return getattr(self._inner, name)
 
     def invoke(self, *values: Any) -> Any:
-        output = self._inner.invoke(*values)
+        output = invoke_scoped(self._inner, *values)
         self._examples.append((values, output))
         return output
 

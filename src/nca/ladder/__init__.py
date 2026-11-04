@@ -61,6 +61,7 @@ import numpy as np
 import torch
 
 from nca.abi import Contract, Module
+from nca.effects import invoke_scoped
 from nca.refinement.policies import (
     INFLATIONS as INFLATIONS,
     ClimbPriority as ClimbPriority,
@@ -203,7 +204,7 @@ class SecondLook:
                                 cost=module.manifest.cost * (count + 1))
 
     def invoke(self, value: Any) -> tuple[float, ...]:
-        readings = [self.module.invoke(v) for v in (value, *self.views(value))]
+        readings = [invoke_scoped(self.module, v) for v in (value, *self.views(value))]
         return tuple(np.mean(readings, axis=0).tolist())
 
 

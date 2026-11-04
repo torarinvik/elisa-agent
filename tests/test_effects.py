@@ -335,3 +335,200 @@ def test_legacy_unrestricted_composition_still_scopes_its_known_child() -> None:
     model = Decoded(feature, head, Contract(("input",), "output"))
     result = execute(Apply(model, (Given("input"),)), (Message("input", 3, "input"),), Workspace(), 1)
     assert result.payload == 7 and head.accesses == 1
+
+
+@pytest.mark.parametrize("arity", [0, 1, 2])
+@pytest.mark.parametrize("misbehaves", [False, True])
+def test_certification_keeps_candidate_authority_separate_from_evaluator(
+        arity: int, misbehaves: bool) -> None:
+    from collections.abc import Hashable, Sequence
+    from nca.abi import Module
+    from nca.effects import expert_scope
+    from nca.retention.acquisition import CertifiedAcquirer
+    from nca.retention.sampled import decision_level, required_cases
+
+    class Candidate:
+        def __init__(self, contract: Contract) -> None:
+            self.manifest = Manifest("candidate", "1", contract, effects=frozenset())
+            self.accesses = 0
+
+        def invoke(self, *values: Any) -> int:
+            assert len(values) == arity
+            if misbehaves:
+                require_effect("audit.write")
+                self.accesses += 1
+            return 0
+
+    contract = Contract(tuple(f"input-{i}" for i in range(arity)), "output")
+    candidate = Candidate(contract)
+    agreement_calls: list[int] = []
+
+    def fit(signature: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        require_effect("audit.write")
+        return candidate
+
+    def sample(signature: Contract, count: int) -> list[tuple[Any, Any]]:
+        require_effect("audit.write")
+        return [(0 if arity == 1 else (0,) * arity, 0)] * count
+
+    def agree(output: Any, label: Any) -> bool:
+        require_effect("audit.write")
+        agreement_calls.append(1)
+        return bool(output == label)
+
+    acquire = CertifiedAcquirer(fit, sample, train=1, tolerance=0.5, confidence=0.5, agree=agree)
+    with effect_scope(frozenset({"audit.write"})), expert_scope(frozenset({"audit.write"})):
+        if misbehaves:
+            with pytest.raises(EffectDenied):
+                acquire(contract)
+            assert acquire.labels == 2 and agreement_calls == []
+        else:
+            assert acquire(contract) is candidate
+            size = required_cases(0.5, decision_level(0.5, 0))
+            assert acquire.labels == 1 + size and len(agreement_calls) == size
+        require_effect("audit.write")  # Evaluator authority restores on success and failure.
+    assert candidate.accesses == 0 and acquire.decisions == 1
+
+
+@pytest.mark.parametrize("stage", ["invoke", "risk"])
+def test_cross_audit_reference_callbacks_cannot_borrow_auditor_authority(stage: str) -> None:
+    from nca.effects import expert_scope
+    from nca.evidence import cross_audit
+    from nca.runtime import Invocation
+
+    class Reference:
+        manifest = Manifest("reference", "1", Contract(("input",), "output"), effects=frozenset())
+        accesses = 0
+
+        def invoke(self, value: Any) -> int:
+            if stage == "invoke":
+                require_effect("audit.write")
+                self.accesses += 1
+            return 0
+
+        def risk(self, output: Any, *values: Any) -> float:
+            if stage == "risk":
+                require_effect("audit.write")
+                self.accesses += 1
+            return 0.0
+
+    reference = Reference()
+    invocation = Invocation(reference, (0,), 0, 0.0)
+    with effect_scope(frozenset({"audit.write"})), expert_scope(frozenset({"audit.write"})):
+        with pytest.raises(EffectDenied):
+            cross_audit((invocation,), reference, lambda a, b: a == b)
+        require_effect("audit.write")
+    assert reference.accesses == 0
+
+
+def test_calibration_observations_scope_the_underlying_expert() -> None:
+    from nca.effects import expert_scope
+    from nca.ladder import Rung
+
+    class Distribution:
+        manifest = Manifest("distribution", "1", Contract(("input",), "weights"), effects=frozenset())
+        accesses = 0
+
+        def invoke(self, value: Any) -> tuple[float, ...]:
+            require_effect("audit.write")
+            self.accesses += 1
+            return (0.25, 0.75)
+
+    source = Distribution()
+    with effect_scope(frozenset({"audit.write"})), expert_scope(frozenset({"audit.write"})):
+        with pytest.raises(EffectDenied):
+            Rung(source).observe(0)
+        require_effect("audit.write")
+    assert source.accesses == 0
+
+
+def test_callback_paths_match_nested_finite_allowances() -> None:
+    from itertools import product
+    from nca.abi import Module
+    from nca.effects import invoke_scoped
+
+    @dataclass
+    class Node:
+        manifest: Manifest
+        child: Module | None
+        operation: str
+
+        def invoke(self, value: Any) -> Any:
+            if self.child is not None:
+                return invoke_scoped(self.child, value)
+            require_effect(self.operation)
+            return 7
+
+    sets = [frozenset(name for bit, name in enumerate(("resource.a", "resource.b")) if mask & (1 << bit))
+            for mask in range(4)]
+    for depth in range(1, 5):
+        for declarations in product(sets, repeat=depth):
+            for host, operation in product(sets, ("resource.a", "resource.b")):
+                current = host
+                admissible = True
+                for declaration in declarations:
+                    admissible &= declaration <= current
+                    current &= declaration
+                expected = admissible and operation in current
+                node = None
+                for declaration in reversed(declarations):
+                    node = Node(Manifest("node", "1", Contract(("input",), "output"),
+                                          effects=declaration), node, operation)
+                assert node is not None
+                with effect_scope(host):
+                    if expected:
+                        assert invoke_scoped(node, 3) == 7
+                    else:
+                        with pytest.raises(EffectDenied):
+                            invoke_scoped(node, 3)
+
+
+@pytest.mark.parametrize("declared", [False, True])
+@pytest.mark.parametrize("own_manifest", [False, True])
+def test_selective_session_invocation_keeps_originating_expert_authority(
+        declared: bool, own_manifest: bool) -> None:
+    from nca.effects import expert_scope
+    from nca.ladder import Rung
+    from nca.planner import plan_stable
+    from nca.selective import solve
+
+    accesses: list[str] = []
+
+    class Source:
+        manifest = Manifest("source", "1", Contract(("input",), "seq[item]"), effects=frozenset())
+
+        def invoke(self, value: Any) -> list[Any]:
+            return list(value)
+
+    class Reader:
+        manifest = Manifest("reader", "1", Contract(("item",), "weights"), effects=frozenset())
+
+        def invoke(self, value: Any) -> tuple[float, ...]:
+            return (0.1, 0.9)
+
+    class Consumer:
+        manifest = Manifest("consumer", "1", Contract(("seq[weights]",), "output"),
+                            effects=frozenset({"audit.write"}) if declared else frozenset())
+
+        def solve_session(self) -> Any:
+            class Session:
+                def invoke(self, value: Any) -> int:
+                    require_effect("audit.write")
+                    accesses.append("write")
+                    return 7
+            session = Session()
+            if own_manifest:
+                session.manifest = Manifest("session", "1", self.manifest.contract, effects=frozenset())
+            return session
+
+    reader = Reader()
+    route = plan_stable([Source(), reader, Consumer()], ("input",), "output")
+    assert route is not None
+    with effect_scope(frozenset({"audit.write"})), expert_scope(frozenset({"audit.write"})):
+        if declared and not own_manifest:
+            assert solve(route, {"weights": [Rung(reader)]}, "a", 1.0).value == 7
+        else:
+            with pytest.raises(EffectDenied):
+                solve(route, {"weights": [Rung(reader)]}, "a", 1.0)
+        require_effect("audit.write")
+    assert len(accesses) == int(declared and not own_manifest)

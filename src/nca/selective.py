@@ -46,6 +46,7 @@ from typing import Any
 import torch
 
 from nca.abi import NOTHING, Contract, Message, Module, SequenceDemand, TypeId
+from nca.effects import effect_call, invoke_scoped
 from nca.ladder import (Certificate, ClimbPriority, Decision, Distribution, Floor,
                         RankedReading, Reading, Refinement, Rung, State, Stop, ladder, refine)
 from nca.planner import Apply, Given, Map, Plan
@@ -152,13 +153,18 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
         raise ValueError("targets must be nonnegative and not NaN")
     delta = min(targets)
     chain, mapped = split_route(route)
-    chain = [getattr(module, "solve_session", lambda: module)() for module in chain]
+    owners = chain
+    chain = []
+    for owner in owners:
+        factory = getattr(owner, "solve_session", None)
+        chain.append(owner if factory is None else effect_call(owner.manifest.effects, factory))
+    owned_chain = tuple(zip(chain, owners, strict=True))
     consumer, body, source = chain[-1], mapped.body, mapped.source
     experts = readers(mapped)
     fuse = None if experts == [body] else body.module
     assert isinstance(source, Apply) and isinstance(source.args[0], Given)
     producer = source.module
-    candidates = getattr(producer, "alternatives", lambda v: iter([producer.invoke(v)]))
+    candidates = getattr(producer, "alternatives", lambda v: iter([invoke_scoped(producer, v)]))
     declared = getattr(consumer, "demand", None)
     for elements in candidates(value):
         demand = declared(0, None) if declared is not None else None
@@ -212,10 +218,13 @@ def _solve_targets(route: Plan, ladders: dict[TypeId, list[Rung]], value: Any,
             inputs[i][k] = (observed if isinstance(observed, RankedReading)
                             else tuple(observed.tolist()))
         result: Any = ([args[0] for args in inputs] if fuse is None else
-                       [fuse.invoke(*args) if read != NOTHING else None
+                       [invoke_scoped(fuse, *args) if read != NOTHING else None
                         for args, read in zip(inputs, reads)])
-        for module in reversed(chain):
-            result = module.invoke(result)
+        for module, owner in reversed(owned_chain):
+            if module is owner or not hasattr(module, "manifest"):
+                result = effect_call(owner.manifest.effects, module.invoke, result)
+            else:
+                result = effect_call(owner.manifest.effects, invoke_scoped, module, result)
         return Answer(result, state.cost, state.bound,
                       not state.available or state.bound > target)
 

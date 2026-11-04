@@ -34,6 +34,7 @@ from collections.abc import Callable, Hashable, Sequence
 from typing import Any
 
 from nca.abi import Contract, Module
+from nca.effects import invoke_scoped
 from nca.retention.sampled import decision_level, required_cases
 from nca.retention.screening import FeasibilityScreen
 from nca.retention.history import AcquisitionHistory
@@ -52,7 +53,7 @@ def _equal(output: Any, label: Any) -> bool:
 
 
 def _invoke(module: Module, contract: Contract, key: Any) -> Any:
-    return module.invoke(key) if len(contract.inputs) == 1 else module.invoke(*key)
+    return invoke_scoped(module, key) if len(contract.inputs) == 1 else invoke_scoped(module, *key)
 
 
 class CertifiedAcquirer:
