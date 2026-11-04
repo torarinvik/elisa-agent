@@ -60,3 +60,17 @@ line-length = 100
 # no unused imports or variables.
 select = ["ANN", "E731", "F401", "F821", "F841"]
 ignore = ["ANN401"]
+
+[tool.pytest.ini_options]
+# Preserve fixture-module identities across subsystem test directories.
+pythonpath = [
+    "tests/planner",
+    "tests/runtime",
+    "tests/objects",
+    "tests/decoding",
+    "tests/evidence",
+    "tests/learning",
+    "tests/retention",
+    "tests/memory",
+    "tests/native",
+]

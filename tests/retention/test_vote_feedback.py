@@ -234,7 +234,7 @@ def test_target_restriction_preserves_all_small_ordered_feature_trees() -> None:
     from nca.learning.features import compose_features
     from test_discovery import Feature
 
-    baseline = run_path(str(Path(__file__).resolve().parents[1] / "benchmarks" / "feature_search.py"))
+    baseline = run_path(str(Path(__file__).resolve().parents[2] / "benchmarks" / "feature_search.py"))
     reference, signature = baseline["compose_unindexed"], baseline["signature"]
     seeds = [Feature(Contract(("input",), t), lambda x: x) for t in ("a", "b", "d")]
     rules = [(("a",), "a"), (("a",), "b"), (("a", "a"), "b"),
@@ -365,7 +365,7 @@ def test_feature_tree_search_matches_exhaustive_typed_rules() -> None:
     from nca.learning.features import compose_features
     from test_discovery import Feature
 
-    baseline = run_path(str(Path(__file__).resolve().parents[1] / "benchmarks" / "feature_search.py"))
+    baseline = run_path(str(Path(__file__).resolve().parents[2] / "benchmarks" / "feature_search.py"))
     compose_unindexed, signature = baseline["compose_unindexed"], baseline["signature"]
 
     seeds = [Feature(Contract(("input",), t), lambda x, i=i: ("seed", i))
@@ -474,7 +474,7 @@ def test_native_feature_selection_rechecks_deliberate_hash_collisions(
 
     if features._NATIVE is None:
         pytest.skip("native record selector unavailable or disabled")
-    signature = run_path(str(Path(__file__).resolve().parents[1] /
+    signature = run_path(str(Path(__file__).resolve().parents[2] /
                             "benchmarks" / "feature_search.py"))["signature"]
     seeds = [Feature(Contract(("input",), t), lambda x: x) for t in ("a", "b")]
     heads = [Feature(Contract(("a",), "b"), lambda x: x),
@@ -494,7 +494,7 @@ def test_feature_priorities_are_stable_and_preserve_the_untruncated_family() -> 
     from nca.learning.features import compose_features
     from test_discovery import Feature
 
-    baseline = run_path(str(Path(__file__).resolve().parents[1] / "benchmarks" / "feature_search.py"))
+    baseline = run_path(str(Path(__file__).resolve().parents[2] / "benchmarks" / "feature_search.py"))
     signature = baseline["signature"]
     seed = Feature(Contract(("input",), "a"), lambda x: x)
     heads = [Feature(Contract(("a",), "b"), lambda x: (0, x)),

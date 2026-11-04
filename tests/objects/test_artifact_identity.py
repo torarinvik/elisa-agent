@@ -314,7 +314,7 @@ def test_run_retains_and_run_read_identity_match_executable_lean(
                 fixture, result = replay_fixture(seed)
                 fixtures.append(fixture)
                 expected.append(result)
-    lean = Path(__file__).resolve().parents[1] / "lean"
+    lean = Path(__file__).resolve().parents[2] / "lean"
     subprocess.run([lake, "build", "NCA.Execution.Artifacts"], cwd=lean,
                    capture_output=True, text=True, check=True, timeout=120)
     result = subprocess.run(
@@ -470,7 +470,7 @@ def test_continuation_installation_matches_recursive_scope_graphs() -> None:
     from nca.objects import Composite
     from nca.packages import Export, install_scopes
 
-    reference = runpy.run_path(str(Path(__file__).parents[1] / "benchmarks" / "artifact_store.py"))[
+    reference = runpy.run_path(str(Path(__file__).parents[2] / "benchmarks" / "artifact_store.py"))[
         "recursive_install_scopes"]
 
     def signature(scopes: tuple[list[Module], ...]) -> tuple[Any, ...]:

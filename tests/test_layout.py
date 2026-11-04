@@ -38,7 +38,7 @@ def test_core_and_its_tests_import_only_declared_dependencies() -> None:
                 for r in requirements}
     owners = metadata.packages_distributions()
     allowed = set(sys.stdlib_module_names) | {"nca"} | declared
-    test_modules = {p.stem for p in (ROOT / "tests").glob("*.py")}
+    test_modules = {p.stem for p in (ROOT / "tests").rglob("*.py")}
     offending = {}
     for path in [*PACKAGE.rglob("*.py"), *(ROOT / "tests").rglob("*.py")]:
         local = test_modules if path.is_relative_to(ROOT / "tests") else set()

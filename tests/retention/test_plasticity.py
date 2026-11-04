@@ -105,7 +105,7 @@ def test_field_matches_the_lean_model_exactly_over_rationals() -> None:
         fixtures.append({"rate": text(rate), "lo": text(lo), "hi": text(hi),
                          "steps": [[text(s), text(w)] for s, w in steps]})
         expected.append(rows)
-    lean = Path(__file__).resolve().parents[1] / "lean"
+    lean = Path(__file__).resolve().parents[2] / "lean"
     subprocess.run([lake, "build", "NCA.Reliability.Plasticity"], cwd=lean,
                    capture_output=True, text=True, check=True, timeout=300)
     result = subprocess.run(

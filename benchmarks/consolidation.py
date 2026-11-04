@@ -27,7 +27,7 @@ from nca.retention.consolidation import consolidate
 from nca.retention.routes import ProtectedRoute, RouteCatalog
 from nca.retention.sampled import SampledGate
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests" / "retention"))
 from test_consolidation import Incumbent, Patched, correct, decode, distill  # noqa: E402
 
 

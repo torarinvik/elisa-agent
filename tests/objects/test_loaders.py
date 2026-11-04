@@ -11,7 +11,7 @@ import pytest
 
 from nca.objects import loaders
 
-SRC = Path(__file__).resolve().parents[1] / "src" / "nca"
+SRC = Path(__file__).resolve().parents[2] / "src" / "nca"
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def test_resolution_matches_the_lean_model_on_generated_registries() -> None:
         probes = names + ["absent@1"]
         fixtures.append({"registrations": pairs, "probes": probes})
         expected.append([loaders.location(pairs, name) for name in probes])
-    lean = Path(__file__).resolve().parents[1] / "lean"
+    lean = Path(__file__).resolve().parents[2] / "lean"
     subprocess.run([lake, "build", "NCA.Execution.Loaders"], cwd=lean,
                    capture_output=True, text=True, check=True, timeout=120)
     result = subprocess.run(
