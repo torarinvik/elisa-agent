@@ -308,7 +308,7 @@ def test_training_retention_capacity_is_validated(capacity: Any) -> None:
 
 
 def test_feature_tree_search_matches_exhaustive_typed_rules() -> None:
-    """Link featureTreeClosure_iff and feature_index_filter, including order."""
+    """Link closure, filter and demand-index lemmas, including ordered prefixes."""
     from itertools import product
     from pathlib import Path
     from runpy import run_path
@@ -335,9 +335,11 @@ def test_feature_tree_search_matches_exhaustive_typed_rules() -> None:
             observed = [(m.manifest.contract.output, m.invoke(None)) for m in actual]
             assert len(set(observed)) == len(observed)
             assert set(observed) == expected
-            for cap in (1, 3, 7):
-                prefix = compose_features(seeds, transforms, max_depth=depth, limit=cap)
-                assert [(m.manifest.contract.output, m.invoke(None)) for m in prefix] == observed[:cap]
+            for budget in (None, 0, 1, 3):
+                for cap in (1, 3, 7, 10000):
+                    prefix = compose_features(seeds, transforms, max_depth=depth,
+                                              limit=cap, index_entries=budget)
+                    assert [signature(m) for m in prefix] == [signature(m) for m in reference[:cap]]
             following = set(expected)
             for i, ((inputs, output), use) in enumerate(zip(rules, enabled, strict=True)):
                 if use:
@@ -382,7 +384,8 @@ def test_multi_input_features_keep_positions_cost_effects_and_slot_calls() -> No
         AppliedFeature(head, [left])
 
 
-def test_lazy_feature_index_does_not_read_an_unneeded_rule_suffix() -> None:
+@pytest.mark.parametrize("budget", [None, 0, 1])
+def test_lazy_feature_index_does_not_read_an_unneeded_rule_suffix(budget: int | None) -> None:
     from nca.learning.features import compose_features
     from test_discovery import Feature
 
@@ -396,6 +399,17 @@ def test_lazy_feature_index_does_not_read_an_unneeded_rule_suffix() -> None:
 
     seed = Feature(Contract(("input",), "a"), lambda x: x)
     head = Feature(Contract(("a",), "a"), lambda x: x)
-    assert len(compose_features([seed], [head, Unread()], max_depth=2, limit=2)) == 2
-    assert compose_features([seed], [Unread()], max_depth=0, limit=10) == [seed]
-    assert compose_features([seed], [Unread()], max_depth=2, limit=1) == [seed]
+    assert len(compose_features([seed], [head, Unread()], max_depth=2,
+                                limit=2, index_entries=budget)) == 2
+    assert compose_features([seed], [Unread()], max_depth=0,
+                            limit=10, index_entries=budget) == [seed]
+    assert compose_features([seed], [Unread()], max_depth=2,
+                            limit=1, index_entries=budget) == [seed]
+
+
+@pytest.mark.parametrize("budget", [-1, True, 1.5])
+def test_feature_index_entry_budget_is_validated(budget: Any) -> None:
+    from nca.learning.features import compose_features
+
+    with pytest.raises(ValueError, match="index entry budget"):
+        compose_features([], [], max_depth=0, limit=1, index_entries=budget)

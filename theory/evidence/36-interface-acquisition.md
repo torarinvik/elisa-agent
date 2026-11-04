@@ -149,3 +149,33 @@ Induction over search heights then preserves the feature-tree enumeration and
 its capped prefixes. Indices cost a pass over rule input positions and available
 branches, with additional storage; they do not remove the combinatorial number
 of compatible trees, prove hash-map behavior, or predict semantic usefulness.
+
+## 36.63 Demand-built rule buckets
+
+For a fixed ordered library, cache a type's matching rule-position list only
+after its complete scan. An absent bucket means unknown, not empty: recompute
+the ordered filter when that type is queried. Inspected immutable contract
+headers may be shared between scans without retaining buckets for every type.
+
+**Theorem 36.63 (demand-index lookup).** If a completed cached bucket equals
+the ordered filter for its queried type, then choosing that bucket when present
+and recomputing the filter when absent returns exactly the same list.
+
+*Proof.* Split on cache presence. In the present case use the faithful-bucket
+hypothesis; in the absent case the lookup is the filter by definition. ∎
+
+Combined with Theorem 36.62, this preserves ordered enumeration and capped
+prefixes. Partially scanned buckets must not be reused as complete ones. Early
+termination may discard such work without declaring unseen positions absent.
+Demand construction retains headers for reached library positions and entries
+only for queried types. Querying a new type requires another header scan; it
+does not promise lower CPU for every library or fewer compatible candidates.
+
+An explicit budget may additionally prefetch positions from a contiguous rule
+prefix, stopping before a rule whose whole input-position list exceeds the
+remaining budget. A query concatenates its prefetched prefix matches with the
+ordered filter of the remaining suffix. The filter-of-append identity proves
+that result equals filtering the full list. The budget bounds these prefetched
+positions only, not contract headers, completed queried buckets or model memory.
+Unbounded prefetch and zero prefetch are resource policies of the same lookup;
+neither changes the candidate family or establishes a universal speed advantage.

@@ -85,4 +85,24 @@ theorem feature_index_filter {A B C : Type*} [DecidableEq B]
     · simp [same, ih ht]
     · simp [same, h e (by simp) same, ih ht]
 
+/-- Missing buckets may be recomputed; only faithful completed buckets may
+be reused. Cache absence is not a claim that a type has no matching rules. -/
+theorem feature_demand_index_eq {A B : Type*} [DecidableEq B]
+    (entries : List A) (key : A → B) (cache : B → Option (List A)) (needle : B)
+    (faithful : ∀ values, cache needle = some values →
+      values = entries.filter (fun e => decide (key e = needle))) :
+    (cache needle).getD (entries.filter fun e => decide (key e = needle)) =
+      entries.filter (fun e => decide (key e = needle)) := by
+  cases h : cache needle with
+  | none => rfl
+  | some values => simpa [h] using faithful values h
+
+/-- A faithful prefetched prefix plus a freshly filtered suffix preserves the
+ordered bucket, even when an entry budget stops prefetch before the end. -/
+theorem feature_demand_prefix_filter {A : Type*} (entries : List A) (n : ℕ)
+    (accept : A → Bool) :
+    (entries.take n).filter accept ++ (entries.drop n).filter accept =
+      entries.filter accept := by
+  rw [← List.filter_append, List.take_append_drop]
+
 end NCA

@@ -11,6 +11,7 @@ import tracemalloc
 from collections.abc import Sequence
 from dataclasses import replace
 from itertools import product
+from functools import partial
 from time import process_time
 from typing import Any
 
@@ -76,10 +77,12 @@ class Part:
     def __init__(self, name: str, contract: Contract) -> None:
         self._manifest = Manifest(name, "1", contract, effects=frozenset())
         self.reads = self.calls = 0
+        self.tracking = True
 
     @property
     def manifest(self) -> Manifest:
-        self.reads += 1
+        if self.tracking:
+            self.reads += 1
         return self._manifest
 
     def invoke(self, *inputs: Any) -> Any:
@@ -87,26 +90,38 @@ class Part:
         raise AssertionError("metadata search must not invoke experts")
 
 
-def trial(size: int, cap: int) -> dict[str, Any]:
-    seeds = [Part(f"seed.{t}", Contract(("source",), t)) for t in ("a", "b")]
-    rules = [Part("first", Contract(("a",), "b")),
-             Part("second", Contract(("a", "b"), "a"))]
+def trial(size: int, cap: int, query_types: int = 2,
+          index_entries: int | None = 0) -> dict[str, Any]:
+    types = ("a", "b") if query_types == 2 else tuple(f"t{i}" for i in range(query_types))
+    seeds = [Part(f"seed.{t}", Contract(("source",), t)) for t in types]
+    rules = ([Part("first", Contract(("a",), "b")),
+              Part("second", Contract(("a", "b"), "a"))] if query_types == 2 else
+             [Part(f"loop.{t}", Contract((t,), t)) for t in types])
     rules.extend(Part(f"unused.{i}", Contract((f"missing{i}",), f"missing{i}"))
                  for i in range(size - len(rules)))
     parts = [*seeds, *rules]
     outputs: dict[str, Any] = {"size": size, "cap": cap,
+                               "query_types": query_types,
+                               "index_entries": index_entries,
                                "labels": 0, "acquisition_requests": 0}
     expected = None
-    for name, search in (("scan", compose_unindexed), ("indexed", compose_features)):
+    for name, search in (("scan", compose_unindexed),
+                         ("indexed", partial(compose_features, index_entries=index_entries))):
         search(seeds, rules, max_depth=4, limit=cap)
         for part in parts:
             part.reads = part.calls = 0
+            part.tracking = False
         started = process_time()
         for _ in range(10):
             result = search(seeds, rules, max_depth=4, limit=cap)
         outputs[f"{name}_cpu"] = (process_time() - started) / 10
-        outputs[f"{name}_reads"] = sum(p.reads for p in parts) / 10
+        for part in parts:
+            part.tracking = True
+        search(seeds, rules, max_depth=4, limit=cap)
+        outputs[f"{name}_reads"] = sum(p.reads for p in parts)
         outputs[f"{name}_calls"] = sum(p.calls for p in parts)
+        for part in parts:
+            part.tracking = False
         current = [signature(m) for m in result]
         if expected is None:
             expected = current
@@ -123,3 +138,6 @@ def trial(size: int, cap: int) -> dict[str, Any]:
 if __name__ == "__main__":
     for size, cap in ((128, 64), (1024, 64), (8192, 64), (8192, 3)):
         print(json.dumps(trial(size, cap)), flush=True)
+    print(json.dumps(trial(8192, 128, 64)), flush=True)
+    print(json.dumps(trial(8192, 128, 64, None)), flush=True)
+    print(json.dumps(trial(8192, 64, 2, None)), flush=True)

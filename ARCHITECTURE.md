@@ -230,6 +230,21 @@ it makes no expert invocations or label requests. Indices trade memory for
 less incompatible scanning and do not reduce compatible-tree combinatorics.
 No learned prioritization, semantic pruning or universal speedup is asserted.
 
+`compose_features(index_entries=…)` (§36.63) now bounds prefetched rule-position
+entries for unqueried types. None preserves broad prefetch; zero caches only
+completed queried buckets. Finite budgets prefetch a contiguous whole-rule
+prefix; lookup combines its matches with a filtered suffix of cached contract
+headers. `feature_demand_index_eq` proves faithful completed-cache lookup, and
+`feature_demand_prefix_filter` proves ordered prefix/suffix recombination.
+Neither proves Python index construction or a total byte bound. Headers,
+completed queried buckets and returned models are outside the prefetch budget.
+Finite exhaustive differential tests cover zero, finite and unbounded budgets,
+including capped prefixes and unread library suffixes. CPU and allocation passes
+disable diagnostic read-counter increments; reads are counted separately.
+Measurements show a memory/CPU tradeoff as queried-type diversity grows, so
+the existing broad policy remains the default. Repeated header scans, complete
+resource accounting and useful candidate prioritization remain open.
+
 `EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
 charged draws only after a scored rejection, including unscored final-batch
 cases. It reuses the shared `zero_loss_test` retention path. The explicit
@@ -538,6 +553,7 @@ an inference from their separate tests.
 | [36.60](theory/evidence/36-interface-acquisition.md) | `featureTreeClosure_iff` | `Planning/FeatureClosure` |
 | [36.61](theory/evidence/36-interface-acquisition.md) | `featureApplication_reloaded_eq` | `Planning/FeatureClosure` |
 | [36.62](theory/evidence/36-interface-acquisition.md) | `feature_index_filter` | `Planning/FeatureClosure` |
+| [36.63](theory/evidence/36-interface-acquisition.md) | `feature_demand_index_eq`, `feature_demand_prefix_filter` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

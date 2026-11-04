@@ -42,7 +42,7 @@ class AppliedFeature:
 
 
 def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
-                     max_depth: int, limit: int) -> list[Module]:
+                     max_depth: int, limit: int, index_entries: int | None = None) -> list[Module]:
     """Enumerate seeds and compatible feature trees in breadth-first order.
 
     Depth is maximum transformations on a seed-to-root branch. Seeds share
@@ -56,13 +56,20 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     Branches are not shared at execution. Freeze models before evaluation.
     Repeated library entries remain distinct choices; semantic deduplication
     is not inferred from matching type identifiers or implementations.
-    Lazy type indices preserve supplied order and bounded prefixes (§36.62),
-    reading a rule only when enumeration reaches that library position.
+    Demand-built type indices preserve supplied order and bounded prefixes
+    (§36.62–63), reading a rule only when its library position is reached.
+    ``index_entries`` bounds prefetched rule-position entries for unqueried
+    types. None retains the previous unbounded prefetch policy; zero builds
+    only queried buckets. New types scan headers beyond the prefetched prefix.
+    This trades repeated comparisons for fewer unused entries, not a byte cap
+    on headers, queried buckets or returned models.
     """
     if type(max_depth) is not int or max_depth < 0:
         raise ValueError("feature depth must be a nonnegative integer")
     if type(limit) is not int or limit < 1:
         raise ValueError("feature limit must be a positive integer")
+    if index_entries is not None and (type(index_entries) is not int or index_entries < 0):
+        raise ValueError("index entry budget must be a nonnegative integer or None")
     seeds, transforms = tuple(seeds), tuple(transforms)
     if seeds and any(replace(s.manifest.contract, output=seeds[0].manifest.contract.output)
                      != seeds[0].manifest.contract for s in seeds):
@@ -72,23 +79,42 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     if not max_depth or not frontier or len(result) == limit:
         return result
     rules: dict[TypeId, list[tuple[Module, Contract, int]]] = {}
-    cursor = 0
+    prefetched: dict[TypeId, list[tuple[Module, Contract, int]]] = {}
+    prefix = entries = 0
+    prefetching = True
+    headers: list[Contract | None] = []
 
     def indexed_rules(type_id: TypeId) -> Iterator[tuple[Module, Contract, int]]:
-        nonlocal cursor
-        yield from rules.get(type_id, ())
-        while cursor < len(transforms):
-            transform = transforms[cursor]
-            cursor += 1
-            head = transform.manifest.contract
-            if not head.polymorphic and not head.slots and head.inputs:
-                matches = []
+        nonlocal prefix, entries, prefetching
+        cached = rules.get(type_id)
+        if cached is not None:
+            yield from cached
+            return
+        matches = list(prefetched.get(type_id, ()))
+        yield from matches
+        start = prefix
+        for index in range(start, len(transforms)):
+            transform = transforms[index]
+            if index == len(headers):
+                head = transform.manifest.contract
+                headers.append(head if not head.polymorphic and not head.slots and head.inputs else None)
+                width = len(head.inputs) if headers[-1] is not None else 0
+                if prefetching and (index_entries is None or entries + width <= index_entries):
+                    if headers[-1] is not None:
+                        for position, required in enumerate(head.inputs):
+                            prefetched.setdefault(required, []).append((transform, head, position))
+                    entries += width
+                    prefix = index + 1
+                else:
+                    prefetching = False
+            head = headers[index]
+            if head is not None:
                 for position, required in enumerate(head.inputs):
-                    entry = transform, head, position
-                    rules.setdefault(required, []).append(entry)
                     if required == type_id:
+                        entry = transform, head, position
                         matches.append(entry)
-                yield from matches
+                        yield entry
+        rules[type_id] = matches  # Only a completed bucket may be reused.
     levels = [0] * len(result)
     for depth in range(1, max_depth + 1):
         if len(result) == limit or not frontier:
