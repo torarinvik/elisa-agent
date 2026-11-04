@@ -225,6 +225,55 @@ def test_label_sufficient_noninjective_keys_remove_only_existing_errors() -> Non
                         assert outputs[x] != truth[x] and x // 2 != point // 2
 
 
+def test_target_restriction_preserves_all_small_ordered_feature_trees() -> None:
+    """Finite link to feature_target_reach, strengthened to exact tree order."""
+    from itertools import product
+    from pathlib import Path
+    from runpy import run_path
+
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    baseline = run_path(str(Path(__file__).resolve().parents[1] / "benchmarks" / "feature_search.py"))
+    reference, signature = baseline["compose_unindexed"], baseline["signature"]
+    seeds = [Feature(Contract(("input",), t), lambda x: x) for t in ("a", "b", "d")]
+    rules = [(("a",), "a"), (("a",), "b"), (("a", "a"), "b"),
+             (("b", "a"), "c"), (("c",), "a"), (("d",), "d")]
+    for enabled in product((False, True), repeat=len(rules)):
+        transforms = [Feature(Contract(inputs, output), lambda *xs: xs)
+                      for (inputs, output), use in zip(rules, enabled, strict=True) if use]
+        for depth in range(3):
+            all_trees = reference(seeds, transforms, max_depth=depth, limit=10000)
+            assert len(all_trees) < 10000  # Compare genuinely untruncated searches.
+            for targets in ((), ("a",), ("b",), ("c",), ("absent",), ("a", "c")):
+                expected = [signature(m) for m in all_trees if m.manifest.contract.output in targets]
+                actual = compose_features(seeds, transforms, max_depth=depth,
+                                          limit=10000, targets=targets)
+                assert [signature(m) for m in actual] == expected
+
+
+def test_target_search_counts_intermediates_and_preserves_duplicate_rules() -> None:
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    def forbidden(*values: Any) -> Any:
+        pytest.fail("construction must not execute experts")
+
+    seed = Feature(Contract(("input",), "a"), forbidden)
+    first = Feature(Contract(("a",), "b"), forbidden)
+    last = Feature(Contract(("b",), "c"), forbidden)
+    for cap in (1, 2):
+        assert compose_features([seed], [first, last], max_depth=2,
+                                limit=cap, targets=("c",)) == []
+    assert len(compose_features([seed], [first, last], max_depth=2,
+                                limit=3, targets=("c",))) == 1
+    duplicate = compose_features([seed], [first, first, last], max_depth=2,
+                                 limit=10, targets=("c", "c"), index_entries=0,
+                                 priority=lambda module: 0.0)
+    assert len(duplicate) == 2
+    assert compose_features([seed], [], max_depth=0, limit=1, targets=("a",)) == [seed]
+
+
 def test_feature_chain_search_matches_all_small_typed_graphs() -> None:
     """Differential link to featureClosure_iff, retaining distinct paths."""
     from itertools import product

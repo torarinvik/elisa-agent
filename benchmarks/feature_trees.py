@@ -6,7 +6,9 @@ Run: python benchmarks/feature_trees.py. Domain semantics stay in this benchmark
 from __future__ import annotations
 
 import json
+import argparse
 import random
+import tracemalloc
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import process_time
@@ -274,7 +276,81 @@ def priority_trials(seed: int, policy: str) -> dict[str, float]:
             "cpu_seconds": process_time() - started}
 
 
+class TargetTransform:
+    def __init__(self, name: str, inputs: tuple[str, ...], output: str) -> None:
+        self._manifest = Manifest(name, "1", Contract(inputs, output), cost=1, effects=frozenset())
+        self.reads = self.calls = 0
+
+    @property
+    def manifest(self) -> Manifest:
+        self.reads += 1
+        return self._manifest
+
+    def invoke(self, *values: Any) -> Any:
+        self.calls += 1
+        return values[0] if len(values) == 1 else tuple(values)
+
+
+def target_trial(seed: int, policy: str, decoys: int) -> dict[str, float]:
+    """Charge metadata, search memory and fresh certification on one task.
+
+    The output type is supplied, not discovered. Irrelevant alternatives share
+    one type and form many distinct paths; no semantic deduplication is assumed.
+    """
+    heads = [TargetTransform(f"decoy-{i}", ("first",), "unused") for i in range(decoys)]
+    heads += [TargetTransform(f"loop-{i}", ("unused",), "unused") for i in range(decoys)]
+    heads += [TargetTransform("join", ("first", "second"), "joint")]
+    components = [Component(0), Component(1)]
+    started = process_time()
+    tracemalloc.start()
+    pool = compose_features(components, heads, max_depth=2,
+                            limit=5000 if policy == "wide" else 16,
+                            targets=("joint",) if policy == "targeted" else None)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    construction_cpu = process_time() - started
+    construction_calls = sum(h.calls for h in heads) + sum(c.calls for c in components)
+    features = [f for f in pool if f.manifest.contract.output == "joint"]
+    targets = random.Random(seed).sample(range(16), 16)
+    inputs = [(f"a:{a}", f"b:{b}", 0) for a in range(4) for b in range(4)]
+    labels = [f"label:{value}" for value in targets]
+    models = [Decoded(feature, fit_decoder(Contract(("joint",), "label"),
+                                          [feature.invoke(value) for value in inputs], labels, cost=0),
+                      Base.manifest.contract) for feature in features]
+    search = EnsembleSearch(counts=(1,), tolerance=0.05, confidence=0.05, budget=8)
+    rng = random.Random(seed + 110000)
+
+    def sample(count: int) -> list[VoteCase]:
+        cases = []
+        for _ in range(count):
+            i = rng.randrange(16)
+            value = (*inputs[i][:2], rng.getrandbits(64))
+            cases.append(((Message("sample", value, "input"),), labels[i]))
+        return cases
+
+    result = search.revise(Base.manifest.contract,
+        lambda cap, failures: None if not models else (Apply(models[0], (Given("sample"),)),), sample)
+    errors = sum((models[0].invoke(value) if models else "unlearned") != label
+                 for value, label in zip(inputs, labels, strict=True))
+    return {"requests": search.requests, "fits": len(models), "training_labels": len(labels),
+            "validation_labels": search.labels, "audit_labels": len(inputs), "audit_errors": errors,
+            "certified_tasks": int(result is not None), "returned_features": len(pool),
+            "target_features": len(features), "metadata_reads": sum(h.reads for h in heads),
+            "construction_expert_calls": construction_calls, "peak_search_bytes": peak,
+            "construction_cpu_seconds": construction_cpu, "cpu_seconds": process_time() - started}
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--targeted", action="store_true")
+    args = parser.parse_args()
+    if args.targeted:
+        for decoys in (0, 64):
+            for policy in ("narrow", "wide", "targeted"):
+                for seed in (3716, 3717, 3718):
+                    print(json.dumps({"policy": policy, "decoys": decoys, "seed": seed,
+                                      **target_trial(seed, policy, decoys)}), flush=True)
+        raise SystemExit
     for multi in (False, True):
         for seed in (3716, 3717, 3718):
             print(json.dumps({"multi": multi, "seed": seed, **trial(seed, multi)}), flush=True)

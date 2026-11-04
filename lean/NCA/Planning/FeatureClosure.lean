@@ -144,4 +144,28 @@ theorem configuredExport_reloaded_eq {C A D X O : Type*}
     exact faithful
   rw [settings, same]
 
+/-- Restricting to a dependency-closed set preserves every bounded derivation
+whose root is in that set. All antecedents of a relevant rule must remain;
+one-input reachability is insufficient for multi-input feature trees. -/
+theorem feature_target_reach {α : Type*} [DecidableEq α] (seeds allowed : Finset α)
+    (rules : Finset (List α × α))
+    (closed : ∀ r ∈ rules, r.2 ∈ allowed → ∀ a ∈ r.1, a ∈ allowed)
+    (n : ℕ) (x : α) (hx : x ∈ allowed) :
+    featureTreeReach (seeds ∩ allowed) (rules.filter fun r => r.2 ∈ allowed) n x ↔
+      featureTreeReach seeds rules n x := by
+  induction n generalizing x with
+  | zero => simp [featureTreeReach, hx]
+  | succ n ih =>
+    simp only [featureTreeReach, Finset.mem_inter, Finset.mem_filter]
+    constructor
+    · rintro (⟨hs, _⟩ | ⟨r, ⟨hr, ha⟩, he, children⟩)
+      · exact Or.inl hs
+      · exact Or.inr ⟨r, hr, he, fun a h =>
+          (ih a (closed r hr ha a h)).mp (children a h)⟩
+    · rintro (hs | ⟨r, hr, he, children⟩)
+      · exact Or.inl ⟨hs, hx⟩
+      · have ha : r.2 ∈ allowed := he ▸ hx
+        exact Or.inr ⟨r, ⟨hr, ha⟩, he, fun a h =>
+          (ih a (closed r hr ha a h)).mpr (children a h)⟩
+
 end NCA

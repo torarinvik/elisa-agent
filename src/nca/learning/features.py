@@ -1,5 +1,6 @@
 """Bounded construction of feature trees from public typed experts (§36.59–60)."""
 
+from collections import deque
 from collections.abc import Callable, Iterator, Sequence
 from array import array
 from dataclasses import replace
@@ -47,9 +48,32 @@ class AppliedFeature:
         return invoke_scoped(self.transform, *(invoke_scoped(feature, *inputs) for feature in self.features))
 
 
+def _target_library(seeds: tuple[Module, ...], transforms: tuple[Module, ...],
+                    targets: frozenset[TypeId]) -> tuple[tuple[Module, ...], tuple[Module, ...]]:
+    """Backward dependency cone; all alternatives and ordered inputs remain."""
+    by_output: dict[TypeId, list[Contract]] = {}
+    eligible = []
+    for transform in transforms:
+        head = transform.manifest.contract
+        if not head.polymorphic and not head.slots and head.inputs:
+            by_output.setdefault(head.output, []).append(head)
+            eligible.append((transform, head))
+    allowed = set(targets)
+    pending = deque(targets)
+    while pending:
+        for head in by_output.get(pending.popleft(), ()):
+            for type_id in head.inputs:
+                if type_id not in allowed:
+                    allowed.add(type_id)
+                    pending.append(type_id)
+    return (tuple(seed for seed in seeds if seed.manifest.contract.output in allowed),
+            tuple(transform for transform, head in eligible if head.output in allowed))
+
+
 def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
                      max_depth: int, limit: int, index_entries: int | None = None,
-                     priority: Callable[[Module], float] | None = None) -> list[Module]:
+                     priority: Callable[[Module], float] | None = None,
+                     targets: Sequence[TypeId] | None = None) -> list[Module]:
     """Enumerate seeds and compatible feature trees in breadth-first order.
 
     Depth is maximum transformations on a seed-to-root branch. Seeds share
@@ -77,6 +101,11 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     construction; its compute and training evidence belong to the caller.
     Scorers must not mutate models or use future certification draws. It changes
     bounded prefixes, never invents rules, and implies no semantic calibration.
+    Optional ``targets`` returns only features of those output types, pruning
+    seeds and rules outside their backward dependency cone (§36.67). Every
+    retained intermediate still counts against ``limit``. This eager metadata
+    pass preserves untruncated target trees, not completeness under a cap or
+    semantic usefulness. It may cost more when the library is already relevant.
     """
     if type(max_depth) is not int or max_depth < 0:
         raise ValueError("feature depth must be a nonnegative integer")
@@ -88,10 +117,20 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     if seeds and any(replace(s.manifest.contract, output=seeds[0].manifest.contract.output)
                      != seeds[0].manifest.contract for s in seeds):
         raise ValueError("feature seeds must share external inputs, slots and relevance")
+    requested = None if targets is None else frozenset(targets)
+    if requested is not None:
+        if not requested:
+            return []
+        seeds, transforms = _target_library(seeds, transforms, requested)
     frontier = list(seeds[:limit])
     result = frontier.copy()
+
+    def selected() -> list[Module]:
+        return result if requested is None else [
+            feature for feature in result if feature.manifest.contract.output in requested]
+
     if not max_depth or not frontier or len(result) == limit:
-        return result
+        return selected()
     if priority is not None:
         scored = []
         for transform in transforms:
@@ -185,6 +224,6 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
                     levels.append(depth)
                     following.append(candidate)
                     if len(result) == limit:
-                        return result
+                        return selected()
         frontier = following
-    return result
+    return selected()

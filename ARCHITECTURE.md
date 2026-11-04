@@ -204,6 +204,22 @@ not proved for the Python implementation. Higher-order/polymorphic transformatio
 search and practical large-library enumeration remain open; no universal
 learning gain is claimed.
 
+`compose_features(targets=…)` (§36.67) optionally computes the backward
+dependency cone of supplied output types before construction. All alternatives
+and antecedents remain, including repeated positions and cycles. Irrelevant
+seeds and rules are removed; only requested output features are returned, but
+every constructed intermediate still consumes the candidate cap. The Lean
+`feature_target_reach` theorem preserves bounded root-type reachability under
+dependency closure. Exhaustive tests compare exact ordered trees against the
+unindexed reference in 1,152 small-library/depth/target contexts. The actual
+closure algorithm, contract fidelity and tree enumeration remain executable
+boundaries, not end-to-end proofs. The `feature_trees.py --targeted` experiment
+measures metadata, traced allocation, construction time, fitting and fresh
+certification. Supplied target types are not learned semantics; all-relevant
+libraries still pay the eager inspection cost, and capped completeness is not
+claimed. Elisa continues to accelerate packed rule lookup; opaque metadata
+indexing remains host orchestration.
+
 Multi-input applications now participate in shared graph retention (§36.61).
 `nca/application@1` restores a head and ordered feature bindings, including
 repeated references. `AppliedFeature` recomputes contract/effect/cost/call
@@ -603,6 +619,7 @@ an inference from their separate tests.
 | [36.63](theory/evidence/36-interface-acquisition.md) | `feature_demand_index_eq`, `feature_demand_prefix_filter` | `Planning/FeatureClosure` |
 | [36.64](theory/evidence/36-interface-acquisition.md) | `feature_coarse_filter` | `Planning/FeatureClosure` |
 | [36.65](theory/evidence/36-interface-acquisition.md) | `feature_priority_closure` | `Planning/FeatureClosure` |
+| [36.67](theory/evidence/36-interface-acquisition.md) | `feature_target_reach` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

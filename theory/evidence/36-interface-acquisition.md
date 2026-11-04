@@ -243,3 +243,31 @@ member restoration. Matching type signatures alone is insufficient. Omitting
 settings can change which route is selected, whether execution has enough
 resources, or which request is issued. No mutable state snapshot, filesystem
 atomicity, or statistical certificate preservation follows from this theorem.
+
+## 36.67 Target-directed feature construction
+
+Let S be seed types, R ordered positive-arity ground transformation rules, and
+T requested output types. Starting from T, repeatedly include all antecedents
+of every rule whose output is included. The resulting dependency cone A contains
+T and is closed under those antecedents. Rules may contain repeated inputs,
+cycles and multiple alternatives for the same output.
+
+**Theorem 36.67 (target restriction).** For every x in A and every depth n,
+x is derivable from S using R within n transformations along a branch if and
+only if it is derivable from S ∩ A using only rules whose output is in A.
+In particular, restriction preserves every bounded target derivation.
+
+*Proof.* Induct on depth. A leaf of allowed type belongs to S precisely when
+it belongs to S ∩ A. For a rule with allowed output, closure puts every child
+type in A; apply the induction hypothesis to every ordered child. Conversely,
+each retained seed and rule was in the original library. ∎
+
+The same structural induction preserves individual trees, not merely reachable
+types: no relevant rule occurrence or ordered branch is removed. Closure is
+only a necessary-condition filter. It does not establish that all inputs are
+producible or that any transformation is semantically useful. A candidate cap
+still bounds every retained intermediate tree as well as target trees, and
+can exclude a useful target. Target restriction can change capped prefixes;
+no capped completeness is asserted. Dependency inspection costs metadata reads
+and storage; when most of the library is relevant it need not save work.
+Higher-order and polymorphic rules require a separate search model.
