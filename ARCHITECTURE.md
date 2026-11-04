@@ -593,6 +593,7 @@ an inference from their separate tests.
 | [33.2](theory/reliability/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
 | [33.4](theory/reliability/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
 | [33.5](theory/reliability/33-per-input-risk.md) | `inside_ledger_no_cache`, `inside_replay_charge`, `erased_accounting_underreports` | `Reliability/Selective` |
+| [33.6](theory/reliability/33-per-input-risk.md) | `ledger_fold_upper` | `Reliability/Selective` |
 | [34.2](theory/foundations/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
 | [34.3](theory/foundations/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
 | [34.4](theory/foundations/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
@@ -2185,6 +2186,24 @@ when the marker is erased. They do not verify full runtime execution or report
 calibration. The synthetic benchmark reproduces the former erased boundary as
 a reference only. Cooperative reporting, fixed implementations, complete effect
 attribution and failure atomicity remain separate obligations.
+
+Ledger reports now require finite nonnegative supported real scalars (§33.5).
+Boolean, non-real, negative and nonfinite reports fail before their contribution
+is recorded; missing reports retain the existing uncertified behavior. Scalar
+conversion rounds upward when needed, including exact rational inputs. Initial
+charges are validated too; an infinite initial or overflowed accumulator is an
+exhausted upper bound. Positive finite report bounds above one are not clipped.
+`native.stats.nonnegative_add_upper` uses strict-FP FastTwoSum residual checking
+and advances only downward-rounded sums. The Python fallback follows the same
+rule, including when an older optional stats extension lacks the new export.
+`ledger_fold_upper` proves the real fold invariant assuming a non-understating
+adder and nonnegative inputs. It does not prove compiled IEEE behavior; tests
+compare native/fallback additions with exact rational sums across subnormals,
+normal/subnormal boundaries, random finite bit patterns and overflow, then exercise
+actual interpreted/compiled budget gates. The kernel/IEEE assumptions, truthful
+calibration, accumulated overconservatism and transaction safety remain open
+boundaries. These checks prevent malformed or rounded-down charges, not false
+but numerically well-formed reports from dishonest experts.
 
 `runtime.ledger` owns invocation records, risk charges and the single context
 variable shared by interpreted and compiled execution. The `runtime` package

@@ -4,10 +4,48 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+import math
+from numbers import Real
 from typing import Any
 
 from nca.abi import NOTHING, Demand, Module
 from nca.effects import effect_call
+from nca.native import load
+
+_ADD_UPPER = getattr(load("stats"), "nonnegative_add_upper", None)
+
+
+def _report_upper(value: Any, *, allow_infinite: bool = False) -> float:
+    """Normalize supported real scalars without rounding a report downward."""
+    if isinstance(value, bool) or not isinstance(value, Real) or value < 0:
+        raise ValueError("risk reports must be finite nonnegative real scalars")
+    try:
+        result = float(value)
+    except (OverflowError, ValueError) as error:
+        raise ValueError("risk report exceeds finite binary64 range") from error
+    if value > result:
+        result = math.nextafter(result, math.inf)
+    if not math.isfinite(result) and not (allow_infinite and result == math.inf):
+        raise ValueError("risk reports must be finite nonnegative real scalars")
+    return result
+
+
+def _add_upper(a: float, b: float) -> float:
+    """Upper binary64 sum using FastTwoSum's residual under strict IEEE FP."""
+    if a < 0 or b < 0 or math.isnan(a) or math.isnan(b):
+        raise ValueError("risk ledger operands must be nonnegative")
+    if a == 0:
+        return b
+    if b == 0 or math.isinf(a):
+        return a
+    if _ADD_UPPER is not None:
+        return _ADD_UPPER(a, b)
+    larger, smaller = (a, b) if a >= b else (b, a)
+    total = larger + smaller
+    if math.isinf(total):
+        return total
+    residual = smaller - (total - larger)
+    return math.nextafter(total, math.inf) if residual > 0 else total
 
 
 def _never(module: Module) -> bool:
@@ -40,6 +78,9 @@ class RiskLedger:
     invocations: list[Invocation] = field(default_factory=list)
     """Each charged invocation as audits sample it (§38)."""
 
+    def __post_init__(self) -> None:
+        self.charge = _report_upper(self.charge, allow_infinite=True)
+
     @property
     def certified(self) -> bool:
         return not self.uncertified
@@ -57,7 +98,8 @@ def charge(ledger: RiskLedger | None, module: Module, payload: Any, decision: De
     reported = (None if report is None else
                 effect_call(module.manifest.effects, report, payload, *values))
     if reported is not None:
-        ledger.charge += reported
+        reported = _report_upper(reported)
+        ledger.charge = _add_upper(ledger.charge, reported)
         ledger.entries.append((module, tuple(values), reported))
         answering = getattr(module, "answering", None)
         expert = (module if answering is None else

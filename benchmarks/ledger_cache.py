@@ -7,6 +7,8 @@ loaders reject a declaration that differs from the loaded implementation.
 from __future__ import annotations
 
 import json
+import math
+from fractions import Fraction
 from time import process_time
 from typing import Any
 
@@ -16,6 +18,8 @@ from nca.compile import compile_route
 from nca.loader import ExpertStore, LazyExpert
 from nca.planner import Apply, Given
 from nca.runtime import RiskLedger, execute
+from nca.runtime import ledger as accounting
+from nca.native import load
 from nca.workspace import Workspace
 
 
@@ -88,7 +92,62 @@ def trial(policy: str, compiled: bool, calls: int = 100, report: float = 0.25) -
             "cpu_seconds": process_time() - started}
 
 
+def numeric_trial(policy: str, repeats: int = 100) -> dict[str, Any]:
+    """Compare admission arithmetic with identical report-record bookkeeping."""
+    tight = (0.01,) * 50
+    tight_sum = sum(map(Fraction, tight), Fraction())
+    tight_budget = float(tight_sum)
+    if Fraction(tight_budget) < tight_sum:
+        tight_budget = math.nextafter(tight_budget, math.inf)
+    cases = [((0.5, 2.0 ** -54), 0.5), ((0.5, *((2.0 ** -60,) * 64)), 0.5),
+             ((0.25, 0.25), 0.5), (tight, tight_budget),
+             ((-0.5,), 0.0), ((math.nan,), 0.0), ((math.inf,), 0.0)]
+    cases = [(tuple(Reported(r) for r in values), budget,
+              all(math.isfinite(r) and r >= 0 for r in values),
+              sum(map(Fraction, values), Fraction()) if all(math.isfinite(r) for r in values) else None)
+             for values, budget in cases]
+    report_fn, add_fn, kernel = accounting._report_upper, accounting._add_upper, accounting._ADD_UPPER
+    requested = getattr(load("stats"), "nonnegative_add_upper", None)
+    if policy == "elisa" and requested is None:
+        raise RuntimeError("native upward adder is unavailable")
+    started = process_time()
+    rejected = undercounts = bad_grants = extra_abstentions = requests = 0
+    try:
+        if policy == "legacy-reference":
+            accounting._report_upper = lambda value, **kwargs: value
+            accounting._add_upper = lambda a, b: a + b
+        else:
+            accounting._ADD_UPPER = requested if policy == "elisa" else None
+        for _ in range(repeats):
+            for modules, budget, valid, exact in cases:
+                ledger = RiskLedger()
+                try:
+                    for module in modules:
+                        requests += 1
+                        accounting.charge(ledger, module, 7, None, [7])
+                except ValueError:
+                    assert not valid
+                    rejected += 1
+                    continue
+                granted = ledger.certified and ledger.charge <= budget
+                if not valid:
+                    bad_grants += granted
+                    continue
+                undercounts += Fraction(ledger.charge) < exact
+                bad_grants += granted and exact > Fraction(budget)
+                extra_abstentions += not granted and exact <= Fraction(budget)
+    finally:
+        accounting._report_upper, accounting._add_upper, accounting._ADD_UPPER = report_fn, add_fn, kernel
+    return {"policy": policy, "cases": repeats * len(cases), "report_requests": requests,
+            "invalid_rejected": rejected, "understated_valid_cases": undercounts,
+            "invalid_or_understated_grants": bad_grants, "extra_abstentions": extra_abstentions,
+            "labels": 0, "acquisition_requests": 0, "cpu_seconds": process_time() - started}
+
+
 if __name__ == "__main__":
     for compiled in (False, True):
         for policy in ("direct", "erased-reference", "declared-lazy"):
             print(json.dumps(trial(policy, compiled)), flush=True)
+    for policy in ("legacy-reference", "python", "elisa"):
+        if policy != "elisa" or getattr(load("stats"), "nonnegative_add_upper", None) is not None:
+            print(json.dumps(numeric_trial(policy)), flush=True)

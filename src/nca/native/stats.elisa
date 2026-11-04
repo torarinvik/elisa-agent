@@ -177,7 +177,23 @@ def poisson_binomial_pmf(probabilities: view[f64], complements: view[f64]) -> da
         pmf[k] <- 0.0 if k < certain else pmf[k - certain]
     return pmf
 
+# Uncapped upward addition for nonnegative risk-account contributions.
+# FastTwoSum detects only downward rounding; exact sums retain their value.
+def nonnegative_add_upper(a: f64, b: f64) -> f64:
+    infinity: f64 = -log(0.0)
+    return log(-1.0) if a != a or b != b or a < 0.0 or b < 0.0
+    return b if a == 0.0
+    return a if b == 0.0
+    return infinity if a == infinity or b == infinity
+    larger: f64 = a if a >= b else b
+    smaller: f64 = b if a >= b else a
+    total: f64 = larger + smaller
+    return total if total == infinity
+    residual: f64 = smaller - (total - larger)
+    return nextafter(total, infinity) if residual > 0.0 else total
+
 export pymodule stats:
+    fn nonnegative_add_upper
     fn poisson_binomial_pmf
     fn poisson_binomial_upper
     fn pair_risk_upper

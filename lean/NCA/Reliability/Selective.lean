@@ -544,4 +544,22 @@ theorem erased_accounting_underreports (inner : ℝ) (positive : 0 < inner) :
       replayLedgerCharge true true true inner 0 := by
   simpa [replayLedgerCharge] using positive
 
+/-- A non-understating addition rule keeps the whole nonnegative report sum
+below the accumulated charge. IEEE implementation fidelity is a hypothesis. -/
+theorem ledger_fold_upper (add : ℝ → ℝ → ℝ)
+    (safe : ∀ a b, 0 ≤ a → 0 ≤ b → a + b ≤ add a b)
+    (reports : List ℝ) (initial : ℝ) (hi : 0 ≤ initial)
+    (valid : ∀ r ∈ reports, 0 ≤ r) :
+    initial + reports.sum ≤ reports.foldl add initial := by
+  induction reports generalizing initial with
+  | nil => simp
+  | cons r tail ih =>
+    have hr : 0 ≤ r := valid r (by simp)
+    have ht : ∀ x ∈ tail, 0 ≤ x := fun x hx => valid x (by simp [hx])
+    have step := safe initial r hi hr
+    have positive : 0 ≤ add initial r := (add_nonneg hi hr).trans step
+    have rest := ih (initial := add initial r) positive ht
+    simp only [List.sum_cons, List.foldl_cons]
+    linarith
+
 end NCA

@@ -103,3 +103,26 @@ a dishonest implementation can omit internal reports. The theorem does not
 prove faithful execution, calibration, effect attribution or transaction
 atomicity. Cached values may still be reused without a ledger; enabling a
 ledger must bypass that value-only reuse for internally accounted experts.
+
+## 33.5 Valid reports and conservative accumulation
+
+Reports must be finite nonnegative real bounds. Missing reports are a separate
+uncertified state; negative and non-real reports cannot cancel other charges.
+For nonnegative reports r₁,…,rₙ and initial charge c₀≥0, use an operation A
+with A(a,b)≥a+b for nonnegative operands, defining cᵢ₊₁=A(cᵢ,rᵢ₊₁).
+
+**Theorem 33.6 (conservative ledger fold).** The resulting charge satisfies
+cₙ≥c₀+Σrᵢ. Thus numeric accumulation cannot turn a report sum above a given
+budget into an accumulated charge below that budget.
+
+*Proof.* Each step bounds the preceding charge plus the next report. Induction
+and nonnegativity preserve that bound through the fold. ∎
+
+Floating-point implementations must earn the operation hypothesis. With strict
+binary64 round-to-nearest arithmetic, gradual underflow and no reassociation,
+FastTwoSum's residual detects downward rounding of a nonnegative finite sum.
+Moving that result to its next representable value upward gives an upper sum;
+already exact or upward-rounded sums need no padding. Overflow gives an infinite
+upper bound. Converting supported input scalars must also round upward when
+necessary. This argument assumes the IEEE operations and faithful lowering;
+it is not a proof of a compiled kernel or report calibration.
