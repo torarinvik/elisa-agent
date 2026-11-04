@@ -236,6 +236,21 @@ conversion, fitting and independent certification. Scores are training-only
 evidence, not semantic or generalization certificates; supervision and candidate
 enumeration remain separate costs.
 
+`Decoded.invoke` now evaluates recognized unary source spines with explicit
+continuations (§36.69), through `learning.evaluation.invoke_unary`. Each source's
+scope is entered before descent and restored before its parent's head; cleanup
+restores pending contexts on failure. Identical active scopes reuse the same
+`same_effect_scope` predicate as ordinary `effect_call`. Exact structural nodes
+are unfolded; subclass and instance overrides retain ordinary dispatch, and
+cyclic spines are refused. `unary_continuation_eq` proves value/order equivalence
+of the reversed-head fold and recursive composition, not runtime effect
+equivalence. Exhaustive small chains, 1,500-node execution, 1,100 changing
+declarations, denial/cleanup and override tests link the interpreter. Host
+metadata and context-manager fidelity remain trusted. Stack storage is linear;
+heads, opaque experts, branching graphs and other execution paths may still
+recurse. `feature_trees.py --unary-depth` measures completed work and CPU without
+changing the host recursion limit or consuming labels.
+
 Multi-input applications now participate in shared graph retention (§36.61).
 `nca/application@1` restores a head and ordered feature bindings, including
 repeated references. `AppliedFeature` recomputes contract/effect/cost/call
@@ -638,6 +653,7 @@ an inference from their separate tests.
 | [36.65](theory/evidence/36-interface-acquisition.md) | `feature_priority_closure` | `Planning/FeatureClosure` |
 | [36.67](theory/evidence/36-interface-acquisition.md) | `feature_target_reach` | `Planning/FeatureClosure` |
 | [36.68](theory/evidence/36-interface-acquisition.md) | `empiricalModalScore_counts`, `empiricalModalScore_perm`, `empirical_identifier_count` | `Reliability/Acquire` |
+| [36.69](theory/evidence/36-interface-acquisition.md) | `unary_continuation_eq` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

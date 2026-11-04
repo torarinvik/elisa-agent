@@ -302,3 +302,30 @@ identifier storage and sorting work can exceed direct histogram costs on small
 samples. Frozen observations, stable equality/hashing, training-only selection
 and independent certification remain required. No particular category or task
 semantics is part of the score.
+
+## 36.69 Unary composition continuations
+
+Represent a finite unary composition by a leaf operation and heads ordered from
+outermost to innermost. Recursive interpretation first evaluates the leaf, then
+applies the innermost head and proceeds outward. An explicit continuation stack
+records those same heads while descending, then pops them after the leaf returns.
+
+**Theorem 36.69 (unary continuation equivalence).** For arbitrary unary functions
+h₁,…,hₙ on a carrier and a leaf result x, the recursive composition
+h₁(h₂(…hₙ(x))) equals folding function application over the reversed head list
+starting at x. Each head occurs once and in the same order, without a recursive
+host call per composition node.
+
+*Proof.* For an empty list both interpretations return x. Reversing a nonempty
+list places its outermost head last. Apply the induction hypothesis to the tail,
+then apply that last head. ∎
+
+The carrier may contain arbitrary tagged intermediate values; no common domain
+meaning is required. To preserve effects and failures as well as values, the
+interpreter must enter each child scope before inspecting/evaluating that child,
+restore that scope before invoking its parent's head, and restore every remaining
+scope on failure. The value identity alone does not prove these runtime details.
+Only recognized structural compositions may be unfolded; opaque implementations
+and overrides retain normal invocation. Terminating finite wiring, faithful
+metadata and context restoration are assumptions. Stack storage grows linearly;
+leaf operations, other graph kinds and deferred computations can still recurse.

@@ -168,4 +168,14 @@ theorem feature_target_reach {α : Type*} [DecidableEq α] (seeds allowed : Fins
         exact Or.inr ⟨r, ⟨hr, ha⟩, he, fun a h =>
           (ih a (closed r hr ha a h)).mpr (children a h)⟩
 
+/-- Outermost-first recursive heads equal an innermost-first continuation fold.
+The carrier can encode arbitrary heterogeneous intermediate values. Effects,
+exceptions and executable scope restoration are separate obligations. -/
+theorem unary_continuation_eq {V : Type*} (heads : List (V → V)) (value : V) :
+    heads.reverse.foldl (fun result head => head result) value =
+      heads.foldr (fun head result => head result) value := by
+  induction heads with
+  | nil => rfl
+  | cons head rest ih => simp [List.reverse_cons, List.foldl_append, ih]
+
 end NCA

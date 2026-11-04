@@ -23,6 +23,7 @@ from nca.learning import categorical
 from nca.learning.interfaces import propose_joint_refinements
 from nca.learning.discovery import Proposal
 from nca.native import load
+from nca.effects import effect_call, invoke_scoped
 from nca.planner import Apply, Given, Plan
 from nca.objects import Primitive, Store
 from nca.packages import install
@@ -405,11 +406,48 @@ def categorical_trial(seed: int, policy: str, size: int) -> dict[str, float]:
         categorical._NATIVE = previous
 
 
+def recursive_decoded(module: Module, *values: Any) -> Any:
+    """Previous recursive source-spine interpreter, with the same declarations."""
+    if type(module) is Decoded:
+        return invoke_scoped(module.decoder, effect_call(module.feature.manifest.effects,
+                                                        recursive_decoded, module.feature, *values))
+    return module.invoke(*values)
+
+
+def unary_depth_trial(depth: int, iterative: bool) -> dict[str, float]:
+    leaf = CategoryFeature(0)
+    head = TargetTransform("identity", ("part-0",), "part-0")
+    chain: Module = leaf
+    for _ in range(depth):
+        chain = Decoded(chain, head, leaf.manifest.contract)
+    successes = failures = 0
+    started = process_time()
+    for _ in range(20):
+        try:
+            result = (invoke_scoped(chain, (7,)) if iterative else
+                      effect_call(chain.manifest.effects, recursive_decoded, chain, (7,)))
+            assert result == 7
+            successes += 1
+        except RecursionError:
+            failures += 1
+    return {"requests": 20, "labels": 0, "fits": 0, "successes": successes,
+            "recursion_failures": failures, "leaf_calls": leaf.calls, "head_calls": head.calls,
+            "cpu_seconds": process_time() - started}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--targeted", action="store_true")
     parser.add_argument("--categorical", action="store_true")
+    parser.add_argument("--unary-depth", action="store_true")
     args = parser.parse_args()
+    if args.unary_depth:
+        for depth in (8, 1500):
+            for iterative in (False, True):
+                for repeat in range(3):
+                    print(json.dumps({"depth": depth, "iterative": iterative, "repeat": repeat,
+                                      **unary_depth_trial(depth, iterative)}), flush=True)
+        raise SystemExit
     if args.categorical:
         for size in (64, 4096, 65536):
             for policy in ("python", "elisa"):

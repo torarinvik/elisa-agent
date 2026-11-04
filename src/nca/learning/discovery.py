@@ -12,6 +12,7 @@ from typing import Any
 
 from nca.abi import Calls, Contract, Manifest, Module
 from nca.effects import invoke_scoped
+from nca.learning.evaluation import invoke_unary
 from nca.objects import (Constructor, Json, Primitive, Ref, Store, canonical,
                          contract_data, contract_from, digest)
 from nca.packages import install
@@ -126,7 +127,8 @@ class Decoded:
                                 cost=feature.manifest.cost + decoder.manifest.cost, effects=effects)
 
     def invoke(self, *inputs: Any) -> Any:
-        return invoke_scoped(self.decoder, invoke_scoped(self.feature, *inputs))
+        return invoke_unary(self, inputs, lambda m: (m.feature, m.decoder)
+                            if m is self or type(m) is Decoded and "invoke" not in m.__dict__ else None)
 
 
 def _total_calls(manifests: Sequence[Manifest], expected: bool = False) -> tuple[Calls, ...]:

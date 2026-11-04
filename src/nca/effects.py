@@ -72,10 +72,15 @@ def expert_scope(declared: frozenset[str] | None) -> Iterator[None]:
         _DECLARED.reset(token)
 
 
+def same_effect_scope(declared: frozenset[str] | None) -> bool:
+    """Whether a callback can reuse the current declaration and grant unchanged."""
+    granted = _GRANTED.get()
+    return _DECLARED.get() == declared and (granted is None or granted == declared)
+
+
 def effect_call(declared: frozenset[str] | None, callback: Callable[..., T], *args: Any) -> T:
     """Run one expert callback with its own declaration and attenuated grants."""
-    granted = _GRANTED.get()
-    if _DECLARED.get() == declared and (granted is None or granted == declared):
+    if same_effect_scope(declared):
         check_effects(declared)
         return callback(*args)
     with expert_scope(declared):
