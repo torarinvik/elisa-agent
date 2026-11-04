@@ -395,3 +395,37 @@ Theorem 20.11 is the case `|A| = 1`. Candidates are the sets of at most `n`
 producible types with each target from which the goal is derivable; there are
 `O(|P|ⁿ)` of them for `|P|` producible types, so the arity bound is a
 resource limit stated by the caller, not a limit of the theory.
+
+**Screening impossible contracts.** Let a case be `(x,y)`, and let `a(z,y)`
+denote agreement. An input key must identify inputs on which every predictor
+under consideration gives the same output. A separation predicate `s(y,y′)`
+must imply that no output agrees with both labels. These are semantic
+assumptions: unequal labels need not be separated under approximate agreement.
+The predictor is deterministic in its declared inputs; relevant state must
+therefore be included in those inputs.
+
+**Theorem 20.16 (contradiction screen).** From `n` cases choose `c` disjoint
+pairs, each with equal input keys and separated labels. Every compatible
+predictor makes at least `c` errors on those cases. If a fixed compatible
+predictor of population error at most `ε` exists, and the cases are fresh
+independent draws, rejecting when `c ≥ r` has probability at most
+`binom(n,r) εʳ`. Consequently, choosing `r` before inspecting the cases so
+that this quantity is at most `η/((k+1)(k+2))` bounds the probability of any
+false discard over any finite number of screens by `η`. If no such threshold
+exists, the screen is inconclusive.
+
+*Proof.* Each pair forces an error at one endpoint; disjointness makes these
+errors distinct. If `r` errors occur, some `r`-subset of the original cases
+are all errors. Each subset has probability at most `εʳ`; a union bound over
+the `binom(n,r)` subsets proves the per-screen bound. The spending levels sum
+to at most `η`. For adaptive requests these sampling and existence assumptions
+must hold conditional on the history before each screen. The witness
+predictor may depend on that history, but not on the new cases. Selected pairs
+need not be independent. ∎
+
+A passing prefix establishes no learnability guarantee. It may be reused for
+training, but final admission still requires fresh certification cases under
+Theorem 20.14. False discard and false admission have separate budgets `η`
+and `δ`; their union has probability at most `η + δ`. Statistical refusal is
+not a permanent impossibility proof for other distributions, agreement rules,
+state representations or predictor classes.

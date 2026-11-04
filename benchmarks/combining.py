@@ -6,8 +6,9 @@ goal types carry (u + v) mod 16 under private codes. A task gives one u-type
 and one v-type and asks for a goal type. Connectors are acquired through
 ``planner.gaps.repair`` with ``retention.acquisition.CertifiedAcquirer`` over a
 lookup table on input tuples: no expert reading one input can be certified.
-``unary`` allows one-input gaps only; ``binary`` allows two inputs. Measures
-served fraction, accuracy on all value pairs, requests and labels per task.
+``unary`` allows one-input gaps only; ``binary`` allows two inputs. Their
+``_screen`` variants check a 64-case prefix before fitting. Measures served
+fraction, accuracy on all value pairs, requests, labels, fits and CPU time.
 Run: python benchmarks/combining.py.
 """
 
@@ -17,6 +18,7 @@ import argparse
 import json
 import random
 import statistics
+import time
 from collections.abc import Hashable, Sequence
 from typing import Any
 
@@ -24,6 +26,7 @@ from nca.abi import Contract, Manifest, Message, Module
 from nca.planner import plan
 from nca.planner.gaps import repair
 from nca.retention.acquisition import CertifiedAcquirer
+from nca.retention.screening import FeasibilityScreen
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -45,6 +48,14 @@ def fit(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]
     return Table(contract, dict(zip(keys, labels, strict=True)))
 
 
+def input_key(value: Any) -> Hashable:
+    return value
+
+
+def separates(a: Any, b: Any) -> bool:
+    return bool(a != b)
+
+
 class Exact:
     def __init__(self, source: str, target: str, table: dict[Any, Any]) -> None:
         self.table = table
@@ -57,6 +68,10 @@ class Exact:
 
 def run(policy: str, seed: int) -> dict[str, float]:
     rng = random.Random(seed)
+    draws = random.Random(seed + 100000)
+    tasks = random.Random(seed + 200000)
+    started = time.process_time()
+    fits = 0
     meaning: dict[str, str] = {}
     codes: dict[str, list[int]] = {}
     library: list[Module] = []
@@ -80,20 +95,29 @@ def run(policy: str, seed: int) -> dict[str, float]:
     def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
         rows = []
         for _ in range(count):
-            u, v = rng.randrange(VALUES), rng.randrange(VALUES)
+            u, v = draws.randrange(VALUES), draws.randrange(VALUES)
             key = tuple(value(t, u, v) for t in contract.inputs)
             rows.append((key if len(key) > 1 else key[0], value(contract.output, u, v)))
         return rows
 
-    acquirer = CertifiedAcquirer(fit, sample, train=TRAIN, tolerance=0.05, confidence=0.05)
+    def counted_fit(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]
+                    ) -> Module:
+        nonlocal fits
+        fits += 1
+        return fit(contract, keys, labels)
+
+    screen = (FeasibilityScreen(cases=64, confidence=0.05, key=input_key, separates=separates)
+              if policy.endswith("_screen") else None)
+    acquirer = CertifiedAcquirer(counted_fit, sample, train=TRAIN, tolerance=0.05,
+                                 confidence=0.05, screen=screen)
     served = correct = total = requests = 0
     for _ in range(TASKS):
-        given = (f"u{rng.randrange(2)}", f"v{rng.randrange(2)}")
-        goal = f"g{rng.randrange(GOALS)}"
+        given = (f"u{tasks.randrange(2)}", f"v{tasks.randrange(2)}")
+        goal = f"g{tasks.randrange(GOALS)}"
         route = plan(library, given, goal)
         if route is None:
             result = repair(library, given, goal, acquirer, attempts=200,
-                            arity=2 if policy == "binary" else 1)
+                            arity=2 if policy.startswith("binary") else 1)
             if result is None:
                 continue
             requests += result.requests
@@ -107,14 +131,17 @@ def run(policy: str, seed: int) -> dict[str, float]:
                 correct += execute(route, inputs, Workspace(), 16).payload == value(goal, u, v)
                 total += 1
     return {"served": served / TASKS, "accuracy": correct / total if total else 0.0,
-            "requests": requests / TASKS, "labels": acquirer.labels / TASKS}
+            "served_requests": requests / TASKS, "requests": acquirer.decisions / TASKS,
+            "labels": acquirer.labels / TASKS, "fits": fits / TASKS,
+            "screen_rejections": (screen.rejections / TASKS if screen else 0.0),
+            "cpu_seconds": time.process_time() - started}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3726, 3727, 3728])
     args = parser.parse_args()
-    for policy in ("unary", "binary"):
+    for policy in ("unary", "unary_screen", "binary", "binary_screen"):
         runs = [run(policy, seed) for seed in args.seeds]
         print(json.dumps({"policy": policy, **{
             key: (statistics.mean(r[key] for r in runs), statistics.stdev(r[key] for r in runs))

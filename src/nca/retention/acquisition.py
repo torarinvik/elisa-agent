@@ -24,9 +24,10 @@ from typing import Any
 
 from nca.abi import Contract, Module
 from nca.retention.sampled import decision_level, required_cases
+from nca.retention.screening import FeasibilityScreen
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
-"""Fits a unary expert from keys and labels, or ``None`` if it cannot."""
+"""Fits an expert from input keys and labels, or ``None`` if it cannot."""
 Sampler = Callable[[Contract, int], Sequence[tuple[Any, Any]] | None]
 """Up to the given number of fresh (input, output) cases for a contract, or
 ``None`` if none exist; for several inputs, the input is their tuple."""
@@ -37,19 +38,26 @@ def _equal(output: Any, label: Any) -> bool:
 
 
 def _invoke(module: Module, contract: Contract, key: Any) -> Any:
-    return module.invoke(*key) if len(contract.inputs) > 1 else module.invoke(key)
+    return module.invoke(key) if len(contract.inputs) == 1 else module.invoke(*key)
 
 
 class CertifiedAcquirer:
-    """Admits a learned connector only after zero errors on fresh cases."""
+    """Admit after zero fresh errors, optionally screening before full fitting.
+
+    A screen has a separate false-discard budget and requires separation sound
+    for this instance's ``agree`` predicate. Its passing prefix is training
+    data, never held-out evidence. See ``FeasibilityScreen`` for assumptions.
+    """
 
     def __init__(self, fit: Fitter, sample: Sampler, *, train: int, tolerance: float,
-                 confidence: float, agree: Callable[[Any, Any], bool] = _equal) -> None:
+                 confidence: float, agree: Callable[[Any, Any], bool] = _equal,
+                 screen: FeasibilityScreen | None = None) -> None:
         if train < 1:
             raise ValueError("training needs at least one case")
         required_cases(tolerance, confidence)
         self.fit, self.sample, self.train, self.agree = fit, sample, train, agree
         self.tolerance, self.confidence = tolerance, confidence
+        self.screen = screen
         self.decisions = 0
         self.labels = 0
         self.certified: dict[str, float] = {}
@@ -58,19 +66,35 @@ class CertifiedAcquirer:
         level = decision_level(self.confidence, self.decisions)
         self.decisions += 1
         fresh = required_cases(self.tolerance, level)
-        training = self.sample(contract, self.train)
-        if training is None or len(training) < self.train:
-            return None
-        self.labels += len(training)
+        training: list[tuple[Any, Any]] = []
+        prefix = min(self.screen.cases, self.train) if self.screen is not None else 0
+        if prefix >= 2:
+            drawn = self.sample(contract, prefix)
+            if drawn is not None:
+                self.labels += len(drawn)
+                training.extend(drawn)
+            if len(training) != prefix:
+                return None
+            if self.screen is not None and self.screen.reject(training, self.tolerance):
+                return None
+        remaining = self.train - len(training)
+        if remaining:
+            drawn = self.sample(contract, remaining)
+            if drawn is not None:
+                self.labels += len(drawn)
+                training.extend(drawn)
+            if len(training) != self.train:
+                return None
         module = self.fit(contract, [k for k, _ in training], [v for _, v in training])
         if module is None:
             return None
         tested, batch = 0, 1
         while tested < fresh:
             held = self.sample(contract, min(batch, fresh - tested))
+            if held is not None:
+                self.labels += len(held)
             if held is None or len(held) < min(batch, fresh - tested):
                 return None
-            self.labels += len(held)
             if not all(self.agree(_invoke(module, contract, k), v) for k, v in held):
                 return None
             tested, batch = tested + len(held), 2 * batch
