@@ -412,3 +412,13 @@ must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.
 
 [Theory index](../THEORY.md)
+
+A learned route abbreviation may be installed as a proposal-only library entry
+following exact MDL rewriting and training-behaviour checks. It has no separate
+statistical certificate and does not establish correctness of any task. Whole
+routes using the abbreviation must pass the same fresh-case acquisition gate
+as other proposals: `acquisition_sound` and `occam_adaptive_fresh` quantify over
+candidate routes independently of their proposal source. Their freshness and
+confidence-allocation assumptions still apply; the proposal corpus and MDL
+selection data cannot be reused as certification cases. A code-length admission
+gate additionally needs the actual expanded library's Kraft-valid codebook.
