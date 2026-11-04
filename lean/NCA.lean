@@ -65,3 +65,4 @@ import NCA.Planning.Horn
 import NCA.Reliability.Vote
 import NCA.Reliability.Screening
 import NCA.Planning.Acquisition
+import NCA.Reliability.DependentVote

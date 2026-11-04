@@ -145,9 +145,10 @@ as sound as the declared demands, which are claims of the experts' authors.
 ## 31.7 Majority over redundant routes
 
 A route's risk adds over its experts (Theorem 31.1), so it grows linearly with
-depth. Redundancy reverses that. Let `k` routes to the same goal share no
+depth. Suitable joint-failure bounds can make redundancy reduce that risk.
+Let `k` routes to the same goal share no
 expert, let `Fᵢ` be the event that route `i` fails, and let
-`t = ⌈(k+1)/2⌉`. The *vote* answers the value produced by more than half of
+`t = ⌈k/2⌉`. The *vote* answers the value produced by more than half of
 the routes and abstains otherwise.
 
 **Theorem 31.6 (majority).**
@@ -164,6 +165,33 @@ the `t`-subsets. ∎
 
 For equal risks `p`, `e_t(p) = C(k, t) pᵗ`, which falls exponentially in `k`
 whenever `p < 1/4`, while a single route's risk grows with depth. Independence
-is an assumption about how the routes' experts were obtained; sharing no
-expert is necessary for it, not sufficient. Abstention is safe (§17): a vote
+is an assumption about joint failures on the distribution of use; disjoint
+experts or separate training data alone do not establish it. Abstention is safe (§17): a vote
 without a majority answers nothing rather than something wrong.
+
+## 31.8 Majority with dependent failures
+
+Let `p_i` be upper bounds on the marginal failure probabilities, with no
+independence assumption. For any omitted set `O` of `r < t` route indices,
+write `S` for the remaining routes.
+
+**Theorem 31.7 (dependence-safe vote risk).** The probability of a wrong or
+abstaining vote is at most
+`min(1, (Σ_{i∈S} p_i)/(t−r))`. Taking the minimum over all such omitted sets
+preserves the bound. For each fixed `r`, omitting the `r` largest marginal
+bounds minimizes this expression.
+
+*Proof.* A failing vote requires at least `t` route failures; removing `r`
+indices leaves at least `t−r`. The remaining failure count has expectation
+at most `Σ_{i∈S} p_i`, without independence. Markov's inequality gives the
+quotient. Probabilities are also at most one; every member of the finite
+family is a valid bound, hence so is its minimum. With a fixed denominator,
+removing the largest summands minimizes the remaining sum. ∎
+
+For equal marginal risks `p`, the bound is `min(1,kp/t)`. This does not
+promise reliability amplification: if all routes fail on the same event of
+probability `p`, their vote also fails with probability `p`, however many
+routes are added. Observed frequencies qualify as marginal bounds only for
+the distribution they exactly describe, or with an additional statistical
+coverage guarantee. Neither separate implementations nor independent fitting
+datasets establishes independent errors for fixed fitted routes.

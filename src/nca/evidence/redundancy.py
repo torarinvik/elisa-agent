@@ -4,19 +4,22 @@ A route's risk grows with its depth (§31), since any failing expert spoils it.
 ``disjoint_routes`` plans up to ``count`` routes that share no expert, except
 those ``shared`` admits (for example ones that never fail), and ``vote`` runs
 them all and answers what more than half agree on, abstaining otherwise. With
-``t = ⌈(k+1)/2⌉`` of ``k`` routes, the vote is correct unless ``t`` of them
+``t = ⌈k/2⌉`` of ``k`` routes, the vote is correct unless ``t`` of them
 fail (``NCA.vote_correct``), so if their failures are independent its risk is
 at most the ``t``-th elementary symmetric polynomial of their risks
-(``NCA.vote_risk``, ``vote_risk``), which falls exponentially in ``k`` while a
-single route's grows linearly in depth. Independence is an assumption about
-how the experts were obtained, such as from independent data; routes sharing
-no expert are necessary for it, not sufficient.
+(``NCA.vote_risk``, ``vote_risk``). This can support reliability amplification
+under its joint-failure hypothesis. Independence is an assumption about
+the joint failures on the distribution of use; disjoint experts or separate
+training data alone do not establish it. ``dependent_vote_risk`` instead
+uses marginal bounds without assuming independence.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
+import math
 from typing import Any
 
 from nca.abi import Message, Module, TypeId
@@ -93,11 +96,46 @@ def vote_risk(risks: Sequence[float]) -> float:
     """A bound on the probability that a vote over routes with these
     independent risks is wrong or abstains: ``e_t(risks)`` for
     ``t = threshold(len(risks))``, capped at 1."""
-    t = threshold(len(risks))
+    values = _risk_values(risks)
+    t = threshold(len(values))
     if t == 0:
         return 1.0
-    sums = [1.0] + [0.0] * t
-    for risk in risks:
+    sums = [Fraction(1)] + [Fraction(0)] * t
+    for risk in values:
         for size in range(t, 0, -1):
             sums[size] += sums[size - 1] * risk
-    return min(1.0, sums[t])
+    return _upper_float(min(Fraction(1), sums[t]))
+
+
+def _risk_values(risks: Sequence[float]) -> tuple[Fraction, ...]:
+    values = tuple(risks)
+    if any(not math.isfinite(p) or not 0 <= p <= 1 for p in values):
+        raise ValueError("route risks must be finite and between zero and one")
+    return tuple(Fraction(p) for p in values)
+
+
+def _upper_float(bound: Fraction) -> float:
+    value = float(bound)
+    return math.nextafter(value, math.inf) if Fraction(value) < bound else value
+
+
+def dependent_vote_risk(risks: Sequence[float]) -> float:
+    """Conservative majority risk from marginal bounds, with arbitrary dependence.
+
+    For each r < threshold, omit the r largest risks. A failing vote requires
+    at least threshold-r failures among the remaining routes; Markov gives
+    sum(remaining risks)/(threshold-r). Return the smallest such bound, capped
+    at one. Exact rational evaluation and upward conversion avoid understating
+    the bound for the supplied floating-point risks. No amplification from
+    independent failures is claimed. Empty votes always abstain.
+    """
+    values = sorted(_risk_values(risks), reverse=True)
+    t = threshold(len(values))
+    if t == 0:
+        return 1.0
+    remaining = sum(values, Fraction(0))
+    bound = Fraction(1)
+    for omitted in range(t):
+        bound = min(bound, remaining / (t - omitted))
+        remaining -= values[omitted]
+    return _upper_float(bound)

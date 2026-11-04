@@ -7,7 +7,7 @@ namespace NCA
 
 open Finset MeasureTheory Classical
 
-/-- With threshold `t = ⌈(k+1)/2⌉` (`2t ≤ k + 1`), the vote over `k` routes
+/-- With threshold `t = ⌈k/2⌉` (`2t ≤ k + 1`), the vote over `k` routes
 answers correctly whenever fewer than `t` fail: the correct answer then has
 more than half the votes. -/
 theorem vote_correct {k t : ℕ} (small : 2 * t ≤ k + 1) (failing : Finset ℕ)
