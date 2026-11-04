@@ -4,7 +4,7 @@ Witnesses are supplied by expert packages. Their suggestions are not
 certificates: callers must validate candidate routes on independent cases.
 """
 
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from itertools import chain, product
 from math import isfinite
@@ -83,6 +83,11 @@ class Need:
     inputs: tuple[tuple[Any, ...], ...]
 
 
+@dataclass(frozen=True)
+class Progress:
+    """A cooperative provider checkpoint that is not a decomposition."""
+
+
 @dataclass
 class QuerySession:
     """Budget and account for proposal labels from a caller-supplied oracle.
@@ -97,9 +102,10 @@ class QuerySession:
     limit: int
     labels: int = 0
     target: Specification | None = None
+    reserved: int = 0
 
     def __post_init__(self) -> None:
-        if type(self.limit) is not int or self.limit < 0 or self.labels != 0:
+        if type(self.limit) is not int or self.limit < 0 or self.labels != 0 or self.reserved != 0:
             raise ValueError("query limit must be nonnegative and accounting must be fresh")
 
     def bind(self, target: Specification) -> None:
@@ -109,18 +115,35 @@ class QuerySession:
         self.target = target
 
     def ask(self, need: Need, target: Specification) -> tuple[Any, ...] | None:
+        steps = self.ask_steps(need, target)
+        while True:
+            try:
+                next(steps)
+            except StopIteration as done:
+                return done.value
+
+    def ask_steps(self, need: Need, target: Specification) -> Generator[None, None, tuple[Any, ...] | None]:
+        """Reserve a whole batch and issue at most one oracle call per step."""
         if self.target is not None and self.target is not target:
             return None
         self.bind(target)
         if any(len(inputs) != len(target.contract.inputs) for inputs in need.inputs):
             raise ValueError("query inputs must match the task scope")
-        if len(need.inputs) > self.limit - self.labels:
+        if len(need.inputs) > self.limit - self.labels - self.reserved:
             return None
+        self.reserved += len(need.inputs)
         answers = []
-        for inputs in need.inputs:
-            self.labels += 1
-            answers.append(self.oracle(inputs))
-        return tuple(answers)
+        remaining = len(need.inputs)
+        try:
+            for inputs in need.inputs:
+                self.reserved -= 1
+                remaining -= 1
+                self.labels += 1
+                answers.append(self.oracle(inputs))
+                yield None
+            return tuple(answers)
+        finally:
+            self.reserved -= remaining
 
 
 @dataclass
@@ -132,8 +155,8 @@ class SearchStats:
     path: tuple[str, ...] = ()
 
 
-def decompositions(manifest: Manifest, request: Request,
-                   queries: QuerySession | None = None) -> Iterator[Decomposition]:
+def decomposition_steps(manifest: Manifest, request: Request,
+                        queries: QuerySession | None = None) -> Iterator[Decomposition | None]:
     """Call a declared witness and reject suggestions with mismatched scopes.
 
     Missing witnesses yield no suggestions, allowing a search to fall back to
@@ -178,9 +201,16 @@ def decompositions(manifest: Manifest, request: Request,
                 raise ValueError("witness query must contain at least one input")
             if denied:
                 return
-            pending = None if queries is None else queries.ask(candidate, request.target)
+            if queries is None:
+                pending = None
+                yield None
+            else:
+                pending = yield from queries.ask_steps(candidate, request.target)
             denied = pending is None
             sending = True
+            continue
+        if isinstance(candidate, Progress):
+            yield None
             continue
         if not isinstance(candidate, Decomposition):
             raise TypeError("witness must return Decomposition values")
@@ -193,6 +223,14 @@ def decompositions(manifest: Manifest, request: Request,
         if any(goal.required for goal in candidate.slots):
             raise ValueError("witness slots cannot require parameter positions")
         yield candidate
+
+
+def decompositions(manifest: Manifest, request: Request,
+                   queries: QuerySession | None = None) -> Iterator[Decomposition]:
+    """Return decompositions while consuming cooperative progress events."""
+    for candidate in decomposition_steps(manifest, request, queries):
+        if candidate is not None:
+            yield candidate
 
 
 def _value_key(value: Any) -> tuple[Any, ...]:

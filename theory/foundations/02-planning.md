@@ -265,9 +265,14 @@ is excluded because it is outside the search space, not because it is invalid.
 A resumable typed-route frontier may instead prioritize the bits already
 chosen plus one bit for each unfinished hole. If every remaining production
 has positive length, `frontier_lower_bound` proves that this value is a lower
-bound on every completion's length. This does not prove that the implementation
-enumerates all routes, bounds the cost of constructing a production table, or
-establishes a Levin scheduling guarantee; witness search is not yet integrated.
+bound on every completion's length. The experimental frontier also queues
+witness decompositions and ordinary expansions together, charging extra
+prefix-coded derivation bits for witness choices and checking their proposed
+subgoals. This does not prove implementation completeness or a Levin scheduling
+guarantee: production-table construction, opaque oracle calls and arbitrary
+non-cooperative witness providers can perform unbounded work in one queue step.
+Cooperative progress checkpoints and reserved query batches let this frontier
+charge each issued proposal query separately, at most one per queue step.
 
 A tuple-field path is modeled as a sequence of partial projections. For any
 field operation, following a concatenated path equals following its first part

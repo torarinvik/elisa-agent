@@ -106,6 +106,55 @@ def test_query_oracle_failure_still_charges_the_attempt() -> None:
     assert session.labels == 1
 
 
+def test_query_steps_reserve_batches_and_release_cancelled_capacity() -> None:
+    calls = []
+    target = Specification(Contract(("source",), "result"), ())
+    session = QuerySession(lambda values: calls.append(values) or values[0], 3)
+    steps = session.ask_steps(Need(((1,), (2,))), target)
+    assert next(steps) is None and calls == [(1,)]
+    assert session.labels == 1 and session.reserved == 1
+    assert session.ask(Need(((3,), (4,))), target) is None
+    assert session.ask(Need(((3,),)), target) == (3,)
+    assert calls == [(1,), (3,)]
+    steps.close()
+    assert session.labels == 2 and session.reserved == 0
+    assert session.ask(Need(((4,),)), target) == (4,)
+
+
+def test_query_steps_release_reserved_capacity_when_oracle_raises() -> None:
+    def oracle(values: tuple[object, ...]) -> object:
+        if values == (2,):
+            raise RuntimeError("unavailable")
+        return values[0]
+    target = Specification(Contract(("source",), "result"), ())
+    session = QuerySession(oracle, 3)
+    steps = session.ask_steps(Need(((1,), (2,), (3,))), target)
+    assert next(steps) is None and session.labels == 1 and session.reserved == 2
+    with pytest.raises(RuntimeError, match="unavailable"):
+        next(steps)
+    assert session.labels == 2 and session.reserved == 0
+
+
+def test_decomposition_steps_issue_at_most_one_query_per_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    from collections.abc import Generator
+    from nca.learning import witness
+
+    target = Specification(Contract(("source",), "result"), ())
+    manifest = Manifest("sample.expert", "1", target.contract, witness="sample:witness")
+    def provider(request: Request) -> Generator[Need | Decomposition, tuple[object, ...] | None, None]:
+        answers = yield Need(((1,), (2,), (3,)))
+        if answers is not None:
+            goal = Specification(Contract(("source",), "source"), ())
+            yield Decomposition((goal,), ())
+    monkeypatch.setattr(witness.loaders, "resolve", lambda name: provider)
+    session = QuerySession(lambda values: values[0], 3)
+    steps = witness.decomposition_steps(manifest, Request(target, target.contract), session)
+    for expected in (1, 2, 3):
+        assert next(steps) is None and session.labels == expected
+    assert isinstance(next(steps), Decomposition)
+    assert session.reserved == 0
+
+
 def test_identical_recursive_subgoal_does_not_starve_enumeration(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.learning import witness
     from nca.planner import Apply, Given
