@@ -112,6 +112,18 @@ Maintain mathematical theory in topic chapters under `theory/<theme>/`, with `TH
 - Add permanent regression tests when appropriate, but never commit disposable test harnesses or exploratory experiments.
 - Do not leave multiple competing implementations when only one is needed.
 
+### Default development loop
+
+Use targeted tests and fixed, relevant development controls for edits, with a
+10–20-second budget rather than a full evaluation after each adjustment. The
+external procedural package provides `python -m benchmarks.iterate` (20-second
+cap), a smaller `--suite focused`, baseline comparison and an interactive
+controller. Run it from that package checkout; the core has no dependency on it.
+Keep controls fixed before implementation changes. Small control suites guide
+development only: full core checks and preregistered D-200/two-seed comparisons
+validate completed changes and capability claims. Do not weaken held-out guards
+or substitute small-suite service for full development evidence.
+
 ### Evaluation compute budget
 
 - Bound each evaluation invocation to at most five minutes of wall time, including
