@@ -261,7 +261,7 @@ def test_feature_chain_search_checks_bounds_and_does_not_execute_models() -> Non
 
     seed = Feature(Contract(("input",), "a"), unavailable)
     edge = Feature(Contract(("a",), "b"), unavailable)
-    irrelevant = Feature(Contract(("a", "a"), "b"), unavailable)
+    irrelevant = Feature(Contract(("absent", "absent"), "b"), unavailable)
     result = compose_features([seed], [irrelevant, edge], max_depth=1, limit=10)
     assert [m.manifest.contract.output for m in result] == ["a", "b"]
     assert result[1].manifest.cost == seed.manifest.cost + edge.manifest.cost
@@ -305,3 +305,71 @@ def test_training_retention_capacity_is_validated(capacity: Any) -> None:
     with pytest.raises(ValueError, match="training capacity"):
         EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
                        budget=2, retain_training=capacity)
+
+
+def test_feature_tree_search_matches_exhaustive_typed_rules() -> None:
+    """Implementation link to featureTreeClosure_iff, with tree multiplicity."""
+    from itertools import product
+
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    seeds = [Feature(Contract(("input",), t), lambda x, i=i: ("seed", i))
+             for i, t in enumerate(("a", "b"))]
+    rules = [(("a",), "a"), (("a", "a"), "b"),
+             (("a", "b"), "a"), (("b", "a"), "b")]
+    for enabled in product((False, True), repeat=len(rules)):
+        transforms = [Feature(Contract(inputs, output), lambda *xs, i=i: (i, *xs))
+                      for i, ((inputs, output), use) in enumerate(zip(rules, enabled, strict=True))
+                      if use]
+        expected = {(t, ("seed", i)) for i, t in enumerate(("a", "b"))}
+        for depth in range(3):
+            actual = compose_features(seeds, transforms, max_depth=depth, limit=10000)
+            observed = [(m.manifest.contract.output, m.invoke(None)) for m in actual]
+            assert len(set(observed)) == len(observed)
+            assert set(observed) == expected
+            for cap in (1, 3, 7):
+                prefix = compose_features(seeds, transforms, max_depth=depth, limit=cap)
+                assert [(m.manifest.contract.output, m.invoke(None)) for m in prefix] == observed[:cap]
+            following = set(expected)
+            for i, ((inputs, output), use) in enumerate(zip(rules, enabled, strict=True)):
+                if use:
+                    choices = [[tree for t, tree in expected if t == required] for required in inputs]
+                    following.update((output, (i, *children)) for children in product(*choices))
+            expected = following
+
+
+def test_multi_input_features_keep_positions_cost_effects_and_slot_calls() -> None:
+    from dataclasses import replace
+
+    from nca.abi import Calls
+    from nca.learning.features import AppliedFeature, compose_features
+    from test_discovery import Feature
+
+    left = Feature(Contract(("input",), "part"), lambda x: "left")
+    right = Feature(left.manifest.contract, lambda x: "right")
+    head = Feature(Contract(("part", "part"), "joined"), lambda a, b: (a, b))
+    results = compose_features([left, right], [head], max_depth=1, limit=20)
+    assert {m.invoke(None) for m in results[2:]} == {
+        ("left", "left"), ("left", "right"), ("right", "left"), ("right", "right")}
+    from itertools import product
+
+    triple = Feature(Contract(("part",) * 3, "triple"), lambda *xs: tuple(xs))
+    triples = compose_features([left, right], [triple], max_depth=1, limit=20)
+    assert {m.invoke(None) for m in triples[2:]} == set(product(("left", "right"), repeat=3))
+    slot = ((("p",), "q"),)
+    for feature, count, effect in ((left, 2, "first"), (right, 3, "second")):
+        feature.manifest = replace(feature.manifest,
+            contract=replace(feature.manifest.contract, slots=slot, relevant=((0,),)),
+            calls=(Calls(count, 1),), effects=frozenset({effect}))
+        feature.project = lambda filling, value, tag=effect: (tag, filling(value))
+    head.manifest = replace(head.manifest, effects=frozenset({"third"}))
+    model = AppliedFeature(head, [left, right])
+    assert model.manifest.calls == (Calls(5, 2),)
+    assert model.manifest.cost == 3
+    assert model.manifest.effects == frozenset({"first", "second", "third"})
+    assert model.manifest.contract.slots == slot
+    assert model.manifest.contract.relevant == ((0,),)
+    assert model.invoke(lambda x: x + 1, 2) == (("first", 3), ("second", 3))
+    with pytest.raises(ValueError, match="ordered head inputs"):
+        AppliedFeature(head, [left])

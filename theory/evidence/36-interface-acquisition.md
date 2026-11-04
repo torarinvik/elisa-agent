@@ -79,3 +79,30 @@ are search parameters, not universal bounds on possible representations.
 No theorem here establishes that the supplied primitive family contains a
 useful feature. Selecting or fitting a head uses training observations only;
 reliability still requires independent end-to-end evaluation of frozen models.
+
+## 36.60 Multi-input feature construction
+
+Let a transformation rule be an ordered nonempty list of input types and one
+output type. A feature tree begins at a seed with the common external signature;
+each internal node supplies one compatible subtree per input position. Repeated
+types do not merge positions. Height counts the maximum transformations along
+a seed-to-root branch. Let C₀ be seed output types, and let Cₙ₊₁ contain seeds
+and outputs of rules whose every input type occurs in Cₙ.
+
+**Theorem 36.60 (bounded feature-tree closure).** Cₙ contains exactly the root
+types of compatible trees of height at most n. Enumerating ordered child tuples
+of the preceding closure generates every such tree. Assigning each non-leaf
+tree to its leftmost maximum-height child gives a unique generation pivot.
+
+*Proof.* A non-seed root of height at most n+1 has a compatible child of height
+at most n for every input position; conversely those children and their rule
+form a compatible tree. Induction gives both directions. Every positive-arity
+tree has a leftmost child attaining its maximum child height, uniquely. ∎
+
+This is closure of a supplied rule family, not a claim of task sufficiency or
+efficiency: candidate counts can grow combinatorially, and a bounded prefix
+may omit a useful tree. Each branch is evaluated separately, with cost and slot
+calls added, even when two branches refer to the same object. Reusing a value
+would require additional purity and execution-sharing assumptions. Polymorphic
+or higher-order transformations require a richer rule model and are outside
+this search fragment. The surrounding architecture is not restricted to it.

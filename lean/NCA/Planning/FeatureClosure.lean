@@ -24,4 +24,34 @@ theorem featureClosure_iff {α : Type*} [DecidableEq α] (seeds : Finset α)
   | zero => simp [featureClosure, featureReach]
   | succ n ih => simp [featureClosure, featureReach, ih]
 
+/-- Finite rules preserve ordered antecedent lists, including repeated types. -/
+def featureTreeClosure {α : Type*} [DecidableEq α] (seeds : Finset α)
+    (rules : Finset (List α × α)) : ℕ → Finset α
+  | 0 => seeds
+  | n + 1 => seeds ∪ ((rules.filter fun r =>
+      ∀ a ∈ r.1, a ∈ featureTreeClosure seeds rules n).image Prod.snd)
+
+def featureTreeReach {α : Type*} [DecidableEq α] (seeds : Finset α)
+    (rules : Finset (List α × α)) : ℕ → α → Prop
+  | 0, x => x ∈ seeds
+  | n + 1, x => x ∈ seeds ∨ ∃ r ∈ rules, r.2 = x ∧
+      ∀ a ∈ r.1, featureTreeReach seeds rules n a
+
+/-- All antecedents must be reachable, rather than merely one input edge. -/
+theorem featureTreeClosure_iff {α : Type*} [DecidableEq α] (seeds : Finset α)
+    (rules : Finset (List α × α)) (n : ℕ) (x : α) :
+    x ∈ featureTreeClosure seeds rules n ↔ featureTreeReach seeds rules n x := by
+  induction n generalizing x with
+  | zero => rfl
+  | succ n ih =>
+    simp only [featureTreeClosure, featureTreeReach, Finset.mem_union,
+      Finset.mem_image, Finset.mem_filter]
+    constructor
+    · rintro (hs | ⟨r, ⟨hr, children⟩, hx⟩)
+      · exact Or.inl hs
+      · exact Or.inr ⟨r, hr, hx, fun a ha => (ih a).mp (children a ha)⟩
+    · rintro (hs | ⟨r, hr, hx, children⟩)
+      · exact Or.inl hs
+      · exact Or.inr ⟨r, ⟨hr, fun a ha => (ih a).mpr (children a ha)⟩, hx⟩
+
 end NCA

@@ -179,8 +179,8 @@ supplied positional features; retaining controls saved no labels and increased
 CPU in this experiment. Learning new features and global fiber sufficiency,
 adaptive control retention and certified candidate publication remain open.
 
-`learning.features.compose_features` (§36.59) constructs compatible unary
-feature chains breadth-first, retaining distinct paths and cycles through
+`learning.features.compose_features` (§36.59–60) constructs compatible
+feature trees breadth-first, retaining distinct paths and cycles through
 caller-supplied depth and candidate bounds. It inspects metadata only and uses
 the existing `Decoded` interpreter for contract/effect/cost composition. The
 `featureClosure_iff` theorem proves bounded endpoint reachability in the
@@ -188,8 +188,22 @@ untruncated relation model; finite graph tests compare actual path enumeration,
 including capped prefixes, and test that search invokes no expert. The relation
 model assumes faithful contract matching and does not identify implementations
 sharing a type. The repair benchmark learns a useful chain from supplied parts,
-but does not invent primitives, cover multi-input transformation search or
-prove useful features exist in an arbitrary installed library.
+but does not invent primitives or prove useful features exist in an arbitrary
+installed library.
+
+The §36.60 extension admits any positive number of ordered inputs on ground
+slot-free transformations. `AppliedFeature` evaluates each branch separately,
+forwards the shared external inputs and slot fillings, and adds branch costs,
+effects and slot-call declarations. Search gives each tree one leftmost deepest
+child pivot; bounded prefixes may omit useful trees. `featureTreeClosure_iff`
+proves bounded root-type reachability from all rule antecedents, not just one
+edge; exhaustive finite-rule tests compare actual tree sets, duplicates and
+prefix order, while repeated-type tests exercise binary/ternary positions and
+slot forwarding. Pivot uniqueness is justified mathematically and finite-tested,
+not proved for the Python implementation. Multi-input applications currently
+remain in memory: unlike unary `Decoded` chains, they have no parameter codec.
+Persistence, higher-order/polymorphic transformation search and practical
+large-library enumeration remain open; no universal learning gain is claimed.
 
 `EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
 charged draws only after a scored rejection, including unscored final-batch
@@ -496,6 +510,7 @@ an inference from their separate tests.
 | [31.12](theory/reliability/31-composing-uncertainty.md) | `retained_feedback_account` | `Reliability/RepairFeedback` |
 | [31.13](theory/reliability/31-composing-uncertainty.md) | `correction_reloaded_eq` | `Reliability/RepairFeedback` |
 | [36.59](theory/evidence/36-interface-acquisition.md) | `featureClosure_iff` | `Planning/FeatureClosure` |
+| [36.60](theory/evidence/36-interface-acquisition.md) | `featureTreeClosure_iff` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
