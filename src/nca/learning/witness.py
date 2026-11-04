@@ -215,6 +215,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
             hints: Callable[[Module, Contract, Specification], Iterable[tuple[tuple[Any, ...], ...]]] | None = None,
             stats: SearchStats | None = None,
             queries: QuerySession | None = None,
+            charge: Callable[[], bool] | None = None,
             agree: Callable[[Any, Any], bool] = lambda left, right: bool(left == right)) -> Plan | None:
     """Search witness subgoals, then use a caller-supplied enumeration fallback.
 
@@ -245,6 +246,8 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
         nonlocal remaining
         if remaining <= 0:
             return False
+        if charge is not None and not charge():
+            return False
         remaining -= 1
         stats.expansions += 1
         return True
@@ -261,6 +264,8 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
             for message in messages:
                 workspace.post(message)
             try:
+                if charge is not None and not charge():
+                    return False
                 stats.evaluations += 1
                 result = execute(route, messages, workspace, execution_budget).payload
                 if not agree(result, example.output):
@@ -345,7 +350,8 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                 if key is not None:
                     memo[key] = route
                 return route
-        for module in modules:
+        for module in sorted(modules, key=lambda module: not (queries is not None and
+                                                               module.manifest.witness_queries)):
             pattern = module.manifest.contract
             if module.manifest.witness is None:
                 continue

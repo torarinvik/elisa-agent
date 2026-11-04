@@ -114,6 +114,8 @@ def manifest_data(manifest: Manifest) -> dict[str, Json]:
                             "effects": None if manifest.effects is None else sorted(manifest.effects)}
     if manifest.witness is not None:
         data["witness"] = manifest.witness
+    if manifest.witness_queries:
+        data["witness_queries"] = True
     return data
 
 
@@ -122,7 +124,8 @@ def manifest_from(data: Mapping[str, Any]) -> Manifest:
     return Manifest(data["module_id"], data["version"], contract_from(data["contract"]),
                     data["cost"], _calls_from(data["calls"]) or (),
                     _calls_from(data["expected_calls"]),
-                    None if effects is None else frozenset(effects), data.get("witness"))
+                    None if effects is None else frozenset(effects), data.get("witness"),
+                    data.get("witness_queries", False))
 
 
 @dataclass(frozen=True)

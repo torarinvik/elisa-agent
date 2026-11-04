@@ -143,10 +143,14 @@ class Manifest:
     declares nothing, so nothing may be assumed."""
     witness: str | None = None
     """Optional loader identifier for a proposal-only goal-decomposition witness."""
+    witness_queries: bool = False
+    """Whether the witness can use proposal-only final-answer queries."""
 
     def __post_init__(self) -> None:
         if self.witness is not None and (not isinstance(self.witness, str) or not self.witness):
             raise ValueError("witness identifier must be a nonempty string")
+        if type(self.witness_queries) is not bool or (self.witness_queries and self.witness is None):
+            raise ValueError("query capability requires a declared witness")
 
     @property
     def ref(self) -> str:

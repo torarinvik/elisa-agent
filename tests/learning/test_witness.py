@@ -18,8 +18,13 @@ def test_manifest_witness_roundtrip_preserves_existing_references() -> None:
     described = replace(manifest, witness="sample:witness")
     assert manifest_from(manifest_data(described)) == described
     assert Primitive(described, "sample:expert").ref != Primitive(manifest, "sample:expert").ref
+    query_described = replace(described, witness_queries=True)
+    assert manifest_from(manifest_data(query_described)) == query_described
+    assert "witness_queries" not in manifest_data(described)
     with pytest.raises(ValueError):
         replace(manifest, witness="")
+    with pytest.raises(ValueError):
+        replace(manifest, witness_queries=True)
 
 
 def test_witness_checks_input_and_slot_scopes(monkeypatch: pytest.MonkeyPatch) -> None:
