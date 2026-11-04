@@ -269,6 +269,13 @@ expressing a copy path as a sequence of ordinary expert applications; it does
 not prove Python runtime equivalence, nominal representation compatibility, or
 that a dynamically supplied field has the caller's asserted type.
 
+For pure Boolean predicates, sequential filtering equals filtering with their
+short-circuiting conjunction (`filter_sequential`). A higher-order selection
+route can therefore combine predicate slots before applying an extremum and an
+output slot. This identity assumes predicates are total on the inputs being
+compared; effects, exceptions, key ordering and Python execution fidelity are
+not proved by it. Empty-input behavior must be specified separately.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.

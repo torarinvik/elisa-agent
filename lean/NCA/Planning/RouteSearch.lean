@@ -48,4 +48,13 @@ theorem followPath_append {α : Type} (field : α → Nat → Option α)
     | none => rfl
     | some v => simpa [h] using ih v
 
+
+/-- Sequential filters equal a short-circuiting conjunction of predicates. -/
+theorem filter_sequential {α : Type} (p q : α → Bool) (xs : List α) :
+    (xs.filter p).filter q = xs.filter (fun x => p x && q x) := by
+  induction xs with
+  | nil => rfl
+  | cons x rest ih =>
+    cases hp : p x <;> cases hq : q x <;> simp [List.filter, hp, hq, ih]
+
 end NCA
