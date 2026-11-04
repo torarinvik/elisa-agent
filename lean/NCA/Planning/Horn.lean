@@ -65,4 +65,12 @@ theorem horn_gap_iff {τ : Type*} {R : Set (Set τ × τ)} {S A : Set τ} {b g :
       (∀ a ∈ A, HornDerivable R S a) ∧ HornDerivable R (insert b S) g :=
   ⟨fun h => (horn_gap_complete h).resolve_left none, fun ⟨hA, hg⟩ => horn_gap_sound hA hg⟩
 
+/-- Repeated input types have the same type-level reachability as their set.
+Distinct argument positions remain a separate obligation. -/
+theorem horn_gap_list_iff {τ : Type*} {R : Set (Set τ × τ)} {S : Set τ}
+    {inputs : List τ} {b g : τ} (none : ¬ HornDerivable R S g) :
+    HornDerivable (insert ({a | a ∈ inputs}, b) R) S g ↔
+      (∀ a ∈ inputs, HornDerivable R S a) ∧ HornDerivable R (insert b S) g := by
+  simpa using (horn_gap_iff (A := {a | a ∈ inputs}) (b := b) none)
+
 end NCA

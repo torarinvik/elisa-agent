@@ -391,8 +391,10 @@ derivation of `g`. (⇒) By induction on the derivation, every derived type is
 either derivable without the new expert, or `A` is derivable and the type is
 derivable with `b` given. ∎
 
-Theorem 20.11 is the case `|A| = 1`. Candidates are the sets of at most `n`
-producible types with each target from which the goal is derivable; there are
+Theorem 20.11 is the case `|A| = 1`. Candidates are multisets of at most `n` producible types, paired with each
+target from which the goal is derivable. Repeated types retain separate
+argument positions; the set-based reachability theorem alone does not prove
+that distinct supplied values are used. There are
 `O(|P|ⁿ)` of them for `|P|` producible types, so the arity bound is a
 resource limit stated by the caller, not a limit of the theory.
 

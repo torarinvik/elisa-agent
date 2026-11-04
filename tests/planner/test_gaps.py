@@ -1,7 +1,7 @@
 """Capability gaps and kernel-mediated acquisition (§20.9)."""
 
 from collections.abc import Generator
-from itertools import combinations, product
+from itertools import combinations, combinations_with_replacement, product
 import random
 from typing import Any
 
@@ -210,3 +210,18 @@ def test_repair_acquires_an_expert_combining_two_inputs() -> None:
     result = execute(repaired.route, (Message("s", 10, "input"),), Workspace(), 10)
     inputs = repaired.acquired[0].manifest.contract.inputs
     assert result.payload == sum({"s": 10, "x": 11, "y": 12}[t] for t in inputs)
+
+
+def test_repeated_input_contracts_are_enumerated_and_bind_distinct_positions() -> None:
+    available = ("a", "a", "b")
+    target = Contract(("a", "a", "b"), "g")
+    candidates = {gap.contract for gap in gaps([], available, "g", arity=3)}
+    assert target in candidates
+    for inputs in combinations_with_replacement(("a", "b"), 3):
+        assert Contract(inputs, "g") in candidates
+    expert = Step(target.inputs, target.output, 0)
+    route = plan([expert], available, "g")
+    assert route is not None
+    result = execute(route, (Message("a", 2, "first"), Message("a", 5, "second"),
+                             Message("b", 11, "third")), Workspace(), 20)
+    assert result.payload == 18

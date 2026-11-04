@@ -110,7 +110,14 @@ def _plan_args(index: ProducerIndex, limit: int, available: Sequence[TypeId],
                inputs: Sequence[TypeId], required: frozenset[int], fuel: int,
                memo: Memo) -> tuple[Plan, ...] | None:
     """Plans for ``inputs`` that together use every position in ``required``."""
-    for shares in assignments(required, len(inputs)):
+    # Distinct supplied positions of a repeated type are distinct arguments.
+    # Reuse remains possible when fewer positions than occurrences exist.
+    positions = frozenset(
+        position for kind in set(inputs) if inputs.count(kind) > 1
+        for position in [i for i, available_type in enumerate(available)
+                         if available_type == kind][:inputs.count(kind)]
+    )
+    for shares in assignments(required | positions, len(inputs)):
         args = _plan_all(index, limit, [(available, t, r) for t, r in zip(inputs, shares)],
                          fuel, memo)
         if args is not None:

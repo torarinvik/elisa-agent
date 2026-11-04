@@ -25,7 +25,7 @@ connect every other type into it, pass after pass, until a pass adds none.
 from __future__ import annotations
 
 from collections import deque
-from itertools import combinations
+from itertools import combinations_with_replacement
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 import math
@@ -152,7 +152,7 @@ def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
         if plan(modules, (*available, target), goal, fuel) is None:
             continue
         for size in range(1, arity + 1):
-            for inputs in combinations(sources, size):
+            for inputs in combinations_with_replacement(sources, size):
                 contract = Contract(inputs, target)
                 route = plan((*modules, _Missing(contract)), available, goal, fuel)
                 if route is not None:
