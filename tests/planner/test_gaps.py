@@ -237,3 +237,24 @@ def test_task_plan_does_not_drop_supplied_roles() -> None:
     messages = tuple(Message(t, value, str(i)) for i, (t, value) in
                      enumerate(zip(inputs, (2, 5, 11, 17), strict=True)))
     assert execute(route, messages, Workspace(), 20).payload == 35
+
+
+def test_repair_respects_required_task_positions() -> None:
+    inputs = ("a", "a", "b", "c")
+    short = Step(("a", "b"), "g", 0)
+    required = frozenset(range(len(inputs)))
+    target = Contract(inputs, "g")
+    requested: list[Contract] = []
+
+    def acquire(contract: Contract) -> Module | None:
+        requested.append(contract)
+        return Step(contract.inputs, contract.output, 0) if contract == target else None
+
+    with pytest.raises(ValueError, match="single-gap"):
+        repair([short], inputs, "g", acquire, attempts=200, arity=4,
+               missing=2, required=required)
+    result = repair([short], inputs, "g", acquire, attempts=200, arity=4, required=required)
+    assert result is not None and target in requested
+    messages = tuple(Message(t, v, str(i)) for i, (t, v) in
+                     enumerate(zip(inputs, (2, 5, 11, 17), strict=True)))
+    assert execute(result.route, messages, Workspace(), 20).payload == 35

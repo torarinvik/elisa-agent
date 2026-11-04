@@ -133,20 +133,23 @@ def producible(modules: Sequence[Module], available: Sequence[TypeId]) -> list[T
 
 def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
          fuel: int = 8, arity: int = 1, *,
-         priority: Callable[[Contract], float] | None = None) -> list[Gap]:
+         priority: Callable[[Contract], float] | None = None,
+         required: frozenset[int] = frozenset()) -> list[Gap]:
     """Every single expert ``(A₁, …, Aₙ) → B`` with ``n ≤ arity`` completing a
     route to ``goal``, with each ``Aᵢ`` producible and ``B`` consumed by some
     expert or the goal itself (``NCA.horn_gap_iff``), fewest inputs first and
     inputs in the order they are produced; empty if a route exists already.
     Optional finite priorities reorder candidates, highest first, with stable
     ties. They never remove a candidate or change its validity certificate.
-    The scorer must not mutate the library or perform acquisition."""
-    if plan(modules, available, goal, fuel) is not None:
+    The scorer must not mutate the library or perform acquisition. ``required``
+    restricts returned routes to those using the specified input positions;
+    the set-based Horn theorem does not establish positional completeness."""
+    if plan(modules, available, goal, fuel, required) is not None:
         return []
     sources = producible(modules, available)
     consumed = dict.fromkeys(t for m in modules for t in m.manifest.contract.inputs
                              if not t.startswith("?"))
-    targets = [t for t in (goal, *consumed) if t not in sources]
+    targets = [t for t in (goal, *consumed) if t not in sources or required]
     found = []
     for target in dict.fromkeys(targets):
         if plan(modules, (*available, target), goal, fuel) is None:
@@ -154,7 +157,7 @@ def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
         for size in range(1, arity + 1):
             for inputs in combinations_with_replacement(sources, size):
                 contract = Contract(inputs, target)
-                route = plan((*modules, _Missing(contract)), available, goal, fuel)
+                route = plan((*modules, _Missing(contract)), available, goal, fuel, required)
                 if route is not None:
                     found.append(Gap(contract, route))
     found.sort(key=lambda gap: len(gap.contract.inputs))
@@ -222,7 +225,8 @@ def fewest_missing(modules: Sequence[Module], available: Sequence[TypeId], goal:
 def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
            acquire: Acquire, attempts: int, missing: int = 1, fuel: int = 8, *,
            media: Sequence[TypeId] | None = None, arity: int = 1,
-           priority: Callable[[Contract], float] | None = None) -> Repaired | None:
+           priority: Callable[[Contract], float] | None = None,
+           required: frozenset[int] = frozenset()) -> Repaired | None:
     """Acquire connectors until a route reaches ``goal``: each round requests
     the connectors of a route needing the fewest missing ones, at most
     ``missing``, avoiding refused requests; at most ``attempts`` requests.
@@ -235,7 +239,10 @@ def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
 
     With ``media``, a medium is first founded on an unreachable goal that no
     existing medium reaches and grown over the types in ``media``; its
-    requests are counted, and later goals share it."""
+    requests are counted, and later goals share it. Required input positions
+    are supported for single-gap repair without invented media."""
+    if required and (missing != 1 or media is not None):
+        raise ValueError("required positions need single-gap repair without media")
     acquired: list[Module] = []
     requests = 0
     if media is not None and plan(modules, available, goal, fuel) is None:
@@ -247,16 +254,16 @@ def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
     refused: set[Contract] = set()
     while True:
         library = (*modules, *acquired)
-        route = plan(library, available, goal, fuel)
+        route = plan(library, available, goal, fuel, required)
         if route is not None:
             return Repaired(tuple(acquired), route, requests)
         unary = frozenset((c.inputs[0], c.output) for c in refused if len(c.inputs) == 1)
-        single_search = missing == 1 and (arity > 1 or priority is not None)
+        single_search = missing == 1 and (arity > 1 or priority is not None or required)
         path = [] if single_search else [Contract((a,), b) for a, b in fewest_missing(
             library, available, goal, missing, unary) or ()]
-        if not path and (arity > 1 or priority is not None):
+        if not path and (arity > 1 or priority is not None or required):
             path = next(([gap.contract] for gap in gaps(library, available, goal, fuel, arity,
-                                                       priority=priority)
+                                                       priority=priority, required=required)
                          if gap.contract not in refused), [])
         if not path:
             return None
