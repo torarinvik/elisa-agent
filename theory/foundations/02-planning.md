@@ -245,4 +245,21 @@ resource-safe fallback are implementation obligations, not consequences of
 the two membership lemmas. Reusing an immutable completed table changes neither
 its contents nor the routes obtained from it.
 
+## 2.12 Finite route proposals from examples
+
+Fix a finite type universe, installed experts and a node budget. Enumerate
+well-typed `Given` and `Apply` trees by nondecreasing node count, including each
+positional input and each admissible higher-order slot filling. Test every
+candidate against the endpoint examples until the first consistent one. If the
+finite traversal reaches that candidate without exhausting its work budget,
+then no earlier enumerated consistent candidate has fewer nodes. The Lean lemma
+`first_consistent_minimal` proves this ordering claim for a supplied ordered
+list; completeness of the implementation's enumeration, its execution, and the
+relationship between finite-universe search and arbitrary programs are not
+formalized. A work-budget interruption is not evidence of impossibility.
+
+Consistency with training examples is not a certificate. A selected route
+must pass an independent fresh-case gate under its stated sampling assumptions;
+no representation-learning rate is asserted.
+
 [Theory index](../THEORY.md)

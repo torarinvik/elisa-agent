@@ -182,7 +182,6 @@ correctness of interactions between mechanisms.
 |---|---|---|
 | [1.1](theory/foundations/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
 | [1.2](theory/foundations/01-types-and-contracts.md) | `WellTyped.subst` | `Terms` |
-| [2.11](theory/foundations/02-planning.md) | `assignment_bucket_complete`, `assignment_bucket_unique` | `Execution/Relevance` |
 | [2.1](theory/foundations/02-planning.md) | `plan_sound` | `Planner` |
 | [2.1](theory/foundations/02-planning.md) | `planShallow_sound` | `Routing` |
 | [2.2](theory/foundations/02-planning.md) | `zero_fuel_nonempty_inputs` | `Planner` |
@@ -200,6 +199,8 @@ correctness of interactions between mechanisms.
 | [2.8](theory/foundations/02-planning.md) | `unifies_eqSubst`, `isMGU_append` | `Unification` |
 | [2.9](theory/foundations/02-planning.md) | `Skel.sound`, `Skel.complete`, `Skel.most_general` | `PatternSearch` |
 | [2.10](theory/foundations/02-planning.md) | `SeqMGU.isMGU`, `SeqMGU.exists` | `PatternSearch` |
+| [2.11](theory/foundations/02-planning.md) | `assignment_bucket_complete`, `assignment_bucket_unique` | `Execution/Relevance` |
+| [2.12](theory/foundations/02-planning.md) | `first_consistent_minimal` (ordered finite candidate list; enumeration completeness unproved) | `Planning/RouteSearch` |
 | [3.1](theory/foundations/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/foundations/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/foundations/03-routing-stability.md) | `planStable_complete` | `Routing` |
