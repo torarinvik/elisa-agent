@@ -394,7 +394,9 @@ derivable with `b` given. ∎
 Theorem 20.11 is the case `|A| = 1`. Candidates are multisets of at most `n` producible types, paired with each
 target from which the goal is derivable. Repeated types retain separate
 argument positions; the set-based reachability theorem alone does not prove
-that distinct supplied values are used. There are
+that distinct supplied values are used. Requiring every task input position
+to occur in the plan is a separate relevance condition, discharged across
+application arguments by `PPlan.uses_apply`. There are
 `O(|P|ⁿ)` of them for `|P|` producible types, so the arity bound is a
 resource limit stated by the caller, not a limit of the theory.
 

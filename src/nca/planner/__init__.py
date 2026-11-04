@@ -493,6 +493,20 @@ def plan(
     return _shallow(ProducerIndex(modules), len(modules), available, goal, fuel, required)
 
 
+def plan_task(
+    modules: Sequence[Module],
+    inputs: Sequence[TypeId],
+    goal: TypeId,
+    fuel: int = 8,
+) -> Plan | None:
+    """Plan a task using every supplied input position.
+
+    Unlike type reachability, a task contract gives each input a role; a
+    route that ignores any supplied position does not fulfill that contract.
+    """
+    return plan(modules, inputs, goal, fuel, required=frozenset(range(len(inputs))))
+
+
 def plan_stable(
     modules: Sequence[Module],
     available: Sequence[TypeId],

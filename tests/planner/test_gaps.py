@@ -9,7 +9,7 @@ import pytest
 
 from nca.abi import Contract, Manifest, Message, Module, Request
 from nca.kernel import Kernel
-from nca.planner import plan
+from nca.planner import plan, plan_task
 from nca.planner.gaps import fewest_missing, gaps, medium, repair
 from nca.runtime import execute
 from nca.workspace import Workspace
@@ -225,3 +225,15 @@ def test_repeated_input_contracts_are_enumerated_and_bind_distinct_positions() -
     result = execute(route, (Message("a", 2, "first"), Message("a", 5, "second"),
                              Message("b", 11, "third")), Workspace(), 20)
     assert result.payload == 18
+
+
+def test_task_plan_does_not_drop_supplied_roles() -> None:
+    inputs = ("a", "a", "b", "c")
+    short = Step(("a", "b"), "g", 0)
+    full = Step(inputs, "g", 0)
+    assert plan_task([short], inputs, "g") is None
+    route = plan_task([short, full], inputs, "g")
+    assert route is not None
+    messages = tuple(Message(t, value, str(i)) for i, (t, value) in
+                     enumerate(zip(inputs, (2, 5, 11, 17), strict=True)))
+    assert execute(route, messages, Workspace(), 20).payload == 35

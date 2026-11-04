@@ -596,7 +596,7 @@ correctness of interactions between mechanisms.
 
 | Subsystem | Interfaces and wiring | Boundary |
 |---|---|---|
-| Types and planning | `abi`, `planner`, `index`, `optimize`, `router` | Contracts establish compatibility, not semantic usefulness. Ground, polymorphic and higher-order wiring retain their declared bindings. |
+| Types and planning | `abi`, `planner`, `index`, `optimize`, `router` | Contracts establish compatibility, not semantic usefulness. `planner.plan_task` requires every supplied input position; general reachability remains available through `planner.plan`. |
 | Objects and packages | `objects.Store`, `objects.loaders`, `packages.install`, `loader.ExpertStore` | Canonical references identify immutable artifacts; contributed implementations and weights still require faithful loaders. |
 | Requests and execution | `kernel.Kernel`, `runtime.execute`, `runtime.process`, `compile.compile_route` | Invocation, cost and request budgets are separate from host metadata work. Opaque callbacks can still recurse or perform unmediated effects. |
 | Refinement and decoding | `refinement`, `ladder`, `selective`, `prefix`, `decoding`, `priors` | Domains supply vocabularies, arities, semantics, priors and certificates. A decoding or risk certificate depends on those supplied premises. |
