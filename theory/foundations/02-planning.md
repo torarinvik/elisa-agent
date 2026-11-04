@@ -309,6 +309,12 @@ only quotients complete outer routes on the examples. General higher-order
 extensionality, termination and completeness within a resource budget remain
 implementation assumptions or open obligations.
 
+Search may assign positive integer costs to expert applications and enumerate
+routes by their total cost, counting each input reference once. Costs can be
+snapshotted from smoothed counts of experts in previously certified routes;
+this changes priority, not the fresh-certification requirement. The costs are
+ranking scores, not yet a uniquely decodable description code.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.

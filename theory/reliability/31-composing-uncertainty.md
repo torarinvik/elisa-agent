@@ -357,3 +357,22 @@ components, structural value encoding, metadata and loading require separate
 validation. The result assumes stable functional models, not mutable hidden
 state or external effects. Retaining model parameters does not retain a risk
 certificate or establish validity under a changed operating distribution.
+
+
+## 31.15 Description-length allocation for fresh tests
+
+For a code length L and decision level α > 0, allocate α·2⁻ᴸ to a route.
+If its true error ℓ exceeds ε, ℓ ≤ 1, and m fresh independent cases miss errors
+with probability at most (1−ℓ)ᵐ, then
+
+    m ε ≥ L ln 2 + ln(1/α)  implies  P(zero losses) ≤ α·2⁻ᴸ.
+
+`occam_zero_loss` proves the numerical bound. If a finite family of code
+lengths satisfies Kraft's inequality, `occam_family_sound` unions its allocated
+levels. `occam_adaptive_fresh` combines this with the existing decision-level
+allocation for any finite number of adaptive decisions, assuming the stated
+fresh-case miss bound and Kraft inequality for each decision. The final result
+bounds the probability of a bad admission, rather than asserting that a fitted
+route has a deterministic error guarantee. Conditional freshness and a valid
+code are hypotheses; the current empirical expert-use search costs have not
+been shown to be prefix lengths or to satisfy Kraft's inequality.
