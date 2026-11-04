@@ -45,6 +45,36 @@ def test_planner_composes_by_type() -> None:
     assert result.args == (Given(TEXT),)
 
 
+def test_inline_expert_shares_budget_and_risk_ledger() -> None:
+    from nca.runtime import InlineExpert, RiskLedger
+    from nca.compile import NotCompilable, compile_route
+
+    class Increment:
+        manifest = Manifest("example.increment", "1", Contract((INT,), INT), effects=frozenset())
+        def invoke(self, value: int) -> int:
+            return value + 1
+        def risk(self, output: int, value: int) -> float:
+            return 0.01
+
+    step = Increment()
+    inner = Apply(step, (Apply(step, (Given(INT, 0),)),))
+    expert = InlineExpert(Manifest("example.route", "1", Contract((INT,), INT),
+                                   effects=frozenset()), inner)
+    route = Apply(expert, (Given(INT, 0),))
+    inputs = (Message(INT, 5, "input"),)
+    direct_ledger, wrapped_ledger = RiskLedger(), RiskLedger()
+    assert execute(inner, inputs, Workspace(), 2, ledger=direct_ledger).payload == 7
+    assert execute(route, inputs, Workspace(), 2, ledger=wrapped_ledger).payload == 7
+    assert wrapped_ledger.charge == direct_ledger.charge
+    assert len(wrapped_ledger.invocations) == len(direct_ledger.invocations) == 2
+    with pytest.raises(BudgetExceeded):
+        execute(route, inputs, Workspace(), 1)
+    with pytest.raises(BudgetExceeded):
+        execute(route, inputs, Workspace(), 2, cost_budget=1)
+    with pytest.raises(NotCompilable):
+        compile_route(route, (INT,))
+
+
 def test_planner_fails_without_capability() -> None:
     assert plan(arithmetic_registry().modules(), (TEXT,), PAIR) is None
 

@@ -291,6 +291,17 @@ implementation therefore certifies the complete lifted route using fresh cases.
 This append-only model does not prove persistence, content-addressed abstraction,
 or a reduction in search depth.
 
+A ground, pure, slot-free contract may also name a fixed typed route. The
+ordinary runtime evaluates that route in the caller's execution context, so
+its member invocations use the same remaining invocation and cost budgets and
+the same risk ledger. Constructing the wrapper is not admission: a fresh gate
+is still required, and the member implementations must remain immutable. The
+wrapper evaluates its supplied arguments before entering the route; this is not
+a claim of observational equivalence to arbitrary syntactic substitution in
+the presence of pending requests or demand-sensitive argument evaluation. The
+batch compiler rejects such wrappers. These runtime properties are tested but
+are not yet proved by the Lean execution model.
+
 On a fixed finite example set, replacing either argument of a pure binary
 context by another function with the same observed outputs preserves that
 context's observed output (`observed_pair_congruent`). A bottom-up search may

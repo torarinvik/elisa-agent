@@ -75,7 +75,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any, Mapping, Protocol
 
-from nca.abi import NOTHING, Demand, Message, Module, Request, SequenceDemand, TypeId
+from nca.abi import NOTHING, Demand, Manifest, Message, Module, Request, SequenceDemand, TypeId
 from nca.cache import ResultCache, value_digest
 from nca.effects import check_effects, effect_call, expert_scope
 from nca.planner import Given, Map, Plan, output_type
@@ -87,6 +87,48 @@ from nca.runtime.ledger import (
     _LEDGER as _LEDGER,
     charge as charge,
 )
+
+
+@dataclass(frozen=True, init=False)
+class InlineExpert:
+    """A typed, pure route executed within its caller's runtime context.
+
+    This representation supplies no certificate; admission remains a separate
+    operation. Member implementations must remain immutable after construction.
+    """
+
+    def __init__(self, manifest: Manifest, route: Plan, *, identity: str | None = None) -> None:
+        from nca.planner import Apply, Map
+        from nca.router import infer
+
+        if manifest.contract.variables or manifest.contract.slots or manifest.effects != frozenset():
+            raise ValueError("an inline expert needs a ground, pure, slot-free contract")
+        modules: list[Module] = []
+
+        def visit(node: Plan) -> None:
+            if isinstance(node, Apply):
+                if node.module.manifest.effects != frozenset():
+                    raise ValueError("inline route members must declare pure effects")
+                modules.append(node.module)
+                for child in (*node.args, *node.slots):
+                    visit(child)
+            elif isinstance(node, Map):
+                visit(node.source)
+                visit(node.body)
+
+        visit(route)
+        if infer(modules, manifest.contract.inputs, route) != manifest.contract.output:
+            raise ValueError("inline route does not implement its contract")
+        object.__setattr__(self, "manifest", manifest)
+        object.__setattr__(self, "route", route)
+        object.__setattr__(self, "identity", identity)
+
+    manifest: Manifest
+    route: Plan
+    identity: str | None
+
+    def invoke(self, *inputs: Any) -> Any:
+        raise RuntimeError("inline experts must be invoked by the runtime")
 
 
 class BudgetExceeded(RuntimeError):
@@ -256,6 +298,8 @@ def execute(
                 args[index] = force(arg)
         manifest = node.module.manifest
         contract = node.contract
+        if isinstance(node.module, InlineExpert):
+            return run(node.module.route, args, chain, demand, decision)
         parents = tuple(a.message_id for a in args)
         key = cache_key(node, args)
         checking = False

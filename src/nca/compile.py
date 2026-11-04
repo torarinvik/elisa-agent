@@ -44,6 +44,9 @@ def _check(node: Plan) -> None:
         _check(node.source)
         _check(node.body)
     elif isinstance(node, Apply):
+        from nca.runtime import InlineExpert
+        if isinstance(node.module, InlineExpert):
+            raise NotCompilable("inline experts require the ordinary runtime")
         if node.slots:
             raise NotCompilable(f"{node.module.manifest.ref} has slots")
         for arg in node.args:
