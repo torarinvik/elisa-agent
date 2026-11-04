@@ -11,6 +11,9 @@ lookup table on input tuples: no expert reading one input can be certified.
 fraction, accuracy on all value pairs, requests, labels, fits and CPU time.
 The ``_memory`` policies add durable scoped refusal history; ``requests``
 counts new acquisition attempts and ``cached_requests`` the avoided attempts.
+``binary_staged_memory`` tries increasing training sizes, certifying each
+candidate on fresh cases with a separate share of the request's confidence.
+``fitted_cases`` counts all examples processed across fits, including reuse.
 Run: python benchmarks/combining.py.
 """
 
@@ -95,6 +98,7 @@ def _run(policy: str, seed: int, history: AcquisitionHistory | None) -> dict[str
     tasks = random.Random(seed + 200000)
     started = time.process_time()
     fits = 0
+    fitted_cases = 0
     meaning: dict[str, str] = {}
     codes: dict[str, list[int]] = {}
     library: list[Module] = []
@@ -125,14 +129,17 @@ def _run(policy: str, seed: int, history: AcquisitionHistory | None) -> dict[str
 
     def counted_fit(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]
                     ) -> Module:
-        nonlocal fits
+        nonlocal fits, fitted_cases
         fits += 1
+        fitted_cases += len(keys)
         return fit(contract, keys, labels)
 
     screen = (FeasibilityScreen(cases=64, confidence=0.05, key=input_key, separates=separates)
               if policy.endswith(("_screen", "_memory")) else None)
     acquirer = CertifiedAcquirer(counted_fit, sample, train=TRAIN, tolerance=0.05,
-                                 confidence=0.05, screen=screen, history=history)
+                                 confidence=0.05, screen=screen, history=history,
+                                 stages=(64, 128, 256, 512, 1024, 2048, TRAIN)
+                                 if "staged" in policy else None)
     served = correct = total = requests = 0
     for _ in range(TASKS):
         given = (f"u{tasks.randrange(2)}", f"v{tasks.randrange(2)}")
@@ -156,6 +163,7 @@ def _run(policy: str, seed: int, history: AcquisitionHistory | None) -> dict[str
     return {"served": served / TASKS, "accuracy": correct / total if total else 0.0,
             "served_requests": requests / TASKS, "requests": acquirer.decisions / TASKS,
             "labels": acquirer.labels / TASKS, "fits": fits / TASKS,
+            "fitted_cases": fitted_cases / TASKS,
             "cached_requests": acquirer.cache_hits / TASKS,
             "screen_rejections": (screen.rejections / TASKS if screen else 0.0),
             "cpu_seconds": time.process_time() - started}
@@ -166,7 +174,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[3726, 3727, 3728])
     args = parser.parse_args()
     for policy in ("unary", "unary_screen", "unary_memory",
-                   "binary", "binary_screen", "binary_memory"):
+                   "binary", "binary_screen", "binary_memory", "binary_staged_memory"):
         runs = [run(policy, seed) for seed in args.seeds]
         print(json.dumps({"policy": policy, **{
             key: (statistics.mean(r[key] for r in runs), statistics.stdev(r[key] for r in runs))

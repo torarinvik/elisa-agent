@@ -458,3 +458,34 @@ properties inferred from matching type names. A bounded cache can forget a
 refusal without weakening the risk bound, provided its spending clock does
 not rewind. A successfully learned implementation requires its own artifact
 storage; this refusal history does not supply one.
+
+**Staged acquisition.** Instead of choosing a single training size, declare
+strictly increasing sizes `b₁ < … < b_R = B` before observing new cases.
+Fit on the first `b_r` available training cases at stage `r`, then freeze
+the candidate and test it on fresh independent cases. Stop at the first
+passing candidate. A failed test's observed cases may join training for later
+stages, up to the maximum training size `B`; they must never serve as those
+later stages' fresh tests. A failed fit may advance without spending its
+unused test allocation. No rate of learning or monotonic improvement is
+assumed.
+
+**Theorem 20.18 (adaptive training with fresh certification).** Give each of
+request `k`'s `R_k` stages level `α_k/R_k`, where
+`α_k = δ/((k+1)(k+2))`. Under the conditional fresh-case sampling assumption
+of Theorem 20.14, the probability of ever admitting a candidate with error
+greater than `ε` is at most `δ`, despite early stopping and reuse of failed
+tests as training for later candidates.
+
+*Proof.* Conditional on the history before a stage's test, its frozen
+candidate is already chosen. A candidate of error above `ε` passes its fresh
+test with probability at most `α_k/R_k`, by the zero-loss argument of
+Theorem 20.14. A union bound over the declared stages is at most `α_k`, and
+another over requests is at most `δ`. Skipping unused levels and stopping
+early only remove events from this union. Reusing earlier observations for
+fitting changes the chosen candidate, not the freshness of its next test. ∎
+
+This does not guarantee a saving: repeated fitting and stricter per-stage
+tests may cost more than one well-chosen training size. At most `B` cases
+are supplied to any fit, and at most `R_k` fits are attempted; testing has its
+own separately charged case cost. The case budget, schedule and learning
+procedure are parameters, rather than knowledge of any particular task.

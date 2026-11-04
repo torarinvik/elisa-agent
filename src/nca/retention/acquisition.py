@@ -20,6 +20,12 @@ Optional history replaces the local index by a durable reservation position,
 possibly skipping levels, and reuses screened refusals in the same semantic
 context. The confidence bound is unchanged when those positions are never
 reused. Final admission cases remain fresh, separate from the training prefix.
+
+Optional increasing ``stages`` stop training at the first certified candidate.
+Each stage receives an equal share of the request's admission level
+(``NCA.staged_acquisition_sound``); failed-test observations may train later
+candidates, whose tests must still be fresh. This makes no assumption about
+how fast a fitter learns and need not reduce either labels or compute.
 """
 
 from __future__ import annotations
@@ -31,6 +37,7 @@ from nca.abi import Contract, Module
 from nca.retention.sampled import decision_level, required_cases
 from nca.retention.screening import FeasibilityScreen
 from nca.retention.history import AcquisitionHistory
+from nca.stats import family_audit_alpha
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
 """Fits an expert from input keys and labels, or ``None`` if it cannot."""
@@ -57,19 +64,29 @@ class CertifiedAcquirer:
     durable reservations supply both admission and screening decision indices.
     The host must declare and grant the backend's read/write effects.
     ``decisions`` counts new attempts; ``cache_hits`` counts reused refusals.
+    ``train`` caps the cases supplied to each fit, not all labels consumed.
+    ``stages`` is copied before sampling and must strictly increase to that cap.
+    A fitted candidate must remain frozen while its fresh test runs.
     """
 
     def __init__(self, fit: Fitter, sample: Sampler, *, train: int, tolerance: float,
                  confidence: float, agree: Callable[[Any, Any], bool] = _equal,
                  screen: FeasibilityScreen | None = None,
-                 history: AcquisitionHistory | None = None) -> None:
-        if train < 1:
+                 history: AcquisitionHistory | None = None,
+                 stages: Sequence[int] | None = None) -> None:
+        if isinstance(train, bool) or not isinstance(train, int) or train < 1:
             raise ValueError("training needs at least one case")
+        schedule = (train,) if stages is None else tuple(stages)
+        if (not schedule or any(isinstance(n, bool) or not isinstance(n, int) or n < 1
+                                for n in schedule) or schedule[-1] != train
+                or any(a >= b for a, b in zip(schedule, schedule[1:]))):
+            raise ValueError("training stages must strictly increase to train")
         required_cases(tolerance, confidence)
         self.fit, self.sample, self.train, self.agree = fit, sample, train, agree
         self.tolerance, self.confidence = tolerance, confidence
         self.screen = screen
         self.history = history
+        self.stages = schedule
         self.cache_hits = 0
         self.decisions = 0
         self.labels = 0
@@ -87,9 +104,9 @@ class CertifiedAcquirer:
             index, ticket = self.history.reserve(key)
         level = decision_level(self.confidence, index)
         self.decisions += 1
-        fresh = required_cases(self.tolerance, level)
+        level = family_audit_alpha(level, len(self.stages))
         training: list[tuple[Any, Any]] = []
-        prefix = min(self.screen.cases, self.train) if self.screen is not None else 0
+        prefix = min(self.screen.cases, self.stages[0]) if self.screen is not None else 0
         if prefix >= 2:
             drawn = self.sample(contract, prefix)
             if drawn is not None:
@@ -103,29 +120,50 @@ class CertifiedAcquirer:
                     assert self.screen.last is not None
                     self.history.remember(key, ticket, self.screen.last)
                 return None
-        remaining = self.train - len(training)
-        if remaining:
-            drawn = self.sample(contract, remaining)
-            if drawn is not None:
-                self.labels += len(drawn)
-                training.extend(drawn)
-            if len(training) != self.train:
+        for stage, size in enumerate(self.stages):
+            remaining = max(0, size - len(training))
+            if remaining:
+                drawn = self.sample(contract, remaining)
+                if drawn is not None:
+                    self.labels += len(drawn)
+                    training.extend(drawn)
+                if drawn is None or len(drawn) != remaining:
+                    return None
+            examples = training[:size]
+            module = self.fit(contract, [k for k, _ in examples], [v for _, v in examples])
+            if module is None:
+                continue
+            if module.manifest.contract != contract:
+                raise ValueError("the fitted expert does not have the requested contract")
+            retain = self.train - len(training) if stage + 1 < len(self.stages) else 0
+            admitted, observed = self._test(module, contract, level, retain)
+            if admitted is None:
                 return None
-        module = self.fit(contract, [k for k, _ in training], [v for _, v in training])
-        if module is None:
-            return None
+            if admitted:
+                self.certified[module.manifest.module_id] = self.tolerance
+                return module
+            training.extend(observed)
+        return None
+
+    def _test(self, module: Module, contract: Contract, level: float,
+              retain: int) -> tuple[bool | None, list[tuple[Any, Any]]]:
+        """Freeze this candidate for one fresh test. Retain bounded drawn
+        examples for fitting a later candidate only after this test returns."""
+        fresh = required_cases(self.tolerance, level)
+        observed: list[tuple[Any, Any]] = []
         tested, batch = 0, 1
         while tested < fresh:
-            held = self.sample(contract, min(batch, fresh - tested))
+            count = min(batch, fresh - tested)
+            held = self.sample(contract, count)
             if held is not None:
                 self.labels += len(held)
-            if held is None or len(held) < min(batch, fresh - tested):
-                return None
+            if held is None or len(held) != count:
+                return None, observed
+            observed.extend(held[:max(0, retain - len(observed))])
             if not all(self.agree(_invoke(module, contract, k), v) for k, v in held):
-                return None
+                return False, observed
             tested, batch = tested + len(held), 2 * batch
-        self.certified[module.manifest.module_id] = self.tolerance
-        return module
+        return True, observed
 
     def rate(self, module: Module) -> float | None:
         """The certified error rate of an expert this acquirer admitted."""

@@ -193,4 +193,19 @@ theorem earlyTest_reads : ∀ cases : List Bool,
     exact ⟨by omega, fun h => by rw [this.2 h]⟩
   | false :: _ => by simp [earlyTest]
 
+/-- Staged acquisition (§20.18): stop after any passing candidate, but charge
+each candidate test its share of that request's confidence. Fitters may use
+all earlier observations, including failed tests; the per-test miss bound
+requires new cases independent of that history and a frozen candidate. -/
+theorem staged_acquisition_sound {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    {δ : ℝ} (hδ : 0 ≤ δ) (n : ℕ) (stages : ℕ → ℕ)
+    (wrong : ℕ → ℕ → Set Ω) (admittedWrong : Set Ω)
+    (tested : admittedWrong ⊆ ⋃ k ∈ range n, ⋃ r ∈ range (stages k), wrong k r)
+    (share : ∀ k ∈ range n, ∀ r ∈ range (stages k),
+      μ (wrong k r) ≤ ENNReal.ofReal (decisionLevel δ k / stages k)) :
+    μ admittedWrong ≤ ENNReal.ofReal δ := by
+  refine (measure_mono tested).trans ?_
+  simpa using sampledGate_sound μ hδ n (fun k => range (stages k)) wrong
+    (fun k hk r hr => by simpa using share k hk r hr)
+
 end NCA
