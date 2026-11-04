@@ -276,6 +276,13 @@ output slot. This identity assumes predicates are total on the inputs being
 compared; effects, exceptions, key ordering and Python execution fidelity are
 not proved by it. Empty-input behavior must be specified separately.
 
+For a Boolean guard, a conditional composition agrees pointwise with a target
+if each branch agrees with the target wherever its guard selects it
+(`conditional_agree`). This conditional statement neither proves that learned
+branches are correct nor bounds their generalization error. Certification tests
+the complete fixed route on fresh cases, using the existing confidence allocation;
+the split, guard, literals and branch proposals must not depend on those cases.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.

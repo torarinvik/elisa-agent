@@ -57,4 +57,14 @@ theorem filter_sequential {α : Type} (p q : α → Bool) (xs : List α) :
   | cons x rest ih =>
     cases hp : p x <;> cases hq : q x <;> simp [List.filter, hp, hq, ih]
 
+
+/-- A conditional agrees pointwise when each branch is correct on its own guard. -/
+theorem conditional_agree {α β : Type} (guard : α → Bool) (yes no truth : α → β)
+    (hy : ∀ x, guard x = true → yes x = truth x)
+    (hn : ∀ x, guard x = false → no x = truth x) (x : α) :
+    (if guard x then yes x else no x) = truth x := by
+  cases h : guard x with
+  | false => simpa [h] using hn x h
+  | true => simpa [h] using hy x h
+
 end NCA
