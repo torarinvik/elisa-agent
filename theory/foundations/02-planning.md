@@ -411,7 +411,7 @@ Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.
 
-[Theory index](../THEORY.md)
+## 2.13 Proposal-only libraries and retained certificates
 
 A learned route abbreviation may be installed as a proposal-only library entry
 following exact MDL rewriting and training-behaviour checks. It has no separate
@@ -432,3 +432,5 @@ only a representation of trusted prior evidence, not a new attestation; source
 and codebook identity and preservation of case value types are implementation
 obligations. Interrupted acquisition costs cannot be silently erased from later
 accounting.
+
+[Theory index](../THEORY.md)
