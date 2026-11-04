@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Contract, Message, TypeId
-from nca.evidence.redundancy import vote
+from nca.evidence.redundancy import Vote, vote
 from nca.planner import Plan, output_type
 from nca.runtime import Resolver
 from nca.retention.certification import zero_loss_test
@@ -37,6 +37,22 @@ class CertifiedVote:
     cases: int
 
 
+@dataclass(frozen=True)
+class VoteFailure:
+    """First scored failure, delivered only after its candidate test closes.
+
+    This observation may train later candidates; later tests need new draws,
+    even when values coincide. Payloads and plan implementations follow the host's
+    immutability/retention policy, just as ordinary runtime inputs do.
+    """
+
+    routes: tuple[Plan, ...]
+    case: VoteCase
+    vote: Vote
+    level: float
+    drawn: int
+
+
 class EnsembleSearch:
     """Request routes until a declared vote size passes fresh certification.
 
@@ -49,6 +65,10 @@ class EnsembleSearch:
     Calls on one object are serialized. Without history, constructing a new
     object starts a new confidence budget. Resolver behavior is part of the
     candidate's fixed evaluation semantics.
+    Optional ``feedback`` receives one observed failure after each rejected
+    test, including the last. It may inform later proposals or later searches;
+    it must not mutate published experts or reuse that draw for certification.
+    Callback errors propagate after already drawn labels have been charged.
     """
 
     def __init__(self, *, counts: Sequence[int], tolerance: float, confidence: float,
@@ -69,7 +89,8 @@ class EnsembleSearch:
     def __call__(self, contract: Contract,
                  acquire: Callable[[tuple[Plan, ...]], Plan | None],
                  sample: Callable[[int], Sequence[VoteCase] | None], *,
-                 agree: Callable[[Any, Any], bool] = _equal) -> CertifiedVote | None:
+                 agree: Callable[[Any, Any], bool] = _equal,
+                 feedback: Callable[[VoteFailure], None] | None = None) -> CertifiedVote | None:
         index = self.decisions
         if self.history is not None:
             key = self.history.key(contract, self.tolerance, self.confidence, None)
@@ -94,8 +115,10 @@ class EnsembleSearch:
                     raise ValueError("acquired route has the wrong output type")
                 routes.append(route)
             frozen = tuple(routes)
+            failure: tuple[VoteCase, Vote] | None = None
 
             def correct(case: VoteCase) -> bool:
+                nonlocal failure
                 self.evaluations += 1
                 inputs, label = case
                 if isinstance(inputs, Mapping):
@@ -107,7 +130,10 @@ class EnsembleSearch:
                 if not valid_inputs:
                     raise ValueError("certification inputs do not match the requested contract")
                 result = vote(frozen, inputs, self.budget, self.resolver)
-                return result.agreeing > 0 and agree(result.answer, label)
+                accepted = result.agreeing > 0 and bool(agree(result.answer, label))
+                if not accepted:
+                    failure = case, result
+                return accepted
 
             fresh = required_cases(self.tolerance, level)
             self.tests += 1
@@ -116,4 +142,7 @@ class EnsembleSearch:
                 return None
             if result.passed:
                 return CertifiedVote(frozen, self.tolerance, level, fresh)
+            if feedback is not None:
+                assert failure is not None
+                feedback(VoteFailure(frozen, failure[0], failure[1], level, result.drawn))
         return None

@@ -11,6 +11,8 @@ votes. Measures accuracy over all latent values, abstentions, and the
 Run: python benchmarks/redundancy.py.
 Use --target 0.02 --maximum 9 --depths 8 to compare fixed and growing
 end-to-end certification; only requested lanes are fit in that experiment.
+Add --repair-rounds 16 --correlated to compare repeating a blind spot with
+counterexample-directed simulator supervision across fresh single-route tests.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from nca.abi import Contract, Message, Module
 from nca.evidence.redundancy import dependent_vote_risk, disjoint_routes, vote, vote_risk
 from nca.learning.discovery import fit_decoder
 from nca.planner import Plan, plan
-from nca.retention.ensembles import EnsembleSearch, VoteCase
+from nca.retention.ensembles import EnsembleSearch, VoteCase, VoteFailure
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -43,6 +45,7 @@ class LaneFactory:
         self.codes: dict[str, list[int]] = {}
         self.modules: list[Module] = []
         self.lanes = self.labels = self.fit_requests = 0
+        self.repairs: set[int] = set()
 
     def code(self, name: str, v: int) -> str:
         if name not in self.codes:
@@ -55,6 +58,7 @@ class LaneFactory:
         modules: list[Module] = []
         for h, (a, b) in enumerate(zip(chain, chain[1:], strict=False)):
             values = self.shared[h] if self.shared else [self.rng.randrange(VALUES) for _ in range(PAIRS)]
+            values = [*values, *sorted(self.repairs)]
             modules.append(fit_decoder(Contract((a,), b), [self.code(a, v) for v in values],
                                        [self.code(b, v) for v in values], cost=1.0))
             self.labels += len(values)
@@ -67,6 +71,22 @@ class LaneFactory:
 
     def case(self, value: int) -> VoteCase:
         return (Message("s", self.code("s", value), "input"),), self.code("g", value)
+
+    def observe(self, failure: VoteFailure) -> None:
+        """Request simulator labels at every layer for the failed latent case.
+
+        These additional labeled pairs are charged on subsequent fits. The
+        core receives no private representation or domain-specific repair rule.
+        """
+        value = self.latent(failure.case)
+        assert self.code("g", value) == failure.case[1]
+        self.repairs.add(value)
+
+    def latent(self, case: VoteCase) -> int:
+        inputs, _ = case
+        assert not isinstance(inputs, dict)
+        encoded = int(str(inputs[0].payload).split(":")[1])
+        return self.codes["s"].index(encoded)
 
 
 def run(depth: int, routes: int, seed: int, correlated: bool = False) -> dict[str, float]:
@@ -124,6 +144,61 @@ def certify(depth: int, seed: int, correlated: bool, target: float,
             "cpu_seconds": process_time() - started}
 
 
+def repair_trials(depth: int, seed: int, correlated: bool, target: float,
+                  rounds: int, targeted: bool) -> dict[str, float | None]:
+    """Closed-test feedback changes later training, never a running candidate.
+
+    Full-domain error sets are audit-only diagnostics and do not guide repair.
+    The only examples supplied to the repair policy come from VoteFailure.
+    """
+    started = process_time()
+    factory = LaneFactory(depth, seed, correlated)
+    rng = random.Random(seed + 20000)
+    search = EnsembleSearch(counts=(1,), tolerance=target, confidence=0.05, budget=depth + 1)
+    previous: set[int] | None = None
+    errors: set[int] = set()
+    regressions = feedbacks = uncorrected = 0
+    pending: int | None = None
+
+    def acquire(old: tuple[Plan, ...]) -> Plan:
+        nonlocal previous, errors, regressions, uncorrected
+        route = factory.acquire(old)
+        errors = {v for v in range(VALUES) if execute(
+            route, factory.case(v)[0], Workspace(), depth + 1).payload != factory.case(v)[1]}
+        if previous is not None and not errors <= previous:
+            regressions += 1
+        if pending is not None and pending in errors:
+            uncorrected += 1
+        previous = errors.copy()
+        return route
+
+    def sample(count: int) -> list[VoteCase]:
+        return [factory.case(rng.randrange(VALUES)) for _ in range(count)]
+
+    def feedback(failure: VoteFailure) -> None:
+        nonlocal feedbacks, pending
+        feedbacks += 1
+        pending = factory.latent(failure.case)
+        if targeted:
+            factory.observe(failure)
+
+    result = None
+    for _ in range(rounds):
+        result = search(Contract(("s",), "g"), acquire, sample, feedback=feedback)
+        if result is not None:
+            break
+    error = len(errors) / VALUES if result is not None else None
+    return {"certified": float(result is not None), "admitted_error": error,
+            "bad_certificates": float(error is not None and error > target),
+            "route_requests": float(search.requests), "fit_requests": float(factory.fit_requests),
+            "training_labels": float(factory.labels), "test_labels": float(search.labels),
+            "audit_labels": float(VALUES), "audit_evaluations": float(VALUES * search.requests),
+            "total_labels": float(factory.labels + search.labels + VALUES),
+            "feedbacks": float(feedbacks), "regressions": float(regressions),
+            "uncorrected": float(uncorrected),
+            "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=list(range(3716, 3726)))
@@ -133,12 +208,26 @@ def main() -> None:
     parser.add_argument("--routes", type=int, nargs="+", default=[1, 3, 5, 7])
     parser.add_argument("--target", type=float)
     parser.add_argument("--maximum", type=int, default=9)
+    parser.add_argument("--repair-rounds", type=int)
     args = parser.parse_args()
     if any(d < 1 for d in args.depths) or any(k < 1 or k > LANES for k in args.routes):
         parser.error("depths must be positive and route counts between one and available lanes")
     if args.target is not None:
         if args.maximum < 1 or not 0 < args.target < 1:
             parser.error("maximum must be positive and target between zero and one")
+        if args.repair_rounds is not None:
+            if args.repair_rounds < 1:
+                parser.error("repair rounds must be positive")
+            for depth in args.depths:
+                for targeted in (False, True):
+                    runs = [repair_trials(depth, seed, args.correlated, args.target,
+                                          args.repair_rounds, targeted) for seed in args.seeds]
+                    means = {}
+                    for key in runs[0]:
+                        values = [r[key] for r in runs if r[key] is not None]
+                        means[key] = statistics.mean(values) if values else None
+                    print(json.dumps({"depth": depth, "targeted": targeted, **means}))
+            return
         staged = tuple(range(1, args.maximum + 1, 2))
         if staged[-1] != args.maximum:
             staged += (args.maximum,)

@@ -225,3 +225,36 @@ candidate tests are made. Label and execution cost depend on the target,
 spending level and stopping stage. The acquisition procedure may learn from
 past observations, but certification cases must remain fresh for each new
 candidate. A refusal is not a proof that no better ensemble can be acquired.
+
+## 31.10 Learning from a rejected vote
+
+After a failed candidate test has ended, expose its first scored failing case
+and the vote it produced. This is at most one counterexample per tested
+candidate. A proposal procedure can use earlier counterexamples as training
+evidence. Later tests still use new independent draws; an old observation is
+not fresh again merely because the candidate changed. No observed failure is
+needed or exposed on admission, and insufficient data alone supplies no
+counterexample.
+
+**Theorem 31.9 (feedback and conditional repair progress).** (i) Adapting later
+candidates using closed tests' counterexamples preserves Theorem 31.8 under
+its conditional freshness and fixed-candidate hypotheses. (ii) Let `E_i` be
+the finite error set before correction `i`. If the observed
+case `x_i ∈ E_i` is corrected without introducing any new error, so
+`E_{i+1} ⊆ E_i \ {x_i}`, then after `n` such corrections
+`|E_n| + n ≤ |E_0|`. In particular no more than `|E_0|` strictly correcting
+steps are possible.
+
+*Proof.* (i) Each later candidate is chosen from prior history before its
+new cases are drawn; the conditional miss bound and confidence union are
+unchanged. (ii) Removing an element in `E_i` strictly reduces its cardinality,
+and the repaired error set is a subset of that removal. Induction gives the
+claimed bound. ∎
+
+Monotonic correction is an explicit hypothesis about the learner. The
+feedback interface establishes neither that property nor generalization
+beyond observed cases. A learner can introduce regressions or fail to repair
+a counterexample; fresh certification remains necessary. This finite-domain
+progress bound imposes no restriction on which domains may use feedback, but
+does not supply finite convergence when error sets can be infinite or repairs
+introduce new errors.
