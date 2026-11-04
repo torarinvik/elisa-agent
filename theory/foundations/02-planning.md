@@ -233,4 +233,16 @@ returns is most general for the skeleton it settles on, though not
 necessarily over all skeletons. If that typing leaves a variable
 undetermined, the skeleton is ambiguous and the search goes on to the next.
 
+## 2.11 Stable assignment buckets
+
+Assign each candidate a nonnegative peak-load score. Every candidate whose
+score is below a declared bound belongs to its score bucket, and cannot belong
+to two different buckets (`assignment_bucket_complete`,
+`assignment_bucket_unique`). Visiting buckets in ascending score and retaining
+the original order within each bucket gives the same order as a stable sort by
+score. Finite enumeration, exact score computation, stable bucket placement and
+resource-safe fallback are implementation obligations, not consequences of
+the two membership lemmas. Reusing an immutable completed table changes neither
+its contents nor the routes obtained from it.
+
 [Theory index](../THEORY.md)

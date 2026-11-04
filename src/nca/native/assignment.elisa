@@ -1,0 +1,41 @@
+# Stable ordering of finite position assignments by maximum bucket load.
+# Returns base-arity codes, first by peak load then by lexicographic digits.
+def order(arity: i64, size: i64, limit: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    return [] if arity < 1 or size < 1 or limit < 1
+    return [0] if arity == 1
+    total: i64 =
+        for _ in 0..<size |value: i64 = 1| -> value:
+            return [] if value > limit / arity
+            value <- value * arity
+    counts: mutable darray[i64] = [0 for _ in 0..<(size + 1)]
+    peaks: mutable darray[i64] = [0 for _ in 0..<total]
+    for code in 0..<total:
+        digits: mutable darray[i64] = [0 for _ in 0..<size]
+        filled: darray[i64] =
+            for i in 0..<size |rest: i64 = code, digits| -> digits:
+                digits[i] <- rest % arity
+                rest <- rest / arity
+        peak: i64 =
+            for i in 0..<size |best: i64 = 0| -> best:
+                repetitions: i64 =
+                    for j in 0..<size |found: i64 = 0| -> found:
+                        found <- found + 1 if filled[i] == filled[j] else found
+                best <- repetitions if repetitions > best else best
+        peaks[code] <- peak
+        counts[peak] <- counts[peak] + 1
+    offsets: mutable darray[i64] = [0 for _ in 0..<(size + 1)]
+    for i in 0..<(size + 1):
+        cursor: i64 =
+            for j in 0..<i |value: i64 = 0| -> value:
+                value <- value + counts[j]
+        offsets[i] <- cursor
+    result: mutable darray[i64] = [0 for _ in 0..<total]
+    for code in 0..<total:
+        peak: i64 = peaks[code]
+        position: i64 = offsets[peak]
+        result[position] <- code
+        offsets[peak] <- position + 1
+    return result
+
+export pymodule assignment:
+    fn order

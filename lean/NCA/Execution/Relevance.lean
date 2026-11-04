@@ -190,4 +190,19 @@ theorem PTypedArgs.uses_lt {lib : List (Contract Ty)} :
     · exact PTypedArgs.uses_lt hps k hk
 end
 
+/-- Every bounded score occurs in its corresponding stable bucket. -/
+theorem assignment_bucket_complete {A : Type*} (xs : List A) (score : A → ℕ)
+    (bound : ℕ) (x : A) (member : x ∈ xs) (bounded : score x < bound) :
+    ∃ k ∈ List.range bound, x ∈ xs.filter (fun y => score y == k) := by
+  refine ⟨score x, List.mem_range.mpr bounded, ?_⟩
+  simp [member]
+
+/-- A scored element cannot belong to two different score buckets. -/
+theorem assignment_bucket_unique {A : Type*} (xs : List A) (score : A → ℕ)
+    (x : A) (a b : ℕ) (ha : x ∈ xs.filter (fun y => score y == a))
+    (hb : x ∈ xs.filter (fun y => score y == b)) : a = b := by
+  have ea : score x = a := by simpa using (List.mem_filter.mp ha).2
+  have eb : score x = b := by simpa using (List.mem_filter.mp hb).2
+  exact ea.symm.trans eb
+
 end NCA

@@ -1,11 +1,78 @@
 """Typed plan terms and structural input/output inspection."""
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
+import itertools
 from typing import Union
 
 from nca.abi import Binding, Contract, Module, TypeId, seq_type
+from nca.native import load
+
+
+# The table cache is a resource policy, not a planning limit. Larger tables use
+# the same uncached reference enumeration. The cell budget bounds retained tuple
+# slots, including empty argument groups, rather than only assignment count.
+_ASSIGNMENT_CELLS = 4096
+_ASSIGNMENT_NATIVE = load("assignment")
+
+
+def _reference_choices(size: int, count: int) -> list[tuple[int, ...]]:
+    return sorted(itertools.product(range(count), repeat=size),
+                  key=lambda choice: (max((choice.count(j) for j in range(count)), default=0),
+                                      choice))
+
+
+@lru_cache(maxsize=64)
+def _assignment_table(ordered: tuple[int, ...], count: int) -> tuple[tuple[frozenset[int], ...], ...]:
+    if _ASSIGNMENT_NATIVE is None:
+        choices = _reference_choices(len(ordered), count)
+    else:
+        codes = _ASSIGNMENT_NATIVE.order(count, len(ordered), _ASSIGNMENT_CELLS)
+        if len(codes) != count ** len(ordered):
+            raise RuntimeError("Elisa assignment kernel returned an incomplete table")
+        choices = []
+        for code in codes:
+            digits = [0] * len(ordered)
+            for position in range(len(ordered) - 1, -1, -1):
+                code, digits[position] = divmod(code, count)
+            choices.append(tuple(digits))
+    empty: frozenset[int] = frozenset()
+    result = []
+    for choice in choices:
+        groups = [set() for _ in range(count)]
+        for position, argument in zip(ordered, choice, strict=True):
+            groups[argument].add(position)
+        result.append(tuple(frozenset(group) if group else empty for group in groups))
+    return tuple(result)
+
+
+def assignments(required: frozenset[int], count: int) -> Iterator[tuple[frozenset[int], ...]]:
+    """Distribute required positions, most evenly first and lexically within ties.
+
+    Small complete tables are built with Elisa when available and cached; larger
+    ones use the same uncached reference order. Cached outputs are immutable.
+    """
+    if not required:
+        yield (frozenset(),) * count
+        return
+    if count <= 0:
+        return
+    if count == 1:
+        yield (required,)
+        return
+    ordered = tuple(sorted(required))
+    choices = 1
+    for _ in ordered:
+        if choices > _ASSIGNMENT_CELLS // count // count:
+            break
+        choices *= count
+    else:
+        yield from _assignment_table(ordered, count)
+        return
+    for choice in _reference_choices(len(ordered), count):
+        yield tuple(frozenset(r for r, c in zip(ordered, choice) if c == j) for j in range(count))
 
 
 @dataclass(frozen=True)

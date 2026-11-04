@@ -74,3 +74,35 @@ def test_native_integer_record_selection_matches_exhaustive_reference() -> None:
     assert kernel.select_equal(extreme, 1, 0, -(2 ** 63)) == [0, 2]
     for width, column in ((0, 0), (-1, 0), (1, -1), (1, 1), (3, 0)):
         assert kernel.select_equal(array("q", [1, 2]), width, column, 1) == []
+
+
+def test_assignment_kernel_preserves_all_small_stable_orders() -> None:
+    from itertools import product
+
+    kernel = native.load("assignment")
+    if kernel is None:
+        pytest.skip("native assignment kernel unavailable or disabled")
+    for arity in range(1, 6):
+        for size in range(1, 6):
+            choices = list(product(range(arity), repeat=size))
+            expected = sorted(range(len(choices)), key=lambda i: (
+                max(choices[i].count(j) for j in range(arity)), choices[i]))
+            assert kernel.order(arity, size, 4096) == expected
+    assert kernel.order(0, 3, 4096) == []
+    assert kernel.order(2, 13, 4096) == []
+
+
+def test_assignment_kernel_matches_every_cacheable_shape() -> None:
+    from itertools import product
+
+    kernel = native.load("assignment")
+    if kernel is None:
+        pytest.skip("native assignment kernel unavailable or disabled")
+    for arity in range(2, 65):
+        size = 1
+        while arity ** size * arity <= 4096:
+            choices = list(product(range(arity), repeat=size))
+            expected = sorted(range(len(choices)), key=lambda i: (
+                max(choices[i].count(j) for j in range(arity)), choices[i]))
+            assert kernel.order(arity, size, 4096) == expected
+            size += 1

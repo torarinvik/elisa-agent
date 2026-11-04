@@ -32,6 +32,7 @@ from nca.abi import (App, Binding, Contract, Module, ScopedName, Term, TypeId, V
                      parse_type, resolve, seq_type, type_variables, unify)
 from nca.index import ProducerIndex, rename_apart
 from nca.planner.terms import (
+    assignments as assignments,
     Given as Given,
     Apply as Apply,
     Map as Map,
@@ -43,23 +44,6 @@ from nca.planner.terms import (
 
 
 Memo = dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]], Union[Given, Apply, Map, None]]
-
-
-def assignments(required: frozenset[int], count: int) -> Iterator[tuple[frozenset[int], ...]]:
-    """Ways to give each required position to one of ``count`` arguments: a
-    requirement is met by an application exactly when it is met this way by
-    its arguments (THEORY §20.8, Theorem 20.10). Ways that spread the positions over more
-    arguments come first, so that each argument has as little to use as
-    possible."""
-    if not required:
-        yield (frozenset(),) * count
-        return
-    ordered = sorted(required)
-    choices = sorted(itertools.product(range(count), repeat=len(ordered)),
-                     key=lambda choice: (max((choice.count(j) for j in range(count)), default=0),
-                                         choice))
-    for choice in choices:
-        yield tuple(frozenset(r for r, c in zip(ordered, choice) if c == j) for j in range(count))
 
 
 def elem_candidates(modules: Sequence[Module], available: Sequence[TypeId]) -> list[TypeId]:

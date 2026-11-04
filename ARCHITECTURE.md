@@ -182,6 +182,7 @@ correctness of interactions between mechanisms.
 |---|---|---|
 | [1.1](theory/foundations/01-types-and-contracts.md) | `WellTyped.mono` | `Contract` |
 | [1.2](theory/foundations/01-types-and-contracts.md) | `WellTyped.subst` | `Terms` |
+| [2.11](theory/foundations/02-planning.md) | `assignment_bucket_complete`, `assignment_bucket_unique` | `Execution/Relevance` |
 | [2.1](theory/foundations/02-planning.md) | `plan_sound` | `Planner` |
 | [2.1](theory/foundations/02-planning.md) | `planShallow_sound` | `Routing` |
 | [2.2](theory/foundations/02-planning.md) | `zero_fuel_nonempty_inputs` | `Planner` |
@@ -640,6 +641,7 @@ Strict floating-point compilation is required for conservative numeric bounds.
 | `polynomial.elisa` | `learning.projections`: supplied polynomial feature evaluation |
 | `prototypes.elisa` | `learning.projections`: certified nearest-prototype selection |
 | `records.elisa` | `learning.features`, `learning.categorical`: record lookup and empirical category scores |
+| `assignment.elisa` | `planner.terms`: stable position-assignment ordering for bounded cached tables |
 
 Numerical bounds rely on compiler, ABI and IEEE behavior stated in the relevant
 chapters and source docstrings. Differential tests provide implementation
