@@ -145,6 +145,12 @@ class Primitive:
     """Resident bytes once loaded, for the expert store's budget."""
     dependencies: tuple[Ref, ...] = ()
     """Executable scopes passed lazily to the factory, in order (§28.7)."""
+    accounts_inside: bool = False
+    """Runs its own risk-ledger accounting; known before lazy loading."""
+
+    def __post_init__(self) -> None:
+        if type(self.accounts_inside) is not bool:
+            raise ValueError("internal accounting declaration must be Boolean")
 
     def data(self) -> dict[str, Json]:
         data: dict[str, Json] = {"kind": "primitive", "manifest": manifest_data(self.manifest),
@@ -152,6 +158,8 @@ class Primitive:
                                 "weights": self.weights, "size": self.size}
         if self.dependencies:
             data["dependencies"] = list(self.dependencies)
+        if self.accounts_inside:
+            data["accounts_inside"] = True
         return data
 
     @property
@@ -171,6 +179,9 @@ class Primitive:
         if implementation.manifest != self.manifest:
             raise ValueError(f"{self.entry} produced {implementation.manifest.ref}, "
                              f"not the declared {self.manifest.ref}")
+        accounting = getattr(implementation, "accounts_inside", False)
+        if type(accounting) is not bool or accounting != self.accounts_inside:
+            raise ValueError(f"{self.entry} changed its declared internal accounting")
         return implementation
 
 
@@ -268,7 +279,8 @@ def object_from(data: Mapping[str, Any]) -> Object:
     kind = data["kind"]
     if kind == "primitive":
         return Primitive(manifest_from(data["manifest"]), data["entry"], data["arguments"],
-                         data["weights"], data["size"], tuple(data.get("dependencies", ())))
+                         data["weights"], data["size"], tuple(data.get("dependencies", ())),
+                         data.get("accounts_inside", False))
     if kind == "composite":
         exports = data["exports"]
         effects = data["effects"]
@@ -309,8 +321,9 @@ def constructors(contracts: Sequence[Contract]) -> dict[Ref, int]:
 def primitive(module: Any, entry: str, arguments: Mapping[str, Json] | None = None,
               weights: Ref | None = None, size: int = 0,
               dependencies: tuple[Ref, ...] = ()) -> Primitive:
-    """Describe an existing module as a primitive with the given loader."""
-    return Primitive(module.manifest, entry, dict(arguments or {}), weights, size, dependencies)
+    """Describe a module and its internal-accounting declaration for a loader."""
+    return Primitive(module.manifest, entry, dict(arguments or {}), weights, size, dependencies,
+                     getattr(module, "accounts_inside", False))
 
 from nca.objects.store import (
     Store as Store,

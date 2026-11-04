@@ -178,6 +178,9 @@ class ExpertStore:
             implementation = expert.load()
             if not callable(getattr(implementation, "invoke", None)):
                 raise TypeError(f"loader for {key} must return an implementation with an invoke method")
+            accounting = getattr(implementation, "accounts_inside", False)
+            if type(accounting) is not bool or accounting != expert.accounts_inside:
+                raise ValueError(f"loader for {key} changed its declared internal accounting")
         finally:
             self._loading = False
         self.stats.load_seconds += time.perf_counter() - start
@@ -207,9 +210,11 @@ class LazyExpert:
                  demand: Callable[[int, Demand], Demand] | None = None,
                  relevant: Callable[[int, list[Any]], bool] | None = None,
                  identity: str | None = None,
-                 dependencies: tuple[LazyExpert, ...] = ()) -> None:
+                 dependencies: tuple[LazyExpert, ...] = (), accounts_inside: bool = False) -> None:
         if isinstance(size, bool) or not isinstance(size, Integral) or size < 0:
             raise ValueError("expert size must be a nonnegative integer")
+        if type(accounts_inside) is not bool:
+            raise ValueError("internal accounting declaration must be Boolean")
         self._manifest = manifest
         self.load = load
         self._size = int(size)
@@ -218,12 +223,19 @@ class LazyExpert:
         self.relevant = relevant
         self.identity = identity
         """The content reference of the expert's object (§28), if it has one."""
+        self._accounts_inside = accounts_inside
+        """Validated before use; available without materializing the implementation."""
         self._dependencies = tuple(dependencies)
 
     @property
     def dependencies(self) -> tuple[LazyExpert, ...]:
         """Conservative lazy prerequisites, available before loading."""
         return self._dependencies
+
+    @property
+    def accounts_inside(self) -> bool:
+        """Declared risk-accounting protocol, readable without loading."""
+        return self._accounts_inside
 
     @property
     def manifest(self) -> Manifest:

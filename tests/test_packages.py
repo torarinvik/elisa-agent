@@ -15,7 +15,7 @@ from nca.optimize import cheapest_within, plan_pareto
 from nca.ladder import CALIBRATION, Calibrated, Rung, attested, calibration
 from nca.objects import Attestation, Composite, Names, Primitive, Store, canonical, digest
 from nca.packages import GROUP, Export, discover, install
-from nca.planner import Apply, plan_stable
+from nca.planner import Apply, Given, plan_stable
 from nca.runtime import RiskLedger, execute
 from nca.workspace import Workspace
 
@@ -470,3 +470,102 @@ def test_shared_root_scopes_reuse_wrappers_without_weakening_collision_checks() 
     independent = install(store, split, experts=resident)[0]
     with pytest.raises(ValueError, match="conflicting expert definitions"):
         independent.invoke("a b")
+
+
+class Reported:
+    manifest = Manifest("reported", "1", Contract(("source",), "result"), effects=frozenset())
+
+    def __init__(self, report: float = 0.25) -> None:
+        self.report = report
+
+    def invoke(self, value: int) -> int:
+        return value
+
+    def risk(self, output: int, *values: int) -> float:
+        return self.report
+
+
+class InternallyAccounted:
+    accounts_inside = True
+    manifest = Manifest("internally-accounted", "1", Reported.manifest.contract, effects=frozenset())
+
+    def __init__(self, report: float = 0.25) -> None:
+        self.child = Reported(report)
+
+    def invoke(self, value: int) -> int:
+        return execute(Apply(self.child, (Given("source"),)),
+                       (Message("source", value, "input"),), Workspace(), 2).payload
+
+    def risk(self, output: int, *values: int) -> float:
+        return 0.0
+
+
+@pytest.mark.parametrize("compiled", [False, True])
+@pytest.mark.parametrize("report", [0.0, 0.125, 0.5])
+def test_lazy_internal_accounting_survives_reopen_and_cached_payloads(
+        tmp_path: Path, compiled: bool, report: float) -> None:
+    from nca.compile import compile_route
+    from nca.objects import primitive
+
+    obj = primitive(InternallyAccounted(report), f"{__name__}:InternallyAccounted", {"report": report})
+    assert obj.accounts_inside and obj.data()["accounts_inside"] is True
+    store = Store()
+    ref = store.put(obj)
+    store.save(tmp_path)
+    module = install(Store.open(tmp_path), ref)[0]
+    assert module.accounts_inside and module.store.stats.loads == 0
+    route = Apply(module, (Given("source"),))
+    cache = ResultCache()
+    execute(route, (Message("source", 7, "input"),), Workspace(), 3, cache=cache)
+    ledgers = [RiskLedger(), RiskLedger()]
+    if compiled:
+        assert compile_route(route, ("source",))([(7,), (7,)], cache, ledgers) == [7, 7]
+    else:
+        for ledger in ledgers:
+            assert execute(route, (Message("source", 7, "input"),), Workspace(), 3,
+                           cache=cache, ledger=ledger).payload == 7
+    assert [ledger.charge for ledger in ledgers] == [report, report]
+    assert all(ledger.certified and len(ledger.entries) == 1 for ledger in ledgers)
+    assert cache.stats.hits == 0  # inside_ledger_no_cache, inside_replay_charge
+
+
+def test_internal_accounting_declarations_must_match_implementations() -> None:
+    from dataclasses import replace
+
+    from nca.loader import ExpertStore, LazyExpert
+    from nca.objects import object_from, primitive
+
+    obj = primitive(InternallyAccounted(), f"{__name__}:InternallyAccounted")
+    legacy = replace(obj, accounts_inside=False)
+    assert "accounts_inside" not in legacy.data()
+    assert object_from(legacy.data()).ref == legacy.ref
+    assert obj.ref != legacy.ref
+    with pytest.raises(ValueError, match="declared internal accounting"):
+        legacy.load()
+    for expected, factory in ((False, InternallyAccounted), (True, Reported)):
+        lazy = LazyExpert(factory.manifest, factory, 0, ExpertStore(), accounts_inside=expected)
+        with pytest.raises(ValueError, match="declared internal accounting"):
+            lazy.invoke(7)
+        assert lazy.store.stats.loads == 0
+    with pytest.raises(ValueError, match="Boolean"):
+        replace(obj, accounts_inside=1)
+
+
+def test_lazy_cache_guard_matches_all_metadata_boolean_cases() -> None:
+    from dataclasses import replace
+    from itertools import product
+
+    from nca.loader import ExpertStore, LazyExpert
+    from nca.runtime import result_key
+
+    for caching, tracking, inside, pure, identified in product((False, True), repeat=5):
+        factory = InternallyAccounted if inside else Reported
+        manifest = replace(factory.manifest, effects=frozenset() if pure else None)
+        module = LazyExpert(manifest, factory, 0, ExpertStore(),
+                            identity="guard" if identified else None, accounts_inside=inside)
+        cache = ResultCache() if caching else None
+        ledger = RiskLedger() if tracking else None
+        key = result_key(cache, ledger, module, [7])
+        expected = caching and identified and pure and not (tracking and inside)
+        assert (key is not None) == expected  # ledgerCacheGate, inside_ledger_no_cache
+        assert module.store.stats.loads == 0

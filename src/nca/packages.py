@@ -224,7 +224,8 @@ def install_scopes(store: Store, references: Sequence[Ref], experts: ExpertStore
                 if isinstance(store.get(ref), Primitive))
             expert = LazyExpert(obj.manifest, lambda: obj.load(resolved.__getitem__),
                                 obj.size, experts, identity=node,
-                                dependencies=tuple(module(ref) for ref in prerequisites))
+                                dependencies=tuple(module(ref) for ref in prerequisites),
+                                accounts_inside=obj.accounts_inside)
             expert.demand = _forward(expert, "demand", None)
             expert.relevant = _forward(expert, "relevant", True)
             expert.risk = _forward(expert, "risk", None)

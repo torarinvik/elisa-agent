@@ -592,6 +592,7 @@ an inference from their separate tests.
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |
 | [33.2](theory/reliability/33-per-input-risk.md) | `selective_risk_le` with the ledger total as bound | `Selective` |
 | [33.4](theory/reliability/33-per-input-risk.md) | `selective_risk_le` on the final execution | `Selective` |
+| [33.5](theory/reliability/33-per-input-risk.md) | `inside_ledger_no_cache`, `inside_replay_charge`, `erased_accounting_underreports` | `Reliability/Selective` |
 | [34.2](theory/foundations/34-compiled-routes.md) | `batch_flatten`, `batch_sound_flatten` | `Batch` |
 | [34.3](theory/foundations/34-compiled-routes.md) | `cache_lookup_correct` with Theorem 34.1's induction | `Selective` |
 | [34.4](theory/foundations/34-compiled-routes.md) | `selective_risk_le` on each row's final evaluation | `Selective` |
@@ -2167,6 +2168,23 @@ and `evidence.refuted` reports whether an accepted one shows a mismatch, so
 a deployment can start a cache with `refuted` filled from others' evidence.
 
 ## 33. Per-input risk on any route
+
+Internal-accounting declarations now survive lazy and artifact boundaries
+(§33.4). `Primitive.accounts_inside` is content-bound, omitted when false to
+preserve ordinary legacy encodings, and copied by `objects.primitive` and
+`packages.install` into a read-only `LazyExpert` property. Primitive factories
+and direct lazy loaders reject non-Boolean or mismatched declarations before
+the implementation is admitted. An internally accounted legacy artifact must
+be reissued with that declaration rather than silently losing its protocol.
+Tests cover save/reopen, scalar and compiled replay after value-cache warming,
+zero and positive reports, malformed declarations, both mismatch directions
+and all 32 cache/ledger/accounting/purity/identity Boolean cases without loading.
+`inside_ledger_no_cache` and `inside_replay_charge` prove the conditional cache
+gate/account model; `erased_accounting_underreports` demonstrates its failure
+when the marker is erased. They do not verify full runtime execution or report
+calibration. The synthetic benchmark reproduces the former erased boundary as
+a reference only. Cooperative reporting, fixed implementations, complete effect
+attribution and failure atomicity remain separate obligations.
 
 `runtime.ledger` owns invocation records, risk charges and the single context
 variable shared by interpreted and compiled execution. The `runtime` package

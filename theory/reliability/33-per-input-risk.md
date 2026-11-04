@@ -78,3 +78,28 @@ report must remain calibrated on the inputs that reach it, which is the
 in-situ condition of §31 at the level of single inputs. Climbing the
 largest report is the rule of §25 on any route, and as there it need
 not minimize compute.
+
+## 33.4 Preserving internal accounting through lazy boundaries
+
+An expert that accounts for its own internal invocations must retain that
+declaration when represented lazily. With a live ledger, its cached payload
+alone cannot replace replay of those invocations unless their charge is
+separately reconstructed. Let a cache gate be C=o∧¬(l∧a), where l denotes a
+live ledger, a internal accounting, and o ordinary cache eligibility.
+
+**Theorem 33.5 (inside-account replay).** If l=a=true then C=false regardless
+of o. Conditional on faithful replay contributing the inner charge r and
+suppressing a duplicate outer report, the call contributes exactly r even
+when a cached payload exists. Erasing a can instead contribute zero on a
+cache hit whose outer report is zero, understating every r>0.
+
+*Proof.* Substitute l=a=true in the cache gate and replay rule. For an erased
+declaration and cached payload, the ordinary branch uses the outer zero report;
+strict understatement follows from r>0. ∎
+
+The declaration must be bound to the stored model and checked against its
+implementation before use. This is a cooperative protocol, not isolation:
+a dishonest implementation can omit internal reports. The theorem does not
+prove faithful execution, calibration, effect attribution or transaction
+atomicity. Cached values may still be reused without a ledger; enabling a
+ledger must bypass that value-only reuse for internally accounted experts.

@@ -517,4 +517,31 @@ theorem exp_shift_ratio (a b shift : ℝ) :
   rw [Real.exp_sub, Real.exp_sub]
   exact risk_scale_invariant _ _ _ (ne_of_gt (Real.exp_pos shift))
 
+/-- A live ledger forbids result-cache reuse for an internally accounted call. -/
+def ledgerCacheGate (ledger inside ordinary : Bool) : Bool :=
+  ordinary && !(ledger && inside)
+
+theorem inside_ledger_no_cache (ordinary : Bool) :
+    ledgerCacheGate true true ordinary = false := by
+  simp [ledgerCacheGate]
+
+/-- Conditional per-call account: replay the inner charge when the internal
+accounting declaration survives the wrapper; ordinary cached calls use reports. -/
+def replayLedgerCharge (ledger inside cached : Bool) (inner report : ℝ) : ℝ :=
+  if ledger then (if inside then inner else if cached then report else inner + report) else 0
+
+theorem no_ledger_no_charge (inside cached : Bool) (inner report : ℝ) :
+    replayLedgerCharge false inside cached inner report = 0 := by
+  simp [replayLedgerCharge]
+
+theorem inside_replay_charge (cached : Bool) (inner report : ℝ) :
+    replayLedgerCharge true true cached inner report = inner := by
+  simp [replayLedgerCharge]
+
+/-- Erasing the declaration can understate a positive inner charge on a hit. -/
+theorem erased_accounting_underreports (inner : ℝ) (positive : 0 < inner) :
+    replayLedgerCharge true false true inner 0 <
+      replayLedgerCharge true true true inner 0 := by
+  simpa [replayLedgerCharge] using positive
+
 end NCA
