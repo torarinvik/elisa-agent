@@ -38,16 +38,18 @@ class Kernel:
                  index: ProducerIndex | None = None, acquire: Acquire | None = None,
                  attempts: int = 8, missing: int = 1,
                  media: Sequence[TypeId] | None = None, *, arity: int = 1,
-                 priority: Callable[[Contract], float] | None = None) -> None:
+                 priority: Callable[[Contract], float] | None = None, fuel: int = 8) -> None:
         """``index``, if given, must index exactly ``modules``; it is shared.
         ``acquire`` is asked at most ``attempts`` times per request, for
         routes needing at most ``missing`` new connectors, inventing media
         grown over the types in ``media`` if given. ``arity`` bounds acquired
-        input counts and ``priority`` scores valid single-gap candidates."""
+        input counts and ``priority`` scores valid single-gap candidates.
+        ``fuel`` bounds planning depth, separately from runtime execution budgets."""
         self.modules = tuple(modules)
         self.acquire, self.attempts, self.missing = acquire, attempts, missing
         self.media = media
         self.arity, self.priority = arity, priority
+        self.fuel = fuel
         self.acquired: list[Module] = []
         self.recursive = recursive
         self.requests = 0
@@ -61,12 +63,13 @@ class Kernel:
             full = self._indexes.setdefault(frozenset(), ProducerIndex(self.modules))
             self._indexes[excluded] = full.without(
                 [p for p, m in enumerate(self.modules) if m.manifest.module_id in excluded])
-        route = plan_stable_indexed(self._indexes[excluded], request.types, request.type_id)
+        route = plan_stable_indexed(self._indexes[excluded], request.types, request.type_id, self.fuel)
         if route is not None or self.acquire is None:
             return route
         usable = [m for m in self.modules if m.manifest.module_id not in excluded]
         repaired = repair(usable, request.types, request.type_id, self.acquire, self.attempts,
-                          self.missing, media=self.media, arity=self.arity, priority=self.priority)
+                          self.missing, fuel=self.fuel, media=self.media, arity=self.arity,
+                          priority=self.priority)
         if repaired is None:
             return None
         self.modules += repaired.acquired

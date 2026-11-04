@@ -13,6 +13,8 @@ Use --target 0.02 --maximum 9 --depths 8 to compare fixed and growing
 end-to-end certification; only requested lanes are fit in that experiment.
 Add --repair-rounds 16 --correlated to compare repeating a blind spot with
 counterexample-directed simulator supervision across fresh single-route tests.
+Use --endpoint-rounds 16 instead to repair the exported composition from
+endpoint examples only, without any new intermediate supervision.
 """
 
 from __future__ import annotations
@@ -21,12 +23,16 @@ import argparse
 import json
 import random
 import statistics
+from collections.abc import Mapping, Sequence
 from time import process_time
+from typing import Any
 
-from nca.abi import Contract, Message, Module
+from nca.abi import Contract, Manifest, Message, Module
 from nca.evidence.redundancy import dependent_vote_risk, disjoint_routes, vote, vote_risk
-from nca.learning.discovery import fit_decoder
-from nca.planner import Plan, plan
+from nca.learning.discovery import decoder_object, fit_decoder, propose_corrections
+from nca.objects import Composite, Store
+from nca.packages import install
+from nca.planner import Apply, Given, Plan, plan
 from nca.retention.ensembles import EnsembleSearch, VoteCase, VoteFailure
 from nca.runtime import execute
 from nca.workspace import Workspace
@@ -199,6 +205,90 @@ def repair_trials(depth: int, seed: int, correlated: bool, target: float,
             "cpu_seconds": process_time() - started}
 
 
+class InputKey:
+    """A complete external-input feature; no latent representation is read."""
+
+    manifest = Manifest("benchmark.input-key", "1", Contract(("s",), "s"),
+                        cost=0.0, effects=frozenset())
+
+    def invoke(self, value: Any) -> Any:
+        return value
+
+
+def endpoint_proposal(base: Module, feature: Module, failures: tuple[VoteFailure, ...]) -> Module:
+    """Only public endpoint examples enter the existing correction learner."""
+    if not failures:
+        return base
+    rows, labels = [], []
+    for failure in failures:
+        inputs, label = failure.case
+        assert not isinstance(inputs, dict)
+        rows.append(tuple(message.payload for message in inputs))
+        labels.append(label)
+    candidates = propose_corrections(base, (feature,), rows, labels, correction_cost=0.0)
+    return candidates[0].expert if candidates else base
+
+
+def endpoint_trials(depth: int, seed: int, correlated: bool, target: float,
+                    rounds: int, learn: bool) -> dict[str, float | None]:
+    started = process_time()
+    factory = LaneFactory(depth, seed, correlated)
+    factory.acquire(())
+    store = Store()
+    # Snapshots bind the original implementations. No resident-memory quota is
+    # asserted by this experiment; runtime and training costs are measured below.
+    members = tuple(store.put(decoder_object(module, size=0)) for module in factory.modules)
+    reference = store.put(Composite("benchmark.incumbent", "1", members,
+                                   exports=(Contract(("s",), "g"),), effects=frozenset()))
+    base = install(store, reference, budget=depth + 1, fuel=depth + 1)[0]
+    feature = InputKey()
+    inputs = [factory.case(v)[0][0].payload for v in range(VALUES)]
+    original = tuple(base.invoke(value) for value in inputs)
+    rng = random.Random(seed + 20000)
+    counts = (1,) * rounds if learn else (1,)
+    search = EnsembleSearch(counts=counts, tolerance=target, confidence=0.05, budget=depth + 1)
+    errors: set[int] = set()
+    previous: set[int] | None = None
+    regressions = fitting_cases = fits = 0
+
+    def propose(cap: int, failures: tuple[VoteFailure, ...]) -> tuple[Plan, ...]:
+        nonlocal errors, previous, regressions, fitting_cases, fits
+        model = endpoint_proposal(base, feature, failures)
+        if failures:
+            fitting_cases += len(failures)
+            fits += 1
+        # Audit diagnostics do not enter endpoint_proposal or the curriculum.
+        errors = {v for v in range(VALUES) if model.invoke(inputs[v]) != factory.case(v)[1]}
+        if previous is not None and not errors <= previous:
+            regressions += 1
+        previous = errors.copy()
+        return (Apply(model, (Given("s"),)),)
+
+    def sample(count: int) -> list[VoteCase]:
+        return [factory.case(rng.randrange(VALUES)) for _ in range(count)]
+
+    result = search.revise(Contract(("s",), "g"), propose, sample)
+    error = len(errors) / VALUES if result is not None else None
+    return {"certified": float(result is not None), "admitted_error": error,
+            "bad_certificates": float(error is not None and error > target),
+            "proposals": float(search.requests), "base_fits": float(factory.fit_requests),
+            "correction_fits": float(fits), "correction_training_cases": float(fitting_cases),
+            "initial_training_labels": float(factory.labels), "new_intermediate_labels": 0.0,
+            "test_labels": float(search.labels), "audit_labels": float(VALUES),
+            "total_labels": float(factory.labels + search.labels + VALUES),
+            "regressions": float(regressions),
+            "incumbent_changed": float(original != tuple(base.invoke(value) for value in inputs)),
+            "cpu_seconds": process_time() - started}
+
+
+def means(runs: Sequence[Mapping[str, float | None]]) -> dict[str, float | None]:
+    result = {}
+    for key in runs[0]:
+        values = [r[key] for r in runs if r[key] is not None]
+        result[key] = statistics.mean(values) if values else None
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=list(range(3716, 3726)))
@@ -209,12 +299,22 @@ def main() -> None:
     parser.add_argument("--target", type=float)
     parser.add_argument("--maximum", type=int, default=9)
     parser.add_argument("--repair-rounds", type=int)
+    parser.add_argument("--endpoint-rounds", type=int)
     args = parser.parse_args()
     if any(d < 1 for d in args.depths) or any(k < 1 or k > LANES for k in args.routes):
         parser.error("depths must be positive and route counts between one and available lanes")
     if args.target is not None:
         if args.maximum < 1 or not 0 < args.target < 1:
             parser.error("maximum must be positive and target between zero and one")
+        if args.endpoint_rounds is not None:
+            if args.endpoint_rounds < 1:
+                parser.error("endpoint rounds must be positive")
+            for depth in args.depths:
+                for learn in (False, True):
+                    runs = [endpoint_trials(depth, seed, args.correlated, args.target,
+                                            args.endpoint_rounds, learn) for seed in args.seeds]
+                    print(json.dumps({"depth": depth, "endpoint_repair": learn, **means(runs)}))
+            return
         if args.repair_rounds is not None:
             if args.repair_rounds < 1:
                 parser.error("repair rounds must be positive")
@@ -222,11 +322,7 @@ def main() -> None:
                 for targeted in (False, True):
                     runs = [repair_trials(depth, seed, args.correlated, args.target,
                                           args.repair_rounds, targeted) for seed in args.seeds]
-                    means = {}
-                    for key in runs[0]:
-                        values = [r[key] for r in runs if r[key] is not None]
-                        means[key] = statistics.mean(values) if values else None
-                    print(json.dumps({"depth": depth, "targeted": targeted, **means}))
+                    print(json.dumps({"depth": depth, "targeted": targeted, **means(runs)}))
             return
         staged = tuple(range(1, args.maximum + 1, 2))
         if staged[-1] != args.maximum:
@@ -234,12 +330,8 @@ def main() -> None:
         for depth in args.depths:
             for policy, counts in (("fixed", (args.maximum,)), ("staged", staged)):
                 runs = [certify(depth, seed, args.correlated, args.target, counts) for seed in args.seeds]
-                means = {}
-                for key in runs[0]:
-                    values = [r[key] for r in runs if r[key] is not None]
-                    means[key] = statistics.mean(values) if values else None
                 print(json.dumps({"depth": depth, "correlated": args.correlated,
-                                  "policy": policy, "target": args.target, **means}))
+                                  "policy": policy, "target": args.target, **means(runs)}))
         return
     for depth in args.depths:
         for routes in args.routes:

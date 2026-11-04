@@ -124,7 +124,7 @@ class Export:
     """Its route runs on the caller's risk ledger (§33)."""
 
     def __init__(self, composite: Composite, index: int, members: Sequence[Module], *,
-                 budget: int = 10_000, length: int = 1) -> None:
+                 budget: int = 10_000, length: int = 1, fuel: int = 8) -> None:
         assert composite.exports is not None
         exported = composite.exports[index]
         if exported.slots:
@@ -135,13 +135,16 @@ class Export:
                              for i, slot in enumerate(composite.requires)]
         self.library: list[Module] = [*members, *self.requirements]
         producer_index = ProducerIndex(self.library)
-        route = plan_stable_indexed(producer_index, exported.inputs, exported.output)
+        route = plan_stable_indexed(producer_index, exported.inputs, exported.output, fuel)
         if route is None:
             raise ValueError(f"{composite.name} cannot implement its export "
                              f"{exported.inputs} ⇒ {exported.output}")
         self.route = route
-        self.kernel = Kernel(self.library, index=producer_index)
+        self.kernel = Kernel(self.library, index=producer_index, fuel=fuel)
         self.identity = f"{composite.ref}#{index}"
+        # Binding identity remains an artifact/export pair. Cache facts must
+        # additionally distinguish the planning and execution configuration.
+        self.cache_identity = f"{self.identity}/fuel/{fuel}/budget/{budget}/length/{length}"
 
         def cost(at: int) -> float:
             return charge(route, at, lambda m: m.manifest.cost)
@@ -179,13 +182,17 @@ def _forward(expert: LazyExpert, name: str, default: Any) -> Callable[..., Any]:
 
 
 def install(store: Store, ref: Ref, experts: ExpertStore | None = None, *,
-            budget: int = 10_000, length: int = 1) -> list[Module]:
-    """Install one object scope; see install_scopes for shared multi-root installation."""
-    return install_scopes(store, (ref,), experts, budget=budget, length=length)[0]
+            budget: int = 10_000, length: int = 1, fuel: int = 8) -> list[Module]:
+    """Install one object scope; see install_scopes for shared multi-root installation.
+
+    ``fuel`` is the export/nested-kernel planning-depth budget; ``budget``
+    separately bounds runtime execution of each exported invocation.
+    """
+    return install_scopes(store, (ref,), experts, budget=budget, length=length, fuel=fuel)[0]
 
 
 def install_scopes(store: Store, references: Sequence[Ref], experts: ExpertStore | None = None, *,
-                   budget: int = 10_000, length: int = 1) -> tuple[list[Module], ...]:
+                   budget: int = 10_000, length: int = 1, fuel: int = 8) -> tuple[list[Module], ...]:
     """Install ordered roots with shared primitive wrappers across scopes (§36.55).
 
     Return one scope per input reference, in order. Sharing is scoped to this
@@ -247,7 +254,7 @@ def install_scopes(store: Store, references: Sequence[Ref], experts: ExpertStore
         if obj.exports is None:
             return members(obj)
         inner = members(obj)
-        return [Export(obj, i, inner, budget=budget, length=length)
+        return [Export(obj, i, inner, budget=budget, length=length, fuel=fuel)
                 for i in range(len(obj.exports))]
 
     return tuple(scope(ref) for ref in tuple(references))

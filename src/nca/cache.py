@@ -7,6 +7,12 @@ pair (expert, inputs) that any later invocation may reuse (``NCA.cache_lookup_co
 canonical encoding; inputs without one, and experts that are not declared
 pure or have no identity, are never cached.
 
+An optional ``cache_identity`` overrides the binding identity for execution
+contexts that can select different behavior. It must identify fixed behavior
+and resource configuration; setting it to None disables caching for that context.
+Checks name the effective cache identity; a binding-level refutation disables
+every context of that binding.
+
 Cached outputs are shared, so consumers must not mutate the values they
 receive, which pure experts already guarantee for their inputs.
 

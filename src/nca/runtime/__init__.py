@@ -118,10 +118,13 @@ def result_key(cache: ResultCache | None, ledger: RiskLedger | None, module: Mod
                values: Sequence[Any]) -> tuple[Any, ...] | None:
     """The cache key of ``module``'s invocation on ``values``, or ``None`` if
     it is not cached."""
-    identity = getattr(module, "identity", None)
+    binding = getattr(module, "identity", None)
+    identity = getattr(module, "cache_identity", binding)
     if ledger is not None and getattr(module, "accounts_inside", False):
         return None
     if cache is None or identity is None or module.manifest.effects != frozenset():
+        return None
+    if binding in cache.refuted:
         return None
     digests = tuple(value_digest(value) for value in values)
     return None if None in digests else (identity, digests)

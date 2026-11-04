@@ -198,8 +198,10 @@ datasets establishes independent errors for fixed fitted routes.
 
 ## 31.9 Acquire toward a jointly certified error target
 
-Declare increasing route counts `k₁ < … < k_R` and an error target `ε`.
-Acquire routes up to each declared count, freeze the resulting vote, then
+Declare a finite schedule of positive route counts and an error target `ε`.
+Growing search acquires routes up to each declared nondecreasing count;
+revision search may replace the entire candidate with a nonempty family of
+at most that stage's declared count. Counts may repeat. Freeze each vote, then
 test it on fresh labeled cases. Disagreement and abstention both count as
 failure. Stop at the first vote passing every case; if none passes or
 resources are unavailable, return no certified vote. Routes may share experts
@@ -220,8 +222,9 @@ skip levels without weakening the bound (Theorem 20.17). ∎
 
 This guarantees admission quality, not that any vote will be admitted.
 Correlated failure can persist at every size, and even a vote below the target
-may fail a finite zero-error test. At most `k_R` route requests and `R`
-candidate tests are made. Label and execution cost depend on the target,
+may fail a finite zero-error test. Growing search makes at most `k_R` route
+requests; revision search makes at most `R` whole-family proposals. Either
+makes at most `R` candidate tests. Label and execution cost depend on the target,
 spending level and stopping stage. The acquisition procedure may learn from
 past observations, but certification cases must remain fresh for each new
 candidate. A refusal is not a proof that no better ensemble can be acquired.
@@ -258,3 +261,31 @@ a counterexample; fresh certification remains necessary. This finite-domain
 progress bound imposes no restriction on which domains may use feedback, but
 does not supply finite convergence when error sets can be infinite or repairs
 introduce new errors.
+
+## 31.11 End-to-end corrections and whole-candidate revision
+
+A revised candidate may replace a failing composition instead of appending
+more voters. It is chosen from earlier counterexamples before its fresh test,
+so Theorem 31.8 does not require keeping the old composition in the new vote.
+The old implementation must remain unchanged for existing users.
+
+For an incumbent `f : X → Y`, a supplied feature key `h : X → K` and an
+observed labeled point `(x₀,y₀)`, define a correction to return `y₀` when
+`h(x)=h(x₀)`, and `f(x)` otherwise.
+
+**Theorem 31.10 (complete-key end-to-end correction).** Outside the corrected
+key fiber the incumbent is unchanged. If `h` is injective and the observed
+label is the deterministic truth `g(x₀)`, then the correction introduces no
+new errors and cannot remain wrong at `x₀`. No intermediate labels or
+knowledge of the incumbent's internal decomposition is required.
+
+*Proof.* For a different key, the definition delegates to `f`. For an equal
+key, injectivity gives `x=x₀`, so the correction returns `g(x)`. Thus any
+remaining error was an incumbent error at a different point. ∎
+
+These hypotheses must be earned or declared: a lossy feature can merge inputs
+with different targets, noisy labels can be wrong, and hidden state may make
+the supplied key incomplete. An exact key can memorize observed corrections
+without generalizing to unseen inputs. All proposed revisions still require
+fresh end-to-end certification; compact representations and generalizing
+corrections remain learning problems.

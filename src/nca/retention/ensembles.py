@@ -56,7 +56,8 @@ class VoteFailure:
 class EnsembleSearch:
     """Request routes until a declared vote size passes fresh certification.
 
-    ``counts`` declares tested sizes before any cases are seen. Each receives
+    ``counts`` declares tested sizes (revision caps for ``revise``) before
+    any cases are seen. Counts may repeat for same-size revisions. Each receives
     a share of this search's confidence level. ``budget`` is per route per
     evaluation, not a global compute bound. Route acquisition has its own
     training/compute budget supplied by the caller. Abstention counts as error,
@@ -76,8 +77,8 @@ class EnsembleSearch:
                  resolver: Resolver | None = None) -> None:
         sizes = tuple(counts)
         if (not sizes or any(isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in sizes)
-                or any(a >= b for a, b in zip(sizes, sizes[1:]))):
-            raise ValueError("ensemble counts must be positive and strictly increasing")
+                or any(a > b for a, b in zip(sizes, sizes[1:]))):
+            raise ValueError("ensemble counts must be positive and nondecreasing")
         if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
             raise ValueError("per-route evaluation budget must be positive")
         required_cases(tolerance, confidence)
@@ -91,21 +92,9 @@ class EnsembleSearch:
                  sample: Callable[[int], Sequence[VoteCase] | None], *,
                  agree: Callable[[Any, Any], bool] = _equal,
                  feedback: Callable[[VoteFailure], None] | None = None) -> CertifiedVote | None:
-        index = self.decisions
-        if self.history is not None:
-            key = self.history.key(contract, self.tolerance, self.confidence, None)
-            index, _ = self.history.reserve(key)
-        self.decisions += 1
-        level = family_audit_alpha(decision_level(self.confidence, index), len(self.counts))
         routes: list[Plan] = []
 
-        def draw(count: int) -> Sequence[VoteCase] | None:
-            cases = sample(count)
-            if cases is not None:
-                self.labels += len(cases)
-            return cases
-
-        for count in self.counts:
+        def propose(count: int) -> tuple[Plan, ...] | None:
             while len(routes) < count:
                 self.requests += 1
                 route = acquire(tuple(routes))
@@ -114,7 +103,66 @@ class EnsembleSearch:
                 if output_type(route) != contract.output:
                     raise ValueError("acquired route has the wrong output type")
                 routes.append(route)
-            frozen = tuple(routes)
+            return tuple(routes)
+
+        return self._search(contract, propose, sample, agree, feedback)
+
+    def revise(self, contract: Contract,
+               propose: Callable[[int, tuple[VoteFailure, ...]], Sequence[Plan] | None],
+               sample: Callable[[int], Sequence[VoteCase] | None], *,
+               agree: Callable[[Any, Any], bool] = _equal,
+               feedback: Callable[[VoteFailure], None] | None = None) -> CertifiedVote | None:
+        """Replace the whole candidate using earlier closed-test failures.
+
+        Each call asks for a nonempty frozen family of at most the stage's
+        declared count. Old plans are not changed or installed. The curriculum
+        contains at most one counterexample per earlier stage of this search.
+        ``requests`` counts family-proposal calls here, route calls in growing
+        mode; the proposer owns and reports its training/resource costs.
+        """
+        failures: list[VoteFailure] = []
+
+        def candidate(cap: int) -> tuple[Plan, ...] | None:
+            self.requests += 1
+            proposed = propose(cap, tuple(failures))
+            if proposed is None:
+                return None
+            frozen = tuple(proposed)
+            if not frozen or len(frozen) > cap:
+                raise ValueError("revision must contain between one and its declared cap routes")
+            return frozen
+
+        def observe(failure: VoteFailure) -> None:
+            failures.append(failure)
+            if feedback is not None:
+                feedback(failure)
+
+        return self._search(contract, candidate, sample, agree, observe)
+
+    def _search(self, contract: Contract, propose: Callable[[int], Sequence[Plan] | None],
+                sample: Callable[[int], Sequence[VoteCase] | None],
+                agree: Callable[[Any, Any], bool],
+                feedback: Callable[[VoteFailure], None] | None) -> CertifiedVote | None:
+        index = self.decisions
+        if self.history is not None:
+            key = self.history.key(contract, self.tolerance, self.confidence, None)
+            index, _ = self.history.reserve(key)
+        self.decisions += 1
+        level = family_audit_alpha(decision_level(self.confidence, index), len(self.counts))
+
+        def draw(count: int) -> Sequence[VoteCase] | None:
+            cases = sample(count)
+            if cases is not None:
+                self.labels += len(cases)
+            return cases
+
+        for count in self.counts:
+            proposed = propose(count)
+            if proposed is None:
+                return None
+            frozen = tuple(proposed)
+            if any(output_type(route) != contract.output for route in frozen):
+                raise ValueError("acquired route has the wrong output type")
             failure: tuple[VoteCase, Vote] | None = None
 
             def correct(case: VoteCase) -> bool:
