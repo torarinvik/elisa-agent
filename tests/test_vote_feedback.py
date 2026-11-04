@@ -308,11 +308,16 @@ def test_training_retention_capacity_is_validated(capacity: Any) -> None:
 
 
 def test_feature_tree_search_matches_exhaustive_typed_rules() -> None:
-    """Implementation link to featureTreeClosure_iff, with tree multiplicity."""
+    """Link featureTreeClosure_iff and feature_index_filter, including order."""
     from itertools import product
+    from pathlib import Path
+    from runpy import run_path
 
     from nca.learning.features import compose_features
     from test_discovery import Feature
+
+    baseline = run_path(str(Path(__file__).resolve().parents[1] / "benchmarks" / "feature_search.py"))
+    compose_unindexed, signature = baseline["compose_unindexed"], baseline["signature"]
 
     seeds = [Feature(Contract(("input",), t), lambda x, i=i: ("seed", i))
              for i, t in enumerate(("a", "b"))]
@@ -325,6 +330,8 @@ def test_feature_tree_search_matches_exhaustive_typed_rules() -> None:
         expected = {(t, ("seed", i)) for i, t in enumerate(("a", "b"))}
         for depth in range(3):
             actual = compose_features(seeds, transforms, max_depth=depth, limit=10000)
+            reference = compose_unindexed(seeds, transforms, max_depth=depth, limit=10000)
+            assert [signature(m) for m in actual] == [signature(m) for m in reference]
             observed = [(m.manifest.contract.output, m.invoke(None)) for m in actual]
             assert len(set(observed)) == len(observed)
             assert set(observed) == expected
@@ -373,3 +380,22 @@ def test_multi_input_features_keep_positions_cost_effects_and_slot_calls() -> No
     assert model.invoke(lambda x: x + 1, 2) == (("first", 3), ("second", 3))
     with pytest.raises(ValueError, match="ordered head inputs"):
         AppliedFeature(head, [left])
+
+
+def test_lazy_feature_index_does_not_read_an_unneeded_rule_suffix() -> None:
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    class Unread:
+        @property
+        def manifest(self) -> Manifest:
+            raise AssertionError("capped search must not inspect the unread suffix")
+
+        def invoke(self, *inputs: Any) -> Any:
+            raise AssertionError("search must not invoke experts")
+
+    seed = Feature(Contract(("input",), "a"), lambda x: x)
+    head = Feature(Contract(("a",), "a"), lambda x: x)
+    assert len(compose_features([seed], [head, Unread()], max_depth=2, limit=2)) == 2
+    assert compose_features([seed], [Unread()], max_depth=0, limit=10) == [seed]
+    assert compose_features([seed], [Unread()], max_depth=2, limit=1) == [seed]

@@ -67,4 +67,22 @@ theorem featureApplication_reloaded_eq {X Z : Type*} {n : ℕ} {Y : Fin n → Ty
   have args : (fun i => restored i x) = (fun i => branches i x) := funext (fun i => hb i x)
   rw [args, hh]
 
+/-- Filtering incompatible rule positions before expansion preserves order,
+duplicates and every bounded prefix of the flattened candidate sequence. -/
+theorem feature_index_filter {A B C : Type*} [DecidableEq B]
+    (entries : List A) (key : A → B) (needle : B) (expand : A → List C)
+    (incompatible : ∀ e ∈ entries, key e ≠ needle → expand e = []) :
+    ((entries.filter fun e => decide (key e = needle)).flatMap expand) =
+      entries.flatMap expand := by
+  revert incompatible
+  induction entries with
+  | nil => intro h; rfl
+  | cons e tail ih =>
+    intro h
+    have ht : ∀ a ∈ tail, key a ≠ needle → expand a = [] :=
+      fun a ha => h a (by simp [ha])
+    by_cases same : key e = needle
+    · simp [same, ih ht]
+    · simp [same, h e (by simp) same, ih ht]
+
 end NCA

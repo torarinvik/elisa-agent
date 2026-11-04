@@ -127,3 +127,25 @@ snapshots. Repeated bindings may share retained bytes and a loaded implementatio
 but each argument position still invokes its branch. Sharing computed results
 would require additional assumptions. No risk certificate follows from retaining
 parameters; changed operating distributions still require separate validation.
+
+## 36.62 Type-indexed feature enumeration
+
+Expand an ordered list of rule positions for a pivot feature. A position whose
+required type differs from the pivot produces no candidates. An index stores,
+for each required type, the matching positions in their original order,
+including repeated entries. Similarly index available branches by output type,
+preserving their order and the preceding-height restriction of §36.60.
+
+**Theorem 36.62 (ordered incompatible-rule removal).** If every incompatible
+entry expands to the empty list, filtering those entries before concatenating
+expansions produces exactly the original candidate list. Every capped prefix,
+including tie order and multiplicity, is therefore unchanged.
+
+*Proof.* Induct over the entry list. A compatible head remains; an incompatible
+head contributes the empty list. Apply induction to the tail. ∎
+
+Faithful construction of both indices transfers this result to each expansion.
+Induction over search heights then preserves the feature-tree enumeration and
+its capped prefixes. Indices cost a pass over rule input positions and available
+branches, with additional storage; they do not remove the combinatorial number
+of compatible trees, prove hash-map behavior, or predict semantic usefulness.

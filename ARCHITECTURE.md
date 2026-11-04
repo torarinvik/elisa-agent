@@ -217,6 +217,19 @@ The benchmark fits a fully supervised head and freshly certifies reopened graphs
 it establishes parameter reuse on one task, not hidden-state restoration,
 certificate persistence or transfer to new distributions.
 
+Feature enumeration now uses lazy rule-position buckets and per-height branch
+type indices (§36.62). Buckets retain library order, repeated entries and
+argument positions. Rules are read incrementally so an early capped prefix
+does not build the unread suffix. `feature_index_filter` proves ordered
+flattening unchanged when excluded entries produce no candidates. The full
+Python index construction and recursive search remain finite-linked: tests
+compare exact trees and prefixes with the pre-index full-scan reference in
+`benchmarks/feature_search.py`, alongside exhaustive bounded closure checks.
+The benchmark measures manifest reads, CPU and incremental traced allocations;
+it makes no expert invocations or label requests. Indices trade memory for
+less incompatible scanning and do not reduce compatible-tree combinatorics.
+No learned prioritization, semantic pruning or universal speedup is asserted.
+
 `EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
 charged draws only after a scored rejection, including unscored final-batch
 cases. It reuses the shared `zero_loss_test` retention path. The explicit
@@ -524,6 +537,7 @@ an inference from their separate tests.
 | [36.59](theory/evidence/36-interface-acquisition.md) | `featureClosure_iff` | `Planning/FeatureClosure` |
 | [36.60](theory/evidence/36-interface-acquisition.md) | `featureTreeClosure_iff` | `Planning/FeatureClosure` |
 | [36.61](theory/evidence/36-interface-acquisition.md) | `featureApplication_reloaded_eq` | `Planning/FeatureClosure` |
+| [36.62](theory/evidence/36-interface-acquisition.md) | `feature_index_filter` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

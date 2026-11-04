@@ -1,11 +1,11 @@
 """Bounded construction of feature trees from public typed experts (§36.59–60)."""
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import replace
 from itertools import product
 from typing import Any
 
-from nca.abi import Module
+from nca.abi import Contract, Module, TypeId
 from nca.learning.discovery import Decoded, _total_calls
 
 
@@ -56,6 +56,8 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     Branches are not shared at execution. Freeze models before evaluation.
     Repeated library entries remain distinct choices; semantic deduplication
     is not inferred from matching type identifiers or implementations.
+    Lazy type indices preserve supplied order and bounded prefixes (§36.62),
+    reading a rule only when enumeration reaches that library position.
     """
     if type(max_depth) is not int or max_depth < 0:
         raise ValueError("feature depth must be a nonnegative integer")
@@ -67,33 +69,51 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
         raise ValueError("feature seeds must share external inputs, slots and relevance")
     frontier = list(seeds[:limit])
     result = frontier.copy()
+    if not max_depth or not frontier or len(result) == limit:
+        return result
+    rules: dict[TypeId, list[tuple[Module, Contract, int]]] = {}
+    cursor = 0
+
+    def indexed_rules(type_id: TypeId) -> Iterator[tuple[Module, Contract, int]]:
+        nonlocal cursor
+        yield from rules.get(type_id, ())
+        while cursor < len(transforms):
+            transform = transforms[cursor]
+            cursor += 1
+            head = transform.manifest.contract
+            if not head.polymorphic and not head.slots and head.inputs:
+                matches = []
+                for position, required in enumerate(head.inputs):
+                    entry = transform, head, position
+                    rules.setdefault(required, []).append(entry)
+                    if required == type_id:
+                        matches.append(entry)
+                yield from matches
     levels = [0] * len(result)
     for depth in range(1, max_depth + 1):
         if len(result) == limit or not frontier:
             break
-        known = tuple(zip(result, levels, strict=True))
+        known: dict[TypeId, list[Module]] = {}
+        older: dict[TypeId, list[Module]] = {}
+        for feature, level in zip(result, levels, strict=True):
+            type_id = feature.manifest.contract.output
+            known.setdefault(type_id, []).append(feature)
+            if level < depth - 1:
+                older.setdefault(type_id, []).append(feature)
         following = []
         for pivot in frontier:
-            for transform in transforms:
-                head = transform.manifest.contract
-                if head.polymorphic or head.slots or not head.inputs:
-                    continue
-                for position, required in enumerate(head.inputs):
-                    if required != pivot.manifest.contract.output:
-                        continue
-                    choices = [([pivot] if i == position else [
-                        feature for feature, level in known
-                        if feature.manifest.contract.output == type_id
-                        and (i > position or level < depth - 1)])
-                        for i, type_id in enumerate(head.inputs)]
-                    for args in product(*choices):
-                        candidate = (Decoded(args[0], transform, replace(
-                            args[0].manifest.contract, output=head.output)) if len(args) == 1
-                            else AppliedFeature(transform, args))
-                        result.append(candidate)
-                        levels.append(depth)
-                        following.append(candidate)
-                        if len(result) == limit:
-                            return result
+            for transform, head, position in indexed_rules(pivot.manifest.contract.output):
+                choices = [([pivot] if i == position else
+                            (older if i < position else known).get(type_id, ()))
+                           for i, type_id in enumerate(head.inputs)]
+                for args in product(*choices):
+                    candidate = (Decoded(args[0], transform, replace(
+                        args[0].manifest.contract, output=head.output)) if len(args) == 1
+                        else AppliedFeature(transform, args))
+                    result.append(candidate)
+                    levels.append(depth)
+                    following.append(candidate)
+                    if len(result) == limit:
+                        return result
         frontier = following
     return result
