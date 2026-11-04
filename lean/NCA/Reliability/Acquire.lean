@@ -493,4 +493,23 @@ theorem structural_pair_correct {X A B : Type*} (left : X → A) (right : X → 
     (left x, right x) = target x := by
   exact Prod.ext hleft hright
 
+/-- A bounded candidate prefix with bounded per-candidate tests has bounded work. -/
+theorem bounded_candidate_evaluations (counts : List ℕ) (limit samples : ℕ)
+    (hlen : counts.length ≤ limit) (each : ∀ n ∈ counts, n ≤ samples) :
+    counts.sum ≤ limit * samples := by
+  have bound : counts.sum ≤ counts.length * samples := by
+    induction counts with
+    | nil => simp
+    | cons head tail ih =>
+      have hhead : head ≤ samples := each head (by simp)
+      have htail : ∀ n ∈ tail, n ≤ samples := by
+        intro n hn
+        exact each n (by simp [hn])
+      have hlenTail : tail.length ≤ limit :=
+        (Nat.le_succ tail.length).trans (by simpa only [List.length_cons] using hlen)
+      have ht := ih hlenTail htail
+      simp only [List.sum_cons, List.length_cons, Nat.succ_mul]
+      omega
+  exact bound.trans (Nat.mul_le_mul_right samples hlen)
+
 end NCA

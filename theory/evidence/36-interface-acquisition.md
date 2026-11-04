@@ -368,3 +368,14 @@ equals the target there (`structural_pair_correct`). The statement extends
 inductively to finite tuple trees. Training consistency alone does not establish
 these component equalities on unseen inputs; independent certification is
 needed, under its existing fresh-sampling and fixed-candidate assumptions.
+
+
+## 36.72 Bounded candidate evaluation
+
+If at most C candidate programs each inspect at most N training examples, the
+number of candidate/example evaluations is at most C·N
+(`bounded_candidate_evaluations`). A single evaluation may have variable cost,
+so this is not a CPU or learning-rate bound. Rejection on a training mismatch
+never removes a program that agrees with every training example; consistency
+on training data does not certify generalization. A proposed program must be
+frozen and tested on fresh cases under the existing admission assumptions.
