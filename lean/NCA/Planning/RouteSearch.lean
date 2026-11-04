@@ -67,4 +67,10 @@ theorem conditional_agree {α β : Type} (guard : α → Bool) (yes no truth : �
   | false => simpa [h] using hn x h
   | true => simpa [h] using hy x h
 
+
+/-- Adding a candidate leaves every previously admitted member available. -/
+theorem append_preserves_admitted {α : Type} (old added : List α) {route : α}
+    (admitted : route ∈ old) : route ∈ old ++ added := by
+  exact List.mem_append_left added admitted
+
 end NCA

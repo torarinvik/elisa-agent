@@ -283,6 +283,14 @@ branches are correct nor bounds their generalization error. Certification tests
 the complete fixed route on fresh cases, using the existing confidence allocation;
 the split, guard, literals and branch proposals must not depend on those cases.
 
+Adding a route to an admitted list preserves every prior member
+(`append_preserves_admitted`). When an admitted unary route's input and output
+types match a sequence contract's element types, it may be proposed as a map
+slot; type agreement alone does not establish the new task's semantics. The
+implementation therefore certifies the complete lifted route using fresh cases.
+This append-only model does not prove persistence, content-addressed abstraction,
+or a reduction in search depth.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.
