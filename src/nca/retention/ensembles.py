@@ -16,7 +16,8 @@ from nca.abi import Contract, Message, TypeId
 from nca.evidence.redundancy import Vote, vote
 from nca.planner import Plan, output_type
 from nca.runtime import Resolver
-from nca.retention.certification import validate_batch_limit, zero_loss_test
+from nca.retention.certification import (loss_test, validate_batch_limit,
+                                        validate_validation_cases, validation_plan)
 from nca.retention.history import AcquisitionHistory
 from nca.retention.sampled import decision_level, required_cases
 from nca.stats import family_audit_alpha
@@ -85,12 +86,17 @@ class EnsembleSearch:
     exposes nothing from an admitted or incomplete test.
     ``batch_limit`` optionally caps certification draws, reducing unscored
     labels on rejection at the cost of more sampler calls.
+    Optional ``validation_cases`` fixes a held-out size with a conservative
+    binomial error cutoff chosen before proposal or sampling (§20.22). None
+    retains zero-error admission. Observed errors of admitted votes generate
+    no rejection feedback. Successful controls still precede the first error.
     """
 
     def __init__(self, *, counts: Sequence[int], tolerance: float, confidence: float,
                  budget: int, history: AcquisitionHistory | None = None,
                  resolver: Resolver | None = None, retain_controls: int = 0,
-                 retain_training: int = 0, batch_limit: int | None = None) -> None:
+                 retain_training: int = 0, batch_limit: int | None = None,
+                 validation_cases: int | None = None) -> None:
         sizes = tuple(counts)
         if (not sizes or any(isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in sizes)
                 or any(a > b for a, b in zip(sizes, sizes[1:]))):
@@ -103,6 +109,7 @@ class EnsembleSearch:
         if type(retain_training) is not int or retain_training < 0:
             raise ValueError("retained training capacity must be nonnegative")
         validate_batch_limit(batch_limit)
+        validate_validation_cases(validation_cases)
         required_cases(tolerance, confidence)
         self.counts, self.tolerance, self.confidence = sizes, tolerance, confidence
         self.budget, self.history = budget, history
@@ -110,6 +117,7 @@ class EnsembleSearch:
         self.retain_controls = retain_controls
         self.retain_training = retain_training
         self.batch_limit = batch_limit
+        self.validation_cases = validation_cases
         self.decisions = self.requests = self.labels = self.evaluations = self.tests = 0
 
     def __call__(self, contract: Contract,
@@ -174,6 +182,9 @@ class EnsembleSearch:
             index, _ = self.history.reserve(key)
         self.decisions += 1
         level = family_audit_alpha(decision_level(self.confidence, index), len(self.counts))
+        fresh, allowance = validation_plan(self.tolerance, level, self.validation_cases)
+        if allowance < 0:
+            return None
 
         def draw(count: int) -> Sequence[VoteCase] | None:
             cases = sample(count)
@@ -205,16 +216,15 @@ class EnsembleSearch:
                     raise ValueError("certification inputs do not match the requested contract")
                 result = vote(frozen, inputs, self.budget, self.resolver)
                 accepted = result.agreeing > 0 and bool(agree(result.answer, label))
-                if not accepted:
+                if not accepted and failure is None:
                     failure = case, result
-                elif len(controls) < self.retain_controls:
+                elif accepted and failure is None and len(controls) < self.retain_controls:
                     controls.append(case)
                 return accepted
 
-            fresh = required_cases(self.tolerance, level)
             self.tests += 1
-            result = zero_loss_test(draw, correct, cases=fresh, retain=self.retain_training,
-                                    batch_limit=self.batch_limit)
+            result = loss_test(draw, correct, cases=fresh, max_errors=allowance,
+                               retain=self.retain_training, batch_limit=self.batch_limit)
             if result.passed is None:
                 return None
             if result.passed:

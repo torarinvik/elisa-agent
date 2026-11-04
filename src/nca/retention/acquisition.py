@@ -2,7 +2,7 @@
 
 An acquirer for ``planner.gaps.repair`` built from any fitter and a source of
 paired cases. For each requested contract it fits on training cases, then
-draws fresh cases and admits the result only if it agrees on all of them. The
+by default draws fresh cases and admits only if it agrees on all of them. The
 ``k``-th new request is tested at level ``decision_level(confidence, k)`` with
 ``required_cases`` fresh cases, so across all requests the probability of
 admitting any connector whose error rate exceeds ``tolerance`` is at most
@@ -15,6 +15,11 @@ most about twice the cases read up to the first error. Each
 admitted connector carries ``tolerance`` as its certified rate, for
 ``evidence.route_risk``. What generalizes is the fitter's concern; the test
 only measures it.
+
+With ``validation_cases``, a fixed-size binomial test permits a conservatively
+chosen number of errors (§20.22). Its cutoff is fixed before fitting or draws.
+The same confidence allocation applies under the fresh IID count law and
+conservative numerical CDF assumptions; insufficient sizes are inconclusive.
 
 Optional history replaces the local index by a durable reservation position,
 possibly skipping levels, and reuses screened refusals in the same semantic
@@ -38,7 +43,8 @@ from nca.effects import invoke_scoped
 from nca.retention.sampled import decision_level, required_cases
 from nca.retention.screening import FeasibilityScreen
 from nca.retention.history import AcquisitionHistory
-from nca.retention.certification import validate_batch_limit, zero_loss_test
+from nca.retention.certification import (loss_test, validate_batch_limit,
+                                        validate_validation_cases, validation_plan)
 from nca.stats import family_audit_alpha
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
@@ -57,7 +63,7 @@ def _invoke(module: Module, contract: Contract, key: Any) -> Any:
 
 
 class CertifiedAcquirer:
-    """Admit after zero fresh errors, optionally screening before full fitting.
+    """Certify frozen candidates, optionally screening before full fitting.
 
     A screen has a separate false-discard budget and requires separation sound
     for this instance's ``agree`` predicate. Its passing prefix is training
@@ -71,6 +77,9 @@ class CertifiedAcquirer:
     A fitted candidate must remain frozen while its fresh test runs.
     ``batch_limit`` optionally bounds certification draws, trading fewer
     unused labels on rejection for more sampling calls; training is unaffected.
+    Optional ``validation_cases`` fixes a held-out size and admits a certified
+    positive error count (§20.22). The cutoff is chosen before fitting or draws;
+    insufficient sizes are inconclusive. None retains zero-error admission.
     """
 
     def __init__(self, fit: Fitter, sample: Sampler, *, train: int, tolerance: float,
@@ -78,7 +87,7 @@ class CertifiedAcquirer:
                  screen: FeasibilityScreen | None = None,
                  history: AcquisitionHistory | None = None,
                  stages: Sequence[int] | None = None,
-                 batch_limit: int | None = None) -> None:
+                 batch_limit: int | None = None, validation_cases: int | None = None) -> None:
         if isinstance(train, bool) or not isinstance(train, int) or train < 1:
             raise ValueError("training needs at least one case")
         schedule = (train,) if stages is None else tuple(stages)
@@ -87,6 +96,7 @@ class CertifiedAcquirer:
                 or any(a >= b for a, b in zip(schedule, schedule[1:]))):
             raise ValueError("training stages must strictly increase to train")
         validate_batch_limit(batch_limit)
+        validate_validation_cases(validation_cases)
         required_cases(tolerance, confidence)
         self.fit, self.sample, self.train, self.agree = fit, sample, train, agree
         self.tolerance, self.confidence = tolerance, confidence
@@ -94,6 +104,7 @@ class CertifiedAcquirer:
         self.history = history
         self.stages = schedule
         self.batch_limit = batch_limit
+        self.validation_cases = validation_cases
         self.cache_hits = 0
         self.decisions = 0
         self.labels = 0
@@ -112,6 +123,9 @@ class CertifiedAcquirer:
         level = decision_level(self.confidence, index)
         self.decisions += 1
         level = family_audit_alpha(level, len(self.stages))
+        cases, allowance = validation_plan(self.tolerance, level, self.validation_cases)
+        if allowance < 0:
+            return None
         training: list[tuple[Any, Any]] = []
         prefix = min(self.screen.cases, self.stages[0]) if self.screen is not None else 0
         if prefix >= 2:
@@ -143,7 +157,7 @@ class CertifiedAcquirer:
             if module.manifest.contract != contract:
                 raise ValueError("the fitted expert does not have the requested contract")
             retain = self.train - len(training) if stage + 1 < len(self.stages) else 0
-            admitted, observed = self._test(module, contract, level, retain)
+            admitted, observed = self._test(module, contract, cases, allowance, retain)
             if admitted is None:
                 return None
             if admitted:
@@ -152,7 +166,7 @@ class CertifiedAcquirer:
             training.extend(observed)
         return None
 
-    def _test(self, module: Module, contract: Contract, level: float,
+    def _test(self, module: Module, contract: Contract, cases: int, allowance: int,
               retain: int) -> tuple[bool | None, list[tuple[Any, Any]]]:
         """Freeze this candidate for one fresh test. Retain bounded drawn
         examples for fitting a later candidate only after this test returns."""
@@ -162,9 +176,9 @@ class CertifiedAcquirer:
                 self.labels += len(held)
             return held
 
-        result = zero_loss_test(draw, lambda case: self.agree(
+        result = loss_test(draw, lambda case: self.agree(
             _invoke(module, contract, case[0]), case[1]),
-            cases=required_cases(self.tolerance, level), retain=retain,
+            cases=cases, max_errors=allowance, retain=retain,
             batch_limit=self.batch_limit)
         return result.passed, list(result.retained)
 

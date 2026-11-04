@@ -26,7 +26,7 @@ from time import process_time
 from fractions import Fraction
 from typing import Any
 
-from nca.abi import Contract, Message, Module
+from nca.abi import Contract, Manifest, Message, Module
 from nca.evidence import route_risk
 from nca.learning.affine import fit_affine
 from nca.learning.discovery import fit_decoder
@@ -297,13 +297,64 @@ def batching_trial(limit: int | None, loss: float, seed: int) -> dict[str, float
             "unscored_labels": overshoot, "cpu_seconds": process_time() - started}
 
 
+def noisy_trial(fixed: bool, loss: float, seed: int) -> dict[str, float]:
+    """Known constant predictor under IID observation noise; no learner claim.
+
+    Each request receives the same random prefix across policies, but shares
+    the acquirer's non-reset confidence budget with all preceding requests.
+    More successful admissions can require many more validation labels.
+    """
+    contract = Contract(("observation",), "label")
+    fits = evaluated = cursor = 0
+    rng = random.Random(seed)
+
+    class Candidate:
+        manifest = Manifest("constant-candidate", "1", contract, effects=frozenset())
+
+        def invoke(self, value: Any) -> int:
+            nonlocal evaluated
+            evaluated += 1
+            return 0
+
+    def fit(*args: Any) -> Module:
+        nonlocal fits
+        fits += 1
+        return Candidate()
+
+    def sample(request: Contract, count: int) -> list[tuple[Any, Any]]:
+        nonlocal cursor
+        rows = [((attempt, i), int(rng.random() < loss)) for i in range(cursor, cursor+count)]
+        cursor += count
+        return rows
+
+    started = process_time()
+    acquire = CertifiedAcquirer(fit, sample, train=1, tolerance=0.2, confidence=0.1,
+                                validation_cases=256 if fixed else None)
+    accepted = 0
+    for attempt in range(20):
+        rng = random.Random(seed + attempt * 1000)
+        cursor = 0
+        accepted += acquire(contract) is not None
+    return {"requests": 20, "decisions": acquire.decisions, "fits": fits, "accepted": accepted,
+            "labels": acquire.labels, "evaluations": evaluated,
+            "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3713, 3714, 3715])
     parser.add_argument("--numerics", action="store_true")
     parser.add_argument("--budget-allocation", action="store_true")
     parser.add_argument("--batching", action="store_true")
+    parser.add_argument("--noisy", action="store_true")
     args = parser.parse_args()
+    if args.noisy:
+        for loss in (0.0, 0.05, 0.4):
+            for fixed in (False, True):
+                runs = [noisy_trial(fixed, loss, seed) for seed in args.seeds]
+                print(json.dumps({"loss": loss, "fixed_cases": fixed, **{
+                    key: statistics.mean(run[key] for run in runs) for key in runs[0]}}), flush=True)
+        return
     if args.batching:
         for loss in (0.0, 0.01, 0.1):
             for limit in (None, 32, 8, 1):

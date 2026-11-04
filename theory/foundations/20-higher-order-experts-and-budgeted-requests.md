@@ -569,3 +569,31 @@ the statistical guarantee. A batch cap changes neither that count nor the
 admission predicate on a fixed stream. Different physical samplers may produce
 different streams when their call sizes change. Smaller batches can require
 more sampler calls; no universal compute or label improvement is claimed.
+
+**Theorem 20.22 (fixed-size error-tolerant certification).** Fix n and an integer
+cutoff k before seeing validation cases. For a frozen candidate with IID loss
+probability p, admit iff at most k of the n cases are errors. If a conservative
+upper bound on P(Binomial(n, ε) ≤ k) is below α, then for every p > ε the
+probability of admission is at most α. The stage/request allocations of Theorems
+20.14 and 20.18 therefore apply unchanged. Rejecting early at error k+1 preserves
+the full fixed-stream admission rule and never evaluates more than n cases.
+
+*Proof.* Couple Bernoulli errors at ε and p using the same independent uniform
+variables. Every error at ε is also an error at p, so the latter count is at
+least the former, pointwise. The event of at most k errors at p is contained in
+the event at ε. The binomial law and conservative numerical bound imply the
+claimed probability. The existing union bound composes levels across stages and
+requests. Once k+1 errors occur, extending the stream cannot reduce that count;
+otherwise admission requires evaluation of all n cases. ∎
+
+The count-event containment is formalized conditional on a coupling and the
+reference probability bound. The IID binomial law, existence of the uniform
+coupling for the actual sampler, and conservative numerical CDF implementation
+remain explicit trusted boundaries. A fixed finite cutoff can be selected by
+searching counts with a conservative CDF comparison; uncertain comparisons may
+refuse but never justify admission. If even zero errors cannot certify at n,
+the attempt is inconclusive before fitting or sampling. No optional peeking
+at case values may choose n or the cutoff. Positive-error admission does not
+permit reusing training observations or changing the candidate during testing.
+Larger held-out budgets can admit useful nonzero-error experts, at additional
+label and compute cost; no universal efficiency or capability claim follows.
