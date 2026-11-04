@@ -29,4 +29,23 @@ theorem first_consistent_minimal {α : Type} (cost : α → Nat) (accept : α �
       · exact False.elim (h valid)
       · exact ih ordered.2 found member
 
+
+/-- Follow a partial projection path; a missing field yields `none`. -/
+def followPath {α : Type} (field : α → Nat → Option α) : List Nat → α → Option α
+  | [], value => some value
+  | i :: rest, value => (field value i).bind (followPath field rest)
+
+/-- Concatenated paths have the same partial behavior as sequential routes. -/
+theorem followPath_append {α : Type} (field : α → Nat → Option α)
+    (first second : List Nat) (value : α) :
+    followPath field (first ++ second) value =
+      (followPath field first value).bind (followPath field second) := by
+  induction first generalizing value with
+  | nil => rfl
+  | cons i rest ih =>
+    simp only [List.cons_append, followPath]
+    cases h : field value i with
+    | none => rfl
+    | some v => simpa [h] using ih v
+
 end NCA

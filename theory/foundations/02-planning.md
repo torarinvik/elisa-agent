@@ -262,6 +262,13 @@ fixes every variable occurring in that output (Theorem 2.4), and the remaining
 variables range over the declared universe. A fixed value outside that universe
 is excluded because it is outside the search space, not because it is invalid.
 
+A tuple-field path is modeled as a sequence of partial projections. For any
+field operation, following a concatenated path equals following its first part
+and then its second, including failure (`followPath_append`). This supports
+expressing a copy path as a sequence of ordinary expert applications; it does
+not prove Python runtime equivalence, nominal representation compatibility, or
+that a dynamically supplied field has the caller's asserted type.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.
