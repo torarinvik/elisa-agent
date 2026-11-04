@@ -43,3 +43,16 @@ def test_witness_checks_input_and_slot_scopes(monkeypatch: pytest.MonkeyPatch) -
     unrelated = Request(target, Contract(("other",), "result"))
     with pytest.raises(ValueError, match="not an instance"):
         list(decompositions(manifest, unrelated))
+
+
+def test_witness_cannot_drop_required_slot_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.learning import witness
+
+    target = Specification(Contract(("source",), "result"), (Example((1,), 2),))
+    expert = Contract(("source",), "result", ((("item",), "result"),), ((0,),))
+    source = Specification(Contract(("source",), "source"), (Example((1,), 1),))
+    slot = Specification(Contract(("item",), "result"), (Example((1,), 2),))
+    manifest = Manifest("sample.expert", "1", expert, witness="sample:witness")
+    monkeypatch.setattr(witness.loaders, "resolve", lambda name: lambda req: (Decomposition((source,), (slot,)),))
+    with pytest.raises(ValueError, match="relevant"):
+        list(decompositions(manifest, Request(target, expert)))

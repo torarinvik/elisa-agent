@@ -320,6 +320,14 @@ induction that checked leaves imply a satisfied root when every decomposition
 preserves satisfaction; it does not prove that any particular Python witness
 has that property or that the search is complete within its budget.
 
+For a fold, `fold_agree_on_elements` proves equality of folded outputs when
+two step functions agree for every state and every element in the input. The
+fold witness derives step examples from singleton inputs and pairs of observed
+prefixes, so those finite examples do not establish this hypothesis; the
+assembled route is checked on all training cases and still needs fresh
+certification. Slot specifications retain any required input positions, and
+observational classes distinguish the required positions that a route uses.
+
 Search may assign positive integer costs to expert applications and enumerate
 routes by their total cost, counting each input reference once. Costs can be
 snapshotted from smoothed counts of experts in previously certified routes;

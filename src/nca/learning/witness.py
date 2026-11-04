@@ -13,7 +13,7 @@ from typing import Any
 from nca.abi import (Contract, Manifest, Message, Module, Term, TypeId, canonical_type,
                      format_type, match_type, parse_type, type_variables)
 from nca.objects import loaders
-from nca.planner import Apply, Plan
+from nca.planner import Apply, Given, Plan, uses
 from nca.router import infer
 from nca.runtime import BudgetExceeded, UnresolvedRequest, execute
 from nca.workspace import Workspace
@@ -33,12 +33,16 @@ class Specification:
 
     contract: Contract
     examples: tuple[Example, ...]
+    required: frozenset[int] = frozenset()
 
     def __post_init__(self) -> None:
         if self.contract.slots or self.contract.variables:
             raise ValueError("witness goals must be ground and slot-free")
         if any(len(example.inputs) != len(self.contract.inputs) for example in self.examples):
             raise ValueError("witness examples must match their input scope")
+        if (not isinstance(self.required, frozenset) or
+                any(type(index) is not int or not 0 <= index < len(self.contract.inputs) for index in self.required)):
+            raise ValueError("required positions must be in the input scope")
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,14 @@ class Decomposition:
 
     inputs: tuple[Specification, ...]
     slots: tuple[Specification, ...]
+
+
+@dataclass
+class SearchStats:
+    """Work charged by witness search, excluding caller-owned callbacks."""
+
+    expansions: int = 0
+    evaluations: int = 0
 
 
 def decompositions(manifest: Manifest, request: Request) -> Iterator[Decomposition]:
@@ -103,6 +115,10 @@ def decompositions(manifest: Manifest, request: Request) -> Iterator[Decompositi
         if (tuple(goal.contract for goal in candidate.inputs) != expected_inputs
                 or tuple(goal.contract for goal in candidate.slots) != expected_slots):
             raise ValueError("witness subgoals do not match the expert's contract")
+        if any(not frozenset(required) <= goal.required for goal, required in
+               zip(candidate.slots, (*request.expert.relevant,
+                   *((),) * (len(candidate.slots) - len(request.expert.relevant))), strict=True)):
+            raise ValueError("witness slot goals must preserve relevant positions")
         yield candidate
 
 
@@ -125,6 +141,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
             depth: int, expansions: int, execution_budget: int,
             fallback: Callable[[Specification, int], Plan | None],
             hints: Callable[[Module, Contract, Specification], Iterable[tuple[tuple[Any, ...], ...]]] | None = None,
+            stats: SearchStats | None = None,
             agree: Callable[[Any, Any], bool] = lambda left, right: bool(left == right)) -> Plan | None:
     """Search witness subgoals, then use a caller-supplied enumeration fallback.
 
@@ -142,6 +159,9 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
         raise ValueError("type universe must contain canonical ground types")
     if any(module.manifest.effects != frozenset() for module in modules):
         raise ValueError("witness search requires experts declaring pure effects")
+    stats = stats if stats is not None else SearchStats()
+    if stats.expansions or stats.evaluations:
+        raise ValueError("search statistics must be fresh")
     memo: dict[tuple[Any, ...], Plan] = {}
     remaining = expansions
 
@@ -150,10 +170,12 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
         if remaining <= 0:
             return False
         remaining -= 1
+        stats.expansions += 1
         return True
 
     def valid(goal: Specification, route: Plan) -> bool:
-        if infer(modules, goal.contract.inputs, route) != goal.contract.output:
+        if (infer(modules, goal.contract.inputs, route) != goal.contract.output
+                or not goal.required <= uses(route, goal.contract.inputs)):
             return False
         for index, example in enumerate(goal.examples):
             messages = tuple(Message(typ, value, "witness-input", message_id=f"{index}:{position}")
@@ -163,6 +185,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
             for message in messages:
                 workspace.post(message)
             try:
+                stats.evaluations += 1
                 result = execute(route, messages, workspace, execution_budget).payload
                 if not agree(result, example.output):
                     return False
@@ -174,12 +197,39 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
         if fuel <= 0 or not spend():
             return None
         try:
-            key = (goal.contract, fuel, tuple((_value_key(example.inputs), _value_key(example.output))
+            key = (goal.contract, goal.required, fuel, tuple((_value_key(example.inputs), _value_key(example.output))
                                              for example in goal.examples))
         except (TypeError, RecursionError):
             key = None
         if key is not None and key in memo:
             return memo[key]
+        for position, typ in enumerate(goal.contract.inputs):
+            if typ == goal.contract.output:
+                route = Given(typ, position)
+                if valid(goal, route):
+                    if key is not None:
+                        memo[key] = route
+                    return route
+        for module in modules:
+            pattern = module.manifest.contract
+            if pattern.inputs or pattern.slots:
+                continue
+            binding = pattern.producing(goal.contract.output)
+            if binding is None or frozenset(name for name, _ in binding) != pattern.variables:
+                continue
+            if not spend():
+                return None
+            route = Apply(module, (), binding=binding)
+            if valid(goal, route):
+                if key is not None:
+                    memo[key] = route
+                return route
+        if goal.required:
+            route = fallback(goal, fuel)
+            if route is not None and valid(goal, route):
+                if key is not None:
+                    memo[key] = route
+                return route
         for module in modules:
             pattern = module.manifest.contract
             if module.manifest.witness is None:
@@ -213,7 +263,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                                 if key is not None:
                                     memo[key] = route
                                 return route
-        route = fallback(goal, fuel)
+        route = None if goal.required else fallback(goal, fuel)
         if route is not None and valid(goal, route):
             if key is not None:
                 memo[key] = route

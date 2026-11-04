@@ -93,6 +93,21 @@ theorem map_agree_on_calls {α β : Type} (f g : α → β) (calls : List α)
     simp only [List.map_cons, List.cons.injEq]
     exact ⟨agree x (by simp), ih (by intro y hy; exact agree y (by simp [hy]))⟩
 
+/-- Replacing a fold step preserves the result if the steps agree at every
+state on each actual input element. Singleton examples alone do not imply
+this hypothesis. -/
+theorem fold_agree_on_elements {α σ : Type} (f g : σ → α → σ) (items : List α)
+    (start : σ) (agree : ∀ state item, item ∈ items → f state item = g state item) :
+    items.foldl f start = items.foldl g start := by
+  induction items generalizing start with
+  | nil => rfl
+  | cons item rest ih =>
+    simp only [List.foldl_cons]
+    rw [agree start item (by simp)]
+    apply ih
+    intro state value member
+    exact agree state value (by simp [member])
+
 
 /-- Every positive-cost child consumes at least one unit of a route's budget. -/
 theorem positive_children_arity_bound (parent : Nat) (children : List Nat)
