@@ -422,3 +422,13 @@ candidate routes independently of their proposal source. Their freshness and
 confidence-allocation assumptions still apply; the proposal corpus and MDL
 selection data cannot be reused as certification cases. A code-length admission
 gate additionally needs the actual expanded library's Kraft-valid codebook.
+
+Transporting a completed acquisition history across process boundaries does not
+create another statistical trial. Retaining its certificate requires the same
+contract, executable route and task distribution; restarting the process does
+not reset the confidence allocation in `acquisition_sound` or
+`occam_adaptive_fresh`. New routes still require fresh cases. A checkpoint is
+only a representation of trusted prior evidence, not a new attestation; source
+and codebook identity and preservation of case value types are implementation
+obligations. Interrupted acquisition costs cannot be silently erased from later
+accounting.
