@@ -51,6 +51,7 @@ class VoteFailure:
     vote: Vote
     level: float
     drawn: int
+    controls: tuple[VoteCase, ...] = ()
 
 
 class EnsembleSearch:
@@ -70,21 +71,28 @@ class EnsembleSearch:
     test, including the last. It may inform later proposals or later searches;
     it must not mutate published experts or reuse that draw for certification.
     Callback errors propagate after already drawn labels have been charged.
+    ``retain_controls`` bounds the scored successful prefix exposed alongside
+    a rejection. These selected training controls are not fresh audit data;
+    subsequent proposals still require independently drawn certification cases.
     """
 
     def __init__(self, *, counts: Sequence[int], tolerance: float, confidence: float,
                  budget: int, history: AcquisitionHistory | None = None,
-                 resolver: Resolver | None = None) -> None:
+                 resolver: Resolver | None = None, retain_controls: int = 0) -> None:
         sizes = tuple(counts)
         if (not sizes or any(isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in sizes)
                 or any(a > b for a, b in zip(sizes, sizes[1:]))):
             raise ValueError("ensemble counts must be positive and nondecreasing")
         if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
             raise ValueError("per-route evaluation budget must be positive")
+        if (isinstance(retain_controls, bool) or not isinstance(retain_controls, int)
+                or retain_controls < 0):
+            raise ValueError("retained control capacity must be nonnegative")
         required_cases(tolerance, confidence)
         self.counts, self.tolerance, self.confidence = sizes, tolerance, confidence
         self.budget, self.history = budget, history
         self.resolver = resolver
+        self.retain_controls = retain_controls
         self.decisions = self.requests = self.labels = self.evaluations = self.tests = 0
 
     def __call__(self, contract: Contract,
@@ -164,6 +172,7 @@ class EnsembleSearch:
             if any(output_type(route) != contract.output for route in frozen):
                 raise ValueError("acquired route has the wrong output type")
             failure: tuple[VoteCase, Vote] | None = None
+            controls: list[VoteCase] = []
 
             def correct(case: VoteCase) -> bool:
                 nonlocal failure
@@ -181,6 +190,8 @@ class EnsembleSearch:
                 accepted = result.agreeing > 0 and bool(agree(result.answer, label))
                 if not accepted:
                     failure = case, result
+                elif len(controls) < self.retain_controls:
+                    controls.append(case)
                 return accepted
 
             fresh = required_cases(self.tolerance, level)
@@ -192,5 +203,6 @@ class EnsembleSearch:
                 return CertifiedVote(frozen, self.tolerance, level, fresh)
             if feedback is not None:
                 assert failure is not None
-                feedback(VoteFailure(frozen, failure[0], failure[1], level, result.drawn))
+                feedback(VoteFailure(frozen, failure[0], failure[1], level, result.drawn,
+                                     tuple(controls)))
         return None

@@ -88,7 +88,8 @@ def test_feedback_is_after_scoring_and_before_the_next_acquisition() -> None:
 def test_admission_and_missing_data_emit_no_failure() -> None:
     route = Apply(Lookup({0: 0}), (Given("s"),))
     seen: list[VoteFailure] = []
-    search = EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05, budget=2)
+    search = EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                            budget=2, retain_controls=16)
     assert search(Contract(("s",), "g"), lambda old: route,
                   lambda n: [((Message("s", 0, "input"),), 0)] * n, feedback=seen.append)
     assert search(Contract(("s",), "g"), lambda old: route,
@@ -142,3 +143,83 @@ def test_all_finite_monotonic_repairs_strictly_reduce_error_count() -> None:
             for steps, failed in enumerate(elements, 1):
                 current.remove(failed)
                 assert len(current) + steps <= len(errors)
+
+
+@pytest.mark.parametrize("capacity", [0, 1, 8])
+def test_controls_include_only_scored_successes_before_rejection(capacity: int) -> None:
+    cursor = 0
+    seen: list[VoteFailure] = []
+
+    def sample(count: int) -> list[VoteCase]:
+        nonlocal cursor
+        cases = [((Message("s", i, "input"),), i) for i in range(cursor, cursor + count)]
+        cursor += count
+        return cases
+
+    search = EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                            budget=2, retain_controls=capacity)
+    route = Apply(Lookup({i: i for i in range(4)}), (Given("s"),))
+    assert search(Contract(("s",), "g"), lambda old: route, sample,
+                  feedback=seen.append) is None
+    assert len(seen) == 1
+    assert seen[0].case[1] == 4
+    assert [case[1] for case in seen[0].controls] == list(range(min(capacity, 4)))
+    assert search.labels == seen[0].drawn == cursor == 7
+    assert search.evaluations == 5  # Two drawn cases were never scored.
+
+
+@pytest.mark.parametrize("capacity", [-1, True, 1.5])
+def test_control_capacity_is_a_nonnegative_integer(capacity: Any) -> None:
+    with pytest.raises(ValueError, match="control capacity"):
+        EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                       budget=2, retain_controls=capacity)
+
+
+def test_protected_corrections_preserve_all_observed_successes_exhaustively() -> None:
+    """Finite link to keyCorrection_protected, including conflicting fibers."""
+    from itertools import product
+
+    from nca.learning.discovery import propose_corrections
+    from test_discovery import Constant, Feature
+
+    rows = [(float(i),) for i in range(4)]
+    for keys in product(range(2), repeat=4):
+        feature = Feature(Contract(("source",), "region"), lambda x: keys[int(x)])
+        for labels in product(range(2), repeat=4):
+            proposals = propose_corrections(Constant(), [feature], rows, labels,
+                                            correction_cost=0, preserve_successes=True)
+            for proposal in proposals:
+                outputs = [proposal.expert.invoke(*row) for row in rows]
+                assert all(output == label for output, label in zip(outputs, labels, strict=True)
+                           if label == 0)
+                assert sum(a == b for a, b in zip(outputs, labels, strict=True)) > labels.count(0)
+
+
+def test_protected_corrections_reject_a_net_gain_that_breaks_a_control() -> None:
+    from nca.learning.discovery import propose_corrections
+    from test_discovery import Constant, Feature
+
+    feature = Feature(Contract(("source",), "region"), lambda x: 0)
+    rows, labels = [(0.0,), (1.0,), (2.0,)], [0, 1, 1]
+    assert propose_corrections(Constant(), [feature], rows, labels, correction_cost=0)
+    assert not propose_corrections(Constant(), [feature], rows, labels,
+                                   correction_cost=0, preserve_successes=True)
+
+
+def test_label_sufficient_noninjective_keys_remove_only_existing_errors() -> None:
+    """Exhaustive finite link to fiber_correction_errors."""
+    from itertools import product
+
+    from nca.learning.discovery import Corrected
+    from test_discovery import Feature
+
+    feature = Feature(Contract(("s",), "key"), lambda x: x // 2)
+    for labels in product(range(2), repeat=2):
+        truth = [labels[x // 2] for x in range(4)]
+        for outputs in product(range(2), repeat=4):
+            base = Lookup(dict(enumerate(outputs)))
+            for point in range(4):
+                model = Corrected(base, feature, {point // 2: truth[point]}, 0)
+                for x in range(4):
+                    if model.invoke(x) != truth[x]:
+                        assert outputs[x] != truth[x] and x // 2 != point // 2

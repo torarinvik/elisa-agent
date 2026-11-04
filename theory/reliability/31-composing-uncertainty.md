@@ -289,3 +289,32 @@ the supplied key incomplete. An exact key can memorize observed corrections
 without generalizing to unseen inputs. All proposed revisions still require
 fresh end-to-end certification; compact representations and generalizing
 corrections remain learning problems.
+
+## 31.12 Controls and label-sufficient repair keys
+
+A rejected test has already paid for successful observations before its first
+failure. Retain a declared bounded prefix of those successes as training
+controls, exposing them only after that test closes. They are selected by the
+candidate's success and stopping rule, so are not an unbiased audit sample.
+Neither these observations nor the failure can certify the next candidate;
+that candidate still needs fresh draws under Theorem 31.8.
+
+**Theorem 31.11 (protected controls and sufficient fibers).** (i) A constant
+correction on a feature-key fiber preserves every observed incumbent success
+if each such success in that fiber has the proposed target. Rejecting a
+correction that conflicts with any protected target enforces this finite
+condition. (ii) Injectivity is not needed for global error preservation if
+the true target is constant on the corrected fiber: returning the observed
+truth there removes its errors and retains the incumbent elsewhere.
+
+*Proof.* (i) Outside the fiber delegation preserves the incumbent success;
+inside, the protected-target condition supplies the correct output. (ii) The
+same case split uses the fiber's common truth inside and the incumbent outside.
+Any remaining error was an incumbent error outside that fiber. ∎
+
+Finite control agreement does not prove fiber sufficiency. A feature can merge
+unseen inputs with different targets, and a feature selected for training fit
+may overgeneralize. Protected controls prevent their observed regressions;
+fresh end-to-end testing bounds admission of bad generalizations. Selection
+of compact, label-sufficient features remains a learning problem, with the
+feature family supplied independently of the runtime.

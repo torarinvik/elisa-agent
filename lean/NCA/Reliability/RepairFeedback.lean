@@ -14,6 +14,29 @@ theorem keyCorrection_outside {X Y K : Type*} [DecidableEq K]
     (outside : key x ≠ key point) : keyCorrection base key point label x = base x := by
   simp [keyCorrection, outside]
 
+/-- A constant correction preserves protected observed successes when every
+such success in its key fiber has the correction's target. -/
+theorem keyCorrection_protected {X Y K : Type*} [DecidableEq K]
+    (base truth : X → Y) (key : X → K) (point : X) (label : Y) (controls : Set X)
+    (compatible : ∀ x ∈ controls, base x = truth x → key x = key point → label = truth x) :
+    ∀ x ∈ controls, base x = truth x → keyCorrection base key point label x = truth x := by
+  intro x hx good
+  by_cases same : key x = key point
+  · simpa [keyCorrection, same] using compatible x hx good same
+  · simpa [keyCorrection, same] using good
+
+/-- Injectivity is unnecessary when the truth is constant on the corrected
+fiber. Learning that condition from finite data still requires validation. -/
+theorem fiber_correction_errors {X Y K : Type*} [DecidableEq K]
+    (base truth : X → Y) (key : X → K) (point x : X)
+    (consistent : ∀ y, key y = key point → truth y = truth point)
+    (wrong : keyCorrection base key point (truth point) x ≠ truth x) :
+    base x ≠ truth x ∧ key x ≠ key point := by
+  by_cases same : key x = key point
+  · have equal := consistent x same
+    simp [keyCorrection, same, equal] at wrong
+  · exact ⟨by simpa [keyCorrection, same] using wrong, same⟩
+
 /-- With a complete injective key and a truthful observed target, no new
 error is introduced, and the observed point cannot remain an error. -/
 theorem endpoint_correction_errors {X Y K : Type*} [DecidableEq K]

@@ -466,13 +466,16 @@ class Corrected:
 
 def propose_corrections(incumbent: Module, features: Sequence[Module],
                         rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
-                        correction_cost: float) -> list[Proposal]:
+                        correction_cost: float, preserve_successes: bool = False) -> list[Proposal]:
     """Fit only feature regions improving on incumbent training accuracy (§36.12).
 
     Use inside discover's training callback. Equality defines correctness here;
     keys/labels must be stable and hashable. Unseen keys retain the incumbent.
     Empty corrections yield no proposal. Cost and slot declarations include
     both experts conservatively; no persistence or risk certificate is claimed.
+    With preserve_successes, reject a key's constant correction if it would
+    break any incumbent-successful training example in that key. This is a
+    finite retained-control guarantee, not a claim about unseen inputs.
     """
     if not rows or len(rows) != len(labels):
         raise ValueError("correction training needs aligned nonempty rows and labels")
@@ -489,14 +492,18 @@ def propose_corrections(incumbent: Module, features: Sequence[Module],
     for feature in features:
         counts: dict[Hashable, Counter[Hashable]] = {}
         successes: Counter[Hashable] = Counter()
+        protected: dict[Hashable, set[Hashable]] = {}
         for row, label, correct in zip(rows, labels, baseline, strict=True):
             key = feature.invoke(*row)
             counts.setdefault(key, Counter())[label] += 1
             successes[key] += int(correct)
+            if correct:
+                protected.setdefault(key, set()).add(label)
         corrections = {}
         for key, count in counts.items():
             label, mass = count.most_common(1)[0]
-            if mass > successes[key]:
+            if mass > successes[key] and (not preserve_successes or
+                                         protected.get(key, set()) <= {label}):
                 corrections[key] = label
         if corrections:
             proposals.append(Proposal(Corrected(incumbent, feature, corrections, correction_cost)))
