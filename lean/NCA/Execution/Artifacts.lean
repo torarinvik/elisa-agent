@@ -150,4 +150,72 @@ theorem run_read_identity (codec : Codec V) (digest : ByteArray → String)
     exact ⟨checked_encodes codec bytes value validated, aligned⟩
   · simp [get, retained, aligned] at success
 
+/-- A complete private proposal, or an abandoned preparation. Publication is
+atomic create-if-absent; the filesystem primitive is a trusted boundary. -/
+def publishReady (store : Store) (proposal : Option (String × ByteArray)) : Store :=
+  match proposal with
+  | none => store
+  | some (key, bytes) =>
+    match store[key]? with
+    | some _ => store
+    | none => store.insert key bytes
+
+theorem publishReady_retains (store : Store) (proposal : Option (String × ByteArray))
+    (key : String) (bytes : ByteArray) (present : store[key]? = some bytes) :
+    (publishReady store proposal)[key]? = some bytes := by
+  cases proposal with
+  | none => exact present
+  | some entry =>
+    rcases entry with ⟨target, ready⟩
+    cases previous : store[target]? with
+    | some old => simpa [publishReady, previous] using present
+    | none =>
+      have distinct : target ≠ key := by
+        intro equal
+        rw [equal, present] at previous
+        cases previous
+      simpa [publishReady, previous, Std.HashMap.getElem?_insert, distinct] using present
+
+theorem publishReady_source (store : Store) (proposal : Option (String × ByteArray))
+    (key : String) (bytes : ByteArray)
+    (present : (publishReady store proposal)[key]? = some bytes) :
+    store[key]? = some bytes ∨ proposal = some (key, bytes) := by
+  cases proposal with
+  | none => exact Or.inl present
+  | some entry =>
+    rcases entry with ⟨target, ready⟩
+    cases previous : store[target]? with
+    | some old => exact Or.inl (by simpa [publishReady, previous] using present)
+    | none =>
+      by_cases same : target = key
+      · subst target
+        have equal : ready = bytes := by
+          simpa [publishReady, previous, Std.HashMap.getElem?_insert] using present
+        exact Or.inr (by rw [equal])
+      · exact Or.inl (by
+          simpa [publishReady, previous, Std.HashMap.getElem?_insert, same] using present)
+
+def publicationRun (events : List (Option (String × ByteArray))) (store : Store) : Store :=
+  events.foldl publishReady store
+
+theorem publicationRun_retains (events : List (Option (String × ByteArray)))
+    (store : Store) (key : String) (bytes : ByteArray) (present : store[key]? = some bytes) :
+    (publicationRun events store)[key]? = some bytes := by
+  induction events generalizing store with
+  | nil => exact present
+  | cons event rest ih => exact ih _ (publishReady_retains store event key bytes present)
+
+theorem publicationRun_source (events : List (Option (String × ByteArray)))
+    (store : Store) (key : String) (bytes : ByteArray)
+    (present : (publicationRun events store)[key]? = some bytes) :
+    store[key]? = some bytes ∨ some (key, bytes) ∈ events := by
+  induction events generalizing store with
+  | nil => exact Or.inl present
+  | cons event rest ih =>
+    rcases ih _ present with previous | emitted
+    · rcases publishReady_source store event key bytes previous with original | proposal
+      · exact Or.inl original
+      · exact Or.inr (by simp [proposal])
+    · exact Or.inr (List.mem_cons_of_mem _ emitted)
+
 end NCA.Artifacts

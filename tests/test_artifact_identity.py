@@ -5,8 +5,10 @@ import json
 import random
 import shutil
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -98,6 +100,125 @@ def test_save_refuses_existing_conflicting_contents(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="conflicts"):
         store.save(tmp_path)
     assert path.read_bytes() == b"corrupt"
+
+
+@pytest.mark.parametrize("boundary", ["fsync", "link"])
+def test_failed_preparation_never_exposes_partial_artifacts(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str) -> None:
+    store = Store()
+    first = store.put(primitive({"stage": 0}))
+    store.save(tmp_path)
+    second = store.put(replace(primitive({"stage": 1}), dependencies=(first,)))
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("injected publication failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(storage.os, boundary, fail)
+        with pytest.raises(OSError, match="injected"):
+            store.save(tmp_path)
+    assert len(Store.open(tmp_path)) == 1
+    assert canonical(Store.open(tmp_path).get(first).data()) == canonical(store.get(first).data())
+    assert not list(tmp_path.glob(".nca-*.tmp"))
+    assert not (tmp_path / f"{second.removeprefix('sha256:')}.json").exists()
+    store.save(tmp_path)
+    assert len(Store.open(tmp_path)) == 2
+
+
+@pytest.mark.parametrize("matching", [False, True])
+def test_publication_race_never_overwrites_the_winning_writer(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, matching: bool) -> None:
+    store = Store()
+    obj = primitive()
+    reference = store.put(obj)
+    expected = canonical(obj.data())
+    winner = expected if matching else b"other writer's bytes"
+    path = tmp_path / f"{reference.removeprefix('sha256:')}.json"
+
+    def race(source: str, destination: Path) -> None:
+        assert Path(source).read_bytes() == expected
+        assert not path.exists()
+        destination.write_bytes(winner)
+        raise FileExistsError
+
+    monkeypatch.setattr(storage.os, "link", race)
+    if matching:
+        store.save(tmp_path)
+    else:
+        with pytest.raises(ValueError, match="conflicts"):
+            store.save(tmp_path)
+    assert path.read_bytes() == winner
+    assert not list(tmp_path.glob(".nca-*.tmp"))
+
+
+def test_concurrent_saves_publish_identical_complete_files(tmp_path: Path) -> None:
+    store = Store()
+    for index in range(16):
+        store.put(primitive({"index": index, "values": list(range(64))}))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda _: store.save(tmp_path), range(24)))
+    reopened = Store.open(tmp_path)
+    assert len(reopened) == len(store)
+    assert not list(tmp_path.glob(".nca-*.tmp"))
+
+
+def test_process_exit_before_publication_leaves_original_store_readable(tmp_path: Path) -> None:
+    store = Store()
+    reference = store.put(primitive())
+    store.save(tmp_path)
+    script = """
+import os
+import sys
+from pathlib import Path
+from nca.objects import Store, Constructor
+from nca.objects import store as storage
+directory = Path(sys.argv[1])
+store = Store.open(directory)
+store.put(Constructor('pending', '1', 0, 'opaque'))
+def stop(descriptor: int) -> None:
+    os._exit(73)
+storage.os.fsync = stop
+store.save(directory)
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(tmp_path)], check=False)
+    assert result.returncode == 73
+    reopened = Store.open(tmp_path)
+    assert len(reopened) == 1 and reopened.get(reference).ref == reference
+    abandoned = list(tmp_path.glob(".nca-*.tmp"))
+    assert len(abandoned) == 1  # Abrupt exit bypasses finally; open ignores it.
+    reopened.put(Constructor("pending", "1", 0, "opaque"))
+    reopened.save(tmp_path)
+    assert len(Store.open(tmp_path)) == 2
+    for path in abandoned:
+        path.unlink()
+
+
+def test_all_small_publication_traces_match_complete_non_overwriting_model(tmp_path: Path) -> None:
+    """Finite link to publicationRun_retains and publicationRun_source."""
+    events = (None, ("a", b"first"), ("a", b"conflicting"), ("b", b"second"))
+    for initial in ({}, {"a": b"original"}):
+        for index, trace in enumerate(product(events, repeat=4)):
+            directory = tmp_path / f"{len(initial)}-{index}"
+            directory.mkdir()
+            expected = dict(initial)
+            for key, value in initial.items():
+                (directory / f"{key}.json").write_bytes(value)
+            proposed = set(initial.items())
+            for event in trace:
+                if event is not None:
+                    key, value = event
+                    proposed.add(event)
+                    if key in expected and expected[key] != value:
+                        with pytest.raises(ValueError, match="conflicts"):
+                            storage._publish(directory / f"{key}.json", value)
+                    else:
+                        storage._publish(directory / f"{key}.json", value)
+                        expected.setdefault(key, value)
+                actual = {path.stem: path.read_bytes() for path in directory.glob("*.json")}
+                assert actual == expected
+                assert all(actual[key] == value for key, value in initial.items())
+                assert set(actual.items()) <= proposed
+                assert not list(directory.glob(".nca-*.tmp"))
 
 
 def test_pickle_and_legacy_restore_rebuild_validated_snapshots() -> None:

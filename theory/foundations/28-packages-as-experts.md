@@ -330,3 +330,31 @@ unfolding can still have exponentially many occurrences in the size of a shared
 graph. Transitive dependency declarations, decoded bytes and wrapper residency
 also have costs. Removing host recursion does not supply a global memory quota,
 prove invocation termination, or snapshot mutable expert state.
+
+## 28.12 Complete-file publication
+
+Separate private preparation from public publication. A writer prepares a full
+immutable byte string privately. Before preparation completes, failure has no
+public effect. Publication atomically installs the complete string only if its
+name is absent. An existing name is never overwritten; a caller may accept an
+identical existing string or report a conflict.
+
+**Theorem 28.9 (complete non-overwriting publication).** Under those transition
+semantics, after any finite interleaving of writers and abandoned preparations:
+(i) every initially present name retains exactly its original bytes;
+(ii) every publicly present name contains either its initial bytes or exactly
+the complete bytes of one publication proposal. No proper prefix introduced
+only by an incomplete preparation can become public.
+
+*Proof.* A failed preparation changes no public entry. Publication at an occupied
+name also changes nothing; at an absent name it inserts exactly its complete
+proposal. These facts establish both claims for one step. Induction on the
+interleaving establishes them for every finite run. ∎
+
+This model assumes linearizable create-if-absent publication, complete private
+writes and immutable published contents. It does not prove a filesystem's
+primitives, defend against unrelated destructive writers, establish persistence
+after power loss, or make publication of several files one atomic transaction.
+An interrupted multi-object save can expose a completed prefix of objects.
+Dependency-before-parent publication is needed separately for a reopenable
+prefix; existing malformed or externally modified files remain errors.

@@ -8,6 +8,9 @@ import json
 import random
 import statistics
 import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from collections.abc import Sequence
 from time import perf_counter, process_time
 
@@ -208,6 +211,67 @@ def installation_trial(shape: str, iterative: bool) -> dict[str, float | int]:
             "labels": 0, "expert_requests": 0, "loaded_implementations": experts.stats.loads}
 
 
+def publication_trial(atomic: bool, interrupted: bool, requests: int = 20) -> dict[str, float | int]:
+    """Fault before publication completion; no process/power-loss claim.
+
+    The direct-write reference fails after a partial public write. The actual
+    staged publisher fails at its flush boundary, before linking a final name.
+    Both represent a failed save before publication has completed. Setup of
+    the initially valid store is excluded from measured save CPU.
+    """
+    readable = preserved = failures = final_files = 0
+    cpu = wall = 0.0
+    with TemporaryDirectory(prefix="nca-publication-") as temporary:
+        for index in range(requests):
+            directory = Path(temporary) / str(index)
+            store = Store()
+            obj = Primitive(Manifest("retained", "1", Contract(("source",), "result")),
+                            "hypothetical:Expert", {"stage": "initial"})
+            original = store.put(obj)
+            store.save(directory)
+            store.put(Primitive(obj.manifest, obj.entry, {"stage": "added"}))
+
+            def fail_flush(descriptor: int) -> None:
+                raise OSError("injected pre-publication failure")
+
+            started = process_time()
+            wall_started = perf_counter()
+            try:
+                if atomic:
+                    if interrupted:
+                        with patch.object(storage.os, "fsync", fail_flush):
+                            store.save(directory)
+                    else:
+                        store.save(directory)
+                else:
+                    for reference, encoded in store._objects.items():
+                        path = directory / f"{reference.removeprefix('sha256:')}.json"
+                        if path.exists():
+                            if path.read_bytes() != encoded:
+                                raise ValueError("conflicting artifact")
+                        elif interrupted:
+                            path.write_bytes(encoded[:len(encoded) // 2])
+                            raise OSError("injected incomplete public write")
+                        else:
+                            path.write_bytes(encoded)
+            except OSError:
+                failures += 1
+            cpu += process_time() - started
+            wall += perf_counter() - wall_started
+            try:
+                reopened = Store.open(directory)
+                readable += 1
+                preserved += canonical(reopened.get(original).data()) == canonical(obj.data())
+            except (ValueError, KeyError):
+                pass
+            final_files += len(list(directory.glob("*.json")))
+            assert not list(directory.glob(".nca-*.tmp"))
+    return {"save_requests": requests, "labels": 0, "expert_requests": 0,
+            "save_failures": failures, "reopen_successes": readable,
+            "original_artifacts_accessible": preserved, "final_files": final_files,
+            "save_cpu_seconds": cpu, "save_wall_seconds": wall}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=[100, 1000, 10000])
@@ -216,7 +280,16 @@ def main() -> None:
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--traversal", action="store_true")
     parser.add_argument("--installation", action="store_true")
+    parser.add_argument("--publication", action="store_true")
     args = parser.parse_args()
+    if args.publication:
+        for interrupted in (False, True):
+            for atomic in (False, True):
+                samples = [publication_trial(atomic, interrupted) for _ in range(3)]
+                print(json.dumps({"atomic": atomic, "interrupted": interrupted,
+                                  **{key: statistics.mean(s[key] for s in samples)
+                                     for key in samples[0]}}), flush=True)
+        return
     if args.installation:
         for shape in ("small", "deep", "exported"):
             for iterative in (False, True):

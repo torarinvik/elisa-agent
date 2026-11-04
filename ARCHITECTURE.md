@@ -132,7 +132,7 @@ Tests provide empirical evidence; they do not discharge universal statements.
 | Relied-on guarantee | Status | Evidence and remaining obligation |
 |---|---|---|
 | Serialized in-memory artifact identity | Model proved; empirically linked | `Artifacts.run_retains`, `admitted_read_stable` and `run_read_identity` model checked decoding and non-overwriting hash-map admission for arbitrary codecs, digests, policies and operation interleavings. Python/Lean differential tests cover 512 operations, including real and colliding digests. Immutable bytes, lock linearization and codec/runtime fidelity are trusted library boundaries; decoded views are independently tested. |
-| Artifact persistence, DAG validation and runtime fidelity | Open | The identity model does not prove filesystem atomicity, the dependency/index validation algorithm, JSON implementation correctness or loaded-expert behavior. `Execution/DependencyWalk` proves decreasing visit/emit work and absence of an infinite machine run under acyclic weights, exact per-step task accounting and preservation of dependency order when a fresh ready vertex is appended. `objects.Store.walk` and `flatten` use a shared explicit work stack; 1,024 DAGs with fixed topological order, mixed object kinds and duplicate edges match the recursive reference and decode each reached node once. The full DFS readiness/reachability argument, admission/runtime fidelity and byte-memory bounds are not mechanized. Save/reopen, collision, malformed schema and concurrent duplicate-admission tests provide empirical coverage only. |
+| Artifact persistence, DAG validation and runtime fidelity | Open | Per-file publication now has a complete, non-overwriting transition model (`Artifacts.publicationRun_retains`, `publicationRun_source`), linked by 512 finite traces, concurrent writers, injected failures and subprocess exit. Atomic hard-link semantics are trusted; whole-directory transactions and power-loss durability remain open. The identity model does not prove the dependency/index validation algorithm, JSON implementation correctness or loaded-expert behavior. `Execution/DependencyWalk` proves decreasing visit/emit work and absence of an infinite machine run under acyclic weights, exact per-step task accounting and preservation of dependency order when a fresh ready vertex is appended. `objects.Store.walk` and `flatten` use a shared explicit work stack; 1,024 DAGs with fixed topological order, mixed object kinds and duplicate edges match the recursive reference and decode each reached node once. The full DFS readiness/reachability argument, admission/runtime fidelity and byte-memory bounds are not mechanized. Save/reopen, collision, malformed schema and concurrent duplicate-admission tests provide empirical coverage only. |
 | Native arithmetic implements the reference account | Open end-to-end | Differential tests include subnormal allocation and extreme temperatures. Builds require strict FP; compiler lowering, gradual underflow and external mathematical routines remain trusted. Exact-real lemmas and passing numerical tests do not prove arbitrary compiled floating-point execution. |
 | Deterministic state threading under replay | Open | Process tests cover supplied deterministic experts. Model transitions, nested execution and replay; expert determinism and immutable payloads remain trusted assumptions. |
 | Authority only narrows; every mediated operation is declared and granted | Open | Effect-scope tests cover runtime and compiled callbacks. `effects.invoke_scoped` applies each immediate learning-component invocation's own declaration, including training observations and learned model interpreters. `composed_child_allowance` proves that a composite union gives its child no sibling authority. Scalar/compiled composition tests and finite permission sets link the model to execution. Immediate invocation scopes now also cover evidence evaluation, calibration, retention recording, certification and selective consumers/fusers. Reference risk reports and evidence-demand callbacks use their owners' scopes. Selective per-solve helpers retain their originating expert's declaration without requiring a helper manifest; a supplied helper manifest further narrows that authority. `effectPath_gateway_owner` proves ownership along arbitrary finite callback paths; evaluator/candidate, calibration, reference and delegated-session tests link these paths. Other non-invocation callbacks and returned deferred objects still need audit and complete origin authority. Prove the full nested, batched, deferred and generator execution model. Cooperative gateways are trusted; arbitrary expert code is not isolated. |
@@ -595,6 +595,7 @@ an inference from their separate tests.
 | [28.6](theory/foundations/28-packages-as-experts.md) | `resolveLoader_perm`, `resolveLoader_unrelated`, `resolveLoader_conflict`, `resolveLoader_relocate` | `Execution/Loaders` |
 | [28.7](theory/foundations/28-packages-as-experts.md) | `dependency_expand_decreases`, `dependency_step_decreases`, `dependency_no_infinite_run`, `dependency_expand_account`, `dependency_pop_account`, `dependency_append_order` | `Execution/DependencyWalk` |
 | [28.8](theory/foundations/28-packages-as-experts.md) | `scope_step_decreases`, `scope_no_infinite_run` | `Execution/DependencyWalk` |
+| [28.9](theory/foundations/28-packages-as-experts.md) | `Artifacts.publicationRun_retains`, `Artifacts.publicationRun_source` | `Execution/Artifacts` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
 | [29.3](theory/foundations/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
@@ -1992,6 +1993,23 @@ canonical schema-valid fixtures and supplying their digest table. Schema-invalid
 inputs, view mutations, persistence conflicts and concurrent duplicates have
 separate Python regressions. This is an executable link, not a proof of Python,
 JSON, locks, hashing libraries or filesystem behavior.
+
+`Store.save` now publishes individual files through private same-directory
+preparation followed by atomic hard-link creation (§28.12). Existing names are
+never replaced, even if a competing writer publishes between the initial read
+and link; identical contents are accepted and conflicts refused. Private writes
+must report their full byte count, are flushed and file-synced before linking,
+and are removed on exception unwinding. Abrupt process exit can leave private
+`.tmp` files, which `Store.open` ignores; automatic orphan collection is not
+implemented. `publicationRun_retains` and `publicationRun_source` prove the
+complete, non-overwriting transition model, assuming the filesystem primitives.
+Tests compare 512 four-event traces with initial/empty maps, inject flush/link
+failures and competing publication, run concurrent saves, and exit a subprocess
+before linking. Multi-object transactionality, parent-directory durability,
+external destructive writers, crash semantics and end-to-end codec fidelity
+remain open; filesystems without hard-link support fail rather than falling
+back to unsafe public writes. `artifact_store.py --publication` measures failure
+isolation and the added filesystem work, with no label or expert requests.
 
 `objects.loaders` resolves primitive entries (§28.9). Distributions register
 factories under the `nca.loaders` entry-point group, naming a stable identifier

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from threading import RLock
@@ -46,6 +48,37 @@ def _decode(reference: _api.Ref, encoded: bytes) -> _api.Object:
     if _api.canonical(obj.data()) != encoded:
         raise ValueError("artifact encoding does not round-trip canonically")
     return obj
+
+
+def _publish(path: Path, encoded: bytes) -> None:
+    """Prepare privately, then atomically create a complete, immutable name.
+
+    Hard-link publication refuses replacement, including concurrent writers.
+    This is per-file atomicity, not a directory transaction or power-loss
+    durability guarantee. Filesystems must support same-directory hard links.
+    """
+    try:
+        existing = path.read_bytes()
+    except FileNotFoundError:
+        pass
+    else:
+        if existing != encoded:
+            raise ValueError(f"{path.name} conflicts with the stored artifact")
+        return
+    descriptor, temporary = tempfile.mkstemp(prefix=".nca-", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            if stream.write(encoded) != len(encoded):
+                raise OSError("incomplete artifact preparation")
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            if path.read_bytes() != encoded:
+                raise ValueError(f"{path.name} conflicts with the stored artifact") from None
+    finally:
+        os.unlink(temporary)
 
 
 class Store:
@@ -193,16 +226,18 @@ class Store:
             yield node
 
     def save(self, directory: Path) -> None:
+        """Publish complete files without overwriting existing artifact names.
+
+        An interrupted save can leave a dependency-first completed prefix;
+        it is not a transaction over the whole directory. Private preparation
+        files are ignored by open and removed on ordinary exception unwinding.
+        """
         directory.mkdir(parents=True, exist_ok=True)
         with self._lock:
             records = tuple(self._objects.items())
         for ref, encoded in records:
             path = directory / f"{ref.removeprefix('sha256:')}.json"
-            if path.exists():
-                if path.read_bytes() != encoded:
-                    raise ValueError(f"{path.name} conflicts with the stored artifact")
-            else:
-                path.write_bytes(encoded)
+            _publish(path, encoded)
 
     @classmethod
     def open(cls, directory: Path) -> Store:
