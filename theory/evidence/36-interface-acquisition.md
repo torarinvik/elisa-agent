@@ -388,3 +388,14 @@ the target at the given input, their composition returns the target there
 (`selected_output_correct`). This is pointwise: neither component hypothesis
 follows from finite training consistency. Fresh admission remains necessary;
 the statement does not establish selection accuracy or a learning rate.
+
+
+## 36.74 Witness-preserving predicate pruning
+
+For a fixed output expression and one training example, consider all source
+items that render to the final label. If none satisfies a predicate prefix,
+adding further conjuncts cannot make any item satisfy it
+(`witness_prefix_prune`). This justifies rejecting that prefix for the fixed
+output expression, provided the witness set is complete for that expression.
+It does not justify discarding other output expressions or infer correctness
+on unseen inputs; independent admission remains necessary.

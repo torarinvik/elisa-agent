@@ -519,4 +519,13 @@ theorem selected_output_correct {X Y Z : Type*} (select : X → Option Y)
     Option.map render (select x) = some (target x) := by
   simp [selected, correct]
 
+/-- A predicate extension cannot recover a matching witness rejected by its prefix. -/
+theorem witness_prefix_prune {A B : Type*} (items : List A) (render : A → B)
+    (label : B) (pre extra : A → Prop)
+    (none : ∀ item ∈ items, render item = label → ¬ pre item) :
+    ¬ ∃ item ∈ items, render item = label ∧ pre item ∧ extra item := by
+  intro found
+  rcases found with ⟨item, member, output, passes, _⟩
+  exact none item member output passes
+
 end NCA
