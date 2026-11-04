@@ -175,6 +175,105 @@ def retention_trial(seed: int, retain: bool) -> dict[str, float]:
             "cpu_seconds": process_time() - started}
 
 
+class CandidateJoin:
+    """Same public signature; only observations reveal predictive sufficiency."""
+
+    def __init__(self, index: int, mode: int) -> None:
+        self.mode, self.calls = mode, 0
+        self.manifest = Manifest(f"benchmark.candidate.{index}", "1", Join.manifest.contract,
+                                 cost=1, effects=frozenset())
+
+    def invoke(self, first: Any, second: Any) -> Any:
+        self.calls += 1
+        if self.mode == 0:
+            return first, None
+        if self.mode == 1:
+            return None, second
+        return first, second
+
+
+def priority_trials(seed: int, policy: str) -> dict[str, float]:
+    """Learn priorities on a separate task; charge its labels and fitting work."""
+    started = process_time()
+    heads = [CandidateJoin(i, i % 2) for i in range(64)] + [CandidateJoin(64, 2)]
+    components, base = [Component(0), Component(1)], Base()
+    warmup_labels = probe_fits = probe_rows = 0
+    scores: dict[int, float] = {}
+    if policy == "ranked":
+        labels = random.Random(seed + 80000).sample(range(16), 16)
+        inputs = [(f"a:{a}", f"b:{b}", 0) for a in range(4) for b in range(4)]
+        observations = [tuple(c.invoke(value) for c in components) for value in inputs]
+        targets = [f"warmup:{label}" for label in labels]
+        warmup_labels = len(targets)
+        for head in heads:
+            keys = [head.invoke(*values) for values in observations]
+            decoder = fit_decoder(Contract(("joint",), "label"), keys, targets, cost=0)
+            scores[id(head)] = sum(decoder.invoke(key) == target
+                                   for key, target in zip(keys, targets, strict=True)) / len(targets)
+            probe_fits += 1
+            probe_rows += len(keys)
+    fits = rows_fit = requests = validation_labels = admitted = errors = score_calls = 0
+    for task in range(3):
+        targets = random.Random(seed + 90000 + task).sample(range(16), 16)
+        rng = random.Random(seed + 100000 + task * 1000)
+        search = EnsembleSearch(counts=(1,) * 32, tolerance=0.05, confidence=0.05 / 3, budget=8)
+        current: Module = base
+
+        def priority(module: Module) -> float:
+            nonlocal score_calls
+            score_calls += 1
+            return scores[id(module)]
+
+        def propose(cap: int, failures: tuple[VoteFailure, ...]) -> tuple[Plan, ...]:
+            nonlocal current, fits, rows_fit
+            features = compose_features(components, heads, max_depth=1,
+                limit=67 if policy == "wide" else 3,
+                priority=priority if policy == "ranked" else None)
+            if failures:
+                rows, labels = [], []
+                for failure in failures:
+                    inputs, label = failure.case
+                    assert not isinstance(inputs, dict)
+                    rows.append((inputs[0].payload,))
+                    labels.append(label)
+                candidates = propose_corrections(base, features, rows, labels,
+                                                  correction_cost=0, preserve_successes=True)
+                fits += len(features)
+                rows_fit += len(rows) * len(features)
+                if candidates:
+                    def score(candidate: Any) -> tuple[int, float]:
+                        model = candidate.expert
+                        return (sum(model.invoke(*row) != label
+                                    for row, label in zip(rows, labels, strict=True)),
+                                model.manifest.cost)
+
+                    current = min(candidates, key=score).expert
+            return (Apply(current, (Given("sample"),)),)
+
+        def case(a: int, b: int, nonce: int) -> VoteCase:
+            return (Message("sample", (f"a:{a}", f"b:{b}", nonce), "input"),), targets[4 * a + b]
+
+        def sample(count: int) -> list[VoteCase]:
+            return [case(rng.randrange(4), rng.randrange(4), rng.getrandbits(64)) for _ in range(count)]
+
+        result = search.revise(base.manifest.contract, propose, sample)
+        admitted += result is not None
+        requests += search.requests
+        validation_labels += search.labels
+        for a in range(4):
+            for b in range(4):
+                inputs, label = case(a, b, -1)
+                assert not isinstance(inputs, dict)
+                errors += current.invoke(inputs[0].payload) != label
+    return {"certified_tasks": float(admitted), "audit_errors": float(errors),
+            "warmup_labels": float(warmup_labels), "validation_labels": float(validation_labels),
+            "probe_fits": float(probe_fits), "correction_fits": float(fits),
+            "total_fits": float(fits + probe_fits), "fit_rows": float(rows_fit + probe_rows),
+            "requests": float(requests), "priority_calls": float(score_calls), "audit_labels": 48.0,
+            "head_calls": float(sum(head.calls for head in heads)),
+            "cpu_seconds": process_time() - started}
+
+
 if __name__ == "__main__":
     for multi in (False, True):
         for seed in (3716, 3717, 3718):
@@ -183,3 +282,7 @@ if __name__ == "__main__":
         for seed in (3716, 3717, 3718):
             print(json.dumps({"retain": retain, "seed": seed,
                               **retention_trial(seed, retain)}), flush=True)
+    for policy in ("narrow", "wide", "ranked"):
+        for seed in (3716, 3717, 3718):
+            print(json.dumps({"policy": policy, "seed": seed,
+                              **priority_trials(seed, policy)}), flush=True)

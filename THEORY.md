@@ -62,7 +62,7 @@ link for its definitions, arguments, and results.
 - [35. Calibration audits](theory/reliability/35-calibration-audits.md)
 - [36. Acquiring experts](theory/evidence/36-acquisition.md)
 - [36.26–36.55. Regional expert acquisition](theory/evidence/36-regional-acquisition.md)
-- [36.56–36.64. Interface alignment and feature construction](theory/evidence/36-interface-acquisition.md)
+- [36.56–36.65. Interface alignment and feature construction](theory/evidence/36-interface-acquisition.md)
 - [37. Calibration by groups of inputs](theory/reliability/37-grouped-calibration.md)
 - [38. In-situ audits](theory/reliability/38-in-situ-audits.md)
 - [39. Answering over alternatives](theory/reliability/39-alternatives.md)

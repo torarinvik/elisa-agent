@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from nca.abi import Contract, Manifest, Message
+from nca.abi import Contract, Manifest, Message, Module
 from nca.evidence.redundancy import disjoint_routes
 from nca.planner import Apply, Given, Plan
 from nca.retention.ensembles import EnsembleSearch, VoteCase, VoteFailure
@@ -436,3 +436,44 @@ def test_native_feature_selection_rechecks_deliberate_hash_collisions(
     monkeypatch.setattr(features, "_NATIVE", None)
     fallback = features.compose_features(seeds, heads, max_depth=4, limit=40, index_entries=0)
     assert [signature(m) for m in accelerated] == [signature(m) for m in fallback]
+
+
+def test_feature_priorities_are_stable_and_preserve_the_untruncated_family() -> None:
+    from pathlib import Path
+    from runpy import run_path
+
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    baseline = run_path(str(Path(__file__).resolve().parents[1] / "benchmarks" / "feature_search.py"))
+    signature = baseline["signature"]
+    seed = Feature(Contract(("input",), "a"), lambda x: x)
+    heads = [Feature(Contract(("a",), "b"), lambda x: (0, x)),
+             Feature(Contract(("a",), "b"), lambda x: (1, x)),
+             Feature(Contract(("b",), "a"), lambda x: x)]
+    invalid = Feature(Contract(("a",), "a", slots=((("a",), "a"),)), lambda x: x)
+    calls: list[Module] = []
+
+    def priority(module: Module) -> float:
+        calls.append(module)
+        return float(module is not heads[0])
+
+    ranked = compose_features([seed], [*heads, invalid], max_depth=2, limit=100, priority=priority)
+    expected = compose_features([seed], [heads[1], heads[2], heads[0]], max_depth=2, limit=100)
+    ordinary = compose_features([seed], heads, max_depth=2, limit=100)
+    assert calls == heads  # Once per eligible entry, before enumeration.
+    assert [signature(m) for m in ranked] == [signature(m) for m in expected]
+    assert set(map(signature, ranked)) == set(map(signature, ordinary))  # feature_priority_closure
+    ties = compose_features([seed], heads, max_depth=2, limit=100, priority=lambda m: 0)
+    assert [signature(m) for m in ties] == [signature(m) for m in ordinary]
+
+
+@pytest.mark.parametrize("score", [float("nan"), float("inf"), -float("inf")])
+def test_feature_priorities_reject_nonfinite_values(score: float) -> None:
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    seed = Feature(Contract(("input",), "a"), lambda x: x)
+    head = Feature(Contract(("a",), "b"), lambda x: x)
+    with pytest.raises(ValueError, match="priorities must be finite"):
+        compose_features([seed], [head], max_depth=1, limit=2, priority=lambda m: score)

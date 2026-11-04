@@ -1,4 +1,5 @@
 import Mathlib.Data.Finset.Union
+import Mathlib.Data.List.Perm.Basic
 
 /-! Bounded unary feature construction (§36.59). The relation models only
 compatible transformations; real contract matching and execution are trusted. -/
@@ -116,5 +117,17 @@ theorem feature_coarse_filter {A : Type*} (entries : List A)
     cases he : exact a with
     | false => cases hc : coarse a <;> simp [he, hc, ih]
     | true => simp [he, safe a he, ih]
+
+/-- Ranking the supplied rules changes traversal order, not untruncated
+bounded root-type reachability. No score quality or capped completeness follows. -/
+theorem feature_priority_closure {α : Type*} [DecidableEq α] (seeds : Finset α)
+    (original ranked : List (List α × α)) (order : ranked.Perm original) (n : ℕ) :
+    featureTreeClosure seeds ranked.toFinset n =
+      featureTreeClosure seeds original.toFinset n := by
+  have same : ranked.toFinset = original.toFinset := by
+    ext rule
+    simp only [List.mem_toFinset]
+    exact order.mem_iff
+  rw [same]
 
 end NCA

@@ -199,3 +199,26 @@ compiled scanning and final equality checks are implementation obligations;
 this theorem alone proves none of those boundaries. Compact packed storage
 also has a preparation and memory cost, so native scanning need not improve
 small searches or searches whose prefetched prefix already covers the library.
+
+## 36.65 Supplied priorities for bounded feature construction
+
+Assign a finite score to every eligible transformation and stably sort the
+library by descending score before constructing trees. Tie order remains the
+supplied order. Scores may depend on earlier training evidence; they must not
+change model behavior or inspect future certification observations.
+
+**Theorem 36.65 (priority preserves untruncated reachability).** Permuting a
+fixed transformation library leaves the bounded feature-tree closure unchanged
+when enumeration is not truncated. Every constructed tree remains well typed.
+
+*Proof.* A permutation has the same rule membership. The closure recurrence
+depends only on those rules and all their antecedents; induction on depth
+therefore gives the same closure. Each constructed application still checks
+the same input/output contracts. ∎
+
+A candidate cap deliberately changes which prefix is reached. An inaccurate
+score can exclude the useful tree; no universal efficiency or completeness
+claim follows for capped search. Supplied scores are hypotheses, not semantic
+certificates. Whole-task acceptance still requires independent evaluation of
+the frozen selected model. Inspecting/scoring a whole library also costs work
+that cannot be hidden as free acquisition or assumed to amortize on new tasks.

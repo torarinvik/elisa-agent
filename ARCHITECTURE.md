@@ -261,6 +261,21 @@ path; no universal speedup or total-memory bound follows. The current local
 Stage1 snapshot and compiler checkout both identify f69873914 and compile the
 new kernel successfully; no compiler change was needed.
 
+`compose_features(priority=…)` (§36.65) optionally scores eligible ground,
+positive-arity, slot-free transformations once per entry and stably sorts
+highest first. Nonfinite scores fail; default None preserves lazy library
+order. Opt-in ranking inspects the eligible library and changes capped prefixes,
+so scorer work is caller-owned and must use training/history only. It does not
+invent transformations or calibrate semantic scores. `feature_priority_closure`
+proves bounded root-type closure invariant under a rule permutation; Python
+sorting and full program enumeration are not formally verified. Tests check
+exact ranked order, stable ties, ineligible filtering, once-per-entry scoring,
+uncapped family equality and nonfinite rejection. The benchmark learns an
+empirical predictability score from a separate task and charges its labels and
+fits before transfer to related relabelings. Wider search and learned ranking
+serve the same tasks in that family; arbitrary-task transfer, adversarial score
+quality and universal compute or label savings remain open.
+
 `EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
 charged draws only after a scored rejection, including unscored final-batch
 cases. It reuses the shared `zero_loss_test` retention path. The explicit
@@ -571,6 +586,7 @@ an inference from their separate tests.
 | [36.62](theory/evidence/36-interface-acquisition.md) | `feature_index_filter` | `Planning/FeatureClosure` |
 | [36.63](theory/evidence/36-interface-acquisition.md) | `feature_demand_index_eq`, `feature_demand_prefix_filter` | `Planning/FeatureClosure` |
 | [36.64](theory/evidence/36-interface-acquisition.md) | `feature_coarse_filter` | `Planning/FeatureClosure` |
+| [36.65](theory/evidence/36-interface-acquisition.md) | `feature_priority_closure` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

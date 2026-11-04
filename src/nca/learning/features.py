@@ -1,9 +1,10 @@
 """Bounded construction of feature trees from public typed experts (§36.59–60)."""
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from array import array
 from dataclasses import replace
 from itertools import product
+import math
 from typing import Any
 
 from nca.abi import Contract, Module, TypeId
@@ -46,13 +47,14 @@ class AppliedFeature:
 
 
 def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
-                     max_depth: int, limit: int, index_entries: int | None = None) -> list[Module]:
+                     max_depth: int, limit: int, index_entries: int | None = None,
+                     priority: Callable[[Module], float] | None = None) -> list[Module]:
     """Enumerate seeds and compatible feature trees in breadth-first order.
 
     Depth is maximum transformations on a seed-to-root branch. Seeds share
     external inputs, slots and relevance. Transformations must have a ground,
     positive-arity, slot-free contract; other entries are inapplicable here.
-    Models are never invoked or trained by search. Without truncation all such
+    Construction itself invokes no models. Without truncation all such
     trees through max_depth occur, including cycles and repeated input types.
     Bounds limit this search, not the architecture. The cap counts candidates,
     not scanned metadata. Unary-only ordering is unchanged. For several inputs,
@@ -69,6 +71,11 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     on headers, queried buckets, native buffers or returned models.
     Available Elisa record scanning accelerates repeated unprefetched lookup;
     full identifier equality always verifies coarse hash matches (§36.64).
+    Optional priority scores eligible transformations once, highest first,
+    stably within ties (§36.65). Scoring inspects the eligible library before
+    construction; its compute and training evidence belong to the caller.
+    Scorers must not mutate models or use future certification draws. It changes
+    bounded prefixes, never invents rules, and implies no semantic calibration.
     """
     if type(max_depth) is not int or max_depth < 0:
         raise ValueError("feature depth must be a nonnegative integer")
@@ -84,6 +91,18 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     result = frontier.copy()
     if not max_depth or not frontier or len(result) == limit:
         return result
+    if priority is not None:
+        scored = []
+        for transform in transforms:
+            head = transform.manifest.contract
+            if head.polymorphic or head.slots or not head.inputs:
+                continue
+            score = float(priority(transform))
+            if not math.isfinite(score):
+                raise ValueError("feature priorities must be finite")
+            scored.append((score, transform))
+        transforms = tuple(transform for _, transform in sorted(
+            scored, key=lambda item: item[0], reverse=True))
     rules: dict[TypeId, list[tuple[Module, Contract, int]]] = {}
     prefetched: dict[TypeId, list[tuple[Module, Contract, int]]] = {}
     prefix = entries = 0
