@@ -121,6 +121,17 @@ def test_query_steps_reserve_batches_and_release_cancelled_capacity() -> None:
     assert session.ask(Need(((4,),)), target) == (4,)
 
 
+def test_repeated_query_inputs_are_answered_without_new_labels() -> None:
+    calls = []
+    target = Specification(Contract(("source",), "result"), ())
+    session = QuerySession(lambda values: calls.append(values) or values[0] * 2, 2)
+    assert session.ask(Need(((1,), (1,), (2,))), target) == (2, 2, 4)
+    assert session.labels == 2 and calls == [(1,), (2,)]
+    assert session.ask(Need(((2,), (1,))), target) == (4, 2)
+    assert session.labels == 2 and len(calls) == 2
+    assert session.ask(Need(((3,), (1,))), target) is None
+
+
 def test_query_steps_release_reserved_capacity_when_oracle_raises() -> None:
     def oracle(values: tuple[object, ...]) -> object:
         if values == (2,):

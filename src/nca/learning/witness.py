@@ -5,7 +5,7 @@ certificates: callers must validate candidate routes on independent cases.
 """
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import chain, product
 from math import isfinite
 from typing import Any
@@ -95,7 +95,10 @@ class QuerySession:
     This oracle must be separate from every fresh certification stream. Only
     the original task goal can use it; nested subgoal queries are refused.
     A denied batch returns ``None`` without calling the oracle. Calls are
-    charged before execution, including calls that raise.
+    charged before execution, including calls that raise. The oracle must be
+    deterministic: an input answered before is answered from the session's
+    record without another call or label. Inputs without a safe value key are
+    always asked.
     """
 
     oracle: Callable[[tuple[Any, ...]], Any]
@@ -103,6 +106,7 @@ class QuerySession:
     labels: int = 0
     target: Specification | None = None
     reserved: int = 0
+    answered: dict[tuple[Any, ...], Any] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         if type(self.limit) is not int or self.limit < 0 or self.labels != 0 or self.reserved != 0:
@@ -129,17 +133,33 @@ class QuerySession:
         self.bind(target)
         if any(len(inputs) != len(target.contract.inputs) for inputs in need.inputs):
             raise ValueError("query inputs must match the task scope")
-        if len(need.inputs) > self.limit - self.labels - self.reserved:
+        keys = []
+        for inputs in need.inputs:
+            try:
+                keys.append(_value_key(inputs))
+            except (TypeError, RecursionError):
+                keys.append(None)
+        new = [key is None or key not in self.answered for key in keys]
+        new = [fresh and (key is None or key not in keys[:index])
+               for index, (fresh, key) in enumerate(zip(new, keys, strict=True))]
+        if sum(new) > self.limit - self.labels - self.reserved:
             return None
-        self.reserved += len(need.inputs)
+        self.reserved += sum(new)
         answers = []
-        remaining = len(need.inputs)
+        remaining = sum(new)
         try:
-            for inputs in need.inputs:
+            for inputs, key, fresh in zip(need.inputs, keys, new, strict=True):
+                if not fresh:
+                    answers.append(self.answered[key] if key in self.answered
+                                   else answers[keys.index(key)])
+                    continue
                 self.reserved -= 1
                 remaining -= 1
                 self.labels += 1
-                answers.append(self.oracle(inputs))
+                answer = self.oracle(inputs)
+                if key is not None:
+                    self.answered[key] = answer
+                answers.append(answer)
                 yield None
             return tuple(answers)
         finally:
