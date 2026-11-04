@@ -75,6 +75,7 @@ import NCA.Reliability.Ensemble
 import NCA.Reliability.RepairFeedback
 
 import NCA.Planning.RouteSearch
+import NCA.Planning.Completion
 
 import NCA.Reliability.Occam
 

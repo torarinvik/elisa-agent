@@ -274,6 +274,17 @@ non-cooperative witness providers can perform unbounded work in one queue step.
 Cooperative progress checkpoints and reserved query batches let this frontier
 charge each issued proposal query separately, at most one per queue step.
 
+A tighter potential assigns a length to each ordered input scope and output
+type. If its value is no greater than each applicable production's code length
+plus the potentials of its ordinary arguments and slot bodies, induction on
+finite route trees proves it is a lower bound on every completion
+(`TypedCompletion.lower`). The implemented experimental fixpoint computes
+capped values for a finite grounded grammar, but the proof assumes faithful
+production tables and a Bellman-admissible potential; it does not yet establish
+that the Python fixpoint terminates within a given budget or faithfully meets
+those hypotheses. Full-library eager discovery exceeded 100,000 steps, so this
+bound is not yet used by the active frontier.
+
 A tuple-field path is modeled as a sequence of partial projections. For any
 field operation, following a concatenated path equals following its first part
 and then its second, including failure (`followPath_append`). This supports
