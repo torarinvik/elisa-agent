@@ -245,7 +245,7 @@ type it can derive, and every way of filling the slots. Without further
 pruning, installing `case` and `fold` makes every failing goal pay for that
 enumeration; §12 (Theorem 12.19) prunes it.
 
-## 20.8 Positional inputs and relevant slots
+## 20.8 Positional inputs and task requirements
 
 A plan that names an available input by its type cannot tell two inputs of
 the same type apart. In `fold` with state and elements of one type, the step
@@ -263,9 +263,10 @@ So positions change which input a plan reads, never which plans exist. The
 inputs a positional plan **uses** are the positions of its leaves; a `map`
 body reads only its element, so a `map` uses what its source uses.
 
-A slot may declare **relevant** inputs, positions that every filling must
-use. `fold` declares both of its step's inputs relevant, and a planning goal
-may require some of its own inputs in the same way.
+A planning goal may require positions among its own inputs. Slot fillings
+have no such requirement: constant and projection functions are valid. Legacy
+slot-relevance metadata is retained in serialized contracts for identity but
+is ignored by planning and type checking.
 
 **Theorem 20.10 (requirements).**
 

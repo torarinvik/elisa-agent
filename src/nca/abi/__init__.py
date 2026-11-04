@@ -52,9 +52,11 @@ class Contract:
     slots: tuple[Slot, ...] = ()
     """Sub-goals the module calls as functions (higher-order experts, ``NCA.HContract``)."""
     relevant: tuple[tuple[int, ...], ...] = ()
-    """For each slot, the positions of its inputs that every filling must use
-    (THEORY §20.8); slots beyond the tuple have none. Types alone admit
-    fillings that ignore an input, such as returning a fold's state unchanged."""
+    """Legacy slot metadata retained for object identity; it imposes no constraint.
+
+    Task-level input requirements are supplied to the planner separately.
+    Slot functions may ignore any of their arguments.
+    """
 
     def __post_init__(self) -> None:
         for type_id in (*self.inputs, self.output,

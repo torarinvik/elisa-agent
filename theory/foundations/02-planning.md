@@ -325,14 +325,19 @@ two step functions agree for every state and every element in the input. The
 fold witness derives step examples from singleton inputs and pairs of observed
 prefixes, so those finite examples do not establish this hypothesis; the
 assembled route is checked on all training cases and still needs fresh
-certification. Slot specifications retain any required input positions, and
-observational classes distinguish the required positions that a route uses.
+certification. Task specifications may require input positions, and their
+observational classes distinguish which required positions a route uses;
+slot specifications cannot impose such a requirement.
 
-For tree-fold, the package witness derives a step example only when the final
-outputs of every immediate child tree were observed as final answers in the
-training set. This partial decomposition may be uninformative when matching
-subtrees are absent; it supplies no guarantee about unobserved child results.
-Concat witnesses propose possible output splits, subject to search budgets.
+For tree-fold, the package witness may query the task's final answer on child
+inputs, holding the remaining inputs fixed, and derives a step example only
+when every immediate child answer is available. `observed_tree_fold_sound`
+proves the resulting fold agrees on a finite queried tree if the queried set
+is closed under children and the step satisfies the fold equation at each
+queried node. The final-answer oracle and its labels are proposal data, not a
+fresh IID certification stream; budgeted, denied or missing queries make the
+step specification incomplete. Concat witnesses propose possible output
+splits, subject to search budgets.
 
 Search may assign positive integer costs to expert applications and enumerate
 routes by their total cost, counting each input reference once. Costs can be

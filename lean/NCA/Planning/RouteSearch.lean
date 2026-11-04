@@ -146,4 +146,28 @@ theorem witness_derivation_sound {σ : Type} {satisfied : σ → Prop}
   | split goal children witness _ ih =>
     exact sound goal children witness (by intro child member; exact ih child member)
 
+/-- Evaluation of a finite tree using a step and its children's results. -/
+inductive ObservedTreeEval {σ α β : Type} (children : σ → List σ) (value : σ → α)
+    (step : α → List β → β) : σ → β → Prop
+  | node (root : σ) (childResult : σ → β)
+      (evaluated : ∀ child ∈ children root, ObservedTreeEval children value step child (childResult child)) :
+      ObservedTreeEval children value step root (step (value root) ((children root).map childResult))
+
+/-- Queried final answers that are closed under children and satisfy the
+tree-fold equation determine the result of the assembled fold. -/
+theorem observed_tree_fold_sound {σ α β : Type} (children : σ → List σ) (value : σ → α)
+    (step : α → List β → β) (target : σ → β) (queried : σ → Prop)
+    (closed : ∀ root, queried root → ∀ child ∈ children root, queried child)
+    (equation : ∀ root, queried root → step (value root) ((children root).map target) = target root)
+    {root : σ} {result : β} (evaluation : ObservedTreeEval children value step root result)
+    (observed : queried root) : result = target root := by
+  induction evaluation with
+  | node root childResult evaluated ih =>
+    have same : (children root).map childResult = (children root).map target := by
+      apply List.map_congr_left
+      intro child member
+      exact ih child member (closed root observed child member)
+    rw [same]
+    exact equation root observed
+
 end NCA

@@ -123,11 +123,8 @@ def uses(node: Plan, available: Sequence[TypeId]) -> frozenset[int]:
 
 
 def slot_goals(contract: Contract) -> list[tuple[tuple[TypeId, ...], TypeId, frozenset[int]]]:
-    """Each slot of ``contract`` as a sub-goal: its inputs, its output, and the
-    positions of the inputs every filling must use."""
-    return [(inputs, output, frozenset(contract.relevant[i]) if i < len(contract.relevant)
-             else frozenset())
-            for i, (inputs, output) in enumerate(contract.slots)]
+    """Slot goals permit constants and projections, regardless of legacy metadata."""
+    return [(inputs, output, frozenset()) for inputs, output in contract.slots]
 
 
 def output_type(node: Plan) -> TypeId:

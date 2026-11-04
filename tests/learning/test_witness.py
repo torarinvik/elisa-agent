@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.learning.witness import Decomposition, Example, Request, Specification, decompositions
+from nca.learning.witness import Decomposition, Example, Need, QuerySession, Request, Specification, decompositions
 from nca.objects import Primitive, manifest_data, manifest_from
 
 
@@ -45,7 +45,7 @@ def test_witness_checks_input_and_slot_scopes(monkeypatch: pytest.MonkeyPatch) -
         list(decompositions(manifest, unrelated))
 
 
-def test_witness_cannot_drop_required_slot_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_witness_slots_do_not_require_parameters_even_for_legacy_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     from nca.learning import witness
 
     target = Specification(Contract(("source",), "result"), (Example((1,), 2),))
@@ -54,5 +54,76 @@ def test_witness_cannot_drop_required_slot_inputs(monkeypatch: pytest.MonkeyPatc
     slot = Specification(Contract(("item",), "result"), (Example((1,), 2),))
     manifest = Manifest("sample.expert", "1", expert, witness="sample:witness")
     monkeypatch.setattr(witness.loaders, "resolve", lambda name: lambda req: (Decomposition((source,), (slot,)),))
-    with pytest.raises(ValueError, match="relevant"):
+    assert list(decompositions(manifest, Request(target, expert))) == [Decomposition((source,), (slot,))]
+    restricted = Specification(slot.contract, slot.examples, frozenset({0}))
+    monkeypatch.setattr(witness.loaders, "resolve",
+                        lambda name: lambda req: (Decomposition((source,), (restricted,)),))
+    with pytest.raises(ValueError, match="cannot require"):
         list(decompositions(manifest, Request(target, expert)))
+
+
+def test_witness_query_labels_are_budgeted_and_returned_as_proposals(monkeypatch: pytest.MonkeyPatch) -> None:
+    from collections.abc import Generator
+    from nca.learning import witness
+
+    target = Specification(Contract(("source",), "result"), (Example((3,), 6),))
+    expert = Contract(("source",), "result")
+    manifest = Manifest("sample.expert", "1", expert, witness="sample:witness")
+    def provider(request: Request) -> Generator[Need | Decomposition, tuple[object, ...] | None, None]:
+        answers = yield Need(((2,), (4,)))
+        if answers is not None:
+            goal = Specification(Contract(("source",), "source"),
+                                 (Example((answers[0],), answers[1]),))
+            yield Decomposition((goal,), ())
+    monkeypatch.setattr(witness.loaders, "resolve", lambda name: provider)
+    queries = QuerySession(lambda inputs: inputs[0] * 2, limit=2)
+    result, = decompositions(manifest, Request(target, expert), queries)
+    assert result.inputs[0].examples == (Example((4,), 8),)
+    assert queries.labels == 2
+    denied = QuerySession(lambda inputs: pytest.fail("denied query must not call oracle"), limit=1)
+    assert not list(decompositions(manifest, Request(target, expert), denied))
+    assert denied.labels == 0
+    assert not list(decompositions(manifest, Request(target, expert)))
+    with pytest.raises(ValueError, match="scope"):
+        queries.ask(Need(((1, 2),)), target)
+    assert queries.ask(Need(((2,),)), Specification(Contract(("other",), "result"), ())) is None
+    assert queries.ask(Need(((2,),)), Specification(Contract(("source",), "other"), ())) is None
+    assert queries.ask(Need(((2,),)), Specification(target.contract, target.examples)) is None
+    assert queries.labels == 2
+
+
+def test_query_oracle_failure_still_charges_the_attempt() -> None:
+    def unavailable(inputs: tuple[object, ...]) -> object:
+        raise RuntimeError("oracle unavailable")
+    session = QuerySession(unavailable, 1)
+    with pytest.raises(RuntimeError, match="oracle unavailable"):
+        session.ask(Need(((1,),)), Specification(Contract(("source",), "result"), ()))
+    assert session.labels == 1
+
+
+def test_identical_recursive_subgoal_does_not_starve_enumeration(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca.learning import witness
+    from nca.planner import Apply, Given
+
+    class Loop:
+        manifest = Manifest("sample.loop", "1", Contract(("goal",), "goal"),
+                            effects=frozenset(), witness="sample:loop")
+        def invoke(self, value: int) -> int:
+            return value
+    class First:
+        manifest = Manifest("sample.first", "1", Contract(("source",), "middle"), effects=frozenset())
+        def invoke(self, value: int) -> int:
+            return value + 1
+    class Second:
+        manifest = Manifest("sample.second", "1", Contract(("middle",), "goal"), effects=frozenset())
+        def invoke(self, value: int) -> int:
+            return value + 1
+    loop, first, second = Loop(), First(), Second()
+    target = Specification(Contract(("source",), "goal"), (Example((1,), 3),))
+    monkeypatch.setattr(witness.loaders, "resolve",
+                        lambda name: lambda request: (Decomposition((request.target,), ()),))
+    def fallback(goal: Specification, fuel: int) -> Apply | None:
+        return Apply(second, (Apply(first, (Given("source", 0),)),)) if goal == target else None
+    result = witness.propose((loop, first, second), target, types=("source", "middle", "goal"),
+                             depth=100, expansions=10, execution_budget=10, fallback=fallback)
+    assert result == Apply(second, (Apply(first, (Given("source", 0),)),))

@@ -76,6 +76,53 @@ class Decomposition:
     slots: tuple[Specification, ...]
 
 
+@dataclass(frozen=True)
+class Need:
+    """A witness request for final answers on ordered task inputs."""
+
+    inputs: tuple[tuple[Any, ...], ...]
+
+
+@dataclass
+class QuerySession:
+    """Budget and account for proposal labels from a caller-supplied oracle.
+
+    This oracle must be separate from every fresh certification stream. Only
+    the original task goal can use it; nested subgoal queries are refused.
+    A denied batch returns ``None`` without calling the oracle. Calls are
+    charged before execution, including calls that raise.
+    """
+
+    oracle: Callable[[tuple[Any, ...]], Any]
+    limit: int
+    labels: int = 0
+    target: Specification | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.limit) is not int or self.limit < 0 or self.labels != 0:
+            raise ValueError("query limit must be nonnegative and accounting must be fresh")
+
+    def bind(self, target: Specification) -> None:
+        """Fix the original task goal before nested subgoals are searched."""
+        if self.target is not None and self.target is not target:
+            raise ValueError("query session is bound to a different task goal")
+        self.target = target
+
+    def ask(self, need: Need, target: Specification) -> tuple[Any, ...] | None:
+        if self.target is not None and self.target is not target:
+            return None
+        self.bind(target)
+        if any(len(inputs) != len(target.contract.inputs) for inputs in need.inputs):
+            raise ValueError("query inputs must match the task scope")
+        if len(need.inputs) > self.limit - self.labels:
+            return None
+        answers = []
+        for inputs in need.inputs:
+            self.labels += 1
+            answers.append(self.oracle(inputs))
+        return tuple(answers)
+
+
 @dataclass
 class SearchStats:
     """Work charged by witness search, excluding caller-owned callbacks."""
@@ -84,7 +131,8 @@ class SearchStats:
     evaluations: int = 0
 
 
-def decompositions(manifest: Manifest, request: Request) -> Iterator[Decomposition]:
+def decompositions(manifest: Manifest, request: Request,
+                   queries: QuerySession | None = None) -> Iterator[Decomposition]:
     """Call a declared witness and reject suggestions with mismatched scopes.
 
     Missing witnesses yield no suggestions, allowing a search to fall back to
@@ -108,7 +156,31 @@ def decompositions(manifest: Manifest, request: Request) -> Iterator[Decompositi
             or pattern.instance(tuple(sorted((name, format_type(value)) for name, value in binding.items()))) != expert):
         raise ValueError("expert contract is not an instance of the manifest")
     provider = loaders.resolve(manifest.witness)
-    for candidate in provider(request):
+    source = iter(provider(request))
+    pending: Any = None
+    sending = False
+    denied = False
+    while True:
+        try:
+            if sending:
+                send = getattr(source, "send", None)
+                if send is None:
+                    raise TypeError("a querying witness must support response delivery")
+                candidate = send(pending)
+                sending = False
+            else:
+                candidate = next(source)
+        except StopIteration:
+            return
+        if isinstance(candidate, Need):
+            if not candidate.inputs:
+                raise ValueError("witness query must contain at least one input")
+            if denied:
+                return
+            pending = None if queries is None else queries.ask(candidate, request.target)
+            denied = pending is None
+            sending = True
+            continue
         if not isinstance(candidate, Decomposition):
             raise TypeError("witness must return Decomposition values")
         expected_inputs = tuple(Contract(request.target.contract.inputs, typ)
@@ -117,10 +189,8 @@ def decompositions(manifest: Manifest, request: Request) -> Iterator[Decompositi
         if (tuple(goal.contract for goal in candidate.inputs) != expected_inputs
                 or tuple(goal.contract for goal in candidate.slots) != expected_slots):
             raise ValueError("witness subgoals do not match the expert's contract")
-        if any(not frozenset(required) <= goal.required for goal, required in
-               zip(candidate.slots, (*request.expert.relevant,
-                   *((),) * (len(candidate.slots) - len(request.expert.relevant))), strict=True)):
-            raise ValueError("witness slot goals must preserve relevant positions")
+        if any(goal.required for goal in candidate.slots):
+            raise ValueError("witness slots cannot require parameter positions")
         yield candidate
 
 
@@ -144,6 +214,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
             fallback: Callable[[Specification, int], Plan | None],
             hints: Callable[[Module, Contract, Specification], Iterable[tuple[tuple[Any, ...], ...]]] | None = None,
             stats: SearchStats | None = None,
+            queries: QuerySession | None = None,
             agree: Callable[[Any, Any], bool] = lambda left, right: bool(left == right)) -> Plan | None:
     """Search witness subgoals, then use a caller-supplied enumeration fallback.
 
@@ -161,10 +232,13 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
         raise ValueError("type universe must contain canonical ground types")
     if any(module.manifest.effects != frozenset() for module in modules):
         raise ValueError("witness search requires experts declaring pure effects")
+    if queries is not None:
+        queries.bind(target)
     stats = stats if stats is not None else SearchStats()
     if stats.expansions or stats.evaluations:
         raise ValueError("search statistics must be fresh")
     memo: dict[tuple[Any, ...], Plan] = {}
+    active: set[tuple[Any, ...]] = set()
     remaining = expansions
 
     def spend() -> bool:
@@ -205,6 +279,18 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
             key = None
         if key is not None and key in memo:
             return memo[key]
+        active_key = None if key is None else (key[0], key[1], key[3])
+        if active_key is not None and active_key in active:
+            return None
+        if active_key is not None:
+            active.add(active_key)
+        try:
+            return search(goal, fuel, key)
+        finally:
+            if active_key is not None:
+                active.remove(active_key)
+
+    def search(goal: Specification, fuel: int, key: tuple[Any, ...] | None) -> Plan | None:
         for position, typ in enumerate(goal.contract.inputs):
             if typ == goal.contract.output:
                 route = Given(typ, position)
@@ -226,6 +312,33 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                 if key is not None:
                     memo[key] = route
                 return route
+        # A single pure application to available inputs is a complete shallow
+        # route; trying it before recursive decompositions prevents elementary
+        # slot bodies from being hidden behind unrelated witness branches.
+        for module in modules:
+            pattern = module.manifest.contract
+            if not pattern.inputs or pattern.slots:
+                continue
+            matched = pattern.producing(goal.contract.output)
+            if matched is None or any(value not in universe for _, value in matched):
+                continue
+            free = tuple(sorted(pattern.variables - dict(matched).keys()))
+            for values in product(universe, repeat=len(free)):
+                if not spend():
+                    return None
+                binding = tuple(sorted((*matched, *zip(free, values, strict=True))))
+                instance = pattern.instance(binding)
+                choices = tuple(tuple(Given(typ, position) for position, available in
+                                      enumerate(goal.contract.inputs) if typ == available)
+                                for typ in instance.inputs)
+                for arguments in product(*choices):
+                    if not spend():
+                        return None
+                    route = Apply(module, arguments, binding=binding)
+                    if valid(goal, route):
+                        if key is not None:
+                            memo[key] = route
+                        return route
         if goal.required:
             route = fallback(goal, fuel)
             if route is not None and valid(goal, route):
@@ -249,7 +362,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                 for arguments in options:
                     if not spend():
                         return None
-                    for split in decompositions(module.manifest, Request(goal, expert, arguments, agree)):
+                    for split in decompositions(module.manifest, Request(goal, expert, arguments, agree), queries):
                         if not spend():
                             return None
                         children: list[Plan] = []
