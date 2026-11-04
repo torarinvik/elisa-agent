@@ -256,7 +256,11 @@ then no earlier enumerated consistent candidate has fewer nodes. The Lean lemma
 `first_consistent_minimal` proves this ordering claim for a supplied ordered
 list; completeness of the implementation's enumeration, its execution, and the
 relationship between finite-universe search and arbitrary programs are not
-formalized. A work-budget interruption is not evidence of impossibility.
+formalized. A work-budget interruption is not evidence of impossibility. An expert whose
+output cannot match the ground goal may be skipped; otherwise output matching
+fixes every variable occurring in that output (Theorem 2.4), and the remaining
+variables range over the declared universe. A fixed value outside that universe
+is excluded because it is outside the search space, not because it is invalid.
 
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
