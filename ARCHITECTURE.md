@@ -14,7 +14,7 @@ run the Python tests with `uv run pytest`.
 |---|---|---|
 | [§1 Types and contracts](theory/foundations/01-types-and-contracts.md) | `Contract`, `Terms` | `abi`, `registry` |
 | [§2 Planning](theory/foundations/02-planning.md) | `Planner`, `Check`, `Terms`, `Unification`, `PatternSearch` | `planner.plan`, `router.infer` |
-| [§2.13 Proposal-only libraries and retained certificates](theory/foundations/02-planning.md#213-proposal-only-libraries-and-retained-certificates) | `Reliability/SampledGate`, `Reliability/Occam` | `retention.ensembles`; external curriculum checkpoint/MDL checks |
+| [§2.13 Proposal-only libraries and retained certificates](theory/foundations/02-planning.md#213-proposal-only-libraries-and-retained-certificates) | `Reliability/SampledGate`, `Reliability/Occam` | `retention.ensembles.EnsembleSearch`; external `nca_structural_experts.reuse` and `nca-procedural-families: benchmarks.curriculum_checkpoint` |
 | [§3 Routing stability](theory/foundations/03-routing-stability.md) | `Routing` | `planner.plan_stable` |
 | [§4 Compositional reliability](theory/reliability/04-compositional-reliability.md) | `Reliability` | |
 | [§5 Reliability under distribution shift](theory/reliability/05-reliability-under-distribution-shift.md) | `Shift` | `nca_arithmetic.pipeline` |
