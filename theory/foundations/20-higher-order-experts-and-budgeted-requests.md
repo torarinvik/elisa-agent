@@ -489,3 +489,29 @@ tests may cost more than one well-chosen training size. At most `B` cases
 are supplied to any fit, and at most `R_k` fits are attempted; testing has its
 own separately charged case cost. The case budget, schedule and learning
 procedure are parameters, rather than knowledge of any particular task.
+
+**Prioritizing acquisition.** A predictor may supply a score for each valid
+single-connector gap. Ranking these candidates changes only their order:
+validity is still determined by the contracts and reachability. Ranking must
+not remove candidates; equal scores preserve the original order. A finite
+attempt budget can still prevent reaching a low-ranked useful candidate.
+
+**Theorem 20.19 (valid ranking and acquisition exchange).** (i) Every
+permutation of a list of valid candidates remains valid. (ii) Consider two
+attempts with fixed independent success probabilities `q_a,q_b` and expected
+costs `c_a,c_b`, followed by a common suffix of expected cost `T` if both
+fail. The difference in expected cost between order `a,b` and order `b,a`
+is `c_a q_b − c_b q_a`. Thus `a` first is no worse when
+`c_a q_b ≤ c_b q_a`; for positive costs, this is decreasing `q/c`.
+
+*Proof.* (i) Permutations preserve membership. (ii) Subtract
+`c_b+(1−q_b)c_a+(1−q_b)(1−q_a)T` from
+`c_a+(1−q_a)c_b+(1−q_a)(1−q_b)T` and cancel the equal suffix terms. ∎
+
+Under these fixed-probability assumptions adjacent exchanges give the
+cost-minimizing order. Learned estimates need not equal those probabilities,
+and an acquisition's failure can change later learning opportunities; the
+exchange result alone gives no optimality guarantee for adaptive predictions.
+Ranking introduces no new admission rule: candidates still require their
+ordinary certification. The score model and its features are replaceable
+policies; no domain semantics follows merely from a contract's shape.

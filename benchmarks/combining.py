@@ -14,6 +14,9 @@ counts new acquisition attempts and ``cached_requests`` the avoided attempts.
 ``binary_staged_memory`` tries increasing training sizes, certifying each
 candidate on fresh cases with a separate share of the request's confidence.
 ``fitted_cases`` counts all examples processed across fits, including reuse.
+The ``isolated`` policies start each task with a fresh base library; ``ranked``
+transfers only learned acquisition priorities between those deployments. They
+are compared against each other, separately from expert-retaining policies.
 Run: python benchmarks/combining.py.
 """
 
@@ -76,6 +79,26 @@ class Exact:
         return self.table[value]
 
 
+class LearnedPriority:
+    """Benchmark policy: learn success frequencies by input count.
+
+    This feature choice is an experimental model, not a core rule about which
+    arities are useful. Unit attempt costs make the exchange score simply q.
+    """
+
+    def __init__(self) -> None:
+        self.counts: dict[int, tuple[int, int]] = {}
+
+    def score(self, contract: Contract) -> float:
+        successes, attempts = self.counts.get(len(contract.inputs), (0, 0))
+        return (successes + 1) / (attempts + 2)
+
+    def observe(self, contract: Contract, success: bool) -> None:
+        size = len(contract.inputs)
+        successes, attempts = self.counts.get(size, (0, 0))
+        self.counts[size] = (successes + success, attempts + 1)
+
+
 def run(policy: str, seed: int) -> dict[str, float]:
     if not policy.endswith("_memory"):
         return _run(policy, seed, None)
@@ -135,19 +158,31 @@ def _run(policy: str, seed: int, history: AcquisitionHistory | None) -> dict[str
         return fit(contract, keys, labels)
 
     screen = (FeasibilityScreen(cases=64, confidence=0.05, key=input_key, separates=separates)
-              if policy.endswith(("_screen", "_memory")) else None)
+              if policy.endswith(("_screen", "_memory", "_ranked")) else None)
     acquirer = CertifiedAcquirer(counted_fit, sample, train=TRAIN, tolerance=0.05,
                                  confidence=0.05, screen=screen, history=history,
                                  stages=(64, 128, 256, 512, 1024, 2048, TRAIN)
                                  if "staged" in policy else None)
     served = correct = total = requests = 0
+    priority = LearnedPriority() if policy.endswith("_ranked") else None
+    base_library = tuple(library)
+
+    def acquire(contract: Contract) -> Module | None:
+        module = acquirer(contract)
+        if priority is not None:
+            priority.observe(contract, module is not None)
+        return module
+
     for _ in range(TASKS):
+        if "isolated" in policy:
+            library = list(base_library)
         given = (f"u{tasks.randrange(2)}", f"v{tasks.randrange(2)}")
         goal = f"g{tasks.randrange(GOALS)}"
         route = plan(library, given, goal)
         if route is None:
-            result = repair(library, given, goal, acquirer, attempts=200,
-                            arity=2 if policy.startswith("binary") else 1)
+            result = repair(library, given, goal, acquire, attempts=200,
+                            arity=2 if policy.startswith("binary") else 1,
+                            priority=priority.score if priority is not None else None)
             if result is None:
                 continue
             requests += result.requests
@@ -174,7 +209,8 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[3726, 3727, 3728])
     args = parser.parse_args()
     for policy in ("unary", "unary_screen", "unary_memory",
-                   "binary", "binary_screen", "binary_memory", "binary_staged_memory"):
+                   "binary", "binary_screen", "binary_memory", "binary_staged_memory",
+                   "binary_staged_isolated_screen", "binary_staged_isolated_ranked"):
         runs = [run(policy, seed) for seed in args.seeds]
         print(json.dumps({"policy": policy, **{
             key: (statistics.mean(r[key] for r in runs), statistics.stdev(r[key] for r in runs))

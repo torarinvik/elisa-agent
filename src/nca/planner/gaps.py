@@ -28,6 +28,7 @@ from collections import deque
 from itertools import combinations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+import math
 from typing import Any
 
 from nca.abi import Contract, Manifest, Module, TypeId
@@ -131,11 +132,15 @@ def producible(modules: Sequence[Module], available: Sequence[TypeId]) -> list[T
 
 
 def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
-         fuel: int = 8, arity: int = 1) -> list[Gap]:
+         fuel: int = 8, arity: int = 1, *,
+         priority: Callable[[Contract], float] | None = None) -> list[Gap]:
     """Every single expert ``(A₁, …, Aₙ) → B`` with ``n ≤ arity`` completing a
     route to ``goal``, with each ``Aᵢ`` producible and ``B`` consumed by some
     expert or the goal itself (``NCA.horn_gap_iff``), fewest inputs first and
-    inputs in the order they are produced; empty if a route exists already."""
+    inputs in the order they are produced; empty if a route exists already.
+    Optional finite priorities reorder candidates, highest first, with stable
+    ties. They never remove a candidate or change its validity certificate.
+    The scorer must not mutate the library or perform acquisition."""
     if plan(modules, available, goal, fuel) is not None:
         return []
     sources = producible(modules, available)
@@ -153,6 +158,12 @@ def gaps(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
                 if route is not None:
                     found.append(Gap(contract, route))
     found.sort(key=lambda gap: len(gap.contract.inputs))
+    if priority is not None:
+        scores = [float(priority(gap.contract)) for gap in found]
+        if not all(math.isfinite(score) for score in scores):
+            raise ValueError("gap priorities must be finite")
+        found = [gap for _, gap in sorted(zip(scores, found), key=lambda item: item[0],
+                                         reverse=True)]
     return found
 
 
@@ -210,13 +221,17 @@ def fewest_missing(modules: Sequence[Module], available: Sequence[TypeId], goal:
 
 def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
            acquire: Acquire, attempts: int, missing: int = 1, fuel: int = 8, *,
-           media: Sequence[TypeId] | None = None, arity: int = 1) -> Repaired | None:
+           media: Sequence[TypeId] | None = None, arity: int = 1,
+           priority: Callable[[Contract], float] | None = None) -> Repaired | None:
     """Acquire connectors until a route reaches ``goal``: each round requests
     the connectors of a route needing the fewest missing ones, at most
     ``missing``, avoiding refused requests; at most ``attempts`` requests.
     With ``arity`` above one, single gaps with up to ``arity`` inputs are
     requested too, fewest inputs first: in place of the search when
     ``missing`` is one, and once it finds nothing otherwise.
+    ``priority`` reorders the single-gap candidates. With ``missing > 1``
+    it applies only to the fallback single-gap search, preserving the
+    fewest-missing multi-step path. Learned scorers remain supplied policies.
 
     With ``media``, a medium is first founded on an unreachable goal that no
     existing medium reaches and grown over the types in ``media``; its
@@ -236,10 +251,12 @@ def repair(modules: Sequence[Module], available: Sequence[TypeId], goal: TypeId,
         if route is not None:
             return Repaired(tuple(acquired), route, requests)
         unary = frozenset((c.inputs[0], c.output) for c in refused if len(c.inputs) == 1)
-        path = [] if missing == 1 < arity else [Contract((a,), b) for a, b in fewest_missing(
+        single_search = missing == 1 and (arity > 1 or priority is not None)
+        path = [] if single_search else [Contract((a,), b) for a, b in fewest_missing(
             library, available, goal, missing, unary) or ()]
-        if not path and arity > 1:
-            path = next(([gap.contract] for gap in gaps(library, available, goal, fuel, arity)
+        if not path and (arity > 1 or priority is not None):
+            path = next(([gap.contract] for gap in gaps(library, available, goal, fuel, arity,
+                                                       priority=priority)
                          if gap.contract not in refused), [])
         if not path:
             return None
