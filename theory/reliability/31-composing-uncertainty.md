@@ -318,3 +318,22 @@ may overgeneralize. Protected controls prevent their observed regressions;
 fresh end-to-end testing bounds admission of bad generalizations. Selection
 of compact, label-sufficient features remains a learning problem, with the
 feature family supplied independently of the runtime.
+
+## 31.13 Reusing already drawn feedback for learned transformations
+
+Let D be the identifiers of draws charged by a rejected test, R⊆D a bounded
+retained prefix, and F the identifiers of a later fresh test. Draw identifiers
+are distinct even when their payloads coincide. Cases in the final rejected
+batch may have been labeled but never evaluated against the rejected model.
+
+**Theorem 31.12 (retained feedback accounting and freshness).** Retaining R
+requires no additional label identifiers: |D∪R|=|D|. If D∩F=∅ then R∩F=∅.
+
+*Proof.* Subset inclusion gives D∪R=D and transfers disjointness to R. ∎
+
+The retained data may train a new transformation using endpoint targets alone.
+This does not prove that a supplied fitting family can represent the target,
+or that fitting succeeds. Selection by rejection and stopping can bias the
+retained prefix; it is training evidence, not a replacement for a fresh audit.
+Freshness of identifiers alone does not imply conditional IID sampling. The
+next frozen candidate still needs the sampling hypothesis of Theorem 31.8.

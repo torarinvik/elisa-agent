@@ -191,6 +191,21 @@ sharing a type. The repair benchmark learns a useful chain from supplied parts,
 but does not invent primitives, cover multi-input transformation search or
 prove useful features exist in an arbitrary installed library.
 
+`EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
+charged draws only after a scored rejection, including unscored final-batch
+cases. It reuses the shared `zero_loss_test` retention path. The explicit
+`VoteFailure.training` may overlap the first failure and controls, so consumers
+choose one evidence source or deduplicate draw identifiers. Defaults retain
+nothing. `retained_feedback_account` proves no additional label identifiers
+and transfers disjointness from drawn to retained evidence; tests check actual
+batch tails, caps, label/evaluation counts and no admission/incomplete-test
+leakage. Identifier freshness does not prove conditional IID sampling. An
+endpoint-only experiment fits existing projection/threshold learners from
+this feedback, without supplied feature directions or intermediate labels.
+Both scored controls and drawn prefixes learn successfully; drawn prefixes
+did not save validation labels. Generalization remains independently tested,
+not a consequence of the retention theorem.
+
 Every open row requires a mechanism-level theorem, explicit assumptions and
 executable differential or theorem-linked property tests before it is treated
 as proved. Interleavings between mechanisms are an additional obligation, not
@@ -462,6 +477,7 @@ an inference from their separate tests.
 | [31.9](theory/reliability/31-composing-uncertainty.md) | `feedback_repair_progress`, `feedback_chain_bound` (fresh admission uses `ensemble_search_sound`) | `Reliability/RepairFeedback` |
 | [31.10](theory/reliability/31-composing-uncertainty.md) | `keyCorrection_outside`, `endpoint_correction_errors` | `Reliability/RepairFeedback` |
 | [31.11](theory/reliability/31-composing-uncertainty.md) | `keyCorrection_protected`, `fiber_correction_errors` | `Reliability/RepairFeedback` |
+| [31.12](theory/reliability/31-composing-uncertainty.md) | `retained_feedback_account` | `Reliability/RepairFeedback` |
 | [36.59](theory/evidence/36-interface-acquisition.md) | `featureClosure_iff` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |

@@ -89,7 +89,7 @@ def test_admission_and_missing_data_emit_no_failure() -> None:
     route = Apply(Lookup({0: 0}), (Given("s"),))
     seen: list[VoteFailure] = []
     search = EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
-                            budget=2, retain_controls=16)
+                            budget=2, retain_controls=16, retain_training=16)
     assert search(Contract(("s",), "g"), lambda old: route,
                   lambda n: [((Message("s", 0, "input"),), 0)] * n, feedback=seen.append)
     assert search(Contract(("s",), "g"), lambda old: route,
@@ -270,3 +270,38 @@ def test_feature_chain_search_checks_bounds_and_does_not_execute_models() -> Non
             compose_features([seed], [edge], max_depth=depth, limit=cap)
     with pytest.raises(ValueError, match="share external"):
         compose_features([seed, edge], [], max_depth=0, limit=10)
+
+
+@pytest.mark.parametrize("capacity", [0, 2, 16])
+def test_training_feedback_reuses_drawn_but_unscored_cases(capacity: int) -> None:
+    cursor = 0
+    seen: list[VoteFailure] = []
+
+    def sample(count: int) -> list[VoteCase]:
+        nonlocal cursor
+        cases = [((Message("s", i, "input"),), i) for i in range(cursor, cursor + count)]
+        cursor += count
+        return cases
+
+    search = EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                            budget=2, retain_training=capacity)
+    route = Apply(Lookup({i: i for i in range(4)}), (Given("s"),))
+    assert search(Contract(("s",), "g"), lambda old: route, sample,
+                  feedback=seen.append) is None
+    retained = {case[1] for case in seen[0].training}
+    drawn = set(range(cursor))
+    future = set(range(cursor, cursor + 10))
+    assert retained == set(range(min(capacity, 7)))
+    assert search.evaluations == 5 and search.labels == 7
+    # Finite link to retained_feedback_account; identifier equality is not
+    # payload equality, and statistical independence is an additional hypothesis.
+    assert len(drawn | retained) == len(drawn) and retained.isdisjoint(future)
+
+
+@pytest.mark.parametrize("capacity", [-1, True, 1.5])
+def test_training_retention_capacity_is_validated(capacity: Any) -> None:
+    from nca.retention.ensembles import EnsembleSearch
+
+    with pytest.raises(ValueError, match="training capacity"):
+        EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                       budget=2, retain_training=capacity)

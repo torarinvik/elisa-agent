@@ -52,6 +52,12 @@ class VoteFailure:
     level: float
     drawn: int
     controls: tuple[VoteCase, ...] = ()
+    training: tuple[VoteCase, ...] = ()
+    """Bounded drawn prefix, possibly including unscored final-batch cases.
+
+    May overlap controls and case; consumers choose a source or deduplicate.
+    Neither this selected prefix nor controls is an independent audit sample.
+    """
 
 
 class EnsembleSearch:
@@ -74,11 +80,15 @@ class EnsembleSearch:
     ``retain_controls`` bounds the scored successful prefix exposed alongside
     a rejection. These selected training controls are not fresh audit data;
     subsequent proposals still require independently drawn certification cases.
+    ``retain_training`` additionally retains a bounded drawn prefix, including
+    unscored cases in the rejected batch. It makes no extra label requests and
+    exposes nothing from an admitted or incomplete test.
     """
 
     def __init__(self, *, counts: Sequence[int], tolerance: float, confidence: float,
                  budget: int, history: AcquisitionHistory | None = None,
-                 resolver: Resolver | None = None, retain_controls: int = 0) -> None:
+                 resolver: Resolver | None = None, retain_controls: int = 0,
+                 retain_training: int = 0) -> None:
         sizes = tuple(counts)
         if (not sizes or any(isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in sizes)
                 or any(a > b for a, b in zip(sizes, sizes[1:]))):
@@ -88,11 +98,14 @@ class EnsembleSearch:
         if (isinstance(retain_controls, bool) or not isinstance(retain_controls, int)
                 or retain_controls < 0):
             raise ValueError("retained control capacity must be nonnegative")
+        if type(retain_training) is not int or retain_training < 0:
+            raise ValueError("retained training capacity must be nonnegative")
         required_cases(tolerance, confidence)
         self.counts, self.tolerance, self.confidence = sizes, tolerance, confidence
         self.budget, self.history = budget, history
         self.resolver = resolver
         self.retain_controls = retain_controls
+        self.retain_training = retain_training
         self.decisions = self.requests = self.labels = self.evaluations = self.tests = 0
 
     def __call__(self, contract: Contract,
@@ -196,7 +209,7 @@ class EnsembleSearch:
 
             fresh = required_cases(self.tolerance, level)
             self.tests += 1
-            result = zero_loss_test(draw, correct, cases=fresh)
+            result = zero_loss_test(draw, correct, cases=fresh, retain=self.retain_training)
             if result.passed is None:
                 return None
             if result.passed:
@@ -204,5 +217,5 @@ class EnsembleSearch:
             if feedback is not None:
                 assert failure is not None
                 feedback(VoteFailure(frozen, failure[0], failure[1], level, result.drawn,
-                                     tuple(controls)))
+                                     tuple(controls), result.retained))
         return None

@@ -69,4 +69,13 @@ theorem feedback_chain_bound {α : Type*} [DecidableEq α]
       step.1 step.2
     omega
 
+/-- Retaining already charged observations adds no new label identifiers, and
+fresh later tests remain disjoint even when retained data train the candidate.
+Identifiers denote draws, not potentially repeated payload values. -/
+theorem retained_feedback_account {α : Type*} [DecidableEq α]
+    (drawn retained future : Finset α) (kept : retained ⊆ drawn)
+    (fresh : Disjoint drawn future) :
+    (drawn ∪ retained).card = drawn.card ∧ Disjoint retained future := by
+  exact ⟨by rw [Finset.union_eq_left.mpr kept], fresh.mono_left kept⟩
+
 end NCA

@@ -6,6 +6,7 @@ Run: python benchmarks/repair_features.py. Audits never enter the learner.
 from __future__ import annotations
 
 import json
+import math
 import random
 from collections.abc import Hashable
 from dataclasses import replace
@@ -17,6 +18,8 @@ from redundancy import VALUES, LaneFactory
 from nca.abi import Contract, Manifest, Message, Module
 from nca.learning.discovery import decoder_object, propose_corrections
 from nca.learning.features import compose_features
+from nca.learning.projections import propose_projections
+from nca.learning.numeric import midpoint_boundary
 from nca.objects import Composite, Store
 from nca.packages import install
 from nca.planner import Apply, Given, Plan
@@ -129,7 +132,87 @@ def trial(seed: int, policy: str) -> dict[str, float]:
             "learning_cpu": learning_cpu, "total_cpu": process_time() - started}
 
 
+class ConstantBase:
+    manifest = Manifest("benchmark.constant", "1", Contract(("observation",), "label"),
+                        cost=0, effects=frozenset())
+
+    def invoke(self, value: Any) -> str:
+        return "lower"
+
+
+class Observation:
+    manifest = Manifest("benchmark.measurement", "1", Contract(("observation",), "vector"),
+                        cost=0, effects=frozenset())
+
+    def invoke(self, value: Any) -> Any:
+        return value
+
+
+def learned_trial(seed: int, policy: str) -> dict[str, float]:
+    """Fit an oblique feature using endpoint labels; no hidden direction is passed."""
+    started = process_time()
+    direction_rng = random.Random(seed)
+    angle = direction_rng.uniform(0, 2 * math.pi)
+    direction = math.cos(angle), math.sin(angle)
+    rng = random.Random(seed + 40000)
+    base, measurement = ConstantBase(), Observation()
+    current: Module = base
+    search = EnsembleSearch(counts=(1,) * 32, tolerance=0.12, confidence=0.05, budget=8,
+                            retain_controls=16 if policy == "controls" else 0,
+                            retain_training=64 if policy == "drawn" else 0)
+    fits = fit_rows = cursor = 0
+
+    def propose(cap: int, failures: tuple[VoteFailure, ...]) -> tuple[Plan, ...]:
+        nonlocal current, fits, fit_rows
+        examples: dict[str, tuple[tuple[Any, ...], Any]] = {}
+        for failure in failures:
+            for inputs, label in (*failure.controls, *failure.training, failure.case):
+                assert not isinstance(inputs, dict)
+                examples[inputs[0].message_id] = ((inputs[0].payload,), label)
+        if len(examples) >= 2:
+            rows, labels = zip(*examples.values(), strict=True)
+            if len(set(labels)) > 1:
+                fits += 1
+                fit_rows += len(rows)
+                candidates = propose_projections(
+                    base, measurement, rows, labels, limit=1, projection_cost=0,
+                    encoding_cost=0, decoder_cost=0, place_boundary=midpoint_boundary,
+                    reuse_observations=True)
+                if candidates:
+                    current = candidates[0].expert
+        return (Apply(current, (Given("observation"),)),)
+
+    def target(value: tuple[float, float]) -> str:
+        return "upper" if sum(a * b for a, b in zip(value, direction, strict=True)) >= 0.2 else "lower"
+
+    def sample(count: int) -> list[VoteCase]:
+        nonlocal cursor
+        cases = []
+        for _ in range(count):
+            value = rng.uniform(-1, 1), rng.uniform(-1, 1)
+            cases.append(((Message("observation", value, "input", message_id=str(cursor)),),
+                          target(value)))
+            cursor += 1
+        return cases
+
+    result = search.revise(base.manifest.contract, propose, sample)
+    learning_cpu = process_time() - started
+    audit_rng = random.Random(seed + 50000)
+    errors = 0
+    for _ in range(4096):
+        value = audit_rng.uniform(-1, 1), audit_rng.uniform(-1, 1)
+        errors += current.invoke(value) != target(value)
+    return {"certified": float(result is not None), "audit_error": errors / 4096,
+            "requests": float(search.requests), "fits": float(fits), "fit_rows": float(fit_rows),
+            "validation_labels": float(search.labels), "audit_labels": 4096.0,
+            "learning_cpu": learning_cpu, "total_cpu": process_time() - started}
+
+
 if __name__ == "__main__":
     for policy in ("exact", "failures", "controls", "compose1", "compose2"):
         for seed in (3716, 3717, 3718):
             print(json.dumps({"policy": policy, "seed": seed, **trial(seed, policy)}), flush=True)
+    for policy in ("failures", "controls", "drawn"):
+        for seed in (3716, 3717, 3718):
+            print(json.dumps({"policy": f"learned-{policy}", "seed": seed,
+                              **learned_trial(seed, policy)}), flush=True)
