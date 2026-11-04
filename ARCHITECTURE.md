@@ -491,6 +491,107 @@ correctness of interactions between mechanisms.
 | [43.4](theory/foundations/43-episodic-memory.md) | `published_only_if_admitted`, `allocate_skips_drawn` | `Reliability/SampledGate` |
 | [43.5](theory/foundations/43-episodic-memory.md) | `evict_keeps_protected`, `withdraw_fresh` | `Reliability/SampledGate` |
 
+### Additional theorem declarations
+
+| Lean declaration | Source |
+|---|---|
+| `accepted_clamp_length_eq` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `accepted_clamp_length_iff` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `adapter_composition_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `adapter_consumer_family_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `adapter_family_contains_route` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `affine_slope_optimal` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `auxiliary_feedback_separation` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `bernoulliStep_certain_succ` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulliStep_certain_zero` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulliStep_impossible` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulliStep_succ` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulliStep_zero` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulli_count_le_length` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulli_split_mass` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulli_step_upper` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `bernoulli_tail_step_upper` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `binary_modal_split_le` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `bounded_leaf_binary_posterior` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `bounded_leaf_binary_prior` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `bounded_shape_leaf_binary_count` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `certain_success_threshold` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `combined_allocation_cover` | [Reliability/Selective](lean/NCA/Reliability/Selective.lean) |
+| `configuredExport_reloaded_eq` | [Planning/FeatureClosure](lean/NCA/Planning/FeatureClosure.lean) |
+| `decoded_reloaded_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `dependency_rank_acyclic` | [Execution/Package](lean/NCA/Execution/Package.lean) |
+| `export_identity_eq` | [Execution/Package](lean/NCA/Execution/Package.lean) |
+| `failure_partition_covers` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `feature_admission_bound` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `feedback_group_invariance` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `gap_boundary_preserves` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `grouped_mass_nonneg` | [Reliability/Selective](lean/NCA/Reliability/Selective.lean) |
+| `grouped_mass_sum` | [Reliability/Selective](lean/NCA/Reliability/Selective.lean) |
+| `grouped_modal_dominates` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `guardedPrefix_correct` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `head_fiber_consistency` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `incremented_allowance_distinct` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `joint_decoder_simulates` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `joint_key_refines_seed` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `joint_reloaded_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `log_weight_sum_bound` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `lookahead_score_mono` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `matrix_shape_division` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `measurement_prefix_bound` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `midpoint_inside_gap` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `modal_decoder_optimal` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `modal_refinement_dominates` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `modal_refinement_le` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `nested_fit_comparison` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `nested_refinement_scope` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `normalized_common_factor` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `ordered_lower_bound_is_first` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `ordered_product_fold` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `ordered_search_excludes_lower` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `orthogonal_residual_square` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `oversized_route_infeasible` | [Planning/Eviction](lean/NCA/Planning/Eviction.lean) |
+| `pair_codec_roundtrip` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `pair_gap_sum_nonneg` | [Decoding/Detection](lean/NCA/Decoding/Detection.lean) |
+| `pair_prefix_step_upper` | [Decoding/Detection](lean/NCA/Decoding/Detection.lean) |
+| `prior_relabel` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `prior_tilt` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `prior_tilt_ne_zero` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `projection_prototype_gap` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `proposal_budget_le` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `prototype_interval_choice` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `prototype_left_of_midpoint` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `pruned_branches_eq_leaves_sub_one` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `publicationRun_retains` | [Execution/Artifacts](lean/NCA/Execution/Artifacts.lean) |
+| `reciprocal_evidence_order` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `regional_fallback_score` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `regional_policy_missing` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `regional_preserves_complement` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `regional_reloaded_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `regional_training_maxima` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `reloaded_outcomes_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `residual_successes_le` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `restored_chain_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `retained_root_outputs_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `router_score_selection` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `search_midpoint_bounds` | [Decoding/Decoding](lean/NCA/Decoding/Decoding.lean) |
+| `shared_alignment_observation_bound` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `single_allowance_increment` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `state_factorization_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `sum_excluding_absent` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `sum_filter_zero_readings` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `surviving_pins_maximal` | [Planning/Eviction](lean/NCA/Planning/Eviction.lean) |
+| `symmetric_interaction_gap` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `temperature_rank` | [Reliability/Selective](lean/NCA/Reliability/Selective.lean) |
+| `threshold_score_le` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `training_projection_fusion` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `training_snapshot_map_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `two_point_mean_minimizes` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `vector_adapter_composition_eq` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `zero_failed_observations` | [Reliability/Acquire](lean/NCA/Reliability/Acquire.lean) |
+| `zero_frontier_step` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `zero_frontier_suffix` | [Decoding/Product](lean/NCA/Decoding/Product.lean) |
+| `horn_gap_list_iff` | [Planning/Horn](lean/NCA/Planning/Horn.lean) |
+
 ## Implementation boundaries
 
 | Subsystem | Interfaces and wiring | Boundary |
