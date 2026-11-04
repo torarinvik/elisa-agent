@@ -46,4 +46,32 @@ theorem TypedCompletions.lower {Ctx : Type} {rule : Ctx → Nat → List Ctx →
       (TypedCompletions.lower bound admissible tail)
 end
 
+
+mutual
+/-- Lower-cost relaxed productions preserve every completion with no greater cost. -/
+theorem TypedCompletion.relax {Ctx : Type}
+    {original relaxed : Ctx → Nat → List Ctx → Prop}
+    (cover : ∀ goal cost children, original goal cost children →
+      ∃ cost', relaxed goal cost' children ∧ cost' ≤ cost) :
+    ∀ {goal length}, TypedCompletion Ctx original goal length →
+      ∃ length', TypedCompletion Ctx relaxed goal length' ∧ length' ≤ length
+  | _, _, .apply edge children => by
+    obtain ⟨cost', edge', hcost⟩ := cover _ _ _ edge
+    obtain ⟨lengths', children', hlengths⟩ := TypedCompletions.relax cover children
+    exact ⟨cost' + lengths'.sum, .apply edge' children', Nat.add_le_add hcost hlengths⟩
+
+/-- The relaxed children remain aligned and their total cost cannot increase. -/
+theorem TypedCompletions.relax {Ctx : Type}
+    {original relaxed : Ctx → Nat → List Ctx → Prop}
+    (cover : ∀ goal cost children, original goal cost children →
+      ∃ cost', relaxed goal cost' children ∧ cost' ≤ cost) :
+    ∀ {goals lengths}, TypedCompletions Ctx original goals lengths →
+      ∃ lengths', TypedCompletions Ctx relaxed goals lengths' ∧ lengths'.sum ≤ lengths.sum
+  | _, _, .nil => by exact ⟨[], .nil, Nat.le_refl 0⟩
+  | _, _, .cons head tail => by
+    obtain ⟨cost', head', hcost⟩ := TypedCompletion.relax cover head
+    obtain ⟨costs', tail', hcosts⟩ := TypedCompletions.relax cover tail
+    exact ⟨cost' :: costs', .cons head' tail', Nat.add_le_add hcost hcosts⟩
+end
+
 end NCA

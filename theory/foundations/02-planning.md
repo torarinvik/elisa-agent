@@ -284,6 +284,12 @@ production tables and a Bellman-admissible potential; it does not yet establish
 that the Python fixpoint terminates within a given budget or faithfully meets
 those hypotheses. Full-library eager discovery exceeded 100,000 steps, so this
 bound is not yet used by the active frontier.
+If each concrete production has a relaxed production with the same child
+contexts and no greater cost, every concrete completion has a relaxed completion
+of no greater length (`TypedCompletion.relax`). This covers added productions
+and reduced costs, but applies only when the cost inequality holds for the
+actual scope-dependent code. Making every type available as a one-bit input
+produces the constant one-bit bound and cannot improve the current frontier.
 
 An alternative application representation keeps a fresh type variable for
 each expert variable and incrementally unifies its output, ordinary child types
