@@ -29,6 +29,31 @@ class ScreenResult:
         return self.threshold is not None and len(self.pairs) >= self.threshold
 
 
+def _disjoint_pairs(cases: Sequence[tuple[Any, Any]], keys: Sequence[Hashable],
+                    separates: Callable[[Any, Any], bool]) -> list[tuple[int, int]]:
+    """Greedy maximal matching, retaining every unmatched observation.
+
+    For pure callbacks, no incompatible pair remains among final unmatched
+    observations. This is not maximum matching. A bucket may require quadratic
+    callback work; arbitrary semantic separation cannot be replaced by label
+    equality or interpreted inside a numerical kernel.
+    """
+    pending: dict[Hashable, list[int]] = {}
+    pairs: list[tuple[int, int]] = []
+    for i, (_, label) in enumerate(cases):
+        bucket = pending.setdefault(keys[i], [])
+        position = next((p for p, j in enumerate(bucket)
+                         if separates(cases[j][1], label)), None)
+        if position is None:
+            bucket.append(i)
+        else:
+            j = bucket.pop(position)
+            pairs.append((j, i))
+            if not bucket:
+                del pending[keys[i]]
+    return pairs
+
+
 class FeasibilityScreen:
     """Spend a separate false-discard budget over this object's lifetime.
 
@@ -77,15 +102,7 @@ class FeasibilityScreen:
         threshold = next((r for r in range(1, n // 2 + 1)
                           if math.comb(n, r) * epsilon ** r <= level), None)
         keys = [self.key(value) for value, _ in cases]
-        pending: dict[Hashable, int] = {}
-        pairs: list[tuple[int, int]] = []
-        for i, (_, label) in enumerate(cases):
-            j = pending.get(keys[i])
-            if j is None:
-                pending[keys[i]] = i
-            elif self.separates(cases[j][1], label):
-                pairs.append((j, i))
-                del pending[keys[i]]
+        pairs = _disjoint_pairs(cases, keys, self.separates)
         # Runtime certificate check: endpoints are distinct and each pair
         # really witnesses an incompatible target for an identical input.
         used: set[int] = set()

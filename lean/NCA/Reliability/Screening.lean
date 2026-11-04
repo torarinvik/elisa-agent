@@ -92,4 +92,44 @@ theorem durable_refusal_risk {Ω : Type*} [MeasurableSpace Ω]
   · simpa [selected, hk] using each k hk
   · simp [selected, hk]
 
+/-- Retaining an unmatched new case preserves the absence of any available
+contradiction when it has no edge from an earlier unmatched case. -/
+theorem unmatched_append {A : Type*} (edge : A → A → Prop) (pending : List A) (x : A)
+    (independent : pending.Pairwise (fun a b => ¬edge a b))
+    (none : ∀ a ∈ pending, ¬edge a x) :
+    (pending ++ [x]).Pairwise (fun a b => ¬edge a b) := by
+  apply List.pairwise_append.mpr
+  refine ⟨independent, by simp, ?_⟩
+  intro a ha b hb
+  have same : b = x := by simpa only [List.mem_singleton] using hb
+  rw [same]
+  exact none a ha
+
+/-- Consuming a matched endpoint preserves independence of those still pending. -/
+theorem unmatched_remove {A : Type*} (edge : A → A → Prop) (pending : List A) (i : ℕ)
+    (independent : pending.Pairwise (fun a b => ¬edge a b)) :
+    (pending.eraseIdx i).Pairwise (fun a b => ¬edge a b) :=
+  List.Pairwise.sublist (List.eraseIdx_sublist pending i) independent
+
+/-- If every alternative matching edge touches a used endpoint, that matching
+has at most twice as many edges. Maximal need not mean maximum. -/
+theorem maximal_pairs_half {n m k : ℕ}
+    (used : Fin m × Bool → Fin n) (alternative : Fin k × Bool → Fin n)
+    (disjoint : Function.Injective alternative)
+    (cover : ∀ j, ∃ target : Fin m × Bool, ∃ b, used target = alternative (j, b)) :
+    k ≤ 2 * m := by
+  classical
+  let choose : Fin k → Fin m × Bool := fun j => Classical.choose (cover j)
+  have witness : ∀ j, ∃ b, used (choose j) = alternative (j, b) :=
+    fun j => Classical.choose_spec (cover j)
+  have inject : Function.Injective choose := by
+    intro a b same
+    obtain ⟨ab, ha⟩ := witness a
+    obtain ⟨bb, hb⟩ := witness b
+    have equal : alternative (a, ab) = alternative (b, bb) := by
+      rw [← ha, ← hb, same]
+    exact congrArg Prod.fst (disjoint equal)
+  have bound := Fintype.card_le_of_injective choose inject
+  simpa [Nat.mul_comm] using bound
+
 end NCA

@@ -68,7 +68,7 @@ def test_impossible_candidate_stops_before_fit_and_charges_prefix_only() -> None
         raise AssertionError("contradictions should prevent training")
 
     def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
-        return [(0, i % 2) for i in range(count)]
+        return [(0, 0)] * (count // 2) + [(0, 1)] * (count - count // 2)
 
     screen = make_screen()
     acquirer = CertifiedAcquirer(fit, sample, train=4096, tolerance=0.05,
@@ -134,3 +134,45 @@ def test_nullary_acquisition_invokes_with_no_arguments() -> None:
     acquirer = CertifiedAcquirer(fit, sample, train=80, tolerance=0.05,
                                  confidence=0.05, screen=make_screen())
     assert acquirer(Contract((), "a")) is not None
+
+
+def test_repeated_unmatched_observations_are_not_discarded() -> None:
+    screen = make_screen()
+    assert screen.reject([(0, 0)] * 32 + [(0, 1)] * 32, 0.05)
+    assert screen.last is not None
+    assert screen.last.pairs == tuple((i, i + 32) for i in range(32))
+    assert not screen.reject([(i, i % 2) for i in range(64)], 0.05)
+    assert screen.last is not None and screen.last.pairs == ()
+
+
+def test_greedy_pairs_are_maximal_and_within_two_of_maximum() -> None:
+    """Exhaust all ordered five-vertex graphs: unmatched_append/remove and
+    maximal_pairs_half. Separation is supplied, with no label equality rule."""
+    edges = tuple((a, b) for a in range(5) for b in range(a + 1, 5))
+    strict_gap = False
+    for flags in product((False, True), repeat=len(edges)):
+        graph = {edge for edge, present in zip(edges, flags, strict=True) if present}
+        screen = FeasibilityScreen(cases=5, confidence=0.05, key=identity,
+                                   separates=lambda a, b: (a, b) in graph)
+        screen.reject([(0, i) for i in range(5)], 0.05)
+        assert screen.last is not None
+        pairs = screen.last.pairs
+        used = {v for pair in pairs for v in pair}
+        assert len(used) == 2 * len(pairs) and set(pairs) <= graph
+        # Independent remaining vertices imply that every edge is covered.
+        assert all(a in used or b in used for a, b in graph)
+
+        def maximum(vertices: tuple[int, ...]) -> int:
+            if len(vertices) < 2:
+                return 0
+            first, *rest = vertices
+            best = maximum(tuple(rest))
+            for other in rest:
+                if (first, other) in graph:
+                    best = max(best, 1 + maximum(tuple(v for v in rest if v != other)))
+            return best
+
+        optimum = maximum(tuple(range(5)))
+        assert optimum <= 2 * len(pairs)
+        strict_gap |= optimum > len(pairs)
+    assert strict_gap  # The implementation deliberately makes no optimality claim.

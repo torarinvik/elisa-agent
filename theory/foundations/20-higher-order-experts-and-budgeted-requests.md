@@ -515,3 +515,34 @@ exchange result alone gives no optimality guarantee for adaptive predictions.
 Ranking introduces no new admission rule: candidates still require their
 ordinary certification. The score model and its features are replaceable
 policies; no domain semantics follows merely from a contract's shape.
+
+
+**Retaining unmatched observations.** For a fixed prefix, form an ordered graph
+whose vertices are observations and whose edges join an earlier observation
+to a later one with an equal input key and semantically incompatible labels.
+Maintain every unmatched vertex. At each arrival, match it to the earliest
+incompatible unmatched vertex with the same key, if one exists; otherwise retain
+it. Compatible labels do not justify discarding an observation: repeated labels
+can supply distinct endpoints for later contradictions.
+
+**Theorem 20.20 (maximal contradiction witnesses).** The procedure produces
+disjoint valid contradiction pairs. No edge has both endpoints unmatched after
+any prefix. If m pairs are produced and a maximum matching has k pairs, then
+k ≤ 2m. Each deterministic predictor therefore makes at least m errors under
+the key and separation hypotheses of Theorem 20.16.
+
+*Proof.* Initially there are no unmatched edges. Retaining a vertex adds no
+edge among unmatched vertices, since all earlier unmatched vertices with the
+same key were checked. Matching removes one earlier vertex and consumes the
+new one; removal preserves absence of unmatched edges. Thus every edge touches
+a matched endpoint. From each edge of any alternative matching choose one such
+endpoint. Disjointness of the alternative matching makes those chosen endpoints
+distinct. There are only 2m available endpoints, so k ≤ 2m. The error lower
+bound follows from Theorem 20.16 for the resulting disjoint pairs. ∎
+
+The procedure need not find a maximum matching, and changing greedy choices
+need not improve every sample. The rejection threshold and confidence allocation
+remain those of Theorem 20.16. Semantic callbacks must be pure and keys faithful.
+Storing all unmatched observations uses linear space in the fixed prefix and
+may require quadratic separation checks within one key bucket; no distribution
+or label-equivalence shortcut is assumed. Passing remains inconclusive.

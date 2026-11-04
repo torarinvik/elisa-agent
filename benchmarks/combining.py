@@ -29,7 +29,7 @@ import statistics
 import time
 import tempfile
 from pathlib import Path
-from collections.abc import Hashable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from typing import Any
 
 from nca.abi import Contract, Manifest, Message, Module
@@ -39,6 +39,7 @@ from nca.planner import plan
 from nca.planner.gaps import repair
 from nca.retention.acquisition import CertifiedAcquirer
 from nca.retention.screening import FeasibilityScreen
+from nca.retention import screening
 from nca.retention.history import AcquisitionHistory
 from nca.runtime import execute
 from nca.workspace import Workspace
@@ -204,10 +205,80 @@ def _run(policy: str, seed: int, history: AcquisitionHistory | None) -> dict[str
             "cpu_seconds": time.process_time() - started}
 
 
+def legacy_pairs(cases: Sequence[tuple[Any, Any]], keys: Sequence[Hashable],
+                 separates: Callable[[Any, Any], bool]) -> list[tuple[int, int]]:
+    """Pre-20.20 one-unmatched-observation reference, benchmark only."""
+    pending: dict[Hashable, int] = {}
+    pairs = []
+    for i, (_, label) in enumerate(cases):
+        j = pending.get(keys[i])
+        if j is None:
+            pending[keys[i]] = i
+        elif separates(cases[j][1], label):
+            pairs.append((j, i))
+            del pending[keys[i]]
+    return pairs
+
+
+def matching_trial(policy: str, order: str, seed: int, requests: int = 30) -> dict[str, float]:
+    """Fixed input, incompatible targets: IID, order stress, or compatible control.
+
+    The blocked stream is not IID and supports only a pathwise witness claim.
+    The constant control is learnable; its extra callback work is charged too.
+    """
+    started = time.process_time()
+    fits = fitted_cases = comparisons = admitted = 0
+    rng = random.Random(seed)
+
+    def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        if order == "blocked":
+            return [(0, 0)] * (count // 2) + [(0, 1)] * (count - count // 2)
+        return [(0, int(rng.random() < 0.25) if order == "iid" else 0) for _ in range(count)]
+
+    def separation(a: Any, b: Any) -> bool:
+        nonlocal comparisons
+        comparisons += 1
+        return bool(a != b)
+
+    def fitting(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        nonlocal fits, fitted_cases
+        fits += 1
+        fitted_cases += len(keys)
+        # Table expects tuple inputs only for contracts with multiple inputs.
+        table = {key: label for key, label in zip(keys, labels, strict=True)}
+        return Table(contract, table)
+
+    screen = FeasibilityScreen(cases=64, confidence=0.05, key=input_key, separates=separation)
+    acquirer = CertifiedAcquirer(fitting, sample, train=4096, tolerance=0.05,
+                                 confidence=0.05, screen=screen)
+    current = screening._disjoint_pairs
+    if policy == "legacy":
+        screening._disjoint_pairs = legacy_pairs
+    try:
+        for request in range(requests):
+            # Common per-request prefixes despite policy-dependent later draws.
+            rng = random.Random(seed + request * 10000)
+            admitted += acquirer(Contract(("source",), "target")) is not None
+    finally:
+        screening._disjoint_pairs = current
+    return {"requests": float(acquirer.decisions), "admitted": float(admitted),
+            "screen_rejections": float(screen.rejections), "labels": float(acquirer.labels),
+            "fits": float(fits), "fitted_cases": float(fitted_cases),
+            "separation_calls": float(comparisons), "cpu_seconds": time.process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3726, 3727, 3728])
+    parser.add_argument("--screen-matching", action="store_true")
     args = parser.parse_args()
+    if args.screen_matching:
+        for order in ("blocked", "iid", "compatible"):
+            for policy in ("legacy", "retained"):
+                runs = [matching_trial(policy, order, seed) for seed in args.seeds]
+                print(json.dumps({"order": order, "policy": policy, **{
+                    key: statistics.mean(r[key] for r in runs) for key in runs[0]}}), flush=True)
+        return
     for policy in ("unary", "unary_screen", "unary_memory",
                    "binary", "binary_screen", "binary_memory", "binary_staged_memory",
                    "binary_staged_isolated_screen", "binary_staged_isolated_ranked"):
