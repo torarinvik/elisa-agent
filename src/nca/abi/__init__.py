@@ -87,6 +87,7 @@ class Contract:
         """Whether the contract has type variables (THEORY §1.2)."""
         return bool(type_variables(parse_type(self.output)))
 
+    @functools.lru_cache(maxsize=8192)
     def instance(self, binding: Binding) -> Contract:
         """The contract with ``binding`` substituted."""
         if not binding:

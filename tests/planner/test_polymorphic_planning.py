@@ -492,3 +492,12 @@ def test_generated_variable_cannot_collide_with_user_name(monkeypatch: pytest.Mo
                                               parse_type("box[?a_0]"), {}, 3, memo))
     result = planner._close(index, index.size, partial, solved, memo)
     assert result is not None and infer([producer], (INT,), result) == f"box[seq[{INT}]]"
+
+
+def test_instance_cache_preserves_binding_and_slot_relevance() -> None:
+    contract = Contract(("?x",), "seq[?x]", ((("?x",), "?x"),), ((0,),))
+    first = contract.instance((("x", TEXT),))
+    assert first == Contract((TEXT,), f"seq[{TEXT}]", (((TEXT,), TEXT),), ((0,),))
+    assert contract.instance((("x", INT),)).output == f"seq[{INT}]"
+    assert contract.instance((("x", TEXT),)) is first
+    assert contract.instance(()) is contract

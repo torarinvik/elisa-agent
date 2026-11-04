@@ -112,6 +112,17 @@ Maintain mathematical theory in topic chapters under `theory/<theme>/`, with `TH
 - Add permanent regression tests when appropriate, but never commit disposable test harnesses or exploratory experiments.
 - Do not leave multiple competing implementations when only one is needed.
 
+### Evaluation compute budget
+
+- Bound each evaluation invocation to at most five minutes of wall time, including
+  setup. Preserve completed results on timeout and mark incomplete coverage and
+  label accounting explicitly; a timeout is not a task failure.
+- Reuse unchanged certified routes and deterministic evaluation results instead
+  of repeating searches. Invalidate failed-search caches when proposal inputs,
+  the installed library or search settings change.
+- Profile before optimizing. Move measured computational hotspots into Elisa
+  while preserving the public interfaces, reference behavior and package boundary.
+
 ### 6. Git and Commit Discipline
 
 - Never commit files simply because they exist in the working directory.
