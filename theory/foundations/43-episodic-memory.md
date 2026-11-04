@@ -397,3 +397,36 @@ bound for the underlying logarithm. This does not establish such a bound for
 arbitrary compilers or mathematical libraries. Nor does it prevent confidence
 allocation from rounding a positive mathematical level to zero, or provide the
 resources to actually collect an extremely large required sample.
+
+
+## 43.14 Downward confidence allocation
+
+For δ in (0,1), let b_k = δ/((k+1)(k+2)) be the exact spending level for
+decision k. Numerical
+allocation returns a positive representable a_k ≤ b_k, or refuses before any
+test if no positive representable lower bound exists. Split an accepted parent
+budget a into r positive shares c ≤ a/r, with r fixed before testing.
+
+**Proposition 43.8 (rounded spending preserves the budget).** For any finite set
+U of distinct spending positions, Σ_{k∈U} a_k ≤ δ. A finite r-member family
+with shared level c spends at most its parent a. Thus nested downward allocation
+preserves the original finite union bound even when spending positions are
+skipped or some positive mathematical shares are unrepresentable.
+
+*Proof.* Choose N greater than every position in U. Since b_k ≥ 0,
+Σ_{k∈U} a_k ≤ Σ_{k∈U} b_k ≤ Σ_{k<N} b_k ≤ δ by Theorem 43.1's spending sum.
+For a finite family, multiply c ≤ a/r by positive r to get rc ≤ a. Substitute
+this bound for each parent's total child spending. Refused tests contribute no
+event and unused positions remove terms. ∎
+
+For a represented total p/q and positive integer divisor d, compare a rounded
+candidate x directly against p/(qd) by exact integer cross multiplication.
+If x is above that rational, choose its predecessor. Under faithful
+nearest-rounding conversion and exact integer operations, this gives the largest
+representable lower bound. In particular, an exact smallest-positive share is
+retained; it must not be blindly stepped downward to zero. If the true share is
+below the smallest positive representable number, refuse rather than round it
+up. This is a representational resource limit, not a statistical impossibility
+certificate. No claim concerns arbitrary non-represented real inputs, compiler
+or host-arithmetic correctness, or the sample and memory resources needed for
+the resulting tests.

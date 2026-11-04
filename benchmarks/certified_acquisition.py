@@ -23,6 +23,7 @@ import statistics
 from functools import partial
 from collections.abc import Hashable, Sequence
 from time import process_time
+from fractions import Fraction
 from typing import Any
 
 from nca.abi import Contract, Message, Module
@@ -34,6 +35,7 @@ from nca.planner.gaps import repair
 from nca.retention.acquisition import CertifiedAcquirer
 from nca.retention import acquisition, sampled
 from nca.native import load
+from nca.stats import family_audit_alpha
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -175,11 +177,97 @@ def extreme_acquisition_trial(policy: str) -> dict[str, float | int]:
             "cpu_seconds": process_time() - started}
 
 
+def legacy_decision_share(total: float, index: int) -> float:
+    return total / ((index + 1) * (index + 2))
+
+
+def legacy_family_share(total: float, count: int) -> float:
+    level = total / count
+    if count > 1:
+        level = math.nextafter(level, 0.0)
+    if level <= 0:
+        raise ValueError("audit confidence allocation underflow")
+    return level
+
+
+def allocation_trial(legacy: bool, count: int = 10000) -> dict[str, float | int]:
+    decision = legacy_decision_share if legacy else sampled.decision_level
+    family = legacy_family_share if legacy else family_audit_alpha
+    upward = route_upward = avoidable = unrepresentable = 0
+    for index in range(count):
+        parent = decision(0.05, index)
+        target = Fraction(0.05) / ((index + 1) * (index + 2))
+        upward += Fraction(parent) > target
+        share = parent / 3 if legacy else family(parent, 3)
+        route_upward += 3 * Fraction(share) > Fraction(parent)
+    tiny = math.ulp(0.0)
+    for units in range(1, 21):
+        for size in range(1, 21):
+            target = Fraction(units * tiny) / size
+            try:
+                family(units * tiny, size)
+            except ValueError:
+                if target >= Fraction(tiny):
+                    avoidable += 1
+                else:
+                    unrepresentable += 1
+    # Time only the allocation path, excluding the exact-rational audit above.
+    started = process_time()
+    for index in range(count):
+        parent = decision(0.05, index)
+        if legacy:
+            _ = parent / 3
+        else:
+            family(parent, 3)
+    return {"decisions": count, "route_splits": count, "upward_decision_shares": upward,
+            "upward_route_families": route_upward, "avoidable_subnormal_refusals": avoidable,
+            "unrepresentable_subnormal_refusals": unrepresentable,
+            "labels": 0, "expert_requests": 0, "allocation_cpu_seconds": process_time() - started}
+
+
+def staged_allocation_trial(legacy: bool) -> dict[str, float | int]:
+    saved = acquisition.decision_level, acquisition.family_audit_alpha
+    if legacy:
+        acquisition.decision_level, acquisition.family_audit_alpha = legacy_decision_share, legacy_family_share
+    fits = 0
+
+    def fitting(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        nonlocal fits
+        fits += 1
+        return fit_decoder(contract, keys, labels, cost=1.0)
+
+    def sampling(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        return [(0, 0)] * count
+
+    started = process_time()
+    acquire = CertifiedAcquirer(fitting, sampling, train=2, stages=(1, 2), tolerance=0.5,
+                                 confidence=4 * math.ulp(0.0))
+    accepted = refused = 0
+    try:
+        try:
+            accepted = int(acquire(Contract(("source",), "target")) is not None)
+        except ValueError:
+            refused = 1
+    finally:
+        acquisition.decision_level, acquisition.family_audit_alpha = saved
+    return {"requests": 1, "accepted": accepted, "allocation_refusals": refused,
+            "fits": fits, "labels": acquire.labels, "decisions": acquire.decisions,
+            "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3713, 3714, 3715])
     parser.add_argument("--numerics", action="store_true")
+    parser.add_argument("--budget-allocation", action="store_true")
     args = parser.parse_args()
+    if args.budget_allocation:
+        for legacy in (True, False):
+            for name, trial in (("allocation", allocation_trial), ("staged", staged_allocation_trial)):
+                runs = [trial(legacy) for _ in range(3)]
+                print(json.dumps({"trial": name, "legacy": legacy, **{
+                    key: statistics.mean(run[key] for run in runs) for key in runs[0]}}), flush=True)
+        return
     if args.numerics:
         policies = ["legacy", "python"]
         if getattr(load("stats"), "negative_log_upper", None) is not None:

@@ -493,6 +493,7 @@ an inference from their separate tests.
 | [20.19](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_order_valid`, `acquisition_swap_difference`, `acquisition_swap` | `Planning/Acquisition` |
 | [43.6](theory/foundations/43-episodic-memory.md) | `cursorAppend_valid`, `cursorErase_valid`, `cursor_after_eviction` | `Execution/Memory` |
 | [43.7](theory/foundations/43-episodic-memory.md#4313-conservative-numerical-sample-sizing) | `log_upper_ceil_size`, `zeroLoss_log_upper` | `Reliability/SampledGate` |
+| [43.8](theory/foundations/43-episodic-memory.md#4314-downward-confidence-allocation) | `rounded_decision_budget`, `rounded_family_budget` | `Reliability/SampledGate` |
 | [20.15](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `horn_gap_iff`, `horn_gap_complete`, `horn_gap_sound` | `Planning/Horn` |
 | [21.1](theory/decoding/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/decoding/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
@@ -2950,7 +2951,13 @@ binary64 integer ratios. Positive subnormal levels and tolerances need no
 reciprocal or floating quotient. The conditional Lean bound requires a faithful
 upper logarithm; one outward adjacent value assumes libm error lies within that
 adjacent value. High-precision and exact-rational tests exercise this platform,
-not arbitrary compiler/libm behavior. Confidence-allocation underflow, required
+not arbitrary compiler/libm behavior. `family_audit_alpha` (§43.14) instead compares its candidate with an exact
+integer ratio and steps downward only when necessary. `decision_level` and
+`SampledGate` route-family splitting use this gate; acquisition and ensemble
+families already share it. Positive unrepresentable shares raise an explicit
+underflow refusal. Unbounded index/ratio bookkeeping stays at the host boundary;
+no numerical iteration is added. Exact-rational tests check maximal lower bounds,
+while host integer/float conversion fidelity remains trusted. Required
 observation resources and the full end-to-end numerical proof remain open.
 
 ## Retained replay admission

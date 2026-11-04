@@ -224,4 +224,29 @@ theorem zeroLoss_log_upper {ε ℓ α upper : ℝ} (positive : 0 < ε)
   have bound := faithful.trans (log_upper_ceil_size positive)
   simpa only [one_div, Real.log_inv] using bound
 
+/-- Rounded allocations remain within the original budget if each is no
+larger than its exact share. Missing spending positions need not be reused. -/
+theorem rounded_decision_budget {δ : ℝ} (nonnegative : 0 ≤ δ)
+    (levels : ℕ → ℝ) (used : Finset ℕ)
+    (lower : ∀ k ∈ used, levels k ≤ decisionLevel δ k) :
+    ∑ k ∈ used, levels k ≤ δ := by
+  have subset : used ⊆ range (used.sup id + 1) := by
+    intro k hk
+    exact mem_range.mpr (Nat.lt_succ_of_le (le_sup (f := id) hk))
+  calc
+    ∑ k ∈ used, levels k ≤ ∑ k ∈ used, decisionLevel δ k := sum_le_sum lower
+    _ ≤ ∑ k ∈ range (used.sup id + 1), decisionLevel δ k := by
+      apply sum_le_sum_of_subset_of_nonneg subset
+      intro k _ _
+      dsimp [decisionLevel]
+      positivity
+    _ ≤ δ := decisionLevel_total nonnegative _
+
+/-- A finite family's downward-rounded share cannot overspend its parent. -/
+theorem rounded_family_budget {total level : ℝ} (count : ℕ) (positive : 0 < count)
+    (lower : level ≤ total / count) : (count : ℝ) * level ≤ total := by
+  have pos : (0 : ℝ) < count := by exact_mod_cast positive
+  have bound := (le_div_iff₀ pos).mp lower
+  simpa [mul_comm] using bound
+
 end NCA

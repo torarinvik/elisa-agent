@@ -452,3 +452,27 @@ def test_finite_audit_family_budget_is_not_overspent() -> None:
                           (float.fromhex("0x0.0000000000001p-1022"), 2)):
         with pytest.raises(ValueError):
             family_audit_alpha(total, count)
+
+
+def test_family_shares_are_maximal_exact_lower_bounds() -> None:
+    import math
+    from fractions import Fraction
+    from nca.stats import family_audit_alpha
+
+    tiny = math.ulp(0.0)
+    pairs = [(units * tiny, count) for units in range(1, 21) for count in range(1, 21)]
+    pairs += [(total, count) for total in (0.05, 0.1, math.nextafter(1.0, 0.0), 1e-300)
+              for count in (1, 2, 3, 10, 2**53 + 1, 10**200, 10**500)]
+    for total, count in pairs:
+        target = Fraction(total) / count
+        if target < Fraction(tiny):
+            with pytest.raises(ValueError, match="underflow"):
+                family_audit_alpha(total, count)
+        else:
+            level = family_audit_alpha(total, count)
+            assert 0 < Fraction(level) <= target
+            assert Fraction(math.nextafter(level, math.inf)) > target
+            assert Fraction(level) * count <= Fraction(total)  # rounded_family_budget
+    assert family_audit_alpha(2 * tiny, 2) == tiny
+    with pytest.raises(ValueError):
+        family_audit_alpha(0.05, True)

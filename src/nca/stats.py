@@ -18,12 +18,19 @@ Z95 = 1.959963984540054
 
 
 def family_audit_alpha(total: float, audits: int) -> float:
-    """Allocate one confidence budget over a predeclared finite audit family."""
+    """Largest positive binary64 share no greater than ``total / audits``.
+
+    Exact integer ratios prevent upward rounding and integer-to-float overflow.
+    Refuse when the mathematical share has no positive binary64 lower bound.
+    """
     if (not math.isfinite(total) or not 0 < total < 1
-            or not isinstance(audits, int) or audits < 1):
+            or isinstance(audits, bool) or not isinstance(audits, int) or audits < 1):
         raise ValueError("requires 0 < total < 1 and a positive integer audit count")
-    level = total / audits
-    if audits > 1:
+    numerator, denominator = total.as_integer_ratio()
+    denominator *= audits
+    level = numerator / denominator
+    allocated, scale = level.as_integer_ratio()
+    if allocated * denominator > numerator * scale:
         level = math.nextafter(level, 0.0)
     if level <= 0:
         raise ValueError("audit confidence allocation underflow")

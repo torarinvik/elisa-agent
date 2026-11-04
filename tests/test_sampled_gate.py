@@ -178,3 +178,80 @@ def test_extreme_positive_confidence_can_finish_actual_acquisition() -> None:
     acquire = CertifiedAcquirer(fit, sample, train=1, tolerance=0.5, confidence=1e-320)
     assert acquire(Contract(("source",), "target")) is not None
     assert acquire.labels == 1 + required_cases(0.5, decision_level(1e-320, 0))
+
+
+def test_decision_levels_never_round_above_the_exact_spending_share() -> None:
+    from fractions import Fraction
+
+    total = Fraction()
+    for index in range(10000):
+        level = decision_level(0.05, index)
+        target = Fraction(0.05) / ((index + 1) * (index + 2))
+        assert Fraction(level) <= target
+        assert Fraction(math.nextafter(level, math.inf)) > target
+        total += Fraction(level)
+    assert total <= Fraction(0.05)  # rounded_decision_budget
+    # The exact denominator exceeds binary64 range, but its quotient does not.
+    index = 10**155
+    level = decision_level(0.05, index)
+    target = Fraction(0.05) / ((index + 1) * (index + 2))
+    assert 0 < Fraction(level) <= target
+    assert Fraction(math.nextafter(level, math.inf)) > target
+    for index in (0, 4, 1000, 10**200):
+        target = Fraction(4 * math.ulp(0.0)) / ((index + 1) * (index + 2))
+        if target < Fraction(math.ulp(0.0)):
+            with pytest.raises(ValueError, match="underflow"):
+                decision_level(4 * math.ulp(0.0), index)
+        else:
+            assert Fraction(decision_level(4 * math.ulp(0.0), index)) <= target
+
+
+@pytest.mark.parametrize("index", [-1, True, False, 1.5, "1", None])
+def test_decision_indices_must_be_nonnegative_integers(index: object) -> None:
+    with pytest.raises(ValueError, match="index"):
+        decision_level(0.05, index)
+
+
+def test_sampled_routes_use_conservative_family_allocation(
+        memory: Memory, monkeypatch: pytest.MonkeyPatch) -> None:
+    from fractions import Fraction
+    from nca.retention import sampled as module
+    from nca.stats import family_audit_alpha
+
+    store, refs = memory
+    claims = tuple(retained(str(i), refs[40*i:40*(i+1)], (True,) * 40) for i in range(3))
+    instance = SampledGate(store, claims, {"lab"}, tolerance=0.5, confidence=0.05,
+                           seed=7, max_cases=1000)
+    seen: list[float] = []
+    original = module.required_cases
+
+    def capture(tolerance: float, level: float) -> int:
+        seen.append(level)
+        return original(tolerance, level)
+
+    monkeypatch.setattr(module, "required_cases", capture)
+    for index in range(2):
+        assert instance.decide(["0", "1", "2"], lambda identity, record, baseline: False).accepted
+        exact = Fraction(0.05) / ((index + 1) * (index + 2))
+        assert 3 * Fraction(seen[index]) <= exact
+        assert seen[index] == family_audit_alpha(decision_level(0.05, index), 3)
+    assert seen[1] < decision_level(0.05, 1) / 3  # Raw division rounds this witness upward.
+
+
+def test_exact_subnormal_stage_share_is_not_discarded() -> None:
+    from collections.abc import Hashable, Sequence
+    from typing import Any
+    from nca.abi import Contract, Module
+    from nca.learning.discovery import fit_decoder
+    from nca.retention.acquisition import CertifiedAcquirer
+
+    def fit(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        return fit_decoder(contract, keys, labels, cost=1.0)
+
+    def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        return [(0, 0)] * count
+
+    acquire = CertifiedAcquirer(fit, sample, train=2, stages=(1, 2), tolerance=0.5,
+                                 confidence=4 * math.ulp(0.0))
+    assert acquire(Contract(("source",), "target")) is not None
+    assert acquire.labels == 1 + required_cases(0.5, math.ulp(0.0))

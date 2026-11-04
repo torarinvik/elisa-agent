@@ -2,8 +2,9 @@
 
 Each decision draws ``m`` unused cases from every affected route's retained
 pool and accepts only if the proposal loses none of them. Decision ``k`` spends
-``δ / ((k+1)(k+2))`` of the confidence budget, split evenly over its routes,
-and ``m`` conservatively covers an outward estimate of ``-log(level)``
+at most ``δ / ((k+1)(k+2))`` of the confidence budget, with downward-rounded
+route shares. The sample count ``m`` conservatively covers an outward estimate
+of ``-log(level)``
 (``NCA.zeroLoss_log_upper``), so its cost depends on the tolerance, the confidence
 and the decision count (logarithmically), never on how much evidence has been
 retained. Cases are consumed once drawn, whatever the outcome, so no case
@@ -25,13 +26,16 @@ from nca.memory import MemoryBackend, MemoryRecord
 from nca.native import load
 from nca.objects import Attestation, Ref
 from nca.retention import baselines
+from nca.stats import family_audit_alpha
 
 _LOG_UPPER = getattr(load("stats"), "negative_log_upper", None)
 
 
 def decision_level(confidence: float, index: int) -> float:
-    """Decision ``index``'s share of the budget; all shares sum to below it."""
-    return confidence / ((index + 1) * (index + 2))
+    """Downward-rounded share; refuse unrepresentable positive allocations."""
+    if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+        raise ValueError("decision index must be a nonnegative integer")
+    return family_audit_alpha(confidence, (index + 1) * (index + 2))
 
 
 def required_cases(tolerance: float, level: float) -> int:
@@ -174,7 +178,8 @@ class SampledGate:
             return SampledDecision(None, 0, ())
         index = self._decisions
         cases = required_cases(self.tolerance,
-                               decision_level(self.confidence, index) / len(affected))
+                               family_audit_alpha(decision_level(self.confidence, index),
+                                                  len(affected)))
         short = tuple(identity for identity in affected if self.remaining(identity) < cases)
         if short:
             return SampledDecision(None, cases, (), short)
