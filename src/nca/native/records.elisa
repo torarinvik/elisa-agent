@@ -1,0 +1,18 @@
+# Ordered row selection in a packed caller-supplied integer record table.
+def select_equal(values: view[i64], width: i64, column: i64, needle: i64) -> darray[i64] can[Memory.Allocate, Abort.Panic]:
+    return [] if width <= 0 or column < 0 or column >= width
+    return [] if values.len.i64() % width != 0
+    rows: i64 = values.len.i64() / width
+    count: i64 =
+        for row in 0..<rows |count: i64 = 0| -> count:
+            count += 1 if values[row * width + column] == needle
+    result: mutable darray[i64] = [0 for _ in 0..<count]
+    filled: darray[i64] =
+        for row in 0..<rows |cursor: i64 = 0, result| -> result:
+            if values[row * width + column] == needle:
+                result[cursor] <- row
+                cursor += 1
+    return filled
+
+export pymodule records:
+    fn select_equal

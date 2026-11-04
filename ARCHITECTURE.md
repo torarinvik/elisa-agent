@@ -245,6 +245,22 @@ Measurements show a memory/CPU tradeoff as queried-type diversity grows, so
 the existing broad policy remains the default. Repeated header scans, complete
 resource accounting and useful candidate prioritization remain open.
 
+Compact repeated lookup now optionally packs the unprefetched suffix into
+integer hash/rule-position/input-position records (§36.64). The Elisa
+`native/records.elisa` kernel selects equal-column rows in order; Python then
+checks full type identifiers, so hash collisions never define equality.
+Packing happens only after headers are complete and a new query needs the
+unprefetched suffix; early stopped and fully prefetched searches avoid it.
+`feature_coarse_filter` proves exact rechecking removes arbitrary coarse
+false positives when no exact match is omitted. Exhaustive integer-table
+tests, invalid shapes, signed extremes, forced hash collisions and existing
+ordered-prefix comparisons link the implementation. The compiler, buffer ABI,
+stable hash equality and faithful packing remain trusted boundaries. Packing
+adds allocation and may slow small searches. NCA_NATIVE=0 retains the Python
+path; no universal speedup or total-memory bound follows. The current local
+Stage1 snapshot and compiler checkout both identify f69873914 and compile the
+new kernel successfully; no compiler change was needed.
+
 `EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
 charged draws only after a scored rejection, including unscored final-batch
 cases. It reuses the shared `zero_loss_test` retention path. The explicit
@@ -554,6 +570,7 @@ an inference from their separate tests.
 | [36.61](theory/evidence/36-interface-acquisition.md) | `featureApplication_reloaded_eq` | `Planning/FeatureClosure` |
 | [36.62](theory/evidence/36-interface-acquisition.md) | `feature_index_filter` | `Planning/FeatureClosure` |
 | [36.63](theory/evidence/36-interface-acquisition.md) | `feature_demand_index_eq`, `feature_demand_prefix_filter` | `Planning/FeatureClosure` |
+| [36.64](theory/evidence/36-interface-acquisition.md) | `feature_coarse_filter` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

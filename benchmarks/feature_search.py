@@ -18,6 +18,7 @@ from typing import Any
 from nca.abi import Contract, Manifest, Module
 from nca.learning.discovery import Decoded
 from nca.learning.features import AppliedFeature, compose_features
+from nca.learning import features as feature_runtime
 
 
 def compose_unindexed(seeds: Sequence[Module], transforms: Sequence[Module], *,
@@ -102,6 +103,7 @@ def trial(size: int, cap: int, query_types: int = 2,
     parts = [*seeds, *rules]
     outputs: dict[str, Any] = {"size": size, "cap": cap,
                                "query_types": query_types,
+                               "native": feature_runtime._NATIVE is not None,
                                "index_entries": index_entries,
                                "labels": 0, "acquisition_requests": 0}
     expected = None

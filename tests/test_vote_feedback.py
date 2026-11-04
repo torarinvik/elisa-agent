@@ -413,3 +413,26 @@ def test_feature_index_entry_budget_is_validated(budget: Any) -> None:
 
     with pytest.raises(ValueError, match="index entry budget"):
         compose_features([], [], max_depth=0, limit=1, index_entries=budget)
+
+
+def test_native_feature_selection_rechecks_deliberate_hash_collisions(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+    from runpy import run_path
+
+    from nca.learning import features
+    from test_discovery import Feature
+
+    if features._NATIVE is None:
+        pytest.skip("native record selector unavailable or disabled")
+    signature = run_path(str(Path(__file__).resolve().parents[1] /
+                            "benchmarks" / "feature_search.py"))["signature"]
+    seeds = [Feature(Contract(("input",), t), lambda x: x) for t in ("a", "b")]
+    heads = [Feature(Contract(("a",), "b"), lambda x: x),
+             Feature(Contract(("a", "b"), "a"), lambda a, b: (a, b)),
+             Feature(Contract(("absent",), "absent"), lambda x: x)]
+    monkeypatch.setattr(features, "hash", lambda value: 0, raising=False)
+    accelerated = features.compose_features(seeds, heads, max_depth=4, limit=40, index_entries=0)
+    monkeypatch.setattr(features, "_NATIVE", None)
+    fallback = features.compose_features(seeds, heads, max_depth=4, limit=40, index_entries=0)
+    assert [signature(m) for m in accelerated] == [signature(m) for m in fallback]

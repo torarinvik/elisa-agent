@@ -105,4 +105,16 @@ theorem feature_demand_prefix_filter {A : Type*} (entries : List A) (n : ℕ)
       entries.filter accept := by
   rw [← List.filter_append, List.take_append_drop]
 
+/-- A coarse prefilter may have collisions, provided every exact match survives.
+Rechecking the exact predicate recovers the original ordered sequence. -/
+theorem feature_coarse_filter {A : Type*} (entries : List A)
+    (coarse exact : A → Bool) (safe : ∀ a, exact a = true → coarse a = true) :
+    (entries.filter coarse).filter exact = entries.filter exact := by
+  induction entries with
+  | nil => rfl
+  | cons a tail ih =>
+    cases he : exact a with
+    | false => cases hc : coarse a <;> simp [he, hc, ih]
+    | true => simp [he, safe a he, ih]
+
 end NCA

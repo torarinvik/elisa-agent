@@ -179,3 +179,23 @@ that result equals filtering the full list. The budget bounds these prefetched
 positions only, not contract headers, completed queried buckets or model memory.
 Unbounded prefetch and zero prefetch are resource policies of the same lookup;
 neither changes the candidate family or establishes a universal speed advantage.
+
+## 36.64 Exact verification after coarse rule selection
+
+Let P be an exact matching predicate on ordered records and H a cheaper
+prefilter with P(x)⇒H(x). Filtering first by H and then by P can accelerate
+selection without replacing exact equality by a fingerprint comparison.
+
+**Theorem 36.64 (collision-safe selection).** For any record list L,
+filter P (filter H L) = filter P L. Multiplicity and ordering are preserved.
+
+*Proof.* Induct over L. Exact matches survive H by hypothesis. Every other
+record is removed by P regardless of whether it survives H. ∎
+
+Equality-compatible hashes satisfy the no-false-negative hypothesis when
+equal identifiers have equal stable hashes. Collisions may add comparisons,
+never alter exact selection. Packed-record bounds, stable hashing, faithful
+compiled scanning and final equality checks are implementation obligations;
+this theorem alone proves none of those boundaries. Compact packed storage
+also has a preparation and memory cost, so native scanning need not improve
+small searches or searches whose prefetched prefix already covers the library.

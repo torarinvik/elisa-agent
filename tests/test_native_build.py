@@ -51,3 +51,26 @@ def test_build_requires_strict_floating_point_for_reference_equivalence(
     assert command[0] == str(compiler) and command[-1] == str(source)
     assert "-fstrict-fp" in command
     assert check and environment["PYTHON_BIN"] == sys.executable
+
+
+def test_native_integer_record_selection_matches_exhaustive_reference() -> None:
+    from array import array
+    from itertools import product
+
+    kernel = native.load("records")
+    if kernel is None:
+        pytest.skip("native record selector unavailable or disabled")
+    for length in range(7):
+        for values in product((-2, 0, 2), repeat=length):
+            packed = array("q", values)
+            for width in range(1, 4):
+                for column in range(width):
+                    for needle in (-2, 0, 2):
+                        expected = ([] if length % width else [
+                            row for row in range(length // width)
+                            if values[row * width + column] == needle])
+                        assert kernel.select_equal(packed, width, column, needle) == expected
+    extreme = array("q", [-(2 ** 63), 2 ** 63 - 1, -(2 ** 63)])
+    assert kernel.select_equal(extreme, 1, 0, -(2 ** 63)) == [0, 2]
+    for width, column in ((0, 0), (-1, 0), (1, -1), (1, 1), (3, 0)):
+        assert kernel.select_equal(array("q", [1, 2]), width, column, 1) == []

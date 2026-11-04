@@ -1,12 +1,16 @@
 """Bounded construction of feature trees from public typed experts (§36.59–60)."""
 
 from collections.abc import Iterator, Sequence
+from array import array
 from dataclasses import replace
 from itertools import product
 from typing import Any
 
 from nca.abi import Contract, Module, TypeId
 from nca.learning.discovery import Decoded, _total_calls
+from nca.native import load
+
+_NATIVE = load("records")
 
 
 class AppliedFeature:
@@ -62,7 +66,9 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     types. None retains the previous unbounded prefetch policy; zero builds
     only queried buckets. New types scan headers beyond the prefetched prefix.
     This trades repeated comparisons for fewer unused entries, not a byte cap
-    on headers, queried buckets or returned models.
+    on headers, queried buckets, native buffers or returned models.
+    Available Elisa record scanning accelerates repeated unprefetched lookup;
+    full identifier equality always verifies coarse hash matches (§36.64).
     """
     if type(max_depth) is not int or max_depth < 0:
         raise ValueError("feature depth must be a nonnegative integer")
@@ -83,9 +89,10 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
     prefix = entries = 0
     prefetching = True
     headers: list[Contract | None] = []
+    packed: array | None = None
 
     def indexed_rules(type_id: TypeId) -> Iterator[tuple[Module, Contract, int]]:
-        nonlocal prefix, entries, prefetching
+        nonlocal prefix, entries, prefetching, packed
         cached = rules.get(type_id)
         if cached is not None:
             yield from cached
@@ -93,6 +100,24 @@ def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,
         matches = list(prefetched.get(type_id, ()))
         yield from matches
         start = prefix
+        if _NATIVE is not None and len(headers) == len(transforms) and start < len(headers):
+            if packed is None:
+                packed = array("q")
+                for index in range(start, len(headers)):
+                    head = headers[index]
+                    if head is not None:
+                        for position, required in enumerate(head.inputs):
+                            packed.extend((hash(required), index, position))
+            for row in _NATIVE.select_equal(packed, 3, 0, hash(type_id)):
+                index, position = packed[3 * row + 1], packed[3 * row + 2]
+                head = headers[index]
+                assert head is not None
+                if head.inputs[position] == type_id:  # Hashes never define type equality.
+                    entry = transforms[index], head, position
+                    matches.append(entry)
+                    yield entry
+            rules[type_id] = matches
+            return
         for index in range(start, len(transforms)):
             transform = transforms[index]
             if index == len(headers):
