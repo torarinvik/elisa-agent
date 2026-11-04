@@ -457,6 +457,7 @@ correctness of interactions between mechanisms.
 | [31.12](theory/reliability/31-composing-uncertainty.md) | `retained_feedback_account` | `Reliability/RepairFeedback` |
 | [31.13](theory/reliability/31-composing-uncertainty.md) | `correction_reloaded_eq` | `Reliability/RepairFeedback` |
 | [31.15](theory/reliability/31-composing-uncertainty.md) | `occam_zero_loss`, `occam_family_sound`, `occam_adaptive_sound`, `occam_adaptive_fresh` | `Reliability/Occam` |
+| [31.16](theory/reliability/31-composing-uncertainty.md) | `finite_service_threshold` | `Reliability/Protocol` |
 | [36.59](theory/evidence/36-interface-acquisition.md) | `featureClosure_iff` | `Planning/FeatureClosure` |
 | [36.60](theory/evidence/36-interface-acquisition.md) | `featureTreeClosure_iff` | `Planning/FeatureClosure` |
 | [36.61](theory/evidence/36-interface-acquisition.md) | `featureApplication_reloaded_eq` | `Planning/FeatureClosure` |

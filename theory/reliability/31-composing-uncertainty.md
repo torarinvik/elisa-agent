@@ -376,3 +376,11 @@ bounds the probability of a bad admission, rather than asserting that a fitted
 route has a deterministic error guarantee. Conditional freshness and a valid
 code are hypotheses; the current empirical expert-use search costs have not
 been shown to be prefix lengths or to satisfy Kraft's inequality.
+
+
+## 31.16 Finite service thresholds
+
+For n > 0 trials, the integer condition 10s ≥ 3n implies s/n ≥ 3/10
+(`finite_service_threshold`). This arithmetic assumes that n denotes the
+intended distinct trials and s counts valid certifications; it does not prove
+either the integrity of recorded evidence or generalization to another family.
