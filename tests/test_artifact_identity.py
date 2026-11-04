@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from nca.abi import Contract, Manifest
-from nca.objects import Attestation, Constructor, Primitive, Store, canonical
+from nca.objects import Attestation, Constructor, Object, Primitive, Store, canonical
 from nca.objects import store as storage
 
 
@@ -207,3 +207,84 @@ def test_run_retains_and_run_read_identity_match_executable_lean(
         assert len(observed) == len(wanted)
         for step, (row, target) in enumerate(zip(observed, wanted, strict=True)):
             assert row == target, f"artifact replay fixture {fixture}, step {step}"
+
+
+class TraversalStore(Store):
+    def __init__(self) -> None:
+        super().__init__()
+        self.reads = 0
+
+    def get(self, ref: str) -> Object:
+        self.reads += 1
+        return super().get(ref)
+
+
+def test_iterative_traversal_matches_ordered_dag_reference() -> None:
+    from nca.objects import Composite
+
+    # All ordered five-node DAGs, with duplicate edges and mixed primitive /
+    # composite nodes. Primitive dependencies belong to walk, never flatten.
+    edges = [(a, b) for a in range(5) for b in range(a)]
+    for mask in range(1 << len(edges)):
+        store = TraversalStore()
+        refs = []
+        children: dict[str, tuple[str, ...]] = {}
+        transparent: dict[str, bool] = {}
+        for a in range(5):
+            members = tuple(refs[b] for bit, (parent, b) in enumerate(edges)
+                            if parent == a and mask & (1 << bit))
+            members = (*reversed(members), *members[:1])
+            is_composite = a > 0 and a % 2 == 0
+            obj = (Composite(f"node-{a}", "1", members) if is_composite else
+                   replace(primitive({"node": a}), dependencies=members))
+            ref = store.put(obj)
+            refs.append(ref)
+            children[ref], transparent[ref] = members, is_composite
+
+        reached: set[str] = set()
+
+        def reference(node: str, flatten: bool, seen: set[str], output: list[str]) -> None:
+            reached.add(node)
+            if node in seen:
+                return
+            if not flatten or not transparent[node]:
+                seen.add(node)
+            if not flatten or transparent[node]:
+                for child in children[node]:
+                    reference(child, flatten, seen, output)
+            if not flatten or not transparent[node]:
+                output.append(node)
+
+        for flatten in (False, True):
+            expected: list[str] = []
+            reached.clear()
+            reference(refs[-1], flatten, set(), expected)
+            store.reads = 0
+            actual = store.flatten(refs[-1]) if flatten else list(store.walk(refs[-1]))
+            assert actual == expected
+            assert store.reads == len(reached)
+            if not flatten:
+                emitted: set[str] = set()
+                for parent in actual:
+                    assert set(children[parent]) <= emitted  # dependency_append_order
+                    assert parent not in emitted
+                    emitted.add(parent)
+
+
+def test_deep_and_shared_composites_do_not_use_the_python_call_stack() -> None:
+    import sys
+    from nca.objects import Composite
+
+    store = TraversalStore()
+    first = store.put(primitive())
+    reference = first
+    depth = sys.getrecursionlimit() + 50
+    for i in range(depth):
+        reference = store.put(Composite(f"level-{i}", "1", (reference, reference)))
+    store.reads = 0
+    order = list(store.walk(reference))
+    assert len(order) == depth + 1 and order[0] == first and order[-1] == reference
+    assert store.reads == depth + 1
+    store.reads = 0
+    assert store.flatten(reference) == [first]
+    assert store.reads == depth + 1

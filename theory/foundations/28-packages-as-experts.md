@@ -256,3 +256,43 @@ whose entries were import paths stay valid by registering those paths as
 identifiers. The result assumes each location's factory behaves as its
 identifier promises; versioned identifiers (`…@1`) change when a factory's
 arguments or behavior change.
+
+
+## 28.10 Dependency traversal without a call-stack limit
+
+Let a finite acyclic graph have ordered adjacency lists. Start with one visit
+of its root on a work stack. On the first visit to v, mark v seen and replace
+that visit by visits of its children in supplied order, then an emission of v.
+Skip later visits to seen vertices. An emission returns the vertex. For V
+reachable vertices and E reachable edges, count repeated adjacency positions
+in E, even when they name the same child.
+
+**Theorem 28.7 (finite dependency-first traversal).** This procedure terminates,
+emits each reachable vertex exactly once with every dependency before its
+parent, and performs exactly 1+V+E work-stack pops. It preserves the recursive
+depth-first postorder. Each vertex's adjacency list need be read only once.
+
+*Proof.* A finite DAG admits positive integer weights satisfying
+w(v) > 1 + Σ w(c), summed over v's child positions. Give a visit weight w(v)
+and an emission weight 1. Expanding an unseen visit strictly decreases the
+sum of pending work weights; skipping a seen visit or consuming an emission
+also strictly decreases it. Thus traversal terminates. Every reachable vertex
+is eventually visited, expanded once and emitted once. A dependency already
+seen while processing v is either finished or an active ancestor; the latter
+would imply a cycle. Unseen dependencies are scheduled before v's emission.
+This gives dependency-first order and the same depth-first continuation as
+recursive traversal. Initially one task is pending. Each of the V expansions
+schedules one emission and its outgoing edge visits. Each scheduled task is
+popped exactly once, giving 1+V+E. ∎
+
+For transparent flattening, follow only composite-member edges and stop at
+primitive leaves. Keeping only emitted primitive leaves gives their first
+member-occurrence order. Skipping an already expanded composite changes no
+first occurrence: its primitive descendants were already visited in the first
+expansion. Shared subgraphs therefore need not be expanded once per path.
+
+The work stack and visited set require O(V+E) reference storage, independent
+of host call-stack depth. This is not a byte quota: decoded metadata and input
+size still matter. Admission must supply an immutable acyclic graph, and
+adjacency callbacks must remain faithful. The theorem does not remove recursive
+limits from other interpreters, package installation or expert execution.

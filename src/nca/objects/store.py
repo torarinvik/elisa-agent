@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from threading import RLock
 
@@ -159,40 +159,38 @@ class Store:
         found = [self.get(ref) for ref in references]
         return [a for a in found if isinstance(a, _api.Attestation) and (kind is None or a.kind == kind)]
 
-    def flatten(self, ref: _api.Ref) -> list[_api.Ref]:
-        """The primitives of ``ref`` in member order, each at its first
-        occurrence (§28.2). Exported and transparent composites alike are
-        expanded; this is the transparent view."""
+    def _walk(self, ref: _api.Ref,
+              children: Callable[[_api.Object], Sequence[_api.Ref]]
+              ) -> Iterator[tuple[_api.Ref, _api.Object]]:
+        """Postorder over an admitted DAG, decoding each reachable node once."""
         seen: set[_api.Ref] = set()
-        order: list[_api.Ref] = []
-
-        def visit(node: _api.Ref) -> None:
-            obj = self.get(node)
-            if isinstance(obj, _api.Primitive):
-                if node not in seen:
-                    seen.add(node)
-                    order.append(node)
-            elif isinstance(obj, _api.Composite):
-                for member in obj.members:
-                    visit(member)
-
-        visit(ref)
-        return order
-
-    def walk(self, ref: _api.Ref) -> Iterator[_api.Ref]:
-        """Every object reachable from ``ref``, each once, dependencies first."""
-        seen: set[_api.Ref] = set()
-
-        def visit(node: _api.Ref) -> Iterator[_api.Ref]:
+        pending: list[tuple[_api.Ref, _api.Object | None]] = [(ref, None)]
+        while pending:
+            node, completed = pending.pop()
+            if completed is not None:
+                yield node, completed
+                continue
             if node in seen:
-                return
+                continue
             seen.add(node)
             obj = self.get(node)
-            for needed in _requires(obj):
-                yield from visit(needed)
-            yield node
+            pending.append((node, obj))
+            pending.extend((needed, None) for needed in reversed(children(obj)))
 
-        yield from visit(ref)
+    def flatten(self, ref: _api.Ref) -> list[_api.Ref]:
+        """Primitives in first member occurrence order (§28.2).
+
+        Expand exported and transparent composites, but never a primitive's
+        executable dependencies. Shared composites are visited only once.
+        """
+        return [node for node, obj in self._walk(
+            ref, lambda obj: obj.members if isinstance(obj, _api.Composite) else ())
+                if isinstance(obj, _api.Primitive)]
+
+    def walk(self, ref: _api.Ref) -> Iterator[_api.Ref]:
+        """Every reachable object once, dependencies first, without recursion."""
+        for node, _ in self._walk(ref, _requires):
+            yield node
 
     def save(self, directory: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
