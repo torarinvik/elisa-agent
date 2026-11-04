@@ -14,12 +14,46 @@ import statistics
 import tempfile
 from pathlib import Path
 from time import perf_counter
+from time import process_time
 
 from nca.effects import EffectDenied, effect_scope, expert_scope
 from nca.memory import MemoryFull, MemoryRecord, MemoryStore
 
 READ = "benchmark.read"
 WRITE = "benchmark.append"
+
+
+def churn(cycles: int) -> dict[str, float | int]:
+    """Append, scan from a saved cursor, evict everything and reopen.
+
+    No labels or expert requests are used. The legacy comparator is the
+    former max(live positions)+1 rule on the same empty-store workload.
+    """
+    if cycles < 1:
+        raise ValueError("cycles must be positive")
+    visible = cursor = legacy_visible = legacy_cursor = 0
+    with tempfile.TemporaryDirectory(prefix="nca-memory-churn-") as directory:
+        path = Path(directory) / "episodes.sqlite"
+        started, cpu = perf_counter(), process_time()
+        for i in range(cycles):
+            store = MemoryStore(path, capacity_bytes=10000, read_effect=READ, write_effect=WRITE)
+            try:
+                with effect_scope(frozenset({READ, WRITE})), expert_scope(frozenset({READ, WRITE})):
+                    ref = store.append(MemoryRecord("observation", str(i).encode(), "source", 0.0))
+                    rows = store.scan(after=cursor, limit=1)
+                    visible += bool(rows)
+                    if rows:
+                        cursor = rows[-1][0]
+                    store.remove(ref)
+                # Every previous live record was deleted: the old algorithm
+                # allocates position 1 again, so only its first scan sees it.
+                legacy_visible += 1 > legacy_cursor
+                legacy_cursor = max(legacy_cursor, 1)
+            finally:
+                store.close()
+        return {"cycles": cycles, "visible": visible, "legacy_model_visible": legacy_visible,
+                "last_cursor": cursor, "seconds": perf_counter() - started,
+                "cpu_seconds": process_time() - cpu, "labels": 0, "requests": 0}
 
 
 def measure(size: int, seed: int, queries: int) -> dict[str, float | int]:
@@ -77,7 +111,12 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[3668, 3669, 3670])
     parser.add_argument("--queries", type=int, default=1000)
     parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--churn-cycles", type=int, nargs="+")
     args = parser.parse_args()
+    if args.churn_cycles is not None:
+        for cycles in args.churn_cycles:
+            print(json.dumps(churn(cycles)))
+        return
     if any(size <= 0 for size in args.sizes) or args.queries <= 0:
         parser.error("sizes and queries must be positive")
     for size in args.sizes:

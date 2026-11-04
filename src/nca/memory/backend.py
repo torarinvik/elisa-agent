@@ -49,7 +49,9 @@ class MemoryBackend(Protocol):
         """Bounded append-order enumeration with strictly increasing positions.
 
         Positions start above zero. Later commits receive higher positions;
-        nonnegative after/limit arguments follow the SQLite backend contract.
+        deleting records never permits their positions to be reused, including
+        after reopening an empty store. Duplicate appends do not move a cursor.
+        Nonnegative after/limit arguments follow the SQLite backend contract.
         """
         ...
 

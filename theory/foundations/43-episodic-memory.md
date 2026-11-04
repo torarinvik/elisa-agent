@@ -345,3 +345,28 @@ Forced removal can bias a pool if what is deleted depends on the loss being
 estimated; the sampling hypothesis of Theorem 43.1 then needs deletions to be
 independent of it. The reported shrinkage makes this visible rather than
 silent.
+
+## 43.12 Append cursors survive eviction
+
+An append-ordered store has state `(h,L)`, where `h` is the greatest issued
+position and every live position in `L` is at most `h`. A newly admitted
+record receives `h+1` and raises `h` to that value. Removing a record filters
+`L` and leaves `h` unchanged. Duplicate admissions and failed transactions
+leave the state unchanged. Reopening restores both components exactly.
+
+**Proposition 43.6 (no cursor reuse).** These transitions preserve the bound
+on live positions. After any number of removals, the next admitted record has
+position strictly greater than every saved cursor at most the preceding
+high-water mark, even when all earlier records have been removed.
+
+*Proof.* On append, old live positions are at most `h < h+1`, and the new
+position equals the new mark. Removal only takes a subset of live positions
+and does not change the mark. Induction gives the invariant over a sequence
+of operations. A saved cursor `c ≤ h` satisfies `c < h+1`. ∎
+
+The durable high-water mark and record admission must commit atomically, and
+concurrent writers must serialize that transition. A store that retained only
+live records cannot reconstruct an evicted maximum: identical empty stores
+can have arbitrarily different histories. Upgrading such a store requires an
+externally supplied upper bound on previously issued positions; the live
+maximum alone is insufficient. The bound is an additional trusted hypothesis.

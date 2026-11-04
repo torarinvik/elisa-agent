@@ -19,15 +19,24 @@ class MemoryStore:
     eviction policy's job (§43.11). Opening an existing store requires the same capacity;
     provision a dedicated database path. Effect names are host policy, not saved
     in the database, so reopening cannot silently grant an expert authority.
+
+    Schema 2 retains an append high-water mark even after every record is
+    evicted. Schema 1 cannot recover deleted positions: migration requires
+    ``legacy_cursor``, a host-supplied upper bound on all previously issued
+    positions, including deleted ones. An unknown bound must not be guessed.
     """
 
     def __init__(self, path: str | Path, *, capacity_bytes: int,
-                 read_effect: str, write_effect: str) -> None:
+                 read_effect: str, write_effect: str,
+                 legacy_cursor: int | None = None) -> None:
         if (isinstance(capacity_bytes, bool) or not isinstance(capacity_bytes, int)
                 or capacity_bytes < 0):
             raise ValueError("capacity_bytes must be a nonnegative integer")
         if not read_effect or not write_effect:
             raise ValueError("memory effect identifiers must be nonempty")
+        if legacy_cursor is not None and (isinstance(legacy_cursor, bool)
+                or not isinstance(legacy_cursor, int) or legacy_cursor < 0):
+            raise ValueError("legacy_cursor must be a nonnegative integer")
         self.read_effect = read_effect
         self.write_effect = write_effect
         self._db = sqlite3.connect(path)
@@ -40,11 +49,13 @@ class MemoryStore:
                 self._db.execute("BEGIN IMMEDIATE")
                 self._db.execute("CREATE TABLE IF NOT EXISTS memory_meta "
                                  "(id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER, "
-                                 "capacity INTEGER, used INTEGER, records INTEGER)")
+                                 "capacity INTEGER, used INTEGER, records INTEGER, "
+                                 "position INTEGER NOT NULL DEFAULT 0)")
                 self._db.execute("CREATE TABLE IF NOT EXISTS memory_records "
                                  "(ref TEXT PRIMARY KEY, encoded BLOB NOT NULL, "
                                  "position INTEGER UNIQUE NOT NULL) WITHOUT ROWID")
-                self._db.execute("INSERT OR IGNORE INTO memory_meta VALUES (1, 1, ?, 0, 0)",
+                self._db.execute("INSERT OR IGNORE INTO memory_meta "
+                                 "(id, version, capacity, used, records) VALUES (1, 2, ?, 0, 0)",
                                  (capacity_bytes,))
                 indexed = self._db.execute(
                     "SELECT 1 FROM sqlite_master WHERE name='memory_parents'").fetchone()
@@ -59,8 +70,17 @@ class MemoryStore:
                                              [(parent, child) for parent in _decode(encoded).parents])
                 version, capacity = self._db.execute(
                     "SELECT version, capacity FROM memory_meta WHERE id=1").fetchone()
-                if version != 1 or capacity != capacity_bytes:
+                if capacity != capacity_bytes or version not in (1, 2):
                     raise ValueError("memory schema version or capacity does not match")
+                if version == 1:
+                    largest = self._db.execute(
+                        "SELECT COALESCE(MAX(position), 0) FROM memory_records").fetchone()[0]
+                    if legacy_cursor is None or legacy_cursor < largest:
+                        raise ValueError("schema 1 needs legacy_cursor covering all issued positions")
+                    self._db.execute("ALTER TABLE memory_meta ADD COLUMN "
+                                     "position INTEGER NOT NULL DEFAULT 0")
+                    self._db.execute("UPDATE memory_meta SET version=2, position=? WHERE id=1",
+                                     (legacy_cursor,))
         except Exception:
             self._db.close()
             raise
@@ -128,13 +148,13 @@ class MemoryStore:
                     if _decode(row[0]).type_id != record.type_id:
                         raise ValueError("superseded record has a different type")
             position = self._db.execute(
-                "SELECT COALESCE(MAX(position), 0) + 1 FROM memory_records").fetchone()[0]
+                "SELECT position FROM memory_meta WHERE id=1").fetchone()[0] + 1
             self._db.execute("INSERT INTO memory_records VALUES (?, ?, ?)",
                              (reference, encoded, position))
             self._db.executemany("INSERT INTO memory_parents VALUES (?, ?)",
                                  [(parent, reference) for parent in dict.fromkeys(record.parents)])
-            self._db.execute("UPDATE memory_meta SET used=used+?, records=records+1 WHERE id=1",
-                             (charge,))
+            self._db.execute("UPDATE memory_meta SET used=used+?, records=records+1, "
+                             "position=? WHERE id=1", (charge, position))
         return reference
 
     def remove(self, reference: Ref) -> int:

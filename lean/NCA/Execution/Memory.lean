@@ -70,6 +70,45 @@ end NCA
 
 namespace NCA
 
+/-- Append positions are issued from retained metadata, not live records. -/
+structure AppendCursor where
+  high : Nat
+  live : List Nat
+  deriving Repr
+
+def cursorAppend (s : AppendCursor) : AppendCursor :=
+  ⟨s.high + 1, s.live ++ [s.high + 1]⟩
+
+def cursorErase (s : AppendCursor) (position : Nat) : AppendCursor :=
+  ⟨s.high, s.live.filter (fun p => p != position)⟩
+
+def cursorValid (s : AppendCursor) : Prop := ∀ p ∈ s.live, p ≤ s.high
+
+theorem cursorAppend_valid (s : AppendCursor) (valid : cursorValid s) :
+    cursorValid (cursorAppend s) := by
+  intro p hp
+  simp only [cursorAppend, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact Nat.le_trans (valid p hp) (Nat.le_succ _)
+  · exact Nat.le_refl _
+
+theorem cursorErase_valid (s : AppendCursor) (valid : cursorValid s) (p : Nat) :
+    cursorValid (cursorErase s p) := by
+  intro q hq
+  exact valid q (List.mem_filter.mp hq).1
+
+/-- Eviction cannot lower the high-water mark; a later append remains beyond
+every previously observed cursor bounded by that mark, even if no records live. -/
+theorem cursor_after_eviction (s : AppendCursor) (removed saved : Nat)
+    (observed : saved ≤ s.high) :
+    saved < (cursorAppend (cursorErase s removed)).high := by
+  simp only [cursorAppend, cursorErase]
+  omega
+
+end NCA
+
+namespace NCA
+
 /-- Protected dispatch has no implicit fallback outside its registered bindings. -/
 def protectedLookup {Q A P : Type} (bindings : Q → Option A) (catalog : A → Option P)
     (request : Q) : Option P := (bindings request).bind catalog
