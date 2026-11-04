@@ -13,11 +13,16 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import process_time
 from typing import Any
+from itertools import product
 
 from nca.abi import Contract, Manifest, Message, Module
 from nca.learning.discovery import Decoded, fit_decoder, propose_corrections
 from nca.learning.acquisition_objects import store_acquired_model
 from nca.learning.features import compose_features
+from nca.learning import categorical
+from nca.learning.interfaces import propose_joint_refinements
+from nca.learning.discovery import Proposal
+from nca.native import load
 from nca.planner import Apply, Given, Plan
 from nca.objects import Primitive, Store
 from nca.packages import install
@@ -340,10 +345,78 @@ def target_trial(seed: int, policy: str, decoys: int) -> dict[str, float]:
             "construction_cpu_seconds": construction_cpu, "cpu_seconds": process_time() - started}
 
 
+class CategoryFeature:
+    def __init__(self, index: int) -> None:
+        self.index, self.calls = index, 0
+        self.manifest = Manifest(f"coordinate-{index}", "1",
+                                 Contract(("sample",), f"part-{index}"),
+                                 cost=1, effects=frozenset())
+
+    def invoke(self, value: tuple[int, ...]) -> int:
+        self.calls += 1
+        return value[self.index]
+
+
+def categorical_trial(seed: int, policy: str, size: int) -> dict[str, float]:
+    """Same joint search, fitter and fresh cases; only score execution changes."""
+    kernel = load("records")
+    if policy == "elisa" and getattr(kernel, "modal_score", None) is None:
+        raise RuntimeError("build records with modal_score before running the Elisa comparison")
+    previous = categorical._NATIVE
+    categorical._NATIVE = kernel if policy == "elisa" else None
+    try:
+        started = process_time()
+        rng = random.Random(seed)
+        targets = rng.sample(range(8), 8)
+        inputs = list(product(range(2), repeat=6))
+
+        def target(value: tuple[int, ...]) -> str:
+            return f"label:{targets[4 * value[0] + 2 * value[1] + value[2]]}"
+
+        rows = [(rng.choice(inputs),) for _ in range(size)]
+        labels = [target(value) for value, in rows]
+        features = [CategoryFeature(i) for i in range(6)]
+        score_started = process_time()
+        proposals = propose_joint_refinements(Proposal(features[0]),
+            [Proposal(feature) for feature in features[1:]], rows, labels,
+            max_candidates=5, max_companions=2, max_joint_candidates=15, limit=1, pair_cost=0)
+        score_cpu = process_time() - score_started
+        assert len(proposals) == 1
+        feature = proposals[0].expert
+        keys = [feature.invoke(value) for value, in rows]
+        head = fit_decoder(Contract((feature.manifest.contract.output,), "label"), keys, labels, cost=0)
+        model = Decoded(feature, head, Base.manifest.contract)
+        search = EnsembleSearch(counts=(1,), tolerance=0.05, confidence=0.05, budget=8)
+
+        def sample(count: int) -> list[VoteCase]:
+            values = [rng.choice(inputs) for _ in range(count)]
+            return [((Message("sample", value, "input"),), target(value)) for value in values]
+
+        result = search.revise(Base.manifest.contract,
+            lambda cap, failures: (Apply(model, (Given("sample"),)),), sample)
+        errors = sum(model.invoke(value) != target(value) for value in inputs)
+        return {"requests": search.requests, "fits": 1, "training_labels": size,
+                "validation_labels": search.labels, "audit_labels": len(inputs),
+                "audit_errors": errors, "certified_tasks": int(result is not None),
+                "feature_calls": sum(feature.calls for feature in features),
+                "scored_subsets": 15, "refinement_cpu_seconds": score_cpu,
+                "cpu_seconds": process_time() - started}
+    finally:
+        categorical._NATIVE = previous
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--targeted", action="store_true")
+    parser.add_argument("--categorical", action="store_true")
     args = parser.parse_args()
+    if args.categorical:
+        for size in (64, 4096, 65536):
+            for policy in ("python", "elisa"):
+                for seed in (3716, 3717, 3718):
+                    print(json.dumps({"policy": policy, "size": size, "seed": seed,
+                                      **categorical_trial(seed, policy, size)}), flush=True)
+        raise SystemExit
     if args.targeted:
         for decoys in (0, 64):
             for policy in ("narrow", "wide", "targeted"):

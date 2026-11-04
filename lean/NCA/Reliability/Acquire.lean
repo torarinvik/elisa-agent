@@ -2,6 +2,7 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Finset.Max
+import Mathlib.Data.List.Count
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -58,6 +59,33 @@ theorem modal_decoder_optimal {K L : Type*} (keys : Finset K)
     (maximal : ∀ k ∈ keys, ∀ label, count k label ≤ count k (mode k)) :
     ∑ k ∈ keys, count k (alternative k) ≤ ∑ k ∈ keys, count k (mode k) := by
   exact Finset.sum_le_sum fun k hk => maximal k hk (alternative k)
+
+/-- An exact finite contingency-table score; no label ordering or meaning. -/
+def empiricalModalScore {K L : Type*} (keys : Finset K) (labels : Finset L)
+    (count : K → L → ℕ) : ℕ :=
+  ∑ k ∈ keys, labels.sup (count k)
+
+theorem empiricalModalScore_counts {K L : Type*} (keys : Finset K) (labels : Finset L)
+    (before after : K → L → ℕ) (faithful : ∀ k l, before k l = after k l) :
+    empiricalModalScore keys labels before = empiricalModalScore keys labels after := by
+  have same : before = after := funext fun k => funext (faithful k)
+  rw [same]
+
+/-- Sorting observations preserves the exact empirical score. Native sorting
+and injective identifier transport must still preserve these multiplicities. -/
+theorem empiricalModalScore_perm {K L : Type*} [DecidableEq K] [DecidableEq L]
+    (keys : Finset K) (labels : Finset L) (before after : List (K × L))
+    (reorder : before.Perm after) :
+    empiricalModalScore keys labels (fun k l => before.count (k, l)) =
+      empiricalModalScore keys labels (fun k l => after.count (k, l)) := by
+  apply empiricalModalScore_counts
+  intro k l
+  exact reorder.count_eq (k, l)
+
+theorem empirical_identifier_count {A I : Type*} [DecidableEq A] [DecidableEq I]
+    (pairs : List A) (name : A → I) (injective : Function.Injective name) (pair : A) :
+    (pairs.map name).count (name pair) = pairs.count pair :=
+  List.count_map_of_injective pairs name injective pair
 
 /-- A decoder on the first component is also a decoder on the joint
 representation, with exactly the same predictions (Proposition 36.5). -/

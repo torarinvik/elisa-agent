@@ -220,6 +220,22 @@ libraries still pay the eager inspection cost, and capped completeness is not
 claimed. Elisa continues to accelerate packed rule lookup; opaque metadata
 indexing remains host orchestration.
 
+Joint-feature refinement's exact empirical category score (§36.68) now uses
+`learning.categorical.modal_score`. Host dictionaries intern opaque keys and
+labels with equality checks; Elisa `records.modal_score` heapsorts a permutation
+of packed identifier pairs and sums each key's largest category run. Index
+storage is linear, without multiplying key and label cardinalities or narrowing
+user values to machine integers. Missing/disabled kernels use the exact Python
+histogram reference. `empiricalModalScore_perm` and `empirical_identifier_count`
+prove count preservation under sorting and injective naming;
+`empiricalModalScore_counts` transfers those counts to the score. They do not
+verify the compiled heapsort, interning or foreign buffer ABI. Exhaustive small
+streams, collision/signed/sparse cases and joint-candidate comparisons link the
+implementation. `feature_trees.py --categorical` charges full refinement, host
+conversion, fitting and independent certification. Scores are training-only
+evidence, not semantic or generalization certificates; supervision and candidate
+enumeration remain separate costs.
+
 Multi-input applications now participate in shared graph retention (§36.61).
 `nca/application@1` restores a head and ordered feature bindings, including
 repeated references. `AppliedFeature` recomputes contract/effect/cost/call
@@ -621,6 +637,7 @@ an inference from their separate tests.
 | [36.64](theory/evidence/36-interface-acquisition.md) | `feature_coarse_filter` | `Planning/FeatureClosure` |
 | [36.65](theory/evidence/36-interface-acquisition.md) | `feature_priority_closure` | `Planning/FeatureClosure` |
 | [36.67](theory/evidence/36-interface-acquisition.md) | `feature_target_reach` | `Planning/FeatureClosure` |
+| [36.68](theory/evidence/36-interface-acquisition.md) | `empiricalModalScore_counts`, `empiricalModalScore_perm`, `empirical_identifier_count` | `Reliability/Acquire` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

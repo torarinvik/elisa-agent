@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from nca.abi import Contract, Module
 from nca.effects import invoke_scoped
 from nca.learning.discovery import Decoded, Decoder, JointFeature, Proposal, fit_decoder
+from nca.learning.categorical import modal_score
 from nca.objects import Constructor, canonical, digest
 from nca.value_codec import encode_value
 
@@ -255,14 +256,8 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
            for p in companions):
         raise ValueError("companion features must preserve inputs, slots and relevance")
 
-    def score(keys: Sequence[Hashable]) -> int:
-        counts: dict[Hashable, Counter[Hashable]] = {}
-        for key, label in zip(keys, labels, strict=True):
-            counts.setdefault(key, Counter())[label] += 1
-        return sum(max(histogram.values()) for histogram in counts.values())
-
     keys = tuple(invoke_scoped(feature.expert, *row) for row in rows)
-    baseline = score(keys)
+    baseline = modal_score(keys, labels)
     observations = tuple(tuple(invoke_scoped(p.expert, *row) for row in rows) for p in companions)
     subsets = chain.from_iterable(combinations(range(len(companions)), size)
                                   for size in range(1, min(max_companions, len(companions)) + 1))
@@ -271,7 +266,7 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
         joint_keys = keys
         for index in subset:
             joint_keys = tuple(zip(joint_keys, observations[index], strict=True))
-        successes = score(joint_keys)
+        successes = modal_score(joint_keys, labels)
         if successes > baseline:
             joined = feature.expert
             constructors = feature.constructors

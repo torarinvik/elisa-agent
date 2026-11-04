@@ -271,3 +271,34 @@ can exclude a useful target. Target restriction can change capped prefixes;
 no capped completeness is asserted. Dependency inspection costs metadata reads
 and storage; when most of the library is relevant it need not save work.
 Higher-order and polymorphic rules require a separate search model.
+
+## 36.68 Exact empirical category scores
+
+For a finite sequence of observation/label pairs P, let c(k,l) count occurrences
+of (k,l). Over finite sets K and L covering all observed keys and labels, define
+M(P) = Σ_{k∈K} max_{l∈L} c(k,l), taking an empty maximum as zero. This is the
+number of successes of a best constant-label decoder within each observed key.
+It is an empirical selection score, not a bound on unseen errors.
+
+**Theorem 36.68 (count-preserving scoring).** Reordering the pairs leaves M
+unchanged. Replacing key and label values by injective identifiers also leaves
+M unchanged when the count table is transported along those identifiers.
+Thus sorting exact identifier pairs and counting their equal runs computes the
+same score as counting opaque pairs directly. Within a sorted key group the
+largest label-run length is its contribution; summing those maxima gives M.
+
+*Proof.* A permutation preserves every pair's multiplicity. Injective naming
+preserves pair equality and transports the count table without merging cells.
+The maxima in each row and their sum therefore remain unchanged. Sorting makes
+equal pairs contiguous and equal-key runs adjacent, so run lengths are exactly
+those multiplicities. Every constant-label decoder scores at most the row
+maximum within each key; summing gives empirical optimality. ∎
+
+Hash equality alone is insufficient for naming: collisions must still compare
+actual keys and labels. Equality must be an equivalence relation, with equal
+values having equal stable hashes. Encoding and sorting are implementation obligations;
+compiler correctness does not follow from this count-table identity. O(N)
+identifier storage and sorting work can exceed direct histogram costs on small
+samples. Frozen observations, stable equality/hashing, training-only selection
+and independent certification remain required. No particular category or task
+semantics is part of the score.

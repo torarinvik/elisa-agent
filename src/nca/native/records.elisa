@@ -14,5 +14,48 @@ def select_equal(values: view[i64], width: i64, column: i64, needle: i64) -> dar
                 cursor += 1
     return filled
 
+def pair_less(values: view[i64], a: i64, b: i64) -> bool:
+    return values[2 * a] < values[2 * b] or (values[2 * a] == values[2 * b] and values[2 * a + 1] < values[2 * b + 1])
+
+def sift_pairs(values: view[i64], order: mutable view[i64], root: i64, end: i64) -> i64 can[Abort.Panic]:
+    return for _ in 0..<end |here: i64 = root, order| -> here:
+        break if here >= end / 2
+        left: i64 = 2 * here + 1
+        child: i64 = left + 1 if left + 1 < end and pair_less(values, order[left], order[left + 1]) else left
+        break if not pair_less(values, order[here], order[child])
+        saved: i64 = order[here]
+        order[here] <- order[child]
+        order[child] <- saved
+        here <- child
+
+# Exact modal contingency score of packed (group, category) pairs. Sort an
+# index permutation, then sum each group's largest equal-category run.
+# Values are arbitrary signed identifiers; no dense table or pair packing.
+def modal_score(values: view[i64]) -> i64 can[Memory.Allocate, Abort.Panic]:
+    return -1 if values.len.i64() % 2 != 0
+    n: i64 = values.len.i64() / 2
+    return 0 if n == 0
+    order: mutable darray[i64] = [i for i in 0..<n]
+    for step in 0..<(n / 2):
+        sift_pairs(values, order, n / 2 - step - 1, n)
+    for step in 0..<(n - 1):
+        end: i64 = n - step - 1
+        saved: i64 = order[0]
+        order[0] <- order[end]
+        order[end] <- saved
+        sift_pairs(values, order, 0, end)
+    total, best =
+        for i in 0..<n |total: i64 = 0, best: i64 = 0, run: i64 = 0| -> (total, best):
+            at: i64 = order[i]
+            if i == 0 or values[2 * at] != values[2 * order[i - 1]]:
+                total += best
+                best <- 0
+                run <- 1
+            else:
+                run <- run + 1 if values[2 * at + 1] == values[2 * order[i - 1] + 1] else 1
+            best <- run if run > best else best
+    return total + best
+
 export pymodule records:
     fn select_equal
+    fn modal_score
