@@ -379,3 +379,12 @@ so this is not a CPU or learning-rate bound. Rejection on a training mismatch
 never removes a program that agrees with every training example; consistency
 on training data does not certify generalization. A proposed program must be
 frozen and tested on fresh cases under the existing admission assumptions.
+
+
+## 36.73 Construction after selection
+
+If a selector chooses an item and an output expression renders that item to
+the target at the given input, their composition returns the target there
+(`selected_output_correct`). This is pointwise: neither component hypothesis
+follows from finite training consistency. Fresh admission remains necessary;
+the statement does not establish selection accuracy or a learning rate.

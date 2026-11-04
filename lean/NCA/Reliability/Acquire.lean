@@ -512,4 +512,11 @@ theorem bounded_candidate_evaluations (counts : List ℕ) (limit samples : ℕ)
       omega
   exact bound.trans (Nat.mul_le_mul_right samples hlen)
 
+/-- Rendering a selected item is correct when selection and rendering are correct. -/
+theorem selected_output_correct {X Y Z : Type*} (select : X → Option Y)
+    (render : Y → Z) (target : X → Z) (x : X) (item : Y)
+    (selected : select x = some item) (correct : render item = target x) :
+    Option.map render (select x) = some (target x) := by
+  simp [selected, correct]
+
 end NCA
