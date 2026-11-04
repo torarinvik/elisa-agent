@@ -313,7 +313,9 @@ Search may assign positive integer costs to expert applications and enumerate
 routes by their total cost, counting each input reference once. Costs can be
 snapshotted from smoothed counts of experts in previously certified routes;
 this changes priority, not the fresh-certification requirement. The costs are
-ranking scores, not yet a uniquely decodable description code.
+ranking scores, not yet a uniquely decodable description code. A node of cost
+c with k positive-cost children needs at least c+k units
+(`positive_children_arity_bound`), so smaller budgets cannot contain it.
 
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;

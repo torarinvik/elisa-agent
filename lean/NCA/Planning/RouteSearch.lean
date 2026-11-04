@@ -93,4 +93,22 @@ theorem map_agree_on_calls {α β : Type} (f g : α → β) (calls : List α)
     simp only [List.map_cons, List.cons.injEq]
     exact ⟨agree x (by simp), ih (by intro y hy; exact agree y (by simp [hy]))⟩
 
+
+/-- Every positive-cost child consumes at least one unit of a route's budget. -/
+theorem positive_children_arity_bound (parent : Nat) (children : List Nat)
+    (positive : ∀ cost ∈ children, 1 ≤ cost) :
+    parent + children.length ≤ parent + children.sum := by
+  have lower : children.length ≤ children.sum := by
+    induction children with
+    | nil => simp
+    | cons head tail ih =>
+      have head_positive := positive head (by simp)
+      have tail_positive : ∀ cost ∈ tail, 1 ≤ cost := by
+        intro cost member
+        exact positive cost (by simp [member])
+      have tail_bound := ih tail_positive
+      simp only [List.length_cons, List.sum_cons]
+      omega
+  omega
+
 end NCA
