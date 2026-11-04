@@ -8,6 +8,7 @@ from heapq import heappop, heappush
 from typing import Any
 
 from nca.abi import Module
+from nca.effects import invoke_scoped
 from nca.learning.discovery import Proposal, _total_calls
 from nca.learning.numeric import SplitTieBreak, fit_partition_encoder, fit_regions_encoder
 
@@ -42,9 +43,9 @@ class RegionalPolicy:
             expected_calls=None, effects=effects)
 
     def invoke(self, *inputs: Any) -> Any:
-        specialist = self.specialists.get(self.feature.invoke(*inputs))
-        return (self.incumbent.invoke(*inputs) if specialist is None
-                else specialist.invoke(*inputs))
+        specialist = self.specialists.get(invoke_scoped(self.feature, *inputs))
+        return (invoke_scoped(self.incumbent, *inputs) if specialist is None
+                else invoke_scoped(specialist, *inputs))
 
 
 class RegionalExpert(RegionalPolicy):
@@ -132,9 +133,9 @@ def propose_regional_experts(incumbent: Module, feature: Module,
     groups: dict[Hashable, list[int]] = {}
     errors: dict[Hashable, int] = {}
     for index, (row, target) in enumerate(zip(rows, labels, strict=True)):
-        key = feature.invoke(*row)
+        key = invoke_scoped(feature, *row)
         groups.setdefault(key, []).append(index)
-        errors[key] = errors.get(key, 0) + int(not correct(incumbent.invoke(*row), target))
+        errors[key] = errors.get(key, 0) + int(not correct(invoke_scoped(incumbent, *row), target))
     selected = sorted((key for key in groups if errors[key]), key=lambda key: -errors[key])
     proposals = []
     alternatives = []
@@ -148,7 +149,7 @@ def propose_regional_experts(incumbent: Module, feature: Module,
             proposals.append(Proposal(expert, candidate.constructors))
         if refine is not None and refinement_calls < max_refinements:
             seeds = [(len(indices) - errors[key], Proposal(incumbent))]
-            seeds.extend((sum(bool(correct(candidate.expert.invoke(*row), target))
+            seeds.extend((sum(bool(correct(invoke_scoped(candidate.expert, *row), target))
                               for row, target in zip(subset, targets, strict=True)), candidate)
                          for candidate in local if candidate.expert is not incumbent)
             successes, seed = min(seeds, key=lambda item: (-item[0], item[1].expert.manifest.cost))
@@ -167,7 +168,7 @@ def propose_regional_experts(incumbent: Module, feature: Module,
         ranked = []
         for key, family in alternatives:
             scores: list[tuple[int, Proposal | None]] = [
-                (sum(bool(correct(candidate.expert.invoke(*rows[i]), labels[i]))
+                (sum(bool(correct(invoke_scoped(candidate.expert, *rows[i]), labels[i]))
                      for i in groups[key]), candidate) for candidate in family
                 if candidate.expert is not incumbent]
             scores.append((len(groups[key]) - errors[key], None))
@@ -261,7 +262,7 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
     failures = []
     signals = []
     for row, target in zip(rows, labels, strict=True):
-        prediction = incumbent.invoke(*row)
+        prediction = invoke_scoped(incumbent, *row)
         failure = not correct(prediction, target)
         failures.append(failure)
         signals.append(failure if routing_signal is None
@@ -293,7 +294,7 @@ def propose_failure_partitions(incumbent: Module, measurements: Sequence[Module]
         def score(encoder: Module) -> int:
             counts: dict[Hashable, Counter[Hashable]] = {}
             for row, signal in zip(rows, signals, strict=True):
-                counts.setdefault(encoder.invoke(*row), Counter())[signal] += 1
+                counts.setdefault(invoke_scoped(encoder, *row), Counter())[signal] += 1
             return sum(max(histogram.values()) for histogram in counts.values())
 
         routers.sort(key=lambda item: score(item[0]), reverse=True)

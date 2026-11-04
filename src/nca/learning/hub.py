@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Sequence
 
 from nca.abi import Contract, Module, TypeId
+from nca.effects import invoke_scoped
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module]
 """Fits a unary expert of a contract from aligned keys and labels."""
@@ -30,6 +31,6 @@ def attach(new: TypeId, hub: TypeId, partner_encoder: Module,
     if not pairs:
         raise ValueError("attachment needs paired observations")
     values = [value for value, _ in pairs]
-    codes = [partner_encoder.invoke(partner) for _, partner in pairs]
+    codes = [invoke_scoped(partner_encoder, partner) for _, partner in pairs]
     return (fit(Contract((new,), hub), values, codes),
             fit(Contract((hub,), new), codes, values))

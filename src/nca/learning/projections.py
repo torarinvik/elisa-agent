@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from nca.abi import Module
+from nca.effects import invoke_scoped
 from nca.learning.discovery import Proposal
 from nca.native import load
 from nca.learning.numeric import _observation, _partition_from_ordered, propose_partition
@@ -44,7 +45,7 @@ class ProjectionEncoder:
             cost=measurement.manifest.cost + cost)
 
     def invoke(self, *inputs: Any) -> float:
-        value = _vector(self.measurement.invoke(*inputs))
+        value = _vector(invoke_scoped(self.measurement, *inputs))
         if len(value) != len(self.direction):
             raise ValueError("projection input dimension differs from training")
         return self.project(value)
@@ -98,7 +99,7 @@ def _centroid_training(measurement: Module, rows: Sequence[tuple[Any, ...]],
     groups: dict[Hashable, list[tuple[float, ...]]] = {}
     dimension = None
     for row, label in zip(rows, labels, strict=True):
-        value = _vector(measurement.invoke(*row))
+        value = _vector(invoke_scoped(measurement, *row))
         if dimension is not None and len(value) != dimension:
             raise ValueError("inconsistent vector dimensions")
         dimension = len(value)
@@ -175,7 +176,7 @@ class PrototypeEncoder:
             cost=measurement.manifest.cost + cost)
 
     def invoke(self, *inputs: Any) -> int:
-        value = _vector(self.measurement.invoke(*inputs))
+        value = _vector(invoke_scoped(self.measurement, *inputs))
         if len(value) != len(self.centers[0]):
             raise ValueError("prototype input dimension differs from training")
         if _PROTOTYPE_NATIVE is not None:
@@ -252,7 +253,7 @@ def fit_regression_projection(measurement: Module, rows: Sequence[tuple[Any, ...
     if not math.isfinite(projection_cost) or projection_cost < 0:
         raise ValueError("projection cost must be finite and nonnegative")
     targets = tuple(map(_observation, feedback))
-    values = tuple(_vector(measurement.invoke(*row)) for row in rows)
+    values = tuple(_vector(invoke_scoped(measurement, *row)) for row in rows)
     direction = _regression_direction(values, targets)
     return ProjectionEncoder(measurement, direction, projection_cost) if any(direction) else None
 
@@ -343,7 +344,7 @@ class PolynomialEncoder:
             cost=measurement.manifest.cost + cost)
 
     def invoke(self, *inputs: Any) -> tuple[float, ...]:
-        return self.encode(self.measurement.invoke(*inputs))
+        return self.encode(invoke_scoped(self.measurement, *inputs))
 
     def encode(self, value: tuple[float, ...]) -> tuple[float, ...]:
         """Evaluate a training snapshot using the same validated polynomial path."""
@@ -382,7 +383,7 @@ def propose_polynomial_partitions(incumbent: Module, measurement: Module,
     if reuse_observations and (measurement.manifest.effects != frozenset()
                                or measurement.manifest.contract.slots):
         raise ValueError("observation reuse requires known empty effects and no slots")
-    dimension = len(_vector(measurement.invoke(*rows[0])))
+    dimension = len(_vector(invoke_scoped(measurement, *rows[0])))
     proposals = []
     for degree in degrees:
         lift = PolynomialEncoder(measurement, dimension, degree,
@@ -427,10 +428,10 @@ def fit_polynomial_regression_features(measurement: Module,
     if reuse_observations and (measurement.manifest.effects != frozenset() or contract.slots):
         raise ValueError("observation reuse requires known empty effects and no slots")
     targets = tuple(map(_observation, feedback))
-    observations = (tuple(_vector(measurement.invoke(*row)) for row in rows)
+    observations = (tuple(_vector(invoke_scoped(measurement, *row)) for row in rows)
                     if reuse_observations else ())
     dimension = len(observations[0] if reuse_observations
-                    else _vector(measurement.invoke(*rows[0])))
+                    else _vector(invoke_scoped(measurement, *rows[0])))
     proposals = []
     for degree in range(1, max_degree + 1):
         if math.comb(dimension + degree, degree) - 1 > max_terms:
@@ -449,7 +450,7 @@ def fit_polynomial_regression_features(measurement: Module,
             continue
         proposals.append(Proposal(projection, (lift.constructor, projection.constructor)))
         predictions = (map(projection.project, lifted) if reuse_observations
-                       else (projection.invoke(*row) for row in rows))
+                       else (invoke_scoped(projection, *row) for row in rows))
         residuals = tuple(_observation(target - prediction)
                           for target, prediction in zip(targets, predictions, strict=True))
         offset = math.fsum(residual / len(rows) for residual in residuals)
@@ -512,7 +513,7 @@ def fit_prototype_features(measurement: Module, rows: Sequence[tuple[Any, ...]],
         encoder = PrototypeEncoder(measurement, tuple(dict.fromkeys(centers)), encoding_cost)
         proposals.append(Proposal(encoder, (encoder.constructor,)))
         counts: dict[int, Counter[Hashable]] = {}
-        codes = tuple(encoder.invoke(*row) for row in rows)
+        codes = tuple(invoke_scoped(encoder, *row) for row in rows)
         for code, label in zip(codes, labels, strict=True):
             counts.setdefault(code, Counter())[label] += 1
         modes = {code: histogram.most_common(1)[0][0] for code, histogram in counts.items()}

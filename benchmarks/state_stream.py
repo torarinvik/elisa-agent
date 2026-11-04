@@ -12,6 +12,7 @@ import random
 from contextlib import nullcontext
 import statistics
 from dataclasses import dataclass
+from typing import Any
 from time import perf_counter, process_time
 
 from nca.abi import Contract, Manifest, Message
@@ -19,6 +20,7 @@ from nca.planner import Apply, Given
 from nca.effects import EffectDenied, effect_scope, require_effect
 from nca.runtime import Process, RiskLedger, execute
 from nca.workspace import Workspace
+from nca.learning.discovery import Decoded
 
 
 @dataclass
@@ -143,6 +145,59 @@ def workspace_trial(legacy: bool, scenario: str, repeats: int = 1000) -> dict[st
             "labels": 0, "expert_requests": 0, "cpu_seconds": process_time() - started}
 
 
+@dataclass
+class ScopedComponent:
+    manifest: Manifest
+    operation: str | None = None
+    calls: int = 0
+    accesses: int = 0
+
+    def invoke(self, value: Any) -> Any:
+        self.calls += 1
+        if self.operation is not None:
+            require_effect(self.operation)
+            self.accesses += 1
+        return value
+
+
+def legacy_decoded(self: Decoded, *inputs: Any) -> Any:
+    """The previous direct child calls; only this method changes in the reference."""
+    return self.decoder.invoke(self.feature.invoke(*inputs))
+
+
+def component_authority_trial(legacy: bool, scenario: str, repeats: int = 1000) -> dict[str, float | int]:
+    capability = frozenset({"benchmark.resource"})
+    feature = ScopedComponent(Manifest("feature", "1", Contract(("input",), "feature"),
+                                       effects=frozenset()),
+                              "benchmark.resource" if scenario == "forbidden" else None)
+    head = ScopedComponent(Manifest("head", "1", Contract(("feature",), "output"),
+                                    effects=frozenset() if scenario == "pure" else capability),
+                           "benchmark.resource" if scenario == "legitimate" else None)
+    model = Decoded(feature, head, Contract(("input",), "output"))
+    route = Apply(model, (Given("input"),))
+    old = Decoded.invoke
+    if legacy:
+        Decoded.invoke = legacy_decoded
+    accepted = denied = 0
+    started = process_time()
+    try:
+        with effect_scope(capability):
+            for _ in range(repeats):
+                try:
+                    result = execute(route, (Message("input", 7, "input"),), Workspace(), 1)
+                except EffectDenied:
+                    denied += 1
+                else:
+                    assert result.payload == 7
+                    accepted += 1
+    finally:
+        Decoded.invoke = old
+    return {"outer_requests": repeats, "accepted": accepted, "denied": denied,
+            "component_calls": feature.calls + head.calls,
+            "protected_accesses": feature.accesses + head.accesses,
+            "labels": 0, "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=[100, 1000, 10000])
@@ -151,7 +206,16 @@ def main() -> None:
     parser.add_argument("--restricted", action="store_true")
     parser.add_argument("--fault-rate", type=float, default=0.0)
     parser.add_argument("--workspace-identity", action="store_true")
+    parser.add_argument("--component-authority", action="store_true")
     args = parser.parse_args()
+    if args.component_authority:
+        for scenario in ("forbidden", "legitimate", "pure"):
+            for legacy in (True, False):
+                samples = [component_authority_trial(legacy, scenario) for _ in range(3)]
+                print(json.dumps({"scenario": scenario, "legacy": legacy,
+                                  **{key: statistics.mean(sample[key] for sample in samples)
+                                     for key in samples[0]}}), flush=True)
+        return
     if args.workspace_identity:
         for scenario in ("fresh", "same", "collision"):
             for legacy in (True, False):

@@ -101,3 +101,29 @@ position can become stale after another rollback; it is not an isolated or
 concurrent transaction handle. This result covers workspace message bindings,
 not arbitrary payload mutation, external memory/effects, ledger charges, or
 already incurred costs.
+
+## 42.6 Component declarations inside learned compositions
+
+A composite advertises the union D∪S of a selected component's declared effects
+D and its siblings' declarations S. This union states the whole composition's
+resource footprint; it does not grant every component every sibling's effects.
+Invoke each immediate component callback under its own declaration D.
+
+**Theorem 42.2 (siblings supply no component authority).** Under explicit finite
+host grants G, the selected component's effective allowance is
+(G∩(D∪S))∩D = G∩D. An effect absent from D is denied even if it belongs to S.
+
+*Proof.* Membership on the left means membership in G, in D∪S, and in D.
+Membership in D already implies membership in D∪S, leaving exactly G∩D.
+The gateway requires membership in that allowance, so an effect outside D is
+unavailable. ∎
+
+The component's callback must actually be invoked within its declaration
+scope, and the gateway must check before the protected operation. The same
+rule applies when a training or evaluation procedure calls an expert to obtain
+observations; the procedure's own authority is not the expert's declaration.
+Callbacks and metadata must remain faithful and scopes must restore after
+return or exception. Immediate callback scoping alone does not attach origin
+authority to returned requests, generators, callbacks or other deferred objects;
+their later use requires explicit runtime mediation. This result establishes
+neither arbitrary-code isolation nor rollback of operations already performed.

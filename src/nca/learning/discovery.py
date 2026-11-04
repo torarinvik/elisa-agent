@@ -11,6 +11,7 @@ from itertools import combinations
 from typing import Any
 
 from nca.abi import Calls, Contract, Manifest, Module
+from nca.effects import invoke_scoped
 from nca.objects import (Constructor, Json, Primitive, Ref, Store, canonical,
                          contract_data, contract_from, digest)
 from nca.packages import install
@@ -125,7 +126,7 @@ class Decoded:
                                 cost=feature.manifest.cost + decoder.manifest.cost, effects=effects)
 
     def invoke(self, *inputs: Any) -> Any:
-        return self.decoder.invoke(self.feature.invoke(*inputs))
+        return invoke_scoped(self.decoder, invoke_scoped(self.feature, *inputs))
 
 
 def _total_calls(manifests: Sequence[Manifest], expected: bool = False) -> tuple[Calls, ...]:
@@ -158,7 +159,7 @@ class JointFeature:
             expected_calls=_total_calls((a, b), True) or None, effects=effects)
 
     def invoke(self, *inputs: Any) -> tuple[Any, Any]:
-        return self.left.invoke(*inputs), self.right.invoke(*inputs)
+        return invoke_scoped(self.left, *inputs), invoke_scoped(self.right, *inputs)
 
 
 def joint_features(features: Sequence[Module], *, max_size: int, limit: int,
@@ -219,7 +220,7 @@ def propose_decoders(incumbent: Module, features: Sequence[Module],
     proposals = []
     for feature in features:
         decoder = fit_decoder(Contract((feature.manifest.contract.output,), contract.output),
-                              tuple(feature.invoke(*row) for row in rows), labels,
+                              tuple(invoke_scoped(feature, *row) for row in rows), labels,
                               cost=decoder_cost)
         proposals.append(Proposal(Decoded(feature, decoder, contract)))
     return proposals
@@ -248,7 +249,7 @@ class FeatureTree:
     def _state(self, *inputs: Any) -> _Decision:
         node = self.root
         while node.feature is not None:
-            key = self.features[node.feature].invoke(*inputs)
+            key = invoke_scoped(self.features[node.feature], *inputs)
             child = node.children.get(key)
             if child is None:
                 return node
@@ -353,7 +354,7 @@ def train_tree(incumbent: Module, features: Sequence[Module],
     for feature in features:
         validate(feature)
     values: list[Sequence[Any] | Mapping[int, Any]] = [
-        tuple(feature.invoke(*row) for row in rows) for feature in features]
+        tuple(invoke_scoped(feature, *row) for row in rows) for feature in features]
 
     def groups_for(indices: tuple[int, ...], feature: int) -> dict[Hashable, list[int]]:
         groups: dict[Hashable, list[int]] = {}
@@ -406,7 +407,7 @@ def train_tree(incumbent: Module, features: Sequence[Module],
                 validate(feature)
             new_indices = tuple(range(len(features), len(features) + len(acquired)))
             for feature in acquired:
-                values.append({i: feature.invoke(*rows[i]) for i in indices})
+                values.append({i: invoke_scoped(feature, *rows[i]) for i in indices})
             features.extend(acquired)
             available += new_indices
         best: tuple[int, dict[Hashable, list[int]]] | None = None
@@ -464,10 +465,10 @@ class Corrected:
                                 expected_calls=None, effects=effects)
 
     def invoke(self, *inputs: Any) -> Any:
-        key = self.feature.invoke(*inputs)
+        key = invoke_scoped(self.feature, *inputs)
         if key in self.corrections:
             return self.corrections[key]
-        return self.incumbent.invoke(*inputs)
+        return invoke_scoped(self.incumbent, *inputs)
 
 
 def propose_corrections(incumbent: Module, features: Sequence[Module],
@@ -493,14 +494,14 @@ def propose_corrections(incumbent: Module, features: Sequence[Module],
         raise ValueError("rows must supply slot fillings followed by inputs")
     if any(replace(f.manifest.contract, output=contract.output) != contract for f in features):
         raise ValueError("features must preserve inputs, slots and relevance")
-    baseline = [incumbent.invoke(*row) == label for row, label in zip(rows, labels, strict=True)]
+    baseline = [invoke_scoped(incumbent, *row) == label for row, label in zip(rows, labels, strict=True)]
     proposals = []
     for feature in features:
         counts: dict[Hashable, Counter[Hashable]] = {}
         successes: Counter[Hashable] = Counter()
         protected: dict[Hashable, set[Hashable]] = {}
         for row, label, correct in zip(rows, labels, baseline, strict=True):
-            key = feature.invoke(*row)
+            key = invoke_scoped(feature, *row)
             counts.setdefault(key, Counter())[label] += 1
             successes[key] += int(correct)
             if correct:
@@ -545,11 +546,11 @@ def discover(incumbent: Module,
         if proposal.expert.manifest.contract != incumbent.manifest.contract:
             raise ValueError("proposals must preserve the external contract")
     held = tuple(zip(samples[half:], targets[half:], strict=True))
-    baseline = tuple(bool(correct(incumbent.invoke(*row), label)) for row, label in held)
+    baseline = tuple(bool(correct(invoke_scoped(incumbent, *row), label)) for row, label in held)
     trials = []
     probabilities = []
     for proposal in proposals:
-        outcomes = tuple(bool(correct(proposal.expert.invoke(*row), label)) for row, label in held)
+        outcomes = tuple(bool(correct(invoke_scoped(proposal.expert, *row), label)) for row, label in held)
         probability = sign_probability(baseline, outcomes)
         probabilities.append(probability)
         trials.append(Trial(proposal, outcomes, float(probability),

@@ -8,6 +8,7 @@ from itertools import chain, combinations, islice
 from typing import Any, Protocol
 
 from nca.abi import Contract, Module
+from nca.effects import invoke_scoped
 from nca.learning.discovery import Decoded, Decoder, JointFeature, Proposal, fit_decoder
 from nca.objects import Constructor, canonical, digest
 from nca.value_codec import encode_value
@@ -36,7 +37,7 @@ def fit_interface_bridge(source: Module, teacher: Module, rows: Sequence[tuple[A
         raise ValueError("paired experts must preserve external inputs, slots and relevance")
     if not rows or any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
         raise ValueError("training rows must supply slot fillings followed by inputs")
-    pairs = [(source.invoke(*row), teacher.invoke(*row)) for row in rows]
+    pairs = [(invoke_scoped(source, *row), invoke_scoped(teacher, *row)) for row in rows]
     adapter_contract = Contract((source.manifest.contract.output,), contract.output)
     adapter = fit(adapter_contract, tuple(a for a, _ in pairs), tuple(b for _, b in pairs),
                   cost=adapter_cost)
@@ -191,7 +192,7 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
     admitted, refinement_calls = len(features), 0
     while pending:
         feature = pending.popleft()
-        observations = tuple(feature.expert.invoke(*row) for row in rows)
+        observations = tuple(invoke_scoped(feature.expert, *row) for row in rows)
         head_contract = Contract((feature.expert.manifest.contract.output,), contract.output)
         heads = tuple(fit(head_contract, observations, targets, max_heads)[:max_heads])
         for head in heads:
@@ -202,7 +203,7 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
         remaining = max_features - admitted
         if refine is not None and correct is not None and remaining and (
                 refinement_calls < max_refinements):
-            scores = [(sum(bool(correct(head.expert.invoke(value), target))
+            scores = [(sum(bool(correct(invoke_scoped(head.expert, value), target))
                            for value, target in zip(observations, targets, strict=True)), head)
                       for head in heads]
             successes, seed = (min(scores, key=lambda item: (-item[0], item[1].expert.manifest.cost))
@@ -260,9 +261,9 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
             counts.setdefault(key, Counter())[label] += 1
         return sum(max(histogram.values()) for histogram in counts.values())
 
-    keys = tuple(feature.expert.invoke(*row) for row in rows)
+    keys = tuple(invoke_scoped(feature.expert, *row) for row in rows)
     baseline = score(keys)
-    observations = tuple(tuple(p.expert.invoke(*row) for row in rows) for p in companions)
+    observations = tuple(tuple(invoke_scoped(p.expert, *row) for row in rows) for p in companions)
     subsets = chain.from_iterable(combinations(range(len(companions)), size)
                                   for size in range(1, min(max_companions, len(companions)) + 1))
     ranked = []
@@ -305,7 +306,7 @@ def fit_categorical_partition(measurement: Module, rows: Sequence[tuple[Any, ...
         raise ValueError("rows must supply slot fillings followed by inputs")
     counts: dict[Hashable, Counter[Hashable]] = {}
     for row, label in zip(rows, labels, strict=True):
-        counts.setdefault(measurement.invoke(*row), Counter())[label] += 1
+        counts.setdefault(invoke_scoped(measurement, *row), Counter())[label] += 1
     ordered = sorted(counts, key=lambda key: canonical(encode_value(key)))
     codes: dict[Hashable, int] = {}
 

@@ -11,6 +11,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, TypeVar
 
+from nca.abi import Module
+
 T = TypeVar("T")
 _GRANTED: ContextVar[frozenset[str] | None] = ContextVar("nca_effect_grants", default=None)
 _DECLARED: ContextVar[frozenset[str] | None] = ContextVar("nca_effect_declaration", default=frozenset())
@@ -78,3 +80,12 @@ def effect_call(declared: frozenset[str] | None, callback: Callable[..., T], *ar
         return callback(*args)
     with expert_scope(declared):
         return callback(*args)
+
+
+def invoke_scoped(module: Module, *arguments: Any) -> Any:
+    """Run an expert's immediate invocation with its own effect declaration.
+
+    Deferred results require their own runtime authority mediation; this call
+    scopes the immediate callback, not subsequent use of its returned objects.
+    """
+    return effect_call(module.manifest.effects, module.invoke, *arguments)

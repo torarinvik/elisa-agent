@@ -8,6 +8,7 @@ import math
 from typing import Any
 
 from nca.abi import Contract, Module, TypeId
+from nca.effects import invoke_scoped
 from nca.learning.discovery import Decoded, _total_calls
 from nca.native import load
 
@@ -43,7 +44,7 @@ class AppliedFeature:
             calls=_total_calls(manifests), expected_calls=_total_calls(manifests, True) or None)
 
     def invoke(self, *inputs: Any) -> Any:
-        return self.transform.invoke(*(feature.invoke(*inputs) for feature in self.features))
+        return invoke_scoped(self.transform, *(invoke_scoped(feature, *inputs) for feature in self.features))
 
 
 def compose_features(seeds: Sequence[Module], transforms: Sequence[Module], *,

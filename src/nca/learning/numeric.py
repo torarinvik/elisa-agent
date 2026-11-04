@@ -8,6 +8,7 @@ from dataclasses import replace
 from typing import Any
 
 from nca.abi import Contract, Module
+from nca.effects import invoke_scoped
 from nca.learning.discovery import Decoded, Decoder, Proposal
 from nca.objects import Constructor, canonical
 
@@ -59,7 +60,7 @@ class PartitionEncoder:
                                 cost=measurement.manifest.cost + cost)
 
     def invoke(self, *inputs: Any) -> int:
-        return int(_observation(self.measurement.invoke(*inputs)) >= self.boundary)
+        return int(_observation(invoke_scoped(self.measurement, *inputs)) >= self.boundary)
 
 
 def propose_partition(incumbent: Module, measurement: Module,
@@ -116,7 +117,7 @@ def _observations(measurement: Module, rows: Sequence[tuple[Any, ...]],
     contract = measurement.manifest.contract
     if any(len(row) != len(contract.slots) + len(contract.inputs) for row in rows):
         raise ValueError("rows must supply slot fillings followed by inputs")
-    return sorted(((_observation(measurement.invoke(*row)), label)
+    return sorted(((_observation(invoke_scoped(measurement, *row)), label)
                       for row, label in zip(rows, labels, strict=True)), key=lambda item: item[0])
 
 
@@ -185,7 +186,7 @@ class RegionsEncoder:
                                 cost=measurement.manifest.cost + cost)
 
     def invoke(self, *inputs: Any) -> int:
-        return bisect_right(self.boundaries, _observation(self.measurement.invoke(*inputs)))
+        return bisect_right(self.boundaries, _observation(invoke_scoped(self.measurement, *inputs)))
 
 
 def propose_regions(incumbent: Module, measurement: Module,

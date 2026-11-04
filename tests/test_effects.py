@@ -214,3 +214,124 @@ def test_pure_experts_work_under_empty_host_policy() -> None:
     module = expert(frozenset())
     with effect_scope(frozenset()):
         assert effect_call(module.manifest.effects, lambda value: value, 9) == 9
+
+
+@dataclass
+class Component:
+    manifest: Manifest
+    operation: str | None = None
+    accesses: int = 0
+
+    def invoke(self, *values: Any) -> int:
+        if self.operation is not None:
+            require_effect(self.operation)
+            self.accesses += 1
+        return 7
+
+
+def composed_component_case(kind: str, declared: bool) -> tuple[Any, Component]:
+    from nca.learning.discovery import Corrected, Decoded, JointFeature
+    from nca.learning.features import AppliedFeature
+    from nca.learning.regional import RegionalPolicy
+
+    allowed = frozenset({"resource.b"})
+
+    def part(name: str, inputs: tuple[str, ...], output: str, bad: bool = False) -> Component:
+        effects = allowed if not bad or declared else frozenset()
+        return Component(Manifest(name, "1", Contract(inputs, output), effects=effects),
+                         "resource.b" if bad else None)
+
+    if kind.startswith("decoded"):
+        feature = part("feature", ("input",), "feature", kind.endswith("feature"))
+        head = part("head", ("feature",), "output", kind.endswith("head"))
+        return Decoded(feature, head, Contract(("input",), "output")), feature if kind.endswith("feature") else head
+    if kind == "joint":
+        bad = part("left", ("input",), "feature", True)
+        return JointFeature(bad, part("right", ("input",), "other"), 0), bad
+    if kind.startswith("application"):
+        feature = part("feature", ("input",), "feature", kind.endswith("feature"))
+        other = part("other", ("input",), "other")
+        head = part("head", ("feature", "other"), "output", kind.endswith("head"))
+        return AppliedFeature(head, (feature, other)), feature if kind.endswith("feature") else head
+    if kind.startswith("corrected"):
+        feature = part("feature", ("input",), "feature", kind.endswith("feature"))
+        incumbent = part("incumbent", ("input",), "output", kind.endswith("incumbent"))
+        return Corrected(incumbent, feature, {}, 0), feature if kind.endswith("feature") else incumbent
+    feature = part("feature", ("input",), "feature", kind.endswith("feature"))
+    incumbent = part("incumbent", ("input",), "output", kind.endswith("incumbent"))
+    specialist = part("specialist", ("input",), "output", kind.endswith("specialist"))
+    chosen = feature if kind.endswith("feature") else incumbent if kind.endswith("incumbent") else specialist
+    specialists = {} if kind.endswith("incumbent") else {7: specialist}
+    return RegionalPolicy(incumbent, feature, specialists, 0), chosen
+
+
+@pytest.mark.parametrize("kind", ["decoded-feature", "decoded-head", "joint",
+                                   "application-feature", "application-head",
+                                   "corrected-feature", "corrected-incumbent",
+                                   "regional-feature", "regional-incumbent", "regional-specialist"])
+@pytest.mark.parametrize("compiled", [False, True])
+def test_composed_children_cannot_borrow_sibling_authority(kind: str, compiled: bool) -> None:
+    for declared in (False, True):
+        module, component = composed_component_case(kind, declared)
+        route = Apply(module, (Given("input"),))
+
+        def call() -> Any:
+            if compiled:
+                return compile_route(route, ("input",))([(3,)])[0]
+            return execute(route, (Message("input", 3, "input"),), Workspace(), 1).payload
+
+        with effect_scope(frozenset({"resource.b"})):
+            if declared:
+                assert call() == ((7, 7) if kind == "joint" else 7)
+                assert component.accesses == 1
+            else:
+                with pytest.raises(EffectDenied):
+                    call()
+                assert component.accesses == 0
+
+
+def test_training_observations_keep_source_and_teacher_declarations() -> None:
+    from nca.effects import expert_scope
+    from nca.learning.interfaces import fit_interface_bridge
+
+    for bad_source in (False, True):
+        bad = Component(Manifest("bad", "1", Contract(("input",), "feature"),
+                                  effects=frozenset()), "resource.b")
+        good = Component(Manifest("good", "1", Contract(("input",), "feature"),
+                                   effects=frozenset({"resource.b"})))
+        source, teacher = (bad, good) if bad_source else (good, bad)
+        with effect_scope(frozenset({"resource.b"})), expert_scope(frozenset({"resource.b"})):
+            with pytest.raises(EffectDenied):
+                fit_interface_bridge(source, teacher, [(3,)], adapter_cost=0)
+        assert bad.accesses == 0
+
+
+def test_child_scoping_matches_the_finite_authority_model() -> None:
+    from itertools import product
+    from nca.effects import invoke_scoped
+
+    sets = [frozenset(name for bit, name in enumerate(("resource.a", "resource.b")) if mask & (1 << bit))
+            for mask in range(4)]
+    for parent, child, sibling in product(sets, repeat=3):
+        for operation in ("resource.a", "resource.b"):
+            module = Component(Manifest("child", "1", Contract(("input",), "output"),
+                                         effects=child), operation)
+            expected = child | sibling <= parent and operation in child
+            with effect_scope(parent):
+                if expected:
+                    assert effect_call(child | sibling, invoke_scoped, module, 3) == 7
+                else:
+                    with pytest.raises(EffectDenied):
+                        effect_call(child | sibling, invoke_scoped, module, 3)
+            assert module.accesses == int(expected)
+
+
+def test_legacy_unrestricted_composition_still_scopes_its_known_child() -> None:
+    from nca.learning.discovery import Decoded
+
+    feature = Component(Manifest("feature", "1", Contract(("input",), "feature"), effects=None))
+    head = Component(Manifest("head", "1", Contract(("feature",), "output"),
+                               effects=frozenset({"resource.b"})), "resource.b")
+    model = Decoded(feature, head, Contract(("input",), "output"))
+    result = execute(Apply(model, (Given("input"),)), (Message("input", 3, "input"),), Workspace(), 1)
+    assert result.payload == 7 and head.accesses == 1

@@ -28,4 +28,23 @@ theorem denied_gateway {parent declared : Finset E} {effect : E}
   · exact h authority.1
   · exact h authority.2
 
+/-- A composite's union advertises its whole footprint, but each child regains
+only its own declaration. A sibling adds no authority to that child. -/
+theorem composed_child_allowance (parent child sibling : Finset E) :
+    effectAllowance (effectAllowance parent (child ∪ sibling)) child =
+      effectAllowance parent child := by
+  ext effect
+  simp only [effectAllowance, Finset.mem_inter, Finset.mem_union]
+  constructor
+  · intro h
+    exact ⟨h.1.1, h.2⟩
+  · intro h
+    exact ⟨⟨h.1, Or.inl h.2⟩, h.2⟩
+
+theorem sibling_cannot_authorize (parent child sibling : Finset E) (effect : E)
+    (undeclared : effect ∉ child) :
+    effect ∉ effectAllowance (effectAllowance parent (child ∪ sibling)) child := by
+  rw [composed_child_allowance]
+  exact denied_gateway (Or.inr undeclared)
+
 end NCA
