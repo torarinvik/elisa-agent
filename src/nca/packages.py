@@ -33,7 +33,7 @@ there, so domains need no registration in the core and can ship separately.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Generator, Sequence
 from importlib import metadata
 from typing import Any
 
@@ -201,6 +201,8 @@ def install_scopes(store: Store, references: Sequence[Ref], experts: ExpertStore
 
     Return one scope per input reference, in order. Sharing is scoped to this
     call; independent calls into one residency pool can conflict deliberately.
+    Child scopes suspend parent continuations on an explicit stack. Export
+    occurrences remain distinct; installation does not load implementations.
 
     Primitives become lazy experts in ``experts`` (a fresh unbounded store by
     default), each with its reference as identity, so a primitive shared by
@@ -215,54 +217,66 @@ def install_scopes(store: Store, references: Sequence[Ref], experts: ExpertStore
     made: dict[Ref, Module] = {}
     made_upcasts: dict[Ref, list[Module]] = {}
 
-    def module(node: Ref) -> Module:
-        if node not in made:
-            obj = store.get(node)
-            assert isinstance(obj, Primitive)
+    def scope(node: Ref) -> Generator[Ref, list[Module], list[Module]]:
+        obj = store.get(node)
+        if isinstance(obj, Primitive):
+            if node in made:
+                return [made[node]]
             resolved: dict[Ref, tuple[Module, ...]] = {}
             for dependency in obj.dependencies:
                 if dependency not in resolved:
-                    resolved[dependency] = tuple(scope(dependency))
+                    resolved[dependency] = tuple((yield dependency))
             prerequisites = dict.fromkeys(
                 ref for dependency in obj.dependencies for ref in store.walk(dependency)
                 if isinstance(store.get(ref), Primitive))
+            for prerequisite in prerequisites:
+                if prerequisite not in made:
+                    yield prerequisite
             expert = LazyExpert(obj.manifest, lambda: obj.load(resolved.__getitem__),
                                 obj.size, experts, identity=node,
-                                dependencies=tuple(module(ref) for ref in prerequisites),
+                                dependencies=tuple(made[ref] for ref in prerequisites),
                                 accounts_inside=obj.accounts_inside)
             expert.demand = _forward(expert, "demand", None)
             expert.relevant = _forward(expert, "relevant", True)
             expert.risk = _forward(expert, "risk", None)
             made[node] = expert
-        return made[node]
-
-    def members(obj: Composite) -> list[Module]:
-        seen: set[int] = set()
-        ordered = []
-        for member in obj.members:
-            for expert in scope(member):
-                if id(expert) not in seen:
-                    seen.add(id(expert))
-                    ordered.append(expert)
-        return ordered
-
-    def scope(node: Ref) -> list[Module]:
-        obj = store.get(node)
-        if isinstance(obj, Primitive):
-            return [module(node)]
+            return [expert]
         if isinstance(obj, Constructor):
             if node not in made_upcasts:
                 made_upcasts[node] = [Upcast(obj, i) for i in range(len(obj.refines))]
             return made_upcasts[node]
         if not isinstance(obj, Composite):
             raise ValueError("only experts, composites and constructors can be installed")
+        seen: set[int] = set()
+        inner = []
+        for member in obj.members:
+            for expert in (yield member):
+                if id(expert) not in seen:
+                    seen.add(id(expert))
+                    inner.append(expert)
         if obj.exports is None:
-            return members(obj)
-        inner = members(obj)
+            return inner
         return [Export(obj, i, inner, budget=budget, length=length, fuel=fuel)
                 for i in range(len(obj.exports))]
 
-    return tuple(scope(ref) for ref in tuple(references))
+    def resolve(root: Ref) -> list[Module]:
+        # A child scope suspends its parent instead of using Python recursion.
+        pending = [scope(root)]
+        result: list[Module] | None = None
+        while pending:
+            try:
+                requested = (next(pending[-1]) if result is None
+                             else pending[-1].send(result))
+            except StopIteration as completed:
+                pending.pop()
+                result = completed.value
+            else:
+                pending.append(scope(requested))
+                result = None
+        assert result is not None
+        return result
+
+    return tuple(resolve(ref) for ref in tuple(references))
 
 
 def resolve_binding(store: Store, reference: Ref, index: int, expected: Module) -> Module:

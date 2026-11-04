@@ -575,6 +575,7 @@ an inference from their separate tests.
 | [29.7](theory/foundations/29-types-as-objects.md) | `slot_risk_transfer`, `slot_risk_unbounded` | `Types/SlotRisk` |
 | [28.6](theory/foundations/28-packages-as-experts.md) | `resolveLoader_perm`, `resolveLoader_unrelated`, `resolveLoader_conflict`, `resolveLoader_relocate` | `Execution/Loaders` |
 | [28.7](theory/foundations/28-packages-as-experts.md) | `dependency_expand_decreases`, `dependency_step_decreases`, `dependency_no_infinite_run`, `dependency_expand_account`, `dependency_pop_account`, `dependency_append_order` | `Execution/DependencyWalk` |
+| [28.8](theory/foundations/28-packages-as-experts.md) | `scope_step_decreases`, `scope_no_infinite_run` | `Execution/DependencyWalk` |
 | [29.1](theory/foundations/29-types-as-objects.md) | `WellTypedSub.coerce` | `Refinement` |
 | [29.2](theory/foundations/29-types-as-objects.md) | `Plan.eval_erase` | `Refinement` |
 | [29.3](theory/foundations/29-types-as-objects.md) | `planShallowStable_append` (for the stability half) | `Routing` |
@@ -2045,6 +2046,19 @@ another identity. Held-out data are not part of the claim.
 Selective refinement (`selective`) still requires the producer–map–consumer
 route shape, so it does not see through exports; composing refinement across
 a composite boundary is the composition problem of §26.
+
+`install_scopes` suspends each scope generator on an explicit continuation
+stack (§28.11), preserving ordered child results, empty scopes, per-reference
+primitive/upcast sharing and per-occurrence export wrappers. Metadata-only
+installation remains lazy. Tests compare manifests, scope order and sharing
+against the recursive installer on 512 mixed dependency graphs, and install
+transparent/exported chains beyond host recursion depth without loading experts.
+`scope_step_decreases` and `scope_no_infinite_run`
+prove termination of finite acyclic occurrence expansion without requiring
+export memoization. Fidelity of Python generator creation/resumption, factory
+metadata and planner execution remains trusted and tested, not formally proved.
+Repeated scope expansion and transitive prerequisite enumeration can still be
+expensive; expert invocation retains its own recursion and resource boundaries.
 
 ## 29. Types as objects
 

@@ -296,3 +296,37 @@ of host call-stack depth. This is not a byte quota: decoded metadata and input
 size still matter. Admission must supply an immutable acyclic graph, and
 adjacency callbacks must remain faithful. The theorem does not remove recursive
 limits from other interpreters, package installation or expert execution.
+
+
+## 28.11 Scope continuations and repeated occurrences
+
+Installation may interpret a shared reference several times. Primitive wrappers
+can be shared by identity, while separate occurrences of a composite export may
+need distinct wrappers. A global visited set over every scope would change that
+allocation behavior. Instead, suspend each parent scope while its next child
+scope is interpreted, then resume it with that child's ordered result, including
+an empty result. Completion is distinct from a request for another child.
+
+**Theorem 28.8 (finite occurrence expansion).** Suppose every interpreted scope
+has a finite ordered list of lower-ranked child requests, and creation of a
+scope's own wrappers terminates. Replacing recursive calls by an explicit stack
+of suspended scope continuations terminates and preserves child-before-parent
+completion, request order and per-occurrence allocation. No host call-stack
+bound on scope depth is required.
+
+*Proof.* Unfold shared references into occurrences. The finite acyclic request
+graph admits weights w(v) > 1+Σ w(c). A pending child request has weight w(v),
+and its parent's completion has weight 1. Expanding any occurrence into child
+requests and completion decreases total pending weight, even without a visited
+set; popping a completion also decreases it. Thus no infinite occurrence
+expansion exists. Suspension resumes the same parent at the same next operation
+with the same child result as recursive return. Induction over these finite
+completions gives the same ordered results and allocation occurrences. ∎
+
+Memoized primitive requests may skip work; they do not add child requests.
+This theorem assumes faithful continuation creation/resumption and terminating
+wrapper construction; it does not prove a foreign factory's behavior. The
+unfolding can still have exponentially many occurrences in the size of a shared
+graph. Transitive dependency declarations, decoded bytes and wrapper residency
+also have costs. Removing host recursion does not supply a global memory quota,
+prove invocation termination, or snapshot mutable expert state.

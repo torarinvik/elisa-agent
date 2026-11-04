@@ -288,3 +288,102 @@ def test_deep_and_shared_composites_do_not_use_the_python_call_stack() -> None:
     store.reads = 0
     assert store.flatten(reference) == [first]
     assert store.reads == depth + 1
+
+
+@pytest.mark.parametrize("exported", [False, True])
+def test_deep_installation_is_lazy_and_does_not_recurse(exported: bool) -> None:
+    import sys
+    from nca.loader import ExpertStore, LazyExpert
+    from nca.objects import Composite
+    from nca.packages import Export, install
+
+    store = Store()
+    leaf = primitive()
+    ref = store.put(leaf)
+    depth = sys.getrecursionlimit() + 50
+    for level in range(depth):
+        ref = store.put(Composite(f"scope-{level}", "1", (ref,),
+                                  exports=(leaf.manifest.contract,) if exported else None))
+    residents = ExpertStore(budget=0)
+    scope = install(store, ref, experts=residents)
+    assert len(scope) == 1 and scope[0].manifest.contract == leaf.manifest.contract
+    expert = scope[0]
+    count = 0
+    while isinstance(expert, Export):
+        assert len(expert.members) == 1
+        expert = expert.members[0]
+        count += 1
+    assert count == (depth if exported else 0)
+    assert isinstance(expert, LazyExpert) and residents.stats.loads == 0
+    assert residents.resident_bytes == 0
+
+
+def test_scope_continuations_preserve_occurrences_sharing_and_empty_results() -> None:
+    from nca.loader import ExpertStore
+    from nca.objects import Composite
+    from nca.packages import Export, install_scopes
+
+    store = Store()
+    leaf = primitive()
+    ref = store.put(leaf)
+    empty = store.put(Composite("empty", "1", ()))
+    exported = store.put(Composite("exported", "1", (empty, ref),
+                                   exports=(leaf.manifest.contract,)))
+    root = store.put(Composite("root", "1", (empty, exported, exported, ref, ref)))
+    residents = ExpertStore()
+    roots = install_scopes(store, (root, empty, exported, ref), experts=residents)
+    first, second, direct = roots[0]
+    assert isinstance(first, Export) and isinstance(second, Export)
+    assert first is not second and first is not roots[2][0]
+    assert first.identity == second.identity == roots[2][0].identity
+    assert first.members[0] is second.members[0] is roots[2][0].members[0] is direct is roots[3][0]
+    assert roots[1] == [] and residents.stats.loads == 0
+    dependent = store.put(replace(leaf, dependencies=(empty, empty)))
+    scoped = install_scopes(store, (dependent, empty), experts=residents)
+    assert scoped[1] == [] and scoped[0][0].dependencies == ()
+
+
+def test_continuation_installation_matches_recursive_scope_graphs() -> None:
+    import runpy
+    from nca.abi import Module
+    from nca.objects import Composite
+    from nca.packages import Export, install_scopes
+
+    reference = runpy.run_path(str(Path(__file__).parents[1] / "benchmarks" / "artifact_store.py"))[
+        "recursive_install_scopes"]
+
+    def signature(scopes: tuple[list[Module], ...]) -> tuple[Any, ...]:
+        ids: dict[int, int] = {}
+        pending: list[Module] = []
+
+        def intern(module: Module) -> int:
+            if id(module) not in ids:
+                ids[id(module)] = len(pending)
+                pending.append(module)
+            return ids[id(module)]
+
+        roots = tuple(tuple(intern(module) for module in scope) for scope in scopes)
+        nodes = []
+        cursor = 0
+        while cursor < len(pending):
+            module = pending[cursor]
+            children = module.members if isinstance(module, Export) else getattr(module, "dependencies", ())
+            nodes.append((type(module), module.identity, module.manifest,
+                          getattr(module, "cache_identity", None),
+                          tuple(intern(child) for child in children)))
+            cursor += 1
+        return roots, tuple(nodes)
+
+    edges = [(a, b) for a in range(2, 5) for b in range(a)]
+    for mask in range(1 << len(edges)):
+        store = Store()
+        refs = [store.put(primitive({"node": a})) for a in range(2)]
+        for a in range(2, 5):
+            members = (refs[0], *(refs[b] for bit, (parent, b) in reversed(tuple(enumerate(edges)))
+                                  if parent == a and mask & (1 << bit)))
+            obj = (replace(primitive({"node": a}), dependencies=members) if a == 3 else
+                   Composite(f"scope-{a}", "1", members,
+                             exports=(primitive().manifest.contract,) if a == 2 else None))
+            refs.append(store.put(obj))
+        roots = (refs[-1], refs[2], refs[0], refs[-1])
+        assert signature(install_scopes(store, roots)) == signature(reference(store, roots))

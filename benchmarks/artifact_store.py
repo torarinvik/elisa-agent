@@ -8,10 +8,13 @@ import json
 import random
 import statistics
 import sys
+from collections.abc import Sequence
 from time import perf_counter, process_time
 
-from nca.abi import Contract, Manifest
-from nca.objects import Composite, Object, Primitive, Store, canonical
+from nca.abi import Contract, Manifest, Module
+from nca.loader import ExpertStore, LazyExpert
+from nca.objects import Composite, Constructor, Object, Primitive, Ref, Store, canonical
+from nca.packages import Export, Upcast, _forward, install_scopes
 from nca.objects import store as storage
 
 
@@ -111,6 +114,100 @@ def traversal_trial(shape: str, iterative: bool, flatten: bool) -> dict[str, flo
             "reads": store.reads, "cpu_seconds": elapsed, "labels": 0, "expert_requests": 0}
 
 
+def recursive_install_scopes(store: Store, references: Sequence[Ref],
+                             experts: ExpertStore | None = None, *, budget: int = 10_000,
+                             length: int = 1, fuel: int = 8) -> tuple[list[Module], ...]:
+    """Pre-28.11 recursive installer, retained solely as a benchmark reference."""
+    experts = experts if experts is not None else ExpertStore()
+    made: dict[Ref, Module] = {}
+    made_upcasts: dict[Ref, list[Module]] = {}
+
+    def module(node: Ref) -> Module:
+        if node not in made:
+            obj = store.get(node)
+            assert isinstance(obj, Primitive)
+            resolved: dict[Ref, tuple[Module, ...]] = {}
+            for dependency in obj.dependencies:
+                if dependency not in resolved:
+                    resolved[dependency] = tuple(scope(dependency))
+            prerequisites = dict.fromkeys(
+                ref for dependency in obj.dependencies for ref in store.walk(dependency)
+                if isinstance(store.get(ref), Primitive))
+            expert = LazyExpert(obj.manifest, lambda: obj.load(resolved.__getitem__),
+                                obj.size, experts, identity=node,
+                                dependencies=tuple(module(ref) for ref in prerequisites),
+                                accounts_inside=obj.accounts_inside)
+            expert.demand = _forward(expert, "demand", None)
+            expert.relevant = _forward(expert, "relevant", True)
+            expert.risk = _forward(expert, "risk", None)
+            made[node] = expert
+        return made[node]
+
+    def members(obj: Composite) -> list[Module]:
+        seen: set[int] = set()
+        ordered = []
+        for member in obj.members:
+            for expert in scope(member):
+                if id(expert) not in seen:
+                    seen.add(id(expert))
+                    ordered.append(expert)
+        return ordered
+
+    def scope(node: Ref) -> list[Module]:
+        obj = store.get(node)
+        if isinstance(obj, Primitive):
+            return [module(node)]
+        if isinstance(obj, Constructor):
+            if node not in made_upcasts:
+                made_upcasts[node] = [Upcast(obj, i) for i in range(len(obj.refines))]
+            return made_upcasts[node]
+        if not isinstance(obj, Composite):
+            raise ValueError("only experts, composites and constructors can be installed")
+        if obj.exports is None:
+            return members(obj)
+        inner = members(obj)
+        return [Export(obj, i, inner, budget=budget, length=length, fuel=fuel)
+                for i in range(len(obj.exports))]
+
+    return tuple(scope(ref) for ref in tuple(references))
+
+
+def installation_trial(shape: str, iterative: bool) -> dict[str, float | int]:
+    """Installation-only CPU; no implementations are invoked or loaded."""
+    store = TraversalStore()
+    manifest = Manifest("hypothetical", "1", Contract(("a",), "b"))
+    reference = store.put(Primitive(manifest, "hypothetical:Expert"))
+    depth = 16 if shape == "small" else sys.getrecursionlimit() + 100
+    exported = shape == "exported"
+    for level in range(depth):
+        reference = store.put(Composite(f"scope-{level}", "1", (reference,),
+                                        exports=(manifest.contract,) if exported else None))
+    experts = ExpertStore()
+    store.reads = 0
+    started = process_time()
+    failed = 0
+    scopes: tuple[list[Module], ...] = ()
+    try:
+        installer = install_scopes if iterative else recursive_install_scopes
+        scopes = installer(store, (reference,), experts=experts)
+    except RecursionError:
+        failed = 1
+    elapsed = process_time() - started
+    if not failed:
+        assert len(scopes) == 1 and len(scopes[0]) == 1
+        assert scopes[0][0].manifest.contract == manifest.contract
+        current = scopes[0][0]
+        wrappers = 0
+        while isinstance(current, Export):
+            current = current.members[0]
+            wrappers += 1
+        assert wrappers == (depth if exported else 0)
+    assert experts.stats.loads == 0
+    return {"depth": depth, "installed_scopes": len(scopes), "recursion_failures": failed,
+            "reads": store.reads, "cpu_seconds": elapsed, "installation_requests": 1,
+            "labels": 0, "expert_requests": 0, "loaded_implementations": experts.stats.loads}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=[100, 1000, 10000])
@@ -118,7 +215,16 @@ def main() -> None:
     parser.add_argument("--queries", type=int, default=1000)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--traversal", action="store_true")
+    parser.add_argument("--installation", action="store_true")
     args = parser.parse_args()
+    if args.installation:
+        for shape in ("small", "deep", "exported"):
+            for iterative in (False, True):
+                samples = [installation_trial(shape, iterative) for _ in range(3)]
+                print(json.dumps({"shape": shape, "iterative": iterative,
+                                  **{key: statistics.mean(s[key] for s in samples)
+                                     for key in samples[0]}}), flush=True)
+        return
     if args.traversal:
         for shape in ("small", "deep", "shared"):
             for flatten in (False, True):

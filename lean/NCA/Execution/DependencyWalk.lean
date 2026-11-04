@@ -93,6 +93,51 @@ theorem dependency_no_infinite_run [DecidableEq A] (children : A → List A)
   have impossible := bound (dependencyWork weight (states 0).2 + 1)
   omega
 
+/-- Scope occurrences are not memoized: repeated exports may be fresh wrappers.
+Each frame finishes only after all its ordered child requests return. -/
+def scopeStep (children : A → List A) : List (A × Bool) → Option (List (A × Bool))
+  | [] => none
+  | (node, emit) :: rest =>
+    if emit then some rest
+    else some ((children node).map (fun child => (child, false)) ++ (node, true) :: rest)
+
+theorem scope_step_decreases (children : A → List A) (weight : A → ℕ)
+    (acyclic : ∀ node, 1 + ((children node).map weight).sum < weight node)
+    (before after : List (A × Bool)) (step : scopeStep children before = some after) :
+    dependencyWork weight after < dependencyWork weight before := by
+  cases before with
+  | nil => simp [scopeStep] at step
+  | cons task rest =>
+    rcases task with ⟨node, emit⟩
+    cases emit with
+    | true =>
+      simp only [scopeStep, ↓reduceIte, Option.some.injEq] at step
+      subst after
+      have positive : 0 < weight node := by have := acyclic node; omega
+      exact dependency_pop_decreases weight node true rest positive
+    | false =>
+      simp only [scopeStep, Bool.false_eq_true, ↓reduceIte, Option.some.injEq] at step
+      subst after
+      exact dependency_expand_decreases weight node (children node) rest (acyclic node)
+
+/-- Even with fresh repeated occurrences, scope expansion terminates under
+acyclic weights; the finite graph may induce exponentially many occurrences. -/
+theorem scope_no_infinite_run (children : A → List A) (weight : A → ℕ)
+    (acyclic : ∀ node, 1 + ((children node).map weight).sum < weight node)
+    (states : ℕ → List (A × Bool)) :
+    ¬(∀ k, scopeStep children (states k) = some (states (k + 1))) := by
+  intro run
+  have bound : ∀ k, k + dependencyWork weight (states k) ≤
+      dependencyWork weight (states 0) := by
+    intro k
+    induction k with
+    | zero => omega
+    | succ k ih =>
+      have smaller := scope_step_decreases children weight acyclic _ _ (run k)
+      omega
+  have impossible := bound (dependencyWork weight (states 0) + 1)
+  omega
+
 /-- Exact stack accounting: an expansion schedules one emission and d edges.
 Other pops change only pending and consumed counts. -/
 theorem dependency_expand_account (pending consumed vertices edges d : ℕ)
