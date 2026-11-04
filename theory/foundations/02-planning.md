@@ -285,6 +285,16 @@ that the Python fixpoint terminates within a given budget or faithfully meets
 those hypotheses. Full-library eager discovery exceeded 100,000 steps, so this
 bound is not yet used by the active frontier.
 
+An alternative application representation keeps a fresh type variable for
+each expert variable and incrementally unifies its output, ordinary child types
+and slot signatures. Only when a complete ground binding is needed does it
+enumerate the remaining variables over the caller's finite type universe.
+Renaming apart prevents unrelated applications from sharing variables; the
+existing `answer_sound` theorem addresses a related typed planning model. It
+does not prove the Python substitution code or that the active frontier uses
+this representation, and a bounded-universe search remains incomplete outside
+that universe.
+
 A tuple-field path is modeled as a sequence of partial projections. For any
 field operation, following a concatenated path equals following its first part
 and then its second, including failure (`followPath_append`). This supports
