@@ -300,8 +300,6 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                              for position, (typ, value) in enumerate(zip(
                                  goal.contract.inputs, example.inputs, strict=True)))
             workspace = Workspace()
-            for message in messages:
-                workspace.post(message)
             try:
                 if charge is not None and not charge():
                     return False

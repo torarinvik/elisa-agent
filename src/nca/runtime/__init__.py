@@ -159,12 +159,14 @@ class Pending:
 def result_key(cache: ResultCache | None, ledger: RiskLedger | None, module: Module,
                values: Sequence[Any]) -> tuple[Any, ...] | None:
     """The cache key of ``module``'s invocation on ``values``, or ``None`` if
-    it is not cached."""
+    it is not cached. A disabled cache does not inspect expert metadata."""
+    if cache is None:
+        return None
     binding = getattr(module, "identity", None)
     identity = getattr(module, "cache_identity", binding)
     if ledger is not None and getattr(module, "accounts_inside", False):
         return None
-    if cache is None or identity is None or module.manifest.effects != frozenset():
+    if identity is None or module.manifest.effects != frozenset():
         return None
     if binding in cache.refuted:
         return None
@@ -286,8 +288,8 @@ def execute(
             args.append(unread(arg) if arg_demand == NOTHING
                         else run(arg, env, chain, arg_demand, arg_decision))
         relevant = getattr(node.module, "relevant", None)
-        provisional = [a.payload.request.provisional if isinstance(a.payload, Pending)
-                       else a.payload for a in args]
+        provisional = ([a.payload.request.provisional if isinstance(a.payload, Pending)
+                        else a.payload for a in args] if relevant is not None else None)
         for index, arg in enumerate(args):
             if not isinstance(arg.payload, Pending):
                 continue
@@ -306,7 +308,8 @@ def execute(
         if key is not None:
             hit, stored = cache.lookup(key)
             if hit and not cache.sample():
-                account(node.module, stored, decision, args)
+                if ledger is not None:
+                    account(node.module, stored, decision, args)
                 result = Message(contract.output, stored, f"{manifest.ref}+cache", parents)
                 workspace.post(result)
                 return result
@@ -337,7 +340,8 @@ def execute(
             pending = Pending(payload, manifest.module_id, manifest.ref, output, parents, chain,
                               manifest.effects)
             return Message(output, pending, manifest.ref, parents)
-        account(node.module, payload, decision, args)
+        if ledger is not None:
+            account(node.module, payload, decision, args)
         result = Message(contract.output, payload, manifest.ref, parents)
         workspace.post(result)
         return result
@@ -347,7 +351,7 @@ def execute(
         charge(ledger, module, payload, decision, [a.payload for a in args])
 
     def cache_key(node: Plan, args: Sequence[Message]) -> tuple[Any, ...] | None:
-        return None if node.slots else result_key(cache, ledger, node.module,
+        return None if cache is None or node.slots else result_key(cache, ledger, node.module,
                                                   [a.payload for a in args])
 
     def resume(program: Generator[Request, object, object], module_id: str, ref: str,

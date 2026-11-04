@@ -147,3 +147,36 @@ def test_purity_attestations_carry_refutations_under_trust() -> None:
     cache = ResultCache(refuted={ref})
     cache.store((ref, ()), 1)
     assert cache.lookup((ref, ())) == (False, None)
+
+
+def test_disabled_optional_services_do_not_inspect_their_metadata() -> None:
+    from nca.runtime import RiskLedger
+
+    class OptionalMetadata:
+        manifest = Manifest("example.optional", "1", Contract(("item",), "item"), effects=frozenset())
+
+        @property
+        def identity(self) -> str:
+            raise AssertionError("cache metadata read")
+
+        @property
+        def risk(self) -> Any:
+            raise AssertionError("risk metadata read")
+
+        def invoke(self, value: Any) -> Any:
+            return value
+
+    route = Apply(OptionalMetadata(), (Given("item", 0),))
+    inputs = (Message("item", "payload", "input"),)
+    workspace = Workspace()
+    answer = execute(route, inputs, workspace, 1)
+    assert answer.payload == "payload" and answer.parents == (inputs[0].message_id,)
+    assert workspace.messages() == [inputs[0], answer]
+    with pytest.raises(AssertionError, match="cache metadata"):
+        execute(route, inputs, Workspace(), 1, cache=ResultCache())
+    with pytest.raises(AssertionError, match="risk metadata"):
+        execute(route, inputs, Workspace(), 1, ledger=RiskLedger())
+    workspace = Workspace()
+    with pytest.raises(BudgetExceeded):
+        execute(route, inputs, workspace, 0)
+    assert workspace.messages() == []
