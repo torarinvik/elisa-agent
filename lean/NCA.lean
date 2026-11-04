@@ -1,4 +1,5 @@
 import NCA.Reliability.Cascade
+import NCA.Planning.FeatureClosure
 import NCA.Types.Check
 import NCA.Types.Contract
 import NCA.Types.Terms

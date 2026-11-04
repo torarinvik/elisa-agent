@@ -55,3 +55,27 @@ fail on independent data. Therefore freeze completed routes before selection
 under §36.3, without using held-out outcomes to choose or train fitters. Neither
 type identity nor teacher training agreement establishes which fitting family
 is useful. Stable models/data and faithful providers remain assumptions.
+
+## 36.59 Constructing candidate representations from typed parts
+
+Let S be a finite seed family with a common external signature, and let E
+relate representations joined by an applicable unary transformation. Define
+C₀=S and Cₙ₊₁=S ∪ ⋃{E(x) : x∈Cₙ}. A transformation preserves the external
+signature while replacing the representation output. Type compatibility alone
+does not assert semantic usefulness or equality of implementations.
+
+**Theorem 36.59 (bounded feature closure).** Cₙ contains exactly the endpoints
+reachable from a seed by at most n transformations. The same construction over
+paths, retaining distinct implementations, enumerates every compatible chain
+through that depth. Cycles and repeated output types do not invalidate this.
+
+*Proof.* At depth zero the endpoints are exactly S. At the next depth a path
+is either a seed or a bounded shorter path followed by one applicable edge.
+Induction gives both inclusion directions. ∎
+
+Breadth-first path enumeration permits a deterministic candidate prefix cap;
+truncation preserves soundness but can lose completeness. Its resource bounds
+are search parameters, not universal bounds on possible representations.
+No theorem here establishes that the supplied primitive family contains a
+useful feature. Selecting or fitting a head uses training observations only;
+reliability still requires independent end-to-end evaluation of frozen models.

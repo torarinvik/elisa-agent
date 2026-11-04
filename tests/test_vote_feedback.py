@@ -223,3 +223,50 @@ def test_label_sufficient_noninjective_keys_remove_only_existing_errors() -> Non
                 for x in range(4):
                     if model.invoke(x) != truth[x]:
                         assert outputs[x] != truth[x] and x // 2 != point // 2
+
+
+def test_feature_chain_search_matches_all_small_typed_graphs() -> None:
+    """Differential link to featureClosure_iff, retaining distinct paths."""
+    from itertools import product
+
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    seed = Feature(Contract(("input",), "a"), lambda x: x)
+    edges = [(a, b) for a in ("a", "b") for b in ("a", "b")]
+    for enabled in product((False, True), repeat=4):
+        transforms = [Feature(Contract((a,), b), lambda x: x + 1)
+                      for (a, b), use in zip(edges, enabled, strict=True) if use]
+        expected = [("a", 0)]
+        frontier = expected.copy()
+        for depth in range(4):
+            actual = compose_features([seed], transforms, max_depth=depth, limit=1000)
+            assert [(m.manifest.contract.output, m.invoke(0)) for m in actual] == expected
+            for cap in (1, 2, 5):
+                assert [m.invoke(0) for m in compose_features(
+                    [seed], transforms, max_depth=depth, limit=cap)] == [
+                        m.invoke(0) for m in actual[:cap]]
+            frontier = [(b, length + 1) for a, length in frontier
+                        for (source, b), use in zip(edges, enabled, strict=True)
+                        if use and source == a]
+            expected.extend(frontier)
+
+
+def test_feature_chain_search_checks_bounds_and_does_not_execute_models() -> None:
+    from nca.learning.features import compose_features
+    from test_discovery import Feature
+
+    def unavailable(x: Any) -> Any:
+        raise AssertionError("search must inspect metadata only")
+
+    seed = Feature(Contract(("input",), "a"), unavailable)
+    edge = Feature(Contract(("a",), "b"), unavailable)
+    irrelevant = Feature(Contract(("a", "a"), "b"), unavailable)
+    result = compose_features([seed], [irrelevant, edge], max_depth=1, limit=10)
+    assert [m.manifest.contract.output for m in result] == ["a", "b"]
+    assert result[1].manifest.cost == seed.manifest.cost + edge.manifest.cost
+    for depth, cap in ((-1, 1), (True, 1), (1, 0), (1, True)):
+        with pytest.raises(ValueError):
+            compose_features([seed], [edge], max_depth=depth, limit=cap)
+    with pytest.raises(ValueError, match="share external"):
+        compose_features([seed, edge], [], max_depth=0, limit=10)

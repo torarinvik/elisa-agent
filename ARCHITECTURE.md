@@ -179,6 +179,18 @@ supplied positional features; retaining controls saved no labels and increased
 CPU in this experiment. Learning new features and global fiber sufficiency,
 adaptive control retention and persisted candidate publication remain open.
 
+`learning.features.compose_features` (§36.59) constructs compatible unary
+feature chains breadth-first, retaining distinct paths and cycles through
+caller-supplied depth and candidate bounds. It inspects metadata only and uses
+the existing `Decoded` interpreter for contract/effect/cost composition. The
+`featureClosure_iff` theorem proves bounded endpoint reachability in the
+untruncated relation model; finite graph tests compare actual path enumeration,
+including capped prefixes, and test that search invokes no expert. The relation
+model assumes faithful contract matching and does not identify implementations
+sharing a type. The repair benchmark learns a useful chain from supplied parts,
+but does not invent primitives, cover multi-input transformation search or
+prove useful features exist in an arbitrary installed library.
+
 Every open row requires a mechanism-level theorem, explicit assumptions and
 executable differential or theorem-linked property tests before it is treated
 as proved. Interleavings between mechanisms are an additional obligation, not
@@ -450,6 +462,7 @@ an inference from their separate tests.
 | [31.9](theory/reliability/31-composing-uncertainty.md) | `feedback_repair_progress`, `feedback_chain_bound` (fresh admission uses `ensemble_search_sound`) | `Reliability/RepairFeedback` |
 | [31.10](theory/reliability/31-composing-uncertainty.md) | `keyCorrection_outside`, `endpoint_correction_errors` | `Reliability/RepairFeedback` |
 | [31.11](theory/reliability/31-composing-uncertainty.md) | `keyCorrection_protected`, `fiber_correction_errors` | `Reliability/RepairFeedback` |
+| [36.59](theory/evidence/36-interface-acquisition.md) | `featureClosure_iff` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

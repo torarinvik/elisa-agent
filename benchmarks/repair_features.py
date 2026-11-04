@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import random
 from collections.abc import Hashable
+from dataclasses import replace
 from time import process_time
 from typing import Any
 
@@ -15,6 +16,7 @@ from redundancy import VALUES, LaneFactory
 
 from nca.abi import Contract, Manifest, Message, Module
 from nca.learning.discovery import decoder_object, propose_corrections
+from nca.learning.features import compose_features
 from nca.objects import Composite, Store
 from nca.packages import install
 from nca.planner import Apply, Given, Plan
@@ -47,6 +49,19 @@ class Key:
         return () if self.mode == -1 else value if self.mode == 2 else value[self.mode]
 
 
+class Transform:
+    """Public typed parts; no completed external feature or hidden target axis."""
+
+    def __init__(self, axis: int | None) -> None:
+        self.axis = axis
+        contract = Contract(("raw",), "boxed") if axis is None else Contract(("boxed",), "key")
+        self.manifest = Manifest(f"benchmark.transform.{axis}", "1", contract,
+                                 cost=0, effects=frozenset())
+
+    def invoke(self, value: Any) -> Any:
+        return (value,) if self.axis is None else value[0][self.axis]
+
+
 def trial(seed: int, policy: str) -> dict[str, float]:
     started = process_time()
     factory = LaneFactory(8, seed, True)
@@ -57,6 +72,11 @@ def trial(seed: int, policy: str) -> dict[str, float]:
                               exports=(Contract(("s",), "g"),), effects=frozenset()))
     base = TaskBase(install(store, ref, budget=9, fuel=9)[0], seed % 2)
     features = [Key(2)] if policy == "exact" else [Key(i) for i in (-1, 0, 1, 2)]
+    if policy.startswith("compose"):
+        seed_feature = Key(2)
+        seed_feature.manifest = replace(seed_feature.manifest, contract=Contract(("sample",), "raw"))
+        features = compose_features([seed_feature], [Transform(None), Transform(0), Transform(1)],
+                                    max_depth=int(policy[-1]), limit=16)
     search = EnsembleSearch(counts=(1,) * 32, tolerance=0.02, confidence=0.05,
                             budget=16, retain_controls=16 if policy == "controls" else 0)
     rng = random.Random(seed + 30000)
@@ -110,6 +130,6 @@ def trial(seed: int, policy: str) -> dict[str, float]:
 
 
 if __name__ == "__main__":
-    for policy in ("exact", "failures", "controls"):
+    for policy in ("exact", "failures", "controls", "compose1", "compose2"):
         for seed in (3716, 3717, 3718):
             print(json.dumps({"policy": policy, "seed": seed, **trial(seed, policy)}), flush=True)
