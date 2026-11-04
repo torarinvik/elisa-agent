@@ -121,18 +121,26 @@ class MemoryStore:
         return _decode(encoded)
 
     def append(self, record: MemoryRecord) -> Ref:
+        return self.append_position(record)[1]
+
+    def append_position(self, record: MemoryRecord) -> tuple[int, Ref]:
+        """Atomically admit a record and return its durable append position.
+
+        Duplicate records retain their original positions. Callers needing a
+        fresh ticket must include a fresh nonce in their record's contents.
+        """
         require_effect(self.write_effect)
         encoded = record.encode()
         reference = "sha256:" + hashlib.sha256(encoded).hexdigest()
         charge = len(encoded) + len(reference.encode())
         with self._db:
             self._db.execute("BEGIN IMMEDIATE")
-            existing = self._db.execute("SELECT encoded FROM memory_records WHERE ref=?",
+            existing = self._db.execute("SELECT encoded, position FROM memory_records WHERE ref=?",
                                         (reference,)).fetchone()
             if existing is not None:
                 if existing[0] != encoded:
                     raise ValueError("memory identity collision or corruption")
-                return reference
+                return existing[1], reference
             capacity, used, _ = self._db.execute(
                 "SELECT capacity, used, records FROM memory_meta WHERE id=1").fetchone()
             if charge > capacity - used:
@@ -155,7 +163,7 @@ class MemoryStore:
                                  [(parent, reference) for parent in dict.fromkeys(record.parents)])
             self._db.execute("UPDATE memory_meta SET used=used+?, records=records+1, "
                              "position=? WHERE id=1", (charge, position))
-        return reference
+        return position, reference
 
     def remove(self, reference: Ref) -> int:
         """Delete one record and free its logical charge, which is returned.

@@ -36,6 +36,14 @@ class MemoryBackend(Protocol):
         """Atomically admit a record and its logical byte charge, or change nothing."""
         ...
 
+    def append_position(self, record: MemoryRecord) -> tuple[int, Ref]:
+        """Atomically append and return its non-reused position and reference.
+
+        Duplicate records return their original position; fresh ticket users
+        supply fresh nonces. Positions survive deletion and reopening.
+        """
+        ...
+
     def remove(self, reference: Ref) -> int:
         """Atomically delete a record that no record names as a parent, freeing
         and returning its logical byte charge."""

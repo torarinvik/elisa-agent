@@ -429,3 +429,32 @@ Theorem 20.14. False discard and false admission have separate budgets `η`
 and `δ`; their union has probability at most `η + δ`. Statistical refusal is
 not a permanent impossibility proof for other distributions, agreement rules,
 state representations or predictor classes.
+
+**Durable scoped refusals.** A scope identifies a fixed distribution,
+agreement rule, input-key semantics and compatible predictor family. Refusal
+keys contain this scope, the entire contract and the tolerance and confidence
+budgets. Only an actual rejection under Theorem 20.16 establishes a refusal;
+failure to fit or to pass final certification does not prove impossibility.
+
+**Theorem 20.17 (durable spending and refusal replay).** Let every new test
+reserve a distinct natural position before observing its cases. Position `k`
+uses level `η/((k+1)(k+2))`; positions may be skipped because of crashes,
+unrelated records or eviction. Suppose the per-test bound holds conditional
+on prior history. Across any finite set of reserved positions the probability
+of a false refusal, including any number of later reuses in the same scope,
+is at most `η`.
+
+*Proof.* The finite set of used positions is contained in a sufficiently
+large initial interval of natural numbers. Its spending sum is bounded by
+that interval's telescoping sum, at most `η`. A wrong reused refusal must
+originate in a wrong original rejection; reuse adds no event to that union.
+The same argument applies separately to admission confidence. ∎
+
+The reservation must survive restarting, eviction and failure; reopening an
+older snapshot starts a different statistical experiment. Missing cache
+entries merely cause another test at a fresh position. The scope's semantic
+identity and faithful restoration of stored evidence are hypotheses, not
+properties inferred from matching type names. A bounded cache can forget a
+refusal without weakening the risk bound, provided its spending clock does
+not rewind. A successfully learned implementation requires its own artifact
+storage; this refusal history does not supply one.

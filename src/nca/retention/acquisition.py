@@ -3,7 +3,7 @@
 An acquirer for ``planner.gaps.repair`` built from any fitter and a source of
 paired cases. For each requested contract it fits on training cases, then
 draws fresh cases and admits the result only if it agrees on all of them. The
-``k``-th request is tested at level ``decision_level(confidence, k)`` with
+``k``-th new request is tested at level ``decision_level(confidence, k)`` with
 ``required_cases`` fresh cases, so across all requests the probability of
 admitting any connector whose error rate exceeds ``tolerance`` is at most
 ``confidence`` (``NCA.zeroLoss_miss``, ``NCA.acquisition_sound``), assuming
@@ -15,6 +15,11 @@ most about twice the cases read up to the first error. Each
 admitted connector carries ``tolerance`` as its certified rate, for
 ``evidence.route_risk``. What generalizes is the fitter's concern; the test
 only measures it.
+
+Optional history replaces the local index by a durable reservation position,
+possibly skipping levels, and reuses screened refusals in the same semantic
+context. The confidence bound is unchanged when those positions are never
+reused. Final admission cases remain fresh, separate from the training prefix.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ from typing import Any
 from nca.abi import Contract, Module
 from nca.retention.sampled import decision_level, required_cases
 from nca.retention.screening import FeasibilityScreen
+from nca.retention.history import AcquisitionHistory
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
 """Fits an expert from input keys and labels, or ``None`` if it cannot."""
@@ -47,23 +53,39 @@ class CertifiedAcquirer:
     A screen has a separate false-discard budget and requires separation sound
     for this instance's ``agree`` predicate. Its passing prefix is training
     data, never held-out evidence. See ``FeasibilityScreen`` for assumptions.
+    With ``history``, only screened impossibility refusals are reused, and
+    durable reservations supply both admission and screening decision indices.
+    The host must declare and grant the backend's read/write effects.
+    ``decisions`` counts new attempts; ``cache_hits`` counts reused refusals.
     """
 
     def __init__(self, fit: Fitter, sample: Sampler, *, train: int, tolerance: float,
                  confidence: float, agree: Callable[[Any, Any], bool] = _equal,
-                 screen: FeasibilityScreen | None = None) -> None:
+                 screen: FeasibilityScreen | None = None,
+                 history: AcquisitionHistory | None = None) -> None:
         if train < 1:
             raise ValueError("training needs at least one case")
         required_cases(tolerance, confidence)
         self.fit, self.sample, self.train, self.agree = fit, sample, train, agree
         self.tolerance, self.confidence = tolerance, confidence
         self.screen = screen
+        self.history = history
+        self.cache_hits = 0
         self.decisions = 0
         self.labels = 0
         self.certified: dict[str, float] = {}
 
     def __call__(self, contract: Contract) -> Module | None:
-        level = decision_level(self.confidence, self.decisions)
+        key = ticket = None
+        index = self.decisions
+        if self.history is not None:
+            key = self.history.key(contract, self.tolerance, self.confidence,
+                                   self.screen.confidence if self.screen is not None else None)
+            if self.history.refused(key):
+                self.cache_hits += 1
+                return None
+            index, ticket = self.history.reserve(key)
+        level = decision_level(self.confidence, index)
         self.decisions += 1
         fresh = required_cases(self.tolerance, level)
         training: list[tuple[Any, Any]] = []
@@ -75,7 +97,11 @@ class CertifiedAcquirer:
                 training.extend(drawn)
             if len(training) != prefix:
                 return None
-            if self.screen is not None and self.screen.reject(training, self.tolerance):
+            if self.screen is not None and self.screen.reject(
+                    training, self.tolerance, index=index if self.history is not None else None):
+                if self.history is not None and key is not None and ticket is not None:
+                    assert self.screen.last is not None
+                    self.history.remember(key, ticket, self.screen.last)
                 return None
         remaining = self.train - len(training)
         if remaining:

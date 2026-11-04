@@ -34,8 +34,9 @@ class FeasibilityScreen:
 
     A good fixed deterministic predictor is discarded with probability at
     most ``confidence`` over any finite number of calls, under the module's
-    assumptions. Resetting the object resets that budget; it is not durable
-    refusal memory. Calls must be serialized, as with CertifiedAcquirer.
+    assumptions. The default counter is in memory; resetting it starts a new
+    budget. ``CertifiedAcquirer`` with history supplies durable indices instead.
+    Calls must be serialized, as with CertifiedAcquirer.
     Prefixes that pass are reusable as training data, but never as the fresh
     final certification cases. The key and separation callbacks must be pure.
     """
@@ -52,19 +53,26 @@ class FeasibilityScreen:
         self.decisions = self.rejections = 0
         self.last: ScreenResult | None = None
 
-    def reject(self, cases: Sequence[tuple[Any, Any]], tolerance: float) -> bool:
+    def reject(self, cases: Sequence[tuple[Any, Any]], tolerance: float, *,
+               index: int | None = None) -> bool:
         """Check a fixed-size fresh prefix; incomplete draws must not be tested.
 
         The caller chooses its size before observing it, at most ``cases``.
         Pair selection may depend on labels: disjointness gives a pathwise
         lower bound on *any* compatible predictor's errors, so no independence
         assumption about the selected pairs is made.
+
+        An external ``index`` must come from a durable, non-reused reservation
+        committed before drawing these cases; it can skip unused levels.
         """
         n = len(cases)
         if not 2 <= n <= self.cases or not 0 < tolerance < 1:
             raise ValueError("invalid screen size or tolerance")
-        level = self.confidence / ((self.decisions + 1) * (self.decisions + 2))
-        self.decisions += 1
+        index = self.decisions if index is None else index
+        if isinstance(index, bool) or not isinstance(index, int) or index < self.decisions:
+            raise ValueError("screen decision indices must increase without reuse")
+        level = self.confidence / ((index + 1) * (index + 2))
+        self.decisions = index + 1
         epsilon = Fraction(tolerance)
         threshold = next((r for r in range(1, n // 2 + 1)
                           if math.comb(n, r) * epsilon ** r <= level), None)

@@ -1,4 +1,5 @@
 import NCA.Reliability.Vote
+import NCA.Reliability.SampledGate
 
 /-! Contradictory pairs as witnesses of unavoidable empirical error (§20.16).
 Pairs may be chosen after observing the cases: disjointness, rather than
@@ -64,5 +65,31 @@ theorem contradiction_screen_risk {Ω : Type*} [MeasurableSpace Ω]
         simp [(mem_powersetCard.mp hS).2]
       rw [sum_congr rfl this]
       simp [sum_const, nsmul_eq_mul]
+
+/-- Reopening, lost attempts and bounded-cache misses may skip spending
+positions. Replaying scoped refusals creates no new false-discard event:
+every such event must originate in an original wrong rejection. -/
+theorem durable_refusal_risk {Ω : Type*} [MeasurableSpace Ω]
+    (μ : Measure Ω) {δ : ℝ} (hδ : 0 ≤ δ) (used : Finset ℕ)
+    (wrong : ℕ → Set Ω) (replayed : Set Ω)
+    (origin : replayed ⊆ ⋃ k ∈ used, wrong k)
+    (each : ∀ k ∈ used, μ (wrong k) ≤ ENNReal.ofReal (decisionLevel δ k)) :
+    μ replayed ≤ ENNReal.ofReal δ := by
+  classical
+  let selected : ℕ → Set Ω := fun k => if k ∈ used then wrong k else ∅
+  have bounded : ∀ k ∈ used, k < used.sup id + 1 := by
+    intro k hk
+    exact Nat.lt_succ_of_le (le_sup (f := id) hk)
+  have sub : replayed ⊆ ⋃ k ∈ range (used.sup id + 1), selected k := by
+    intro ω hω
+    obtain ⟨k, hk⟩ := Set.mem_iUnion.mp (origin hω)
+    obtain ⟨hk, hw⟩ := Set.mem_iUnion.mp hk
+    exact Set.mem_iUnion.mpr ⟨k, Set.mem_iUnion.mpr
+      ⟨mem_range.mpr (bounded k hk), by simpa [selected, hk] using hw⟩⟩
+  refine (measure_mono sub).trans (acquisition_sound μ hδ _ selected ?_)
+  intro k _
+  by_cases hk : k ∈ used
+  · simpa [selected, hk] using each k hk
+  · simp [selected, hk]
 
 end NCA
