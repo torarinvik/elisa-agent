@@ -104,6 +104,15 @@ def test_export_cache_distinguishes_planning_context_and_keeps_binding_refutatio
     shallow = install(store, ref, fuel=8)[0]
     deep = install(store, ref, fuel=12)[0]
     assert shallow.identity == deep.identity and shallow.cache_identity != deep.cache_identity
+    from nca.packages import resolve_binding
+
+    assert resolve_binding(store, ref, 0, shallow).invoke(0) == 99
+    with pytest.raises(ValueError, match="content identity"):
+        resolve_binding(store, ref, 0, deep)
+    constrained = install(store, ref, budget=1)[0]
+    assert constrained.manifest == shallow.manifest
+    with pytest.raises(ValueError, match="execution configuration"):
+        resolve_binding(store, ref, 0, constrained)
     cache = ResultCache()
     inputs = (Message("t0", 0, "input"),)
     for expert, expected in ((shallow, 99), (deep, 9), (shallow, 99), (deep, 9)):

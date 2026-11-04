@@ -270,6 +270,8 @@ def resolve_binding(store: Store, reference: Ref, index: int, expected: Module) 
     if (identity is None or identity != getattr(selected, "identity", None)
             or expected.manifest != selected.manifest):
         raise ValueError("binding must match its trained content identity and manifest")
+    if isinstance(expected, Export) and expected.cache_identity != selected.cache_identity:
+        raise ValueError("binding must preserve export execution configuration")
     return selected
 
 

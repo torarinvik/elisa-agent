@@ -78,4 +78,16 @@ theorem retained_feedback_account {α : Type*} [DecidableEq α]
     (drawn ∪ retained).card = drawn.card ∧ Disjoint retained future := by
   exact ⟨by rw [Finset.union_eq_left.mpr kept], fresh.mono_left kept⟩
 
+/-- Restoration preserves a correction table's predictions conditional on
+faithful children and lookup. This does not prove codecs or executable loaders. -/
+theorem correction_reloaded_eq {X Y K : Type*}
+    (base restoredBase : X → Y) (key restoredKey : X → K)
+    (table restoredTable : K → Option Y)
+    (hb : ∀ x, restoredBase x = base x) (hk : ∀ x, restoredKey x = key x)
+    (ht : ∀ k, restoredTable k = table k) :
+    (fun x => (restoredTable (restoredKey x)).getD (restoredBase x)) =
+      (fun x => (table (key x)).getD (base x)) := by
+  funext x
+  rw [hb x, hk x, ht]
+
 end NCA

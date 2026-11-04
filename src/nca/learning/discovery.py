@@ -449,7 +449,13 @@ class Corrected:
 
     def __init__(self, incumbent: Module, feature: Module,
                  corrections: Mapping[Hashable, Hashable], cost: float) -> None:
+        if not math.isfinite(cost) or cost < 0:
+            raise ValueError("correction cost must be finite and nonnegative")
+        if (replace(feature.manifest.contract, output=incumbent.manifest.contract.output)
+                != incumbent.manifest.contract):
+            raise ValueError("correction feature must preserve inputs, slots and relevance")
         self.incumbent, self.feature = incumbent, feature
+        self.overhead_cost = cost
         self.corrections = dict(corrections)
         a, b = incumbent.manifest, feature.manifest
         effects = None if a.effects is None or b.effects is None else a.effects | b.effects

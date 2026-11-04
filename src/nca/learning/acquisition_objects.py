@@ -6,9 +6,10 @@ from typing import Any
 
 from nca.abi import Module
 from nca.learning.affine import AffineAdapter, affine_object
-from nca.learning.discovery import Decoded, Decoder, JointFeature, decoder_object
+from nca.learning.discovery import Corrected, Decoded, Decoder, JointFeature, decoder_object
 from nca.learning.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
-from nca.objects import Primitive, Ref, Store, contract_data, contract_from, digest, manifest_data
+from nca.objects import Json, Primitive, Ref, Store, canonical, contract_data, contract_from, digest, manifest_data
+from nca.value_codec import decode_value, encode_value
 from nca.packages import install, resolve_binding
 from nca.learning.regional import RegionalExpert, RegionalPolicy
 from nca.learning.regional_objects import policy_object, regional_object
@@ -24,6 +25,8 @@ def _children(model: Module) -> tuple[Module, ...]:
         return (model.incumbent, model.feature, *model.specialists.values())
     if kind is Decoded:
         return model.feature, model.decoder
+    if kind is Corrected:
+        return model.incumbent, model.feature
     if kind is JointFeature:
         return model.left, model.right
     if kind in _ENCODERS:
@@ -59,6 +62,18 @@ def load_joint(manifest: dict[str, Any], indices: list[int], pair_cost: float,
     return model
 
 
+def load_correction(manifest: dict[str, Any], indices: list[int], table: list[list[Json]],
+                    cost: float, dependencies: tuple[tuple[Module, ...], ...]) -> Corrected:
+    incumbent, feature = _binary_children(indices, dependencies)
+    decoded = [(decode_value(key), decode_value(label)) for key, label in table]
+    corrections = dict(decoded)
+    if len(corrections) != len(decoded):
+        raise ValueError("correction keys must be distinct")
+    model = Corrected(incumbent, feature, corrections, cost)
+    model.manifest = replace(model.manifest, module_id=manifest["module_id"])
+    return model
+
+
 def _metadata(original: Module, rebuilt: Module) -> None:
     if replace(rebuilt.manifest, module_id=original.manifest.module_id) != original.manifest:
         raise ValueError("retained children changed learned model metadata")
@@ -80,6 +95,20 @@ def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
         rebuilt = Decoder(model.manifest.contract, model._table, model.fallback, model.manifest.cost)
         _metadata(model, rebuilt)
         return decoder_object(rebuilt, size=size)
+    if kind is Corrected:
+        rebuilt = Corrected(children[0], children[1], model.corrections, model.overhead_cost)
+        _metadata(model, rebuilt)
+        table = [[encode_value(key), encode_value(label)]
+                 for key, label in model.corrections.items()]
+        table.sort(key=lambda pair: canonical(pair[0]))
+        references = tuple(ref for ref, _ in bindings)
+        arguments = {"indices": [index for _, index in bindings], "table": table,
+                     "cost": model.overhead_cost}
+        identity = digest({"parameters": arguments, "dependencies": references})
+        manifest = replace(rebuilt.manifest, module_id=f"learned-correction/{identity}")
+        return Primitive(manifest, "nca/correction@1",
+                         {**arguments, "manifest": manifest_data(manifest)},
+                         size=size, dependencies=references)
     if kind in _ENCODERS:
         factory, parameters = _parameters(model)
         rebuilt = factory(manifest=manifest_data(model.manifest), index=0,
@@ -140,7 +169,7 @@ def store_acquired_models(store: Store, models: Sequence[Module],
     Callers choose which learned components to expose; no private graph inspection
     is needed after reopening. Empty roots perform no writes or callbacks.
 
-    Supports regional policies, feature/head composition, structural products,
+    Supports endpoint corrections, regional policies, feature/head composition, structural products,
     numeric encoders and categorical/scalar/vector fitted heads. Other leaves
     must already be content-identified. Byte sizes apply per learned node and
     exclude dependencies. Sizes/factories must remain faithful, and models stable
@@ -152,7 +181,7 @@ def store_acquired_models(store: Store, models: Sequence[Module],
     active: set[int] = set()
     pending = [(model, False) for model in reversed(models)]
     known = (*_ENCODERS, RegionalExpert, RegionalPolicy, Decoded, JointFeature,
-             Decoder, AffineAdapter, VectorAffineAdapter)
+             Corrected, Decoder, AffineAdapter, VectorAffineAdapter)
     while pending:
         node, leaving = pending.pop()
         identity = id(node)

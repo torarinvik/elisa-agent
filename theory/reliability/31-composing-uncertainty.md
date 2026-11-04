@@ -337,3 +337,23 @@ or that fitting succeeds. Selection by rejection and stopping can bias the
 retained prefix; it is training evidence, not a replacement for a fresh audit.
 Freshness of identifiers alone does not imply conditional IID sampling. The
 next frozen candidate still needs the sampling hypothesis of Theorem 31.8.
+
+## 31.14 Retaining endpoint corrections across restarts
+
+Represent a correction model by an incumbent f:X→Y, a feature k:X→K and a
+finite partial table T:K⇀Y. Its prediction is T(k(x)) when defined and f(x)
+otherwise. Presence in the table is separate from the value of a label.
+
+**Theorem 31.13 (faithful correction restoration).** If restored incumbent and
+feature functions agree pointwise with f and k, and restored table lookup
+agrees with T on every key, then the restored prediction function is identical
+to the original on every input, including keys absent during training.
+
+*Proof.* Substitute the three pointwise equalities into the lookup-and-fallback
+definition. Both the present and absent branches therefore agree. ∎
+
+These are fidelity hypotheses, not consequences of a digest alone. Executable
+components, structural value encoding, metadata and loading require separate
+validation. The result assumes stable functional models, not mutable hidden
+state or external effects. Retaining model parameters does not retain a risk
+certificate or establish validity under a changed operating distribution.

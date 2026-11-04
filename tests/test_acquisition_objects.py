@@ -11,7 +11,7 @@ import pytest
 from nca.abi import Calls, Contract, Manifest, Module
 from nca.learning.acquisition_objects import store_acquired_model
 from nca.learning.affine import AffineAdapter, affine_object, fit_affine
-from nca.learning.discovery import Decoded, Decoder, Proposal
+from nca.learning.discovery import Corrected, Decoded, Decoder, Proposal
 from nca.loader import ExpertStore
 from nca.learning.numeric import midpoint_boundary
 from nca.objects import Primitive, Store
@@ -370,3 +370,65 @@ def test_empty_acquisition_roots_do_not_call_bind_or_size() -> None:
         pytest.fail("empty roots must not invoke callbacks")
 
     assert store_acquired_models(Store(), [], unexpected, size=unexpected) == ()
+
+
+def test_endpoint_correction_retention_preserves_table_and_fallback(tmp_path: Path) -> None:
+    contract = Contract(("input",), "output")
+    base = Decoder(contract, {"a": "old-a"}, "unseen", 1)
+    feature = Decoder(Contract(("input",), "key"),
+                      {"a": ("nested", (1, None)), "b": 2}, "other", 0)
+    model = Corrected(base, feature, {("nested", (1, None)): None, 2: ("new", 3)}, 0.25)
+    store = Store()
+    ref, index = store_acquired_model(store, model, lambda m: pytest.fail("known model"),
+                                     size=lambda m: 16)
+    expected = [model.invoke(x) for x in ("a", "b", "unseen")]
+    assert expected == [None, ("new", 3), "unseen"]
+    reordered = Corrected(base, feature, dict(reversed(tuple(model.corrections.items()))), 0.25)
+    assert store_acquired_model(store, reordered, lambda m: pytest.fail("known model"),
+                                 size=lambda m: 16) == (ref, index)
+    store.save(tmp_path)
+    model.corrections[2] = "mutated"
+    base._table["a"] = "changed"
+    restored = install(Store.open(tmp_path), ref)[index]
+    assert [restored.invoke(x) for x in ("a", "b", "unseen")] == expected
+    assert restored.manifest.cost == model.manifest.cost
+    assert restored.manifest.contract == contract
+
+
+def test_endpoint_correction_rejects_malformed_tables_and_metadata() -> None:
+    base = Decoder(Contract(("input",), "output"), {}, "old", 1)
+    feature = Decoder(Contract(("input",), "key"), {}, "key", 0)
+    model = Corrected(base, feature, {"key": None}, 0)
+    store = Store()
+    ref, _ = store_acquired_model(store, model, lambda m: pytest.fail("known model"),
+                                 size=lambda m: 16)
+    obj = store.get(ref)
+    duplicate = replace(obj, arguments={**obj.arguments, "table": [[1, "a"], [True, "b"]]})
+    with pytest.raises(ValueError, match="distinct"):
+        duplicate.load(lambda dependency: install(store, dependency))
+    malformed = replace(obj, arguments={**obj.arguments, "indices": [False, 0]})
+    with pytest.raises(ValueError, match="export position"):
+        malformed.load(lambda dependency: install(store, dependency))
+    altered = replace(obj, arguments={**obj.arguments, "cost": 2})
+    with pytest.raises(ValueError, match="not the declared"):
+        altered.load(lambda dependency: install(store, dependency))
+    with pytest.raises(ValueError, match="preserve inputs"):
+        Corrected(base, Decoder(Contract(("elsewhere",), "key"), {}, 0, 0), {}, 0)
+    for cost in (-1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="cost"):
+            Corrected(base, feature, {}, cost)
+
+
+def test_correction_restoration_exhaustive_finite_lookup_link() -> None:
+    """Finite implementation link to correction_reloaded_eq, including None labels."""
+    from itertools import product
+
+    base = Decoder(Contract(("input",), "output"), {}, "fallback", 0)
+    feature = Decoder(Contract(("input",), "key"), {i: i for i in range(3)}, 3, 0)
+    store = Store()
+    for labels in product((None, 0, ("label", 1)), repeat=3):
+        model = Corrected(base, feature, dict(enumerate(labels)), 0)
+        ref, index = store_acquired_model(store, model, lambda m: pytest.fail("known model"),
+                                         size=lambda m: 0)
+        loaded = install(store, ref)[index]
+        assert [loaded.invoke(i) for i in range(4)] == [*labels, "fallback"]
