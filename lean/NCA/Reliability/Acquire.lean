@@ -486,4 +486,11 @@ theorem saturated_prefix {A : Type*} (front suffix : List A) (score : A → ℕ)
     rw [maximal]
     exact bounded b hb
 
+/-- A constructed pair is correct wherever both component expressions are correct. -/
+theorem structural_pair_correct {X A B : Type*} (left : X → A) (right : X → B)
+    (target : X → A × B) (x : X)
+    (hleft : left x = (target x).1) (hright : right x = (target x).2) :
+    (left x, right x) = target x := by
+  exact Prod.ext hleft hright
+
 end NCA

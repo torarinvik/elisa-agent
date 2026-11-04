@@ -358,3 +358,13 @@ faithful scores and no state changes affecting later candidates; observable
 side-effect traces need not be identical. This is an opt-in compute policy,
 not a claim that training maxima generalize. Independent certification remains
 necessary. Non-saturating searches may still visit the entire bounded family.
+
+
+## 36.71 Structural output construction
+
+Let a candidate construct an output pair from two expressions. If each
+expression equals its corresponding target component at an input, the pair
+equals the target there (`structural_pair_correct`). The statement extends
+inductively to finite tuple trees. Training consistency alone does not establish
+these component equalities on unseen inputs; independent certification is
+needed, under its existing fresh-sampling and fixed-candidate assumptions.
