@@ -12,6 +12,7 @@ from nca.abi import Calls, Contract, Manifest, Module
 from nca.learning.acquisition_objects import store_acquired_model
 from nca.learning.affine import AffineAdapter, affine_object, fit_affine
 from nca.learning.discovery import Corrected, Decoded, Decoder, Proposal
+from nca.learning.features import AppliedFeature
 from nca.loader import ExpertStore
 from nca.learning.numeric import midpoint_boundary
 from nca.objects import Primitive, Store
@@ -432,3 +433,82 @@ def test_correction_restoration_exhaustive_finite_lookup_link() -> None:
                                          size=lambda m: 0)
         loaded = install(store, ref)[index]
         assert [loaded.invoke(i) for i in range(4)] == [*labels, "fallback"]
+
+
+class OrderedHead:
+    manifest = Manifest("ordered-head", "1", Contract(("piece", "piece"), "piece"),
+                        effects=frozenset())
+
+    def invoke(self, first: object, second: object) -> tuple[object, object]:
+        return first, second
+
+
+class SlotBranch:
+    manifest = Manifest("slot-branch", "1", Contract(("input",), "piece",
+                        slots=((("input",), "piece"),), relevant=((0,),)),
+                        calls=(Calls(1, 0),), effects=frozenset())
+
+    def invoke(self, filling: Callable[[int], int], value: int) -> int:
+        return filling(value)
+
+
+def test_multi_input_graph_retains_nested_order_and_shared_nodes(tmp_path: Path) -> None:
+    store = Store()
+    head_ref = store.put(Primitive(OrderedHead.manifest, f"{__name__}:OrderedHead", size=8))
+    head = install(store, head_ref)[0]
+    left = Decoder(Contract(("input",), "piece"), {0: 1, 1: None}, "left", 1)
+    right = Decoder(left.manifest.contract, {0: 2, 1: (3, 4)}, "right", 1)
+    inner = AppliedFeature(head, [left, right])
+    model = AppliedFeature(head, [inner, left])
+    bound: list[Module] = []
+    sized: list[Module] = []
+
+    def bind(module: Module) -> tuple[str, int]:
+        bound.append(module)
+        return module.identity, 0
+
+    def size(module: Module) -> int:
+        sized.append(module)
+        return 16
+
+    ref, index = store_acquired_model(store, model, bind, size=size)
+    assert bound == [head] and len(sized) == 4
+    assert len(set(store.walk(ref))) == 5
+    store.save(tmp_path)
+    resident = ExpertStore(budget=80)
+    restored = install(Store.open(tmp_path), ref, experts=resident)[index]
+    assert resident.stats.loads == 0
+    for value in (0, 1, "unseen"):
+        assert restored.invoke(value) == model.invoke(value)  # featureApplication_reloaded_eq
+    assert resident.stats.loads == 5
+    assert restored.manifest.cost == model.manifest.cost == 5
+    reversed_model = AppliedFeature(head, [left, inner])
+    assert store_acquired_model(store, reversed_model, bind, size=size)[0] != ref
+
+
+def test_multi_input_reload_keeps_repeated_slot_branch_invocations(tmp_path: Path) -> None:
+    store = Store()
+    refs = [store.put(Primitive(cls.manifest, f"{__name__}:{cls.__name__}", size=8))
+            for cls in (OrderedHead, SlotBranch)]
+    head, branch = [install(store, ref)[0] for ref in refs]
+    model = AppliedFeature(head, [branch, branch])
+    ref, index = store_acquired_model(store, model, lambda m: (m.identity, 0), size=lambda m: 16)
+    assert store.get(ref).dependencies == (refs[0], refs[1], refs[1])
+    store.save(tmp_path)
+    restored = install(Store.open(tmp_path), ref)[index]
+    calls: list[int] = []
+
+    def filling(value: int) -> int:
+        calls.append(value)
+        return value + 1
+
+    assert restored.invoke(filling, 2) == (3, 3) and calls == [2, 2]
+    assert restored.manifest.calls == (Calls(2, 0),)
+    assert restored.manifest.contract == model.manifest.contract
+    obj = store.get(ref)
+    malformed = replace(obj, arguments={**obj.arguments, "indices": [0, False, 0]})
+    with pytest.raises(ValueError, match="application export position"):
+        malformed.load(lambda dependency: install(store, dependency))
+    shortened = replace(obj, arguments={**obj.arguments, "indices": [0]})
+    with pytest.raises(ValueError, match="aligned feature bindings"):
+        shortened.load(lambda dependency: install(store, dependency))

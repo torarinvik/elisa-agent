@@ -13,8 +13,8 @@ class AppliedFeature:
     """A slot-free transformation over ordered features of one external input.
 
     Branches are evaluated separately, even when an object is repeated. No
-    purity, caching or shared execution is inferred. This in-memory interpreter
-    does not yet have a parameter artifact codec.
+    purity, caching or shared execution is inferred. Graph retention preserves
+    argument positions even when several positions name the same component.
     """
 
     def __init__(self, transform: Module, features: Sequence[Module]) -> None:

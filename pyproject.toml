@@ -15,6 +15,7 @@ trust = ["cryptography>=42"]
 "nca/joint@1" = "nca.learning.acquisition_objects:load_joint"
 "nca/composition@1" = "nca.learning.acquisition_objects:load_composition"
 "nca/correction@1" = "nca.learning.acquisition_objects:load_correction"
+"nca/application@1" = "nca.learning.acquisition_objects:load_application"
 "nca/affine@1" = "nca.learning.affine:load_affine"
 "nca/vector-affine@1" = "nca.learning.vector:load_vector_affine"
 "nca/tree@1" = "nca.learning.tree_objects:load_tree"

@@ -200,10 +200,22 @@ proves bounded root-type reachability from all rule antecedents, not just one
 edge; exhaustive finite-rule tests compare actual tree sets, duplicates and
 prefix order, while repeated-type tests exercise binary/ternary positions and
 slot forwarding. Pivot uniqueness is justified mathematically and finite-tested,
-not proved for the Python implementation. Multi-input applications currently
-remain in memory: unlike unary `Decoded` chains, they have no parameter codec.
-Persistence, higher-order/polymorphic transformation search and practical
-large-library enumeration remain open; no universal learning gain is claimed.
+not proved for the Python implementation. Higher-order/polymorphic transformation
+search and practical large-library enumeration remain open; no universal
+learning gain is claimed.
+
+Multi-input applications now participate in shared graph retention (§36.61).
+`nca/application@1` restores a head and ordered feature bindings, including
+repeated references. `AppliedFeature` recomputes contract/effect/cost/call
+metadata; the normal primitive loader checks it against the declaration.
+`featureApplication_reloaded_eq` proves conditional function equality for
+arbitrary heterogeneous argument positions, not executable codec fidelity.
+Round-trip tests cover nested trees, a shared head, repeated slot branches,
+lazy unique-component loading, argument-order identity and malformed binding
+positions. Retained sharing saves implementation storage, not branch executions.
+The benchmark fits a fully supervised head and freshly certifies reopened graphs;
+it establishes parameter reuse on one task, not hidden-state restoration,
+certificate persistence or transfer to new distributions.
 
 `EnsembleSearch.retain_training` (§31.13) exposes a bounded prefix of already
 charged draws only after a scored rejection, including unscored final-batch
@@ -511,6 +523,7 @@ an inference from their separate tests.
 | [31.13](theory/reliability/31-composing-uncertainty.md) | `correction_reloaded_eq` | `Reliability/RepairFeedback` |
 | [36.59](theory/evidence/36-interface-acquisition.md) | `featureClosure_iff` | `Planning/FeatureClosure` |
 | [36.60](theory/evidence/36-interface-acquisition.md) | `featureTreeClosure_iff` | `Planning/FeatureClosure` |
+| [36.61](theory/evidence/36-interface-acquisition.md) | `featureApplication_reloaded_eq` | `Planning/FeatureClosure` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

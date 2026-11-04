@@ -7,6 +7,7 @@ from typing import Any
 from nca.abi import Module
 from nca.learning.affine import AffineAdapter, affine_object
 from nca.learning.discovery import Corrected, Decoded, Decoder, JointFeature, decoder_object
+from nca.learning.features import AppliedFeature
 from nca.learning.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
 from nca.objects import Json, Primitive, Ref, Store, canonical, contract_data, contract_from, digest, manifest_data
 from nca.value_codec import decode_value, encode_value
@@ -27,6 +28,8 @@ def _children(model: Module) -> tuple[Module, ...]:
         return model.feature, model.decoder
     if kind is Corrected:
         return model.incumbent, model.feature
+    if kind is AppliedFeature:
+        return model.transform, *model.features
     if kind is JointFeature:
         return model.left, model.right
     if kind in _ENCODERS:
@@ -74,6 +77,20 @@ def load_correction(manifest: dict[str, Any], indices: list[int], table: list[li
     return model
 
 
+def load_application(manifest: dict[str, Any], indices: list[int],
+                     dependencies: tuple[tuple[Module, ...], ...]) -> AppliedFeature:
+    if len(indices) < 2 or len(indices) != len(dependencies):
+        raise ValueError("application needs a head and aligned feature bindings")
+    children = []
+    for scope, index in zip(dependencies, indices, strict=True):
+        if type(index) is not int or not 0 <= index < len(scope):
+            raise ValueError("invalid application export position")
+        children.append(scope[index])
+    model = AppliedFeature(children[0], children[1:])
+    model.manifest = replace(model.manifest, module_id=manifest["module_id"])
+    return model
+
+
 def _metadata(original: Module, rebuilt: Module) -> None:
     if replace(rebuilt.manifest, module_id=original.manifest.module_id) != original.manifest:
         raise ValueError("retained children changed learned model metadata")
@@ -95,6 +112,16 @@ def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
         rebuilt = Decoder(model.manifest.contract, model._table, model.fallback, model.manifest.cost)
         _metadata(model, rebuilt)
         return decoder_object(rebuilt, size=size)
+    if kind is AppliedFeature:
+        rebuilt = AppliedFeature(children[0], children[1:])
+        _metadata(model, rebuilt)
+        references = tuple(ref for ref, _ in bindings)
+        arguments = {"indices": [index for _, index in bindings]}
+        identity = digest({"parameters": arguments, "dependencies": references})
+        manifest = replace(rebuilt.manifest, module_id=f"learned-application/{identity}")
+        return Primitive(manifest, "nca/application@1",
+                         {**arguments, "manifest": manifest_data(manifest)},
+                         size=size, dependencies=references)
     if kind is Corrected:
         rebuilt = Corrected(children[0], children[1], model.corrections, model.overhead_cost)
         _metadata(model, rebuilt)
@@ -169,7 +196,8 @@ def store_acquired_models(store: Store, models: Sequence[Module],
     Callers choose which learned components to expose; no private graph inspection
     is needed after reopening. Empty roots perform no writes or callbacks.
 
-    Supports endpoint corrections, regional policies, feature/head composition, structural products,
+    Supports multi-input applications, endpoint corrections, regional policies,
+    feature/head composition, structural products,
     numeric encoders and categorical/scalar/vector fitted heads. Other leaves
     must already be content-identified. Byte sizes apply per learned node and
     exclude dependencies. Sizes/factories must remain faithful, and models stable
@@ -181,7 +209,7 @@ def store_acquired_models(store: Store, models: Sequence[Module],
     active: set[int] = set()
     pending = [(model, False) for model in reversed(models)]
     known = (*_ENCODERS, RegionalExpert, RegionalPolicy, Decoded, JointFeature,
-             Corrected, Decoder, AffineAdapter, VectorAffineAdapter)
+             AppliedFeature, Corrected, Decoder, AffineAdapter, VectorAffineAdapter)
     while pending:
         node, leaving = pending.pop()
         identity = id(node)

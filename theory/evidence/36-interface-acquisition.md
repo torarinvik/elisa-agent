@@ -106,3 +106,24 @@ calls added, even when two branches refer to the same object. Reusing a value
 would require additional purity and execution-sharing assumptions. Polymorphic
 or higher-order transformations require a richer rule model and are outside
 this search fragment. The surrounding architecture is not restricted to it.
+
+## 36.61 Retaining ordered multi-input applications
+
+For a common external input x∈X, let branch i return fᵢ(x)∈Yᵢ and let a
+head h accept the ordered dependent product of these values. The application
+returns h((fᵢ(x))ᵢ). Two positions may name the same branch, without sharing
+execution or collapsing their positions.
+
+**Theorem 36.61 (faithful application restoration).** If every restored branch
+agrees pointwise with fᵢ and the restored head agrees on every ordered argument
+vector with h, then the restored application agrees pointwise with the original.
+
+*Proof.* Pointwise branch equality gives equality of the complete ordered
+argument vector. Substitute that equality, then pointwise head equality. ∎
+
+This assumes stable functional implementations and faithful component bindings;
+it does not prove codecs, filesystem behavior, external effects or hidden-state
+snapshots. Repeated bindings may share retained bytes and a loaded implementation,
+but each argument position still invokes its branch. Sharing computed results
+would require additional assumptions. No risk certificate follows from retaining
+parameters; changed operating distributions still require separate validation.

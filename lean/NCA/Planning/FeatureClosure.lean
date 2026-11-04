@@ -54,4 +54,17 @@ theorem featureTreeClosure_iff {α : Type*} [DecidableEq α] (seeds : Finset α)
       · exact Or.inl hs
       · exact Or.inr ⟨r, ⟨hr, fun a ha => (ih a).mpr (children a ha)⟩, hx⟩
 
+/-- Retention preserves every argument position, including heterogeneous types.
+This is conditional on faithful functions, not a proof of executable codecs. -/
+theorem featureApplication_reloaded_eq {X Z : Type*} {n : ℕ} {Y : Fin n → Type*}
+    (branches restored : (i : Fin n) → X → Y i)
+    (head restoredHead : ((i : Fin n) → Y i) → Z)
+    (hb : ∀ i x, restored i x = branches i x)
+    (hh : ∀ values, restoredHead values = head values) :
+    (fun x => restoredHead (fun i => restored i x)) =
+      (fun x => head (fun i => branches i x)) := by
+  funext x
+  have args : (fun i => restored i x) = (fun i => branches i x) := funext (fun i => hb i x)
+  rw [args, hh]
+
 end NCA
