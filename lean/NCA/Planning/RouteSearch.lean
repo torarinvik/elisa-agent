@@ -1,4 +1,6 @@
 import NCA.Planning.Routing
+import NCA.Execution.Slots
+import NCA.Reliability.Occam
 
 /-! A finite, nondecreasing list searched from the front returns a smallest
 consistent member. Enumeration completeness and execution fidelity are separate
@@ -72,6 +74,28 @@ theorem conditional_agree {α β : Type} (guard : α → Bool) (yes no truth : �
 theorem append_preserves_admitted {α : Type} (old added : List α) {route : α}
     (admitted : route ∈ old) : route ∈ old ++ added := by
   exact List.mem_append_left added admitted
+
+
+/-- An accepted compression keeps every listed code no longer, pays for its
+definition, preserves previously typed routes when the library is extended,
+and retains the local Kraft bound for the new weighted production code.
+The correspondence between these hypotheses and a concrete implementation's
+measured codes and exact rewrites is a separate obligation. -/
+theorem mdl_extension_sound {Ty ι : Type} (old : HContract Ty → Prop) (added : HContract Ty)
+    {avail : List Ty} {route : HPlan Ty} {output : Ty} (typed : HTyped old avail route output)
+    (lengths : List (ℕ × ℕ)) (definition : ℕ)
+    (individual : ∀ pair ∈ lengths, pair.2 ≤ pair.1)
+    (saving : (lengths.map Prod.snd).sum + definition < (lengths.map Prod.fst).sum)
+    (choices : Finset ι) (weight : ι → ℕ) (total : ℕ) (positive : 0 < total)
+    (weights_positive : ∀ i ∈ choices, 0 < weight i)
+    (sum_weight : ∑ i ∈ choices, weight i = total) :
+    (∀ pair ∈ lengths, pair.2 ≤ pair.1) ∧
+    (lengths.map Prod.snd).sum + definition ≤ (lengths.map Prod.fst).sum ∧
+    HTyped (fun c => old c ∨ c = added) avail route output ∧
+    (∑ i ∈ choices, (1 : ℝ) / (2 : ℝ) ^ productionBits total (weight i)) ≤ 1 := by
+  refine ⟨individual, Nat.le_of_lt saving, ?_, ?_⟩
+  · exact HTyped.mono (fun _ h => Or.inl h) typed
+  · exact productionBits_kraft choices weight total positive weights_positive sum_weight
 
 
 /-- Equal observed arguments stay equal through a pure binary context. -/

@@ -302,6 +302,16 @@ the presence of pending requests or demand-sensitive argument evaluation. The
 batch compiler rejects such wrappers. These runtime properties are tested but
 are not yet proved by the Lean execution model.
 
+For a fixed corpus, a compression proposal records each original and rewritten
+code length and the definition length. If every rewritten length is no larger
+and the rewritten total plus the definition is strictly smaller, then the
+corpus does not grow. Under a monotone extension of the expert library, old
+well-typed higher-order plans remain well typed; positive weighted production
+lengths retain Kraft's bound. `mdl_extension_sound` combines these facts. It
+assumes the reported lengths and rewrites faithfully represent the concrete
+implementation; it does not prove the Python matcher or establish a new
+expert's correctness. The expert must still pass a fresh gate.
+
 On a fixed finite example set, replacing either argument of a pure binary
 context by another function with the same observed outputs preserves that
 context's observed output (`observed_pair_congruent`). A bottom-up search may

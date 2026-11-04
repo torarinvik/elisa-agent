@@ -204,6 +204,7 @@ correctness of interactions between mechanisms.
 | [2.12](theory/foundations/02-planning.md) | `WitnessDerivation`, `witness_derivation_sound` (sound decompositions and checked leaves imply a satisfied root) | `Planning/RouteSearch` |
 | [2.12](theory/foundations/02-planning.md) | `fold_agree_on_elements` (fold steps agreeing on all relevant states and elements produce the same output) | `Planning/RouteSearch` |
 | [2.12](theory/foundations/02-planning.md) | `ObservedTreeEval`, `observed_tree_fold_sound` (child-closed queried equations determine a tree-fold result) | `Planning/RouteSearch` |
+| [2.12](theory/foundations/02-planning.md) | `mdl_extension_sound` (conditional compression, prior route typing and local Kraft bound) | `Planning/RouteSearch` |
 | [3.1](theory/foundations/03-routing-stability.md) | `plan_not_stable` | `Routing` |
 | [3.2](theory/foundations/03-routing-stability.md) | `planStable_sound` | `Routing` |
 | [3.2](theory/foundations/03-routing-stability.md) | `planStable_complete` | `Routing` |
