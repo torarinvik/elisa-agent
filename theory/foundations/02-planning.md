@@ -291,6 +291,15 @@ implementation therefore certifies the complete lifted route using fresh cases.
 This append-only model does not prove persistence, content-addressed abstraction,
 or a reduction in search depth.
 
+On a fixed finite example set, replacing either argument of a pure binary
+context by another function with the same observed outputs preserves that
+context's observed output (`observed_pair_congruent`). A bottom-up search may
+therefore retain one representative per type and observed output vector under
+pure, deterministic, extensional execution. This is an empirical quotient:
+it can remove routes that differ on future inputs, and it does not justify
+pruning higher-order slot bodies evaluated on other inputs or partial/effectful
+operations. Fresh certification remains necessary.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.

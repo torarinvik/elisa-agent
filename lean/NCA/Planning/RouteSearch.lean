@@ -73,4 +73,14 @@ theorem append_preserves_admitted {α : Type} (old added : List α) {route : α}
     (admitted : route ∈ old) : route ∈ old ++ added := by
   exact List.mem_append_left added admitted
 
+
+/-- Equal observed arguments stay equal through a pure binary context. -/
+theorem observed_pair_congruent {α β γ δ : Type} (cases : List α)
+    (left left' : α → β) (right right' : α → γ) (combine : β → γ → δ)
+    (hl : ∀ x ∈ cases, left x = left' x)
+    (hr : ∀ x ∈ cases, right x = right' x) :
+    ∀ x ∈ cases, combine (left x) (right x) = combine (left' x) (right' x) := by
+  intro x hx
+  rw [hl x hx, hr x hx]
+
 end NCA
