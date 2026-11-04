@@ -83,4 +83,14 @@ theorem observed_pair_congruent {α β γ δ : Type} (cases : List α)
   intro x hx
   rw [hl x hx, hr x hx]
 
+
+/-- Slot bodies that agree on every actual call give equal mapped results. -/
+theorem map_agree_on_calls {α β : Type} (f g : α → β) (calls : List α)
+    (agree : ∀ x ∈ calls, f x = g x) : calls.map f = calls.map g := by
+  induction calls with
+  | nil => rfl
+  | cons x rest ih =>
+    simp only [List.map_cons, List.cons.injEq]
+    exact ⟨agree x (by simp), ih (by intro y hy; exact agree y (by simp [hy]))⟩
+
 end NCA

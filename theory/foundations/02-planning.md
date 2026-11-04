@@ -300,6 +300,15 @@ it can remove routes that differ on future inputs, and it does not justify
 pruning higher-order slot bodies evaluated on other inputs or partial/effectful
 operations. Fresh certification remains necessary.
 
+A higher-order slot may be called on values different from the enclosing
+route's training inputs. Two slot bodies give equal mapped outputs when they
+agree on every actual call argument (`map_agree_on_calls`); agreement only on
+the outer examples does not establish this premise. The direct search therefore
+enumerates slot bodies in their own scope without observational pruning, and
+only quotients complete outer routes on the examples. General higher-order
+extensionality, termination and completeness within a resource budget remain
+implementation assumptions or open obligations.
+
 Consistency with training examples is not a certificate. A selected route
 must pass an independent fresh-case gate under its stated sampling assumptions;
 no representation-learning rate is asserted.
