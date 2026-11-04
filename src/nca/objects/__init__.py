@@ -107,11 +107,14 @@ def _calls_from(data: Sequence[Any] | None) -> tuple[Calls, ...] | None:
 
 
 def manifest_data(manifest: Manifest) -> dict[str, Json]:
-    return {"module_id": manifest.module_id, "version": manifest.version,
-            "contract": contract_data(manifest.contract), "cost": manifest.cost,
-            "calls": _calls_data(manifest.calls),
-            "expected_calls": _calls_data(manifest.expected_calls),
-            "effects": None if manifest.effects is None else sorted(manifest.effects)}
+    data: dict[str, Json] = {"module_id": manifest.module_id, "version": manifest.version,
+                            "contract": contract_data(manifest.contract), "cost": manifest.cost,
+                            "calls": _calls_data(manifest.calls),
+                            "expected_calls": _calls_data(manifest.expected_calls),
+                            "effects": None if manifest.effects is None else sorted(manifest.effects)}
+    if manifest.witness is not None:
+        data["witness"] = manifest.witness
+    return data
 
 
 def manifest_from(data: Mapping[str, Any]) -> Manifest:
@@ -119,7 +122,7 @@ def manifest_from(data: Mapping[str, Any]) -> Manifest:
     return Manifest(data["module_id"], data["version"], contract_from(data["contract"]),
                     data["cost"], _calls_from(data["calls"]) or (),
                     _calls_from(data["expected_calls"]),
-                    None if effects is None else frozenset(effects))
+                    None if effects is None else frozenset(effects), data.get("witness"))
 
 
 @dataclass(frozen=True)

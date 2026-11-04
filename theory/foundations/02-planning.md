@@ -309,6 +309,17 @@ only quotients complete outer routes on the examples. General higher-order
 extensionality, termination and completeness within a resource budget remain
 implementation assumptions or open obligations.
 
+A witness proposes typed input and slot specifications for a requested
+expert result. The host checks scopes and evaluates each assembled route on
+the original examples; neither step establishes witness completeness or
+generalization. Independent fresh-case certification remains the admission
+criterion. The bounded witness search memoizes successful identical
+specifications when their values have safe keys, and delegates remaining
+goals to a caller-supplied fallback. `witness_derivation_sound` proves by
+induction that checked leaves imply a satisfied root when every decomposition
+preserves satisfaction; it does not prove that any particular Python witness
+has that property or that the search is complete within its budget.
+
 Search may assign positive integer costs to expert applications and enumerate
 routes by their total cost, counting each input reference once. Costs can be
 snapshotted from smoothed counts of experts in previously certified routes;

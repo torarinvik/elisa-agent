@@ -111,4 +111,24 @@ theorem positive_children_arity_bound (parent : Nat) (children : List Nat)
       omega
   omega
 
+/-- A witness tree has checked leaves and witness-decomposed internal goals. -/
+inductive WitnessDerivation {σ : Type} (satisfied : σ → Prop)
+    (decomposes : σ → List σ → Prop) : σ → Prop
+  | leaf (goal : σ) : satisfied goal → WitnessDerivation satisfied decomposes goal
+  | split (goal : σ) (children : List σ) :
+      decomposes goal children →
+      (∀ child ∈ children, WitnessDerivation satisfied decomposes child) →
+      WitnessDerivation satisfied decomposes goal
+
+/-- Sound witnesses compose through arbitrarily nested decompositions. -/
+theorem witness_derivation_sound {σ : Type} {satisfied : σ → Prop}
+    {decomposes : σ → List σ → Prop}
+    (sound : ∀ goal children, decomposes goal children →
+      (∀ child ∈ children, satisfied child) → satisfied goal)
+    {goal : σ} (derivation : WitnessDerivation satisfied decomposes goal) : satisfied goal := by
+  induction derivation with
+  | leaf _ valid => exact valid
+  | split goal children witness _ ih =>
+    exact sound goal children witness (by intro child member; exact ih child member)
+
 end NCA

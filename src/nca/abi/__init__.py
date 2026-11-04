@@ -139,6 +139,12 @@ class Manifest:
     (THEORY §28.5), for example ``{"random"}`` or ``{"io"}``. The empty set
     declares a pure expert, whose results may be cached and shared; ``None``
     declares nothing, so nothing may be assumed."""
+    witness: str | None = None
+    """Optional loader identifier for a proposal-only goal-decomposition witness."""
+
+    def __post_init__(self) -> None:
+        if self.witness is not None and (not isinstance(self.witness, str) or not self.witness):
+            raise ValueError("witness identifier must be a nonempty string")
 
     @property
     def ref(self) -> str:
