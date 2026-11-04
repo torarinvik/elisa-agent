@@ -601,3 +601,17 @@ at case values may choose n or the cutoff. Positive-error admission does not
 permit reusing training observations or changing the candidate during testing.
 Larger held-out budgets can admit useful nonzero-error experts, at additional
 label and compute cost; no universal efficiency or capability claim follows.
+
+## 20.23 Fuel for expert-controlled recursion
+
+An expert may charge one unit from the enclosing runtime budget for an internal
+step through its slot. A failed charge raises a refusal; no partial result is
+returned. A refusing route abstains in a vote and remains in the majority
+denominator, so the certification gate counts the abstention as a loss.
+
+The abstract `fuelWalk_finished` proves that a returned state is finished, and
+`fuelWalk_completes` proves termination within a natural-valued measure when
+each unfinished step strictly decreases that measure. This is an abstract
+transition model: identifying the concrete tree-walk stack measure and proving
+the Python implementation refines it remain open. Slot execution and expert
+behavior remain part of the runtime's trusted boundary.

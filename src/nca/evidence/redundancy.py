@@ -25,7 +25,7 @@ from typing import Any
 from nca.abi import Message, Module, TypeId
 from nca.cache import value_digest
 from nca.planner import Apply, Map, Plan, plan
-from nca.runtime import Resolver, execute
+from nca.runtime import BudgetExceeded, Resolver, execute
 from nca.workspace import Workspace
 
 
@@ -75,11 +75,17 @@ class Vote:
 
 def vote(routes: Sequence[Plan], inputs: Mapping[TypeId, Message] | Sequence[Message],
          budget: int, resolver: Resolver | None = None) -> Vote:
-    """Run every route on ``inputs`` and answer the strict majority value.
-    Values without a canonical digest are compared by equality."""
+    """Run routes and answer a strict majority; budget refusals abstain.
+
+    Abstentions remain in the denominator. Values without a canonical digest
+    are compared by equality.
+    """
     tallies: list[tuple[Any, str | None, int]] = []
     for route in routes:
-        value = execute(route, inputs, Workspace(), budget, resolver).payload
+        try:
+            value = execute(route, inputs, Workspace(), budget, resolver).payload
+        except BudgetExceeded:
+            continue
         digest = value_digest(value)
         for position, (seen, key, votes) in enumerate(tallies):
             if (key == digest) if digest is not None and key is not None else seen == value:

@@ -57,6 +57,21 @@ def test_vote_corrects_a_minority_and_abstains_without_a_majority() -> None:
     assert threshold(3) == 2 and threshold(4) == 2 and threshold(5) == 3
 
 
+def test_exhausted_routes_abstain_without_lowering_the_majority_threshold() -> None:
+    from nca.planner import Apply, Given
+    from nca.retention.ensembles import EnsembleSearch
+
+    long = Apply(Shift("second", "m", "g"), (Apply(Shift("first", "s", "m"), (Given("s"),)),))
+    short = Apply(Shift("short", "s", "g", delta=2), (Given("s"),))
+    inputs = (Message("s", 5, "input"),)
+    assert vote((short, long), inputs, 1).agreeing == 0
+    result = vote((short, short, long), inputs, 1)
+    assert result.answer == 7 and result.agreeing == 2 and result.routes == 3
+    gate = EnsembleSearch(counts=(1,), tolerance=.1, confidence=.05, budget=1)
+    assert gate.revise(Contract(("s",), "g"), lambda cap, failures: (long,),
+                       lambda count: [(inputs, 7)] * count) is None
+
+
 def exact_failure(risks: list[float]) -> float:
     t = threshold(len(risks))
     total = 0.0

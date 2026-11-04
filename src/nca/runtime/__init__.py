@@ -133,13 +133,21 @@ def result_key(cache: ResultCache | None, ledger: RiskLedger | None, module: Mod
 class Filling:
     """A slot's plan as a function of the slot's inputs, run by the kernel."""
 
-    def __init__(self, call: Callable[[tuple[Any, ...], Demand], Any], outer: Demand) -> None:
+    def __init__(self, call: Callable[[tuple[Any, ...], Demand], Any], outer: Demand,
+                 spend: Callable[[], None] | None = None) -> None:
         self._call = call
+        self._spend = spend
         self.outer = outer
         """The demand on the output of the expert receiving this filling."""
 
     def __call__(self, *values: Any, demand: Demand = None) -> Any:
         return self._call(values, demand)
+
+    def spend(self) -> None:
+        """Charge one unit for an expert-controlled iteration or traversal step."""
+        if self._spend is None:
+            raise RuntimeError("slot has no runtime budget")
+        self._spend()
 
 
 def execute(
@@ -168,6 +176,12 @@ def execute(
     remaining = budget
     funds = cost_budget
 
+    def spend() -> None:
+        nonlocal remaining
+        if remaining == 0:
+            raise BudgetExceeded(f"budget of {budget} invocations exhausted")
+        remaining -= 1
+
     def unread(node: Plan) -> Message:
         message = Message(output_type(node), None, "kernel.unread")
         workspace.post(message)
@@ -184,7 +198,7 @@ def execute(
                 workspace.post(message)
             return force(run(node, env, chain, demand)).payload
 
-        return Filling(call, outer)
+        return Filling(call, outer, spend)
 
     def run(node: Plan, env: Sequence[Message], chain: tuple[str, ...],
             demand: Demand = None, decision: Demand = None) -> Message:
@@ -253,13 +267,11 @@ def execute(
                 workspace.post(result)
                 return result
             checking = hit
-        if remaining == 0:
-            raise BudgetExceeded(f"budget of {budget} invocations exhausted")
         if funds is not None:
             if manifest.cost > funds:
                 raise BudgetExceeded(f"cost budget of {cost_budget} exhausted")
             funds -= manifest.cost
-        remaining -= 1
+        spend()
         workspace.spent += manifest.cost
         fillings = [filling(sub, inputs, manifest.ref, chain, demand)
                     for sub, (inputs, _) in zip(node.slots, contract.slots, strict=True)]

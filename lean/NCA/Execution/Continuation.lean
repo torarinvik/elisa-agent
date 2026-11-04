@@ -179,4 +179,47 @@ theorem serve_spent {expert : (q : Q) → Prog Q A (A q)} {κ : Q → Nat} {b : 
   · simp at h
 
 end Budget
+
+/-- A finite-state traversal that returns no answer if fuel runs out. -/
+def fuelWalk {σ : Type} (done : σ → Bool) (next : σ → σ) : Nat → σ → Option σ
+  | 0, state => if done state then some state else none
+  | fuel + 1, state => if done state then some state else fuelWalk done next fuel (next state)
+
+/-- A returned state is complete; exhaustion never returns a partial result. -/
+theorem fuelWalk_finished {σ : Type} (done : σ → Bool) (next : σ → σ)
+    (fuel : Nat) (state result : σ) (h : fuelWalk done next fuel state = some result) :
+    done result = true := by
+  induction fuel generalizing state with
+  | zero =>
+    simp only [fuelWalk] at h
+    split at h
+    · cases h; assumption
+    · simp at h
+  | succ fuel ih =>
+    simp only [fuelWalk] at h
+    split at h
+    · cases h; assumption
+    · exact ih _ h
+
+/-- A structural measure decreasing at every unfinished step gives completion
+within that many fuel units, provided each abstract step is total. -/
+theorem fuelWalk_completes {σ : Type} (done : σ → Bool) (next : σ → σ)
+    (measure : σ → Nat)
+    (decreases : ∀ state, done state = false → measure (next state) < measure state)
+    (fuel : Nat) (state : σ) (bound : measure state ≤ fuel) :
+    ∃ result, fuelWalk done next fuel state = some result ∧ done result = true := by
+  induction fuel generalizing state with
+  | zero =>
+    cases h : done state with
+    | true => exact ⟨state, by simp [fuelWalk, h], h⟩
+    | false => have := decreases state h; omega
+  | succ fuel ih =>
+    cases h : done state with
+    | true => exact ⟨state, by simp [fuelWalk, h], h⟩
+    | false =>
+      have smaller := decreases state h
+      have nextBound : measure (next state) ≤ fuel := by omega
+      obtain ⟨result, result_eq, finished⟩ := ih (next state) nextBound
+      exact ⟨result, by simpa [fuelWalk, h] using result_eq, finished⟩
+
 end NCA

@@ -339,6 +339,7 @@ correctness of interactions between mechanisms.
 | [20.5](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `serve_sound` | `Continuation` |
 | [20.6](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `serve_spent` | `Continuation` |
 | [20.7](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `Prog.runB_le` | `Continuation` |
+| [20.23](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `fuelWalk_finished`, `fuelWalk_completes` | `Continuation` |
 | [20.8](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `choice_cost_le` | `Slots` |
 | [20.9](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `PTyped.erase`, `WellTyped.positional` | `Relevance` |
 | [20.10](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `PPlan.uses_apply`, `PPlan.given_not_relevant`, `PTyped.uses_lt` | `Relevance` |
