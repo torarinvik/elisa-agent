@@ -492,6 +492,7 @@ an inference from their separate tests.
 | [20.18](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `staged_acquisition_sound` | `Reliability/SampledGate` |
 | [20.19](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_order_valid`, `acquisition_swap_difference`, `acquisition_swap` | `Planning/Acquisition` |
 | [43.6](theory/foundations/43-episodic-memory.md) | `cursorAppend_valid`, `cursorErase_valid`, `cursor_after_eviction` | `Execution/Memory` |
+| [43.7](theory/foundations/43-episodic-memory.md#4313-conservative-numerical-sample-sizing) | `log_upper_ceil_size`, `zeroLoss_log_upper` | `Reliability/SampledGate` |
 | [20.15](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `horn_gap_iff`, `horn_gap_complete`, `horn_gap_sound` | `Planning/Horn` |
 | [21.1](theory/decoding/21-decoding-by-the-format.md) | `await_code` | `Decoding` |
 | [21.2](theory/decoding/21-decoding-by-the-format.md) | `code_accepted` | `Decoding` |
@@ -2942,6 +2943,15 @@ The artifact `objects.Store` retains its expert/type DAG semantics and eager
 whole-directory reopen. Episodic traffic uses an indexed transactional backend
 to support bounded reads and atomic cross-handle capacity admission without
 loading every experience into the artifact store.
+
+Sample sizing (§43.13) evaluates an outward `-log(level)` through Elisa
+`negative_log_upper` or its Python fallback, then ceilings the ratio using exact
+binary64 integer ratios. Positive subnormal levels and tolerances need no
+reciprocal or floating quotient. The conditional Lean bound requires a faithful
+upper logarithm; one outward adjacent value assumes libm error lies within that
+adjacent value. High-precision and exact-rational tests exercise this platform,
+not arbitrary compiler/libm behavior. Confidence-allocation underflow, required
+observation resources and the full end-to-end numerical proof remain open.
 
 ## Retained replay admission
 

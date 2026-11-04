@@ -3,8 +3,8 @@
 Each decision draws ``m`` unused cases from every affected route's retained
 pool and accepts only if the proposal loses none of them. Decision ``k`` spends
 ``δ / ((k+1)(k+2))`` of the confidence budget, split evenly over its routes,
-and ``m`` is the smallest size with ``log(1/level) ≤ ε·m``
-(``NCA.zeroLoss_miss``), so its cost depends on the tolerance, the confidence
+and ``m`` conservatively covers an outward estimate of ``-log(level)``
+(``NCA.zeroLoss_log_upper``), so its cost depends on the tolerance, the confidence
 and the decision count (logarithmically), never on how much evidence has been
 retained. Cases are consumed once drawn, whatever the outcome, so no case
 informs two decisions (``NCA.allocate_fresh``). If each route's pool is an
@@ -22,8 +22,11 @@ from dataclasses import dataclass
 
 from nca.evidence import Issuers
 from nca.memory import MemoryBackend, MemoryRecord
+from nca.native import load
 from nca.objects import Attestation, Ref
 from nca.retention import baselines
+
+_LOG_UPPER = getattr(load("stats"), "negative_log_upper", None)
 
 
 def decision_level(confidence: float, index: int) -> float:
@@ -32,14 +35,20 @@ def decision_level(confidence: float, index: int) -> float:
 
 
 def required_cases(tolerance: float, level: float) -> int:
-    """Smallest ``m`` with ``log(1/level) ≤ tolerance·m``."""
+    """Conservative count from an outward estimate of ``-log(level)``.
+
+    Integer-ratio ceiling avoids overflow and downward rounding in division.
+    The logarithm bound assumes libm error is within one adjacent binary64
+    value; compiler/libm fidelity remains an explicit numerical boundary.
+    """
     if not 0 < tolerance < 1 or not 0 < level < 1:
         raise ValueError("tolerance and level must lie in (0, 1)")
-    need = math.log(1 / level)
-    cases = max(1, math.ceil(need / tolerance))
-    while need > tolerance * cases:
-        cases += 1
-    return cases
+    need = (_LOG_UPPER(level) if _LOG_UPPER is not None
+            else math.nextafter(-math.log(level), math.inf))
+    numerator, denominator = need.as_integer_ratio()
+    epsilon, scale = tolerance.as_integer_ratio()
+    top, bottom = numerator * scale, denominator * epsilon
+    return max(1, (top + bottom - 1) // bottom)
 
 
 @dataclass(frozen=True)

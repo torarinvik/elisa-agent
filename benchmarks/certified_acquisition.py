@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import statistics
 from functools import partial
+from collections.abc import Hashable, Sequence
+from time import process_time
 from typing import Any
 
 from nca.abi import Contract, Message, Module
@@ -29,6 +32,8 @@ from nca.learning.discovery import fit_decoder
 from nca.planner import plan
 from nca.planner.gaps import repair
 from nca.retention.acquisition import CertifiedAcquirer
+from nca.retention import acquisition, sampled
+from nca.native import load
 from nca.runtime import execute
 from nca.workspace import Workspace
 
@@ -103,10 +108,90 @@ def run(policy: str, seed: int) -> dict[str, float]:
             "bound_violations": violations / certified_routes if certified_routes else 0.0}
 
 
+def legacy_required_cases(tolerance: float, level: float) -> int:
+    """Pre-43.13 reciprocal and floating-quotient reference."""
+    if not 0 < tolerance < 1 or not 0 < level < 1:
+        raise ValueError("invalid parameters")
+    need = math.log(1 / level)
+    cases = max(1, math.ceil(need / tolerance))
+    while need > tolerance * cases:
+        cases += 1
+    return cases
+
+
+def sizing_trial(policy: str, repeats: int = 1000) -> dict[str, float | int]:
+    pairs = ((0.05, 0.025), (0.05, 1e-320), (0.05, math.ulp(0.0)),
+             (1e-320, 0.025), (math.ulp(0.0), 0.025), (0.05, math.nextafter(1.0, 0.0)))
+    old = sampled._LOG_UPPER
+    sampled._LOG_UPPER = getattr(load("stats"), "negative_log_upper", None) if policy == "elisa" else None
+    count = legacy_required_cases if policy == "legacy" else sampled.required_cases
+    started = process_time()
+    completed = errors = max_bits = 0
+    try:
+        for _ in range(repeats):
+            for tolerance, level in pairs:
+                try:
+                    result = count(tolerance, level)
+                except OverflowError:
+                    errors += 1
+                else:
+                    completed += 1
+                    max_bits = max(max_bits, result.bit_length())
+    finally:
+        sampled._LOG_UPPER = old
+    return {"sizing_attempts": repeats * len(pairs), "completed": completed,
+            "overflow_errors": errors, "largest_count_bits": max_bits,
+            "labels": 0, "expert_requests": 0, "cpu_seconds": process_time() - started}
+
+
+def extreme_acquisition_trial(policy: str) -> dict[str, float | int]:
+    old_log, old_size = sampled._LOG_UPPER, acquisition.required_cases
+    sampled._LOG_UPPER = getattr(load("stats"), "negative_log_upper", None) if policy == "elisa" else None
+    acquisition.required_cases = legacy_required_cases if policy == "legacy" else sampled.required_cases
+    fits = 0
+
+    def fitting(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        nonlocal fits
+        fits += 1
+        return fit_decoder(contract, keys, labels, cost=1.0)
+
+    def sampling(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        return [(0, 0)] * count  # Fresh IID draws from a constant operating distribution.
+
+    acquire = None
+    started = process_time()
+    accepted = errors = 0
+    try:
+        try:
+            acquire = CertifiedAcquirer(fitting, sampling, train=1, tolerance=0.5, confidence=1e-320)
+            accepted = int(acquire(Contract(("source",), "target")) is not None)
+        except OverflowError:
+            errors = 1
+    finally:
+        sampled._LOG_UPPER, acquisition.required_cases = old_log, old_size
+    return {"acquisition_attempts": 1, "accepted": accepted, "overflow_errors": errors,
+            "labels": 0 if acquire is None else acquire.labels, "fits": fits,
+            "decisions": 0 if acquire is None else acquire.decisions,
+            "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3713, 3714, 3715])
+    parser.add_argument("--numerics", action="store_true")
     args = parser.parse_args()
+    if args.numerics:
+        policies = ["legacy", "python"]
+        if getattr(load("stats"), "negative_log_upper", None) is not None:
+            policies.append("elisa")
+        for policy in policies:
+            runs = [sizing_trial(policy) for _ in range(3)]
+            print(json.dumps({"trial": "sizing", "policy": policy, **{
+                key: statistics.mean(run[key] for run in runs) for key in runs[0]}}), flush=True)
+            runs = [extreme_acquisition_trial(policy) for _ in range(3)]
+            print(json.dumps({"trial": "acquisition", "policy": policy, **{
+                key: statistics.mean(run[key] for run in runs) for key in runs[0]}}), flush=True)
+        return
     for policy in ("table", "table_cert", "affine_cert"):
         runs = [run(policy, seed) for seed in args.seeds]
         print(json.dumps({"policy": policy, **{

@@ -370,3 +370,30 @@ live records cannot reconstruct an evicted maximum: identical empty stores
 can have arbitrarily different histories. Upgrading such a store requires an
 externally supplied upper bound on previously issued positions; the live
 maximum alone is insufficient. The bound is an additional trusted hypothesis.
+
+## 43.13 Conservative numerical sample sizing
+
+For a target level α in (0,1) and tolerance ε > 0, the zero-loss test requires
+log(1/α) ≤ εm. The identity log(1/α) = −log α avoids constructing a potentially
+unrepresentable reciprocal. Suppose a numerical procedure supplies a finite
+upper estimate u ≥ −log α. Set m = ceil(u/ε), using exact division and ceiling
+of the represented rational values rather than a rounded quotient.
+
+**Proposition 43.7 (sample sizing from an upper logarithm).** This choice
+satisfies log(1/α) ≤ εm. Consequently, under the sampling hypothesis of
+Theorem 43.1, a fixed candidate whose error ℓ exceeds ε has probability at most
+α of passing the zero-loss test.
+
+*Proof.* The ceiling gives u/ε ≤ m. Multiply by positive ε and use
+−log α ≤ u to obtain log(1/α) ≤ εm. Apply the zero-loss bound. ∎
+
+For represented rationals u=a/b and ε=c/d with positive denominators and c>0,
+the exact ceiling is (ad+bc−1) div bc for integer numerators a≥0. This avoids
+both overflow of a floating quotient and downward rounding near an integer.
+It is minimal for the supplied upper estimate, and may exceed the mathematical
+minimum based on the exact logarithm. Producing a valid upper estimate remains
+a separate numerical obligation: outward rounding requires an explicit error
+bound for the underlying logarithm. This does not establish such a bound for
+arbitrary compilers or mathematical libraries. Nor does it prevent confidence
+allocation from rounding a positive mathematical level to zero, or provide the
+resources to actually collect an extremely large required sample.

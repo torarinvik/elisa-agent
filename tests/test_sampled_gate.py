@@ -37,7 +37,7 @@ def gate(store: MemoryStore, claims: tuple[Attestation, ...]) -> SampledGate:
                        max_cases=1000)
 
 
-def test_required_cases_is_the_smallest_size_of_zero_loss_miss() -> None:
+def test_required_cases_preserves_minimal_sizes_on_ordinary_levels() -> None:
     """``NCA.zeroLoss_miss``: ``log(1/α) ≤ ε m`` and no smaller ``m`` qualifies."""
     for tolerance in (0.01, 0.05, 0.2, 0.5, 0.9):
         for level in (1e-9, 1e-4, 0.01, 0.2, 0.9):
@@ -124,3 +124,57 @@ def test_added_cases_queue_behind_the_cursor_and_conflicts_fail(memory: Memory) 
     with pytest.raises(ValueError, match="disagree"):
         sampled.add((retained("old", refs[:1], (False,)),))
     assert sampled.decide([], lambda identity, record, baseline: baseline).accepted
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_sample_size_covers_extreme_binary64_levels_and_exact_ceiling(
+        native: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    import random
+    import struct
+    from decimal import Decimal, localcontext
+    from fractions import Fraction
+    from nca.native import load
+    from nca.retention import sampled
+
+    kernel = getattr(load("stats"), "negative_log_upper", None)
+    if native and kernel is None:
+        pytest.skip("native logarithm helper unavailable or disabled")
+    monkeypatch.setattr(sampled, "_LOG_UPPER", kernel if native else None)
+    levels = (math.nextafter(1.0, 0.0), 0.05, 1e-300, 1e-320, math.ulp(0.0))
+    tolerances = (math.nextafter(1.0, 0.0), 0.05, 1e-320, math.ulp(0.0))
+    pairs = [(tolerance, level) for tolerance in tolerances for level in levels]
+    rng = random.Random(4127)
+    for _ in range(128):
+        values = [struct.unpack(">d", rng.randrange(1, 0x3ff0000000000000).to_bytes(8, "big"))[0]
+                  for _ in range(2)]
+        pairs.append((values[0], values[1]))
+    with localcontext() as context:
+        context.prec = 160
+        for tolerance, level in pairs:
+            cases = required_cases(tolerance, level)
+            upper = kernel(level) if native else math.nextafter(-math.log(level), math.inf)
+            exact = -Decimal.from_float(level).ln()
+            assert Decimal.from_float(upper) >= exact
+            # log_upper_ceil_size: exact binary ratios avoid rounded products.
+            assert Fraction(tolerance) * cases >= Fraction(upper)
+            assert Fraction(tolerance) * (cases - 1) < Fraction(upper)
+            covered = Fraction(tolerance) * cases
+            assert Decimal(covered.numerator) / Decimal(covered.denominator) >= exact
+
+
+def test_extreme_positive_confidence_can_finish_actual_acquisition() -> None:
+    from collections.abc import Hashable, Sequence
+    from typing import Any
+    from nca.abi import Contract, Module
+    from nca.learning.discovery import fit_decoder
+    from nca.retention.acquisition import CertifiedAcquirer
+
+    def fit(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        return fit_decoder(contract, keys, labels, cost=1.0)
+
+    def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        return [(0, 0)] * count
+
+    acquire = CertifiedAcquirer(fit, sample, train=1, tolerance=0.5, confidence=1e-320)
+    assert acquire(Contract(("source",), "target")) is not None
+    assert acquire.labels == 1 + required_cases(0.5, decision_level(1e-320, 0))

@@ -192,7 +192,14 @@ def nonnegative_add_upper(a: f64, b: f64) -> f64:
     residual: f64 = smaller - (total - larger)
     return nextafter(total, infinity) if residual > 0.0 else total
 
+def negative_log_upper(level: f64) -> f64:
+    return log(-1.0) if level != level or level <= 0.0 or level >= 1.0
+    # No reciprocal: every positive binary64 input has a finite logarithm.
+    # Outward rounding assumes libm's error is within the adjacent value.
+    return nextafter(-log(level), -log(0.0))
+
 export pymodule stats:
+    fn negative_log_upper
     fn nonnegative_add_upper
     fn poisson_binomial_pmf
     fn poisson_binomial_upper

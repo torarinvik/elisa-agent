@@ -208,4 +208,20 @@ theorem staged_acquisition_sound {Ω : Type*} [MeasurableSpace Ω] (μ : Measure
   simpa using sampledGate_sound μ hδ n (fun k => range (stages k)) wrong
     (fun k hk r hr => by simpa using share k hk r hr)
 
+/-- Exact ceiling division of an upper logarithm supplies the required size.
+The numerical logarithm must establish the stated upper-bound hypothesis. -/
+theorem log_upper_ceil_size {ε upper : ℝ} (positive : 0 < ε) :
+    upper ≤ ε * (⌈upper / ε⌉₊ : ℝ) := by
+  have bound := Nat.le_ceil (upper / ε)
+  have result := (div_le_iff₀ positive).mp bound
+  simpa [mul_comm] using result
+
+theorem zeroLoss_log_upper {ε ℓ α upper : ℝ} (positive : 0 < ε)
+    (hεℓ : ε < ℓ) (hℓ : ℓ ≤ 1) (hα : 0 < α)
+    (faithful : -Real.log α ≤ upper) :
+    (1 - ℓ) ^ (⌈upper / ε⌉₊) ≤ α := by
+  apply zeroLoss_miss hεℓ hℓ hα
+  have bound := faithful.trans (log_upper_ceil_size positive)
+  simpa only [one_div, Real.log_inv] using bound
+
 end NCA
