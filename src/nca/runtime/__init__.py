@@ -350,8 +350,7 @@ def execute(
     token = _LEDGER.set(ledger)
     try:
         for message in given:
-            if message.message_id not in workspace:
-                workspace.post(message)
+            workspace.post(message)
         return force(run(plan, given, ()))
     except Exception:
         workspace.rollback(snapshot)

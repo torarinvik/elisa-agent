@@ -13,7 +13,16 @@ class Workspace:
         """Total declared cost of the module invocations executed against this workspace."""
 
     def post(self, message: Message) -> None:
-        """Record ``message``; its parents must already be in the workspace."""
+        """Admit a fresh message or reuse the exact previously admitted object.
+
+        Identifiers never change their message binding. Parents must already
+        exist; payloads must be immutable or treated as immutable by callers.
+        """
+        previous = self._index.get(message.message_id)
+        if previous is not None:
+            if previous is message:
+                return
+            raise ValueError("message identifier already names a different message")
         missing = [p for p in message.parents if p not in self._index]
         if missing:
             raise ValueError(f"unknown parent messages: {missing}")
@@ -46,7 +55,10 @@ class Workspace:
         return len(self._log)
 
     def rollback(self, snapshot: int) -> None:
-        for message in self._log[snapshot:]:
+        if (isinstance(snapshot, bool) or not isinstance(snapshot, int)
+                or not 0 <= snapshot <= len(self._log)):
+            raise ValueError("snapshot must be a valid workspace position")
+        for message in reversed(self._log[snapshot:]):
             del self._index[message.message_id]
         del self._log[snapshot:]
 

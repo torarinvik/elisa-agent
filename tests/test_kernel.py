@@ -372,3 +372,103 @@ def test_uninstalling_keeps_plans_for_earlier_modules() -> None:
     registry.uninstall("m0")
     assert not registry.index.memo(2)
     assert plan_stable_indexed(registry.index, ("t0.v1",), "t2.v1") is None
+
+
+def test_workspace_identity_admission_does_not_compare_payloads() -> None:
+    class Opaque:
+        def __eq__(self, other: Any) -> bool:
+            raise AssertionError("workspace must not compare opaque payloads")
+
+    workspace = Workspace()
+    original = Message(TEXT, Opaque(), "input", message_id="stable")
+    collision = Message(TEXT, Opaque(), "input", message_id="stable")
+    workspace.post(original)
+    snapshot = workspace.snapshot()
+    workspace.post(original)
+    assert workspace.snapshot() == snapshot
+    with pytest.raises(ValueError, match="identifier"):
+        workspace.post(collision)
+    workspace.rollback(snapshot)
+    assert workspace.get("stable") is original
+    assert workspace.messages() == [original]
+
+
+@pytest.mark.parametrize("snapshot", [-1, 2, True, False, 1.5, "1", None])
+def test_invalid_workspace_rollback_cannot_mutate_history(snapshot: Any) -> None:
+    workspace = Workspace()
+    original = Message(TEXT, "kept", "input")
+    workspace.post(original)
+    with pytest.raises(ValueError, match="snapshot"):
+        workspace.rollback(snapshot)
+    assert workspace.messages() == [original] and workspace.get(original.message_id) is original
+
+
+@pytest.mark.parametrize("mapping", [False, True])
+def test_runtime_rejects_input_identity_collision_before_invocation(mapping: bool) -> None:
+    workspace = Workspace()
+    original = Message(TEXT, "original", "input", message_id="stable")
+    collision = Message(TEXT, "replacement", "input", message_id="stable")
+    workspace.post(original)
+    calls: list[str] = []
+    module = fn("observe", [TEXT], INT, lambda value: calls.append(value) or 1)
+    inputs = {TEXT: collision} if mapping else (collision,)
+    with pytest.raises(ValueError, match="identifier"):
+        execute(Apply(module, (Given(TEXT),)), inputs, workspace, 1)
+    assert calls == [] and workspace.spent == 0
+    assert workspace.messages() == [original] and workspace.get("stable") is original
+
+
+def test_input_batch_collision_rolls_back_fresh_admissions_only() -> None:
+    workspace = Workspace()
+    anchor = Message(TEXT, "kept", "input")
+    workspace.post(anchor)
+    first = Message(TEXT, "first", "input", message_id="new")
+    second = Message(TEXT, "second", "input", message_id="new")
+    with pytest.raises(ValueError, match="identifier"):
+        execute(Given(TEXT), (first, second), workspace, 0)
+    assert workspace.messages() == [anchor]
+    assert "new" not in workspace and workspace.get(anchor.message_id) is anchor
+    assert execute(Given(TEXT), (anchor, anchor), workspace, 0) is anchor
+    assert workspace.messages() == [anchor]
+
+
+def test_workspace_suffix_restoration_matches_finite_reference_traces() -> None:
+    from itertools import product
+
+    messages = (Message(TEXT, "first", "input", message_id="a"),
+                Message(TEXT, "second", "input", parents=("a",), message_id="b"),
+                Message(TEXT, "collision", "input", message_id="a"))
+    for commands in product(range(5), repeat=5):
+        workspace = Workspace()
+        expected: list[Message] = []
+        index: dict[str, Message] = {}
+        snapshot = 0
+        for command in commands:
+            if command < 3:
+                message = messages[command]
+                old = index.get(message.message_id)
+                invalid = ((old is not None and old is not message)
+                           or (old is None and any(parent not in index for parent in message.parents)))
+                if invalid:
+                    with pytest.raises(ValueError):
+                        workspace.post(message)
+                else:
+                    workspace.post(message)
+                    if old is None:
+                        expected.append(message)
+                        index[message.message_id] = message
+            elif command == 3:
+                snapshot = len(expected)
+                assert workspace.snapshot() == snapshot
+            else:
+                workspace.rollback(snapshot)
+                for message in expected[snapshot:]:
+                    del index[message.message_id]
+                del expected[snapshot:]
+            # workspace_extension_retains / workspace_suffix_restores / workspace_log_restores
+            assert len(workspace.messages()) == len(expected)
+            assert all(a is b for a, b in zip(workspace.messages(), expected, strict=True))
+            for key in ("a", "b"):
+                assert (key in workspace) == (key in index)
+                if key in index:
+                    assert workspace.get(key) is index[key]

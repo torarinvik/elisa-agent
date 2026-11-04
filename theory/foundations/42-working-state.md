@@ -67,3 +67,37 @@ policies. Outside such policies, legacy execution is preserved. No permission
 identifier or resource implementation is built into the frame. Grant lookup and
 membership are independent of catalog size; grant-set intersection also depends
 on the sizes of the requested and inherited footprints.
+
+
+## 42.5 Stable message identities and suffix rollback
+
+Model a workspace as an ordered log L and an index I from message identifiers
+to opaque message objects. Payload equality is not assumed available. Each
+identifier denotes exactly one admitted object. Reposting that object is a
+no-op; a different object under the same identifier is refused. A fresh post
+requires every parent identifier to be present before it extends L and I.
+A checkpoint is a valid retained-log position, rather than a durable capability.
+
+**Theorem 42.1 (workspace prefix preservation).** Suppose calls are serialized,
+message objects and their payloads are immutable or treated as immutable, and
+log/index container operations are faithful. A finite suffix of fresh posts
+preserves every prior index binding. Erasing those suffix identifiers in reverse
+admission order and truncating the log to its checkpoint restores exactly the
+prior index and log. Idempotent reposts and rejected collisions change neither.
+
+*Proof.* A fresh write at identifier k changes no previously present identifier.
+Writing k and then erasing k restores the previous index, since k was absent.
+Induct over suffix writes: undo the tail, then erase the fresh head write.
+The log is L followed by the admitted suffix; taking its first |L| elements
+returns L. Reposts add no suffix element, and collisions are refused before
+mutation, so both can be removed from the trace without changing the result. ∎
+
+Freshness is essential. If a suffix overwrites a prefix identifier, erasing that
+identifier loses the old binding even though the prefix log still names it.
+Input admission must enforce the same rule as ordinary posts: merely finding
+an identifier present does not establish that a supplied object is its message.
+A malformed checkpoint must be rejected before state changes. A bare numeric
+position can become stale after another rollback; it is not an isolated or
+concurrent transaction handle. This result covers workspace message bindings,
+not arbitrary payload mutation, external memory/effects, ledger charges, or
+already incurred costs.

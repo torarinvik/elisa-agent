@@ -12,7 +12,7 @@ import random
 from contextlib import nullcontext
 import statistics
 from dataclasses import dataclass
-from time import perf_counter
+from time import perf_counter, process_time
 
 from nca.abi import Contract, Manifest, Message
 from nca.planner import Apply, Given
@@ -90,6 +90,59 @@ def measure(size: int, seed: int, *, threaded: bool, restricted: bool = False,
 
 
 
+class LegacyWorkspace(Workspace):
+    """Previous admission/rollback behavior, benchmark reference only."""
+
+    def post(self, message: Message) -> None:
+        missing = [parent for parent in message.parents if parent not in self._index]
+        if missing:
+            raise ValueError("unknown parent messages")
+        self._log.append(message)
+        self._index[message.message_id] = message
+
+    def rollback(self, snapshot: int) -> None:
+        for message in self._log[snapshot:]:
+            del self._index[message.message_id]
+        del self._log[snapshot:]
+
+
+def workspace_trial(legacy: bool, scenario: str, repeats: int = 1000) -> dict[str, float | int]:
+    """Workspace-only identity/rollback traces; no expert calls or labels."""
+    started = process_time()
+    corrupted = rejected = accepted_collisions = blocked_followups = 0
+    for _ in range(repeats):
+        workspace = LegacyWorkspace() if legacy else Workspace()
+        original = Message("state", "original", "input", message_id="anchor")
+        workspace.post(original)
+        snapshot = workspace.snapshot()
+        try:
+            if scenario == "same":
+                workspace.post(original)
+            elif scenario == "collision":
+                workspace.post(Message("state", "replacement", "input", message_id="anchor"))
+                accepted_collisions += 1
+            else:
+                parent = original.message_id
+                for _ in range(4):
+                    message = Message("state", "fresh", "input", parents=(parent,))
+                    workspace.post(message)
+                    parent = message.message_id
+        except ValueError:
+            rejected += 1
+        workspace.rollback(snapshot)
+        log = workspace.messages()
+        stable = (len(log) == 1 and log[0] is original and original.message_id in workspace
+                  and workspace.get(original.message_id) is original)
+        corrupted += not stable
+        try:
+            workspace.post(Message("state", "followup", "input", parents=(original.message_id,)))
+        except ValueError:
+            blocked_followups += 1
+    return {"traces": repeats, "prefix_violations": corrupted, "rejected_posts": rejected,
+            "accepted_collisions": accepted_collisions, "blocked_followups": blocked_followups,
+            "labels": 0, "expert_requests": 0, "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=[100, 1000, 10000])
@@ -97,7 +150,16 @@ def main() -> None:
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--restricted", action="store_true")
     parser.add_argument("--fault-rate", type=float, default=0.0)
+    parser.add_argument("--workspace-identity", action="store_true")
     args = parser.parse_args()
+    if args.workspace_identity:
+        for scenario in ("fresh", "same", "collision"):
+            for legacy in (True, False):
+                samples = [workspace_trial(legacy, scenario) for _ in range(3)]
+                print(json.dumps({"scenario": scenario, "legacy": legacy,
+                                  **{key: statistics.mean(sample[key] for sample in samples)
+                                     for key in samples[0]}}), flush=True)
+        return
     if any(size <= 0 for size in args.sizes):
         parser.error("sizes must be positive")
     if not 0 <= args.fault_rate <= 1 or (args.fault_rate and not args.restricted):
