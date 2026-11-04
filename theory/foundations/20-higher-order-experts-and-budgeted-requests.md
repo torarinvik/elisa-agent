@@ -546,3 +546,26 @@ remain those of Theorem 20.16. Semantic callbacks must be pure and keys faithful
 Storing all unmatched observations uses linear space in the fixed prefix and
 may require quadratic separation checks within one key bucket; no distribution
 or label-equivalence shortcut is assumed. Passing remains inconclusive.
+
+**Theorem 20.21 (bounded certification overdraw).** Partition a fixed finite
+outcome stream into consecutive batches of size at most a positive integer B.
+Draw a batch before evaluating its cases in order, and stop evaluating at the
+first failure, drawing no later batches. Admission is equivalent to every
+outcome in the entire stream being successful. Drawn observations never exceed
+the stream length; admission draws the entire stream. If E observations were
+evaluated and D drawn, then D < E + B, so D − E ≤ B − 1.
+
+*Proof.* Each successful batch is fully evaluated, adding the same number to
+D and E. In a rejected batch of length b ≤ B, at least one case is evaluated;
+its unscored suffix therefore has length at most b − 1 ≤ B − 1. No later batch
+is drawn. If no batch fails, every observation is evaluated and D = E.
+Conjunction across batches equals conjunction across their concatenation. ∎
+
+This is a deterministic accounting result, conditional on exact-size replies
+and faithful sequential evaluation. Incomplete or oversized replies are
+inconclusive and may violate the overdraw bound. Fresh conditional IID sampling,
+a frozen candidate and the sample count of Theorem 20.14 are still required for
+the statistical guarantee. A batch cap changes neither that count nor the
+admission predicate on a fixed stream. Different physical samplers may produce
+different streams when their call sizes change. Smaller batches can require
+more sampler calls; no universal compute or label improvement is claimed.

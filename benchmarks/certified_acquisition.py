@@ -33,6 +33,7 @@ from nca.learning.discovery import fit_decoder
 from nca.planner import plan
 from nca.planner.gaps import repair
 from nca.retention.acquisition import CertifiedAcquirer
+from nca.retention.certification import zero_loss_test
 from nca.retention import acquisition, sampled
 from nca.native import load
 from nca.stats import family_audit_alpha
@@ -255,12 +256,61 @@ def staged_allocation_trial(legacy: bool) -> dict[str, float | int]:
             "cpu_seconds": process_time() - started}
 
 
+def batching_trial(limit: int | None, loss: float, seed: int) -> dict[str, float]:
+    """Isolate label overshoot versus sampler calls on fixed IID outcome streams.
+
+    No fitting or domain implementation is involved; each request tests a frozen
+    candidate's pre-generated 512 outcomes. Randomness is independent of batching.
+    CPU includes outcome generation identically in every policy.
+    """
+    rng = random.Random(seed)
+    labels = evaluations = calls = accepted = overshoot = 0
+    started = process_time()
+    requests, size = 1000, 512
+    for _ in range(requests):
+        outcomes = tuple(rng.random() >= loss for _ in range(size))
+        cursor = scored = 0
+
+        def draw(count: int) -> tuple[bool, ...]:
+            nonlocal cursor, calls
+            calls += 1
+            held = outcomes[cursor:cursor + count]
+            cursor += len(held)
+            return held
+
+        def agree(outcome: bool) -> bool:
+            nonlocal scored
+            scored += 1
+            return outcome
+
+        result = zero_loss_test(draw, agree, cases=size, batch_limit=limit)
+        assert result.passed == all(outcomes)
+        assert result.drawn == cursor
+        if limit is not None:
+            assert cursor - scored < limit
+        accepted += bool(result.passed)
+        labels += cursor
+        evaluations += scored
+        overshoot += cursor - scored
+    return {"requests": requests, "fits": 0, "accepted": accepted,
+            "labels": labels, "evaluations": evaluations, "sampler_calls": calls,
+            "unscored_labels": overshoot, "cpu_seconds": process_time() - started}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seeds", type=int, nargs="+", default=[3713, 3714, 3715])
     parser.add_argument("--numerics", action="store_true")
     parser.add_argument("--budget-allocation", action="store_true")
+    parser.add_argument("--batching", action="store_true")
     args = parser.parse_args()
+    if args.batching:
+        for loss in (0.0, 0.01, 0.1):
+            for limit in (None, 32, 8, 1):
+                runs = [batching_trial(limit, loss, seed) for seed in args.seeds]
+                print(json.dumps({"loss": loss, "batch_limit": limit, **{
+                    key: statistics.mean(run[key] for run in runs) for key in runs[0]}}), flush=True)
+        return
     if args.budget_allocation:
         for legacy in (True, False):
             for name, trial in (("allocation", allocation_trial), ("staged", staged_allocation_trial)):

@@ -16,7 +16,7 @@ from nca.abi import Contract, Message, TypeId
 from nca.evidence.redundancy import Vote, vote
 from nca.planner import Plan, output_type
 from nca.runtime import Resolver
-from nca.retention.certification import zero_loss_test
+from nca.retention.certification import validate_batch_limit, zero_loss_test
 from nca.retention.history import AcquisitionHistory
 from nca.retention.sampled import decision_level, required_cases
 from nca.stats import family_audit_alpha
@@ -83,12 +83,14 @@ class EnsembleSearch:
     ``retain_training`` additionally retains a bounded drawn prefix, including
     unscored cases in the rejected batch. It makes no extra label requests and
     exposes nothing from an admitted or incomplete test.
+    ``batch_limit`` optionally caps certification draws, reducing unscored
+    labels on rejection at the cost of more sampler calls.
     """
 
     def __init__(self, *, counts: Sequence[int], tolerance: float, confidence: float,
                  budget: int, history: AcquisitionHistory | None = None,
                  resolver: Resolver | None = None, retain_controls: int = 0,
-                 retain_training: int = 0) -> None:
+                 retain_training: int = 0, batch_limit: int | None = None) -> None:
         sizes = tuple(counts)
         if (not sizes or any(isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in sizes)
                 or any(a > b for a, b in zip(sizes, sizes[1:]))):
@@ -100,12 +102,14 @@ class EnsembleSearch:
             raise ValueError("retained control capacity must be nonnegative")
         if type(retain_training) is not int or retain_training < 0:
             raise ValueError("retained training capacity must be nonnegative")
+        validate_batch_limit(batch_limit)
         required_cases(tolerance, confidence)
         self.counts, self.tolerance, self.confidence = sizes, tolerance, confidence
         self.budget, self.history = budget, history
         self.resolver = resolver
         self.retain_controls = retain_controls
         self.retain_training = retain_training
+        self.batch_limit = batch_limit
         self.decisions = self.requests = self.labels = self.evaluations = self.tests = 0
 
     def __call__(self, contract: Contract,
@@ -209,7 +213,8 @@ class EnsembleSearch:
 
             fresh = required_cases(self.tolerance, level)
             self.tests += 1
-            result = zero_loss_test(draw, correct, cases=fresh, retain=self.retain_training)
+            result = zero_loss_test(draw, correct, cases=fresh, retain=self.retain_training,
+                                    batch_limit=self.batch_limit)
             if result.passed is None:
                 return None
             if result.passed:

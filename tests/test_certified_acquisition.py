@@ -26,14 +26,31 @@ def close(output: Any, label: Any) -> bool:
     return abs(output - label) < 0.5
 
 
-def test_a_generalizing_fitter_is_admitted_with_its_certified_rate() -> None:
-    acquirer = CertifiedAcquirer(partial(fit_affine, cost=1.0), linear, train=8,
-                                 tolerance=0.05, confidence=0.05, agree=close)
+@pytest.mark.parametrize("limit", [None, 1, 3])
+def test_a_generalizing_fitter_is_admitted_with_its_certified_rate(limit: int | None) -> None:
+    draws: list[int] = []
+
+    def sample(contract: Contract, count: int) -> list[tuple[Any, Any]]:
+        draws.append(count)
+        return linear(contract, count)
+
+    acquirer = CertifiedAcquirer(partial(fit_affine, cost=1.0), sample, train=8,
+                                 tolerance=0.05, confidence=0.05, agree=close, batch_limit=limit)
     module = acquirer(Contract(("a",), "b"))
     assert module is not None and acquirer.rate(module) == 0.05
     assert acquirer.labels == 8 + required_cases(0.05, decision_level(0.05, 0))
     route = Apply(module, (Given("a"),))
     assert route_risk(route, acquirer.rate) == pytest.approx(0.05)
+    assert draws[0] == 8  # Training remains independent of the certification cap.
+    if limit is not None:
+        assert max(draws[1:]) <= limit
+
+
+@pytest.mark.parametrize("limit", [True, False, 0, -2, 2.5])
+def test_invalid_certification_cap_does_not_fit_or_sample(limit: Any) -> None:
+    with pytest.raises(ValueError, match="batch limit"):
+        CertifiedAcquirer(partial(fit_affine, cost=1.0), linear, train=8,
+                          tolerance=0.05, confidence=0.05, batch_limit=limit)
 
 
 def test_a_memorizing_fitter_is_refused_on_fresh_values() -> None:

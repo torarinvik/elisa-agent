@@ -53,6 +53,7 @@ import NCA.Reliability.Alternatives
 import NCA.Reliability.Agreement
 import NCA.Reliability.Verification
 import NCA.Reliability.SampledGate
+import NCA.Reliability.BatchedTest
 import NCA.Reliability.Plasticity
 import NCA.Execution.State
 import NCA.Execution.Workspace

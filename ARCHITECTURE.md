@@ -488,6 +488,7 @@ an inference from their separate tests.
 | [20.14](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_sound` (with `zeroLoss_miss`), `earlyTest_admits`, `earlyTest_reads` | `Reliability/SampledGate` |
 | [20.16](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `contradictory_pairs_errors`, `contradiction_screen_risk` | `Reliability/Screening` |
 | [20.20](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `unmatched_append`, `unmatched_remove`, `maximal_pairs_half` | `Reliability/Screening` |
+| [20.21](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `batchedTest_admits`, `batchedTest_reads`, `batchedTest_excess` | `Reliability/BatchedTest` |
 | [20.17](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `durable_refusal_risk` | `Reliability/Screening` |
 | [20.18](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `staged_acquisition_sound` | `Reliability/SampledGate` |
 | [20.19](theory/foundations/20-higher-order-experts-and-budgeted-requests.md) | `acquisition_order_valid`, `acquisition_swap_difference`, `acquisition_swap` | `Planning/Acquisition` |
@@ -881,6 +882,17 @@ disagreement (`earlyTest_admits`, `earlyTest_reads`), and admitted experts
 report `ε` through `rate` for
 `evidence.route_risk`. `benchmarks/certified_acquisition.py` compares
 memorizing and generalizing fitters with and without certification.
+
+Both `CertifiedAcquirer` and `EnsembleSearch` accept an optional positive
+`batch_limit` for their shared `zero_loss_test`. With exact-size sampler
+replies, Theorem 20.21 bounds drawn-but-unscored labels by limit−1 and preserves
+the full-stream admission predicate and required sample count. Exhaustive
+Boolean streams through length eight check admission, evaluated prefixes,
+draw bounds and retention for six cap settings; integration tests cover both
+callers. Malformed replies remain charged and inconclusive. The
+`--batching` benchmark measures labels against sampler-call overhead, not
+learning efficiency. Sampler freshness, fixed candidates, executable fidelity
+and actual sampling cost remain assumptions; no automatic cap selection is made.
 
 Available inputs are addressed by position where types do not tell them
 apart (THEORY §20.8): `planner.Given` carries an optional `position`, the

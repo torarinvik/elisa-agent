@@ -61,25 +61,76 @@ def test_unanimous_none_payload_is_an_answer_rather_than_abstention() -> None:
                   lambda n: [((Message("s", 5, "input"),), None)] * n) is not None
 
 
-def test_shared_test_matches_all_boolean_histories_and_retention_bounds() -> None:
+@pytest.mark.parametrize("limit", [None, 1, 2, 3, 5, 100])
+def test_shared_test_matches_all_boolean_histories_and_retention_bounds(limit: int | None) -> None:
     """Brute-force link to earlyTest_admits/earlyTest_reads: batching changes
     draw cost, not admission, and retained observations are only a prefix."""
     for size in range(1, 9):
         for bits in product((False, True), repeat=size):
             cursor = 0
+            evaluated = 0
+            draws: list[int] = []
 
             def draw(count: int) -> tuple[bool, ...]:
                 nonlocal cursor
+                draws.append(count)
                 batch = bits[cursor:cursor + count]
                 cursor += len(batch)
                 return batch
 
-            result = zero_loss_test(draw, lambda bit: bit, cases=size, retain=2)
+            def agree(bit: bool) -> bool:
+                nonlocal evaluated
+                evaluated += 1
+                return bit
+
+            result = zero_loss_test(draw, agree, cases=size, retain=2, batch_limit=limit)
             assert result.passed == all(bits)
             assert result.drawn == cursor <= size
             assert result.retained == bits[:min(cursor, 2)]
             if result.passed:
                 assert cursor == size
+            assert evaluated == (size if all(bits) else bits.index(False) + 1)
+            if limit is not None:
+                assert max(draws) <= limit
+                # batchedTest_excess: exact-size replies, first failing batch.
+                assert cursor < evaluated + limit
+
+
+@pytest.mark.parametrize("limit", [False, True, 0, -1, 1.5, "2"])
+def test_batch_limit_validation_precedes_sampling(limit: Any) -> None:
+    def forbidden(count: int) -> None:
+        pytest.fail("invalid configuration must not sample")
+
+    with pytest.raises(ValueError, match="batch limit"):
+        zero_loss_test(forbidden, bool, cases=4, batch_limit=limit)
+    with pytest.raises(ValueError, match="batch limit"):
+        EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                       budget=10, batch_limit=limit)
+
+
+@pytest.mark.parametrize("reply", [(), (True, True, True)])
+def test_capped_test_charges_malformed_reply_without_admitting(reply: tuple[bool, ...]) -> None:
+    result = zero_loss_test(lambda count: reply, bool, cases=8, batch_limit=1)
+    assert result.passed is None and result.drawn == len(reply)
+    assert result.retained == ()
+
+
+@pytest.mark.parametrize("limit", [1, 3, None])
+def test_ensemble_batch_cap_reaches_sampler_without_changing_admission(limit: int | None) -> None:
+    route = disjoint_routes(paths(1), ("s",), "g", 1)[0]
+    draws: list[int] = []
+
+    def draw(count: int) -> list[VoteCase]:
+        draws.append(count)
+        return sample(count)
+
+    search = EnsembleSearch(counts=(1,), tolerance=0.1, confidence=0.05,
+                            budget=10, batch_limit=limit)
+    result = search(Contract(("s",), "g"), lambda old: route, draw)
+    assert result is not None
+    assert result.cases == search.labels == search.evaluations == sum(draws)
+    if limit is not None:
+        assert max(draws) <= limit
 
 
 def test_resumption_preserves_ensemble_confidence_without_refusal_caching(tmp_path: Path) -> None:

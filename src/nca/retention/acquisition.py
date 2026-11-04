@@ -38,7 +38,7 @@ from nca.effects import invoke_scoped
 from nca.retention.sampled import decision_level, required_cases
 from nca.retention.screening import FeasibilityScreen
 from nca.retention.history import AcquisitionHistory
-from nca.retention.certification import zero_loss_test
+from nca.retention.certification import validate_batch_limit, zero_loss_test
 from nca.stats import family_audit_alpha
 
 Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
@@ -69,13 +69,16 @@ class CertifiedAcquirer:
     ``train`` caps the cases supplied to each fit, not all labels consumed.
     ``stages`` is copied before sampling and must strictly increase to that cap.
     A fitted candidate must remain frozen while its fresh test runs.
+    ``batch_limit`` optionally bounds certification draws, trading fewer
+    unused labels on rejection for more sampling calls; training is unaffected.
     """
 
     def __init__(self, fit: Fitter, sample: Sampler, *, train: int, tolerance: float,
                  confidence: float, agree: Callable[[Any, Any], bool] = _equal,
                  screen: FeasibilityScreen | None = None,
                  history: AcquisitionHistory | None = None,
-                 stages: Sequence[int] | None = None) -> None:
+                 stages: Sequence[int] | None = None,
+                 batch_limit: int | None = None) -> None:
         if isinstance(train, bool) or not isinstance(train, int) or train < 1:
             raise ValueError("training needs at least one case")
         schedule = (train,) if stages is None else tuple(stages)
@@ -83,12 +86,14 @@ class CertifiedAcquirer:
                                 for n in schedule) or schedule[-1] != train
                 or any(a >= b for a, b in zip(schedule, schedule[1:]))):
             raise ValueError("training stages must strictly increase to train")
+        validate_batch_limit(batch_limit)
         required_cases(tolerance, confidence)
         self.fit, self.sample, self.train, self.agree = fit, sample, train, agree
         self.tolerance, self.confidence = tolerance, confidence
         self.screen = screen
         self.history = history
         self.stages = schedule
+        self.batch_limit = batch_limit
         self.cache_hits = 0
         self.decisions = 0
         self.labels = 0
@@ -159,7 +164,8 @@ class CertifiedAcquirer:
 
         result = zero_loss_test(draw, lambda case: self.agree(
             _invoke(module, contract, case[0]), case[1]),
-            cases=required_cases(self.tolerance, level), retain=retain)
+            cases=required_cases(self.tolerance, level), retain=retain,
+            batch_limit=self.batch_limit)
         return result.passed, list(result.retained)
 
     def rate(self, module: Module) -> float | None:
