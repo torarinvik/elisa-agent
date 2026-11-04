@@ -328,6 +328,12 @@ assembled route is checked on all training cases and still needs fresh
 certification. Slot specifications retain any required input positions, and
 observational classes distinguish the required positions that a route uses.
 
+For tree-fold, the package witness derives a step example only when the final
+outputs of every immediate child tree were observed as final answers in the
+training set. This partial decomposition may be uninformative when matching
+subtrees are absent; it supplies no guarantee about unobserved child results.
+Concat witnesses propose possible output splits, subject to search budgets.
+
 Search may assign positive integer costs to expert applications and enumerate
 routes by their total cost, counting each input reference once. Costs can be
 snapshotted from smoothed counts of experts in previously certified routes;

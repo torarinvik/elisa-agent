@@ -51,12 +51,14 @@ class Request:
 
     Each arguments row contains that expert's ordinary input values for the
     corresponding target example. The rows are proposals, not observations
-    of hidden intermediate labels.
+    of hidden intermediate labels. ``agree`` is the caller's declared output
+    comparison and does not establish equivalence for internal representations.
     """
 
     target: Specification
     expert: Contract
     arguments: tuple[tuple[Any, ...], ...] | None = None
+    agree: Callable[[Any, Any], bool] = lambda left, right: bool(left == right)
 
     def __post_init__(self) -> None:
         if self.expert.variables or self.expert.output != self.target.contract.output:
@@ -247,7 +249,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                 for arguments in options:
                     if not spend():
                         return None
-                    for split in decompositions(module.manifest, Request(goal, expert, arguments)):
+                    for split in decompositions(module.manifest, Request(goal, expert, arguments, agree)):
                         if not spend():
                             return None
                         children: list[Plan] = []
