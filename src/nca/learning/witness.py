@@ -129,6 +129,7 @@ class SearchStats:
 
     expansions: int = 0
     evaluations: int = 0
+    path: tuple[str, ...] = ()
 
 
 def decompositions(manifest: Manifest, request: Request,
@@ -275,6 +276,13 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
         return True
 
     def solve(goal: Specification, fuel: int) -> Plan | None:
+        previous = stats.path
+        try:
+            return solve_scoped(goal, fuel)
+        finally:
+            stats.path = previous
+
+    def solve_scoped(goal: Specification, fuel: int) -> Plan | None:
         if fuel <= 0 or not spend():
             return None
         try:
@@ -350,8 +358,10 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                 if key is not None:
                     memo[key] = route
                 return route
+        parent_path = stats.path
         for module in sorted(modules, key=lambda module: not (queries is not None and
                                                                module.manifest.witness_queries)):
+            stats.path = (*parent_path, module.manifest.ref)
             pattern = module.manifest.contract
             if module.manifest.witness is None:
                 continue
@@ -384,6 +394,7 @@ def propose(modules: Sequence[Module], target: Specification, *, types: Sequence
                                 if key is not None:
                                     memo[key] = route
                                 return route
+        stats.path = parent_path
         route = None if goal.required else fallback(goal, fuel)
         if route is not None and valid(goal, route):
             if key is not None:
