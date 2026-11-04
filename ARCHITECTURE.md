@@ -236,6 +236,21 @@ conversion, fitting and independent certification. Scores are training-only
 evidence, not semantic or generalization certificates; supervision and candidate
 enumeration remain separate costs.
 
+`propose_joint_refinements(early_stop=True)` (§36.70) optionally caches companion
+observations on demand and stops once the requested number of candidates reaches
+the maximum possible empirical score. A maximal seed returns no strict-gain
+proposal without observing companions. `empiricalModalScore_le_total` bounds the
+score; `saturated_prefix` proves prefix-maxima preservation and score dominance.
+The stable-sort correspondence is justified mathematically and checked against
+the actual eager implementation in 6,144 finite feature/label/budget settings;
+strict tests forbid unused companion executions. Model immutability, faithful
+scores and stable ties remain assumptions, not end-to-end runtime verification.
+The opt-in mode can skip observable effects; the default preserves eager calls.
+`feature_trees.py --saturated` measures skipped scoring and expert executions,
+including a non-saturating control. Neither mode reduces labels or replaces
+fresh certification; general semantic prediction and representation discovery
+remain open.
+
 `Decoded.invoke` now evaluates recognized unary source spines with explicit
 continuations (§36.69), through `learning.evaluation.invoke_unary`. Each source's
 scope is entered before descent and restored before its parent's head; cleanup
@@ -654,6 +669,7 @@ an inference from their separate tests.
 | [36.67](theory/evidence/36-interface-acquisition.md) | `feature_target_reach` | `Planning/FeatureClosure` |
 | [36.68](theory/evidence/36-interface-acquisition.md) | `empiricalModalScore_counts`, `empiricalModalScore_perm`, `empirical_identifier_count` | `Reliability/Acquire` |
 | [36.69](theory/evidence/36-interface-acquisition.md) | `unary_continuation_eq` | `Planning/FeatureClosure` |
+| [36.70](theory/evidence/36-interface-acquisition.md) | `empiricalModalScore_le_total`, `saturated_prefix` | `Reliability/Acquire` |
 | [32.1](theory/evidence/32-trust.md) | `decision_isolated` (via `filter_append_unaccepted`) | `Trust` |
 | [32.2](theory/evidence/32-trust.md) | `undetected_le_exp` | `Spot` |
 | [33.1](theory/reliability/33-per-input-risk.md) | `risk_le_expected_failures` on the conditional distribution | `Risk` |

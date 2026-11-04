@@ -462,4 +462,28 @@ theorem adapter_family_contains_route {X A B Y : Type*} (source : X → A)
       adapters.map (fun a x => consumer (a (source x))) := by
   exact List.mem_map.mpr ⟨adapter, present, rfl⟩
 
+/-- Every row maximum is bounded by its row total (§36.70). -/
+theorem empiricalModalScore_le_total {K L : Type*} (keys : Finset K) (labels : Finset L)
+    (count : K → L → ℕ) :
+    empiricalModalScore keys labels count ≤ ∑ k ∈ keys, ∑ l ∈ labels, count k l := by
+  apply Finset.sum_le_sum
+  intro k hk
+  exact Finset.sup_le fun l hl => Finset.single_le_sum (fun _ _ => Nat.zero_le _) hl
+
+/-- Enough front maxima fix the first k maxima, with stable tie order. -/
+theorem saturated_prefix {A : Type*} (front suffix : List A) (score : A → ℕ)
+    (bound limit : ℕ) (enough : limit ≤ (front.filter fun a => score a == bound).length)
+    (bounded : ∀ a ∈ front ++ suffix, score a ≤ bound) :
+    ((front ++ suffix).filter fun a => score a == bound).take limit =
+      (front.filter fun a => score a == bound).take limit ∧
+    ∀ a ∈ (front.filter fun a => score a == bound).take limit,
+      ∀ b ∈ front ++ suffix, score b ≤ score a := by
+  constructor
+  · simp [List.filter_append, List.take_append, Nat.sub_eq_zero_of_le enough]
+  · intro a ha b hb
+    have member := List.mem_of_mem_take ha
+    have maximal : score a = bound := by simpa using (List.mem_filter.mp member).2
+    rw [maximal]
+    exact bounded b hb
+
 end NCA

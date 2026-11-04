@@ -122,3 +122,77 @@ def test_joint_candidate_order_and_observation_budget_match_reference(
 def test_older_native_module_uses_exact_reference(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(categorical, "_NATIVE", object())
     assert categorical.modal_score(["a", "a", "b"], [1, 2, 1]) == 2
+
+
+def test_saturated_search_matches_complete_stable_ranking_on_small_tables() -> None:
+    from nca.abi import Contract, Manifest
+    from nca.learning.discovery import JointFeature, Proposal
+    from nca.learning.interfaces import propose_joint_refinements
+
+    class Observed:
+        def __init__(self, index: int, values: tuple[int, ...]) -> None:
+            self.index, self.values, self.calls = index, values, 0
+            self.manifest = Manifest(f"observed-{index}", "1", Contract(("input",), f"part-{index}"),
+                                     effects=frozenset())
+
+        def invoke(self, value: int) -> int:
+            self.calls += 1
+            return self.values[value]
+
+    def shape(feature: Any) -> tuple[int, ...]:
+        if isinstance(feature, JointFeature):
+            return (*shape(feature.left), *shape(feature.right))
+        return (feature.index,)
+
+    patterns = ((0, 0, 0, 0), (0, 0, 1, 1), (0, 1, 0, 1), (0, 1, 2, 3))
+    rows = [(i,) for i in range(4)]
+    for labels in product(range(2), repeat=4):
+        for values in product(patterns, repeat=3):
+            features = [Observed(i, pattern) for i, pattern in enumerate(values)]
+            for limit, cap in product((1, 2, 3), (1, 3)):
+                selected, calls = [], []
+                for early_stop in (False, True):
+                    for feature in features:
+                        feature.calls = 0
+                    proposals = propose_joint_refinements(Proposal(features[0]),
+                        [Proposal(feature) for feature in features[1:]], rows, labels,
+                        max_candidates=2, max_companions=2, max_joint_candidates=cap,
+                        limit=limit, pair_cost=0, early_stop=early_stop)
+                    selected.append([shape(p.expert) for p in proposals])
+                    calls.append([feature.calls for feature in features])
+                assert selected[0] == selected[1]
+                assert all(new <= old for old, new in zip(calls[0], calls[1], strict=True))
+
+
+@pytest.mark.parametrize("option", [None, 0, 1, "yes"])
+def test_saturated_search_option_requires_boolean(option: Any) -> None:
+    from nca.learning.interfaces import propose_joint_refinements
+
+    with pytest.raises(ValueError, match="boolean"):
+        propose_joint_refinements(None, [], [], [], max_candidates=1,
+                                   limit=1, pair_cost=0, early_stop=option)
+
+
+@pytest.mark.parametrize("perfect_seed", [False, True])
+def test_saturation_skips_unused_companion_executions(perfect_seed: bool) -> None:
+    from nca.abi import Contract
+    from nca.learning.discovery import Proposal
+    from nca.learning.interfaces import propose_joint_refinements
+    from test_discovery import Feature
+
+    seen = [0, 0, 0]
+
+    def measure(index: int, value: int) -> int:
+        seen[index] += 1
+        if index == 2 or (perfect_seed and index == 1):
+            pytest.fail("a saturated search must not execute unused companions")
+        return value if perfect_seed or index == 1 else 0
+
+    features = [Feature(Contract(("input",), f"part-{i}"), lambda value, i=i: measure(i, value))
+                for i in range(3)]
+    proposals = propose_joint_refinements(Proposal(features[0]),
+        [Proposal(feature) for feature in features[1:]], [(i,) for i in range(4)], list(range(4)),
+        max_candidates=2, limit=1, pair_cost=0, max_companions=2,
+        max_joint_candidates=3, early_stop=True)
+    assert seen == ([4, 0, 0] if perfect_seed else [4, 4, 0])
+    assert len(proposals) == (0 if perfect_seed else 1)

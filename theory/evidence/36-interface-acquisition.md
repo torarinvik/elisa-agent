@@ -329,3 +329,32 @@ Only recognized structural compositions may be unfolded; opaque implementations
 and overrides retain normal invocation. Terminating finite wiring, faithful
 metadata and context restoration are assumptions. Stack storage grows linearly;
 leaf operations, other graph kinds and deferred computations can still recurse.
+
+## 36.70 Saturated empirical search
+
+Consider candidates in a fixed order with integer scores bounded above by N.
+Rank by descending score, keeping original order within ties. If an observed
+prefix contains k candidates scoring N, the first k such candidates are the
+stable top k of the entire sequence, regardless of the remaining suffix.
+If strict improvement over an incumbent scoring N is required, no candidate
+can qualify.
+
+**Theorem 36.70 (saturated prefix).** Under that upper bound, stopping after
+k prefix maxima preserves the selected stable top k. Every selected score
+dominates every suffix score, and the first k maxima in prefix plus suffix
+are exactly the first k maxima of the prefix. For empirical category scores,
+Σ max_l c(k,l) ≤ Σ Σ_l c(k,l) = N when the count table covers N observations.
+
+*Proof.* Each cell is bounded by its row sum, so each row maximum is too.
+Summing yields the score bound. A maximum-scoring prefix candidate outranks
+every lower-scoring candidate; any equally scoring suffix candidate follows it
+by stable tie order. Appending the suffix therefore cannot change the first k
+maxima already present. If the incumbent is maximal, strict improvement is
+impossible. ∎
+
+Lazy observation of unused candidates can skip both their empirical scoring and
+their training executions. Selection equivalence assumes frozen observations,
+faithful scores and no state changes affecting later candidates; observable
+side-effect traces need not be identical. This is an opt-in compute policy,
+not a claim that training maxima generalize. Independent certification remains
+necessary. Non-saturating searches may still visit the entire bounded family.

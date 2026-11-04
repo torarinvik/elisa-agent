@@ -14,6 +14,8 @@ from tempfile import TemporaryDirectory
 from time import process_time
 from typing import Any
 from itertools import product
+from collections.abc import Hashable, Sequence
+from unittest.mock import patch
 
 from nca.abi import Contract, Manifest, Message, Module
 from nca.learning.discovery import Decoded, fit_decoder, propose_corrections
@@ -21,6 +23,7 @@ from nca.learning.acquisition_objects import store_acquired_model
 from nca.learning.features import compose_features
 from nca.learning import categorical
 from nca.learning.interfaces import propose_joint_refinements
+from nca.learning import interfaces as interface_learning
 from nca.learning.discovery import Proposal
 from nca.native import load
 from nca.effects import effect_call, invoke_scoped
@@ -358,7 +361,8 @@ class CategoryFeature:
         return value[self.index]
 
 
-def categorical_trial(seed: int, policy: str, size: int) -> dict[str, float]:
+def categorical_trial(seed: int, policy: str, size: int, *,
+                      early_stop: bool = False, target_width: int = 3) -> dict[str, float]:
     """Same joint search, fitter and fresh cases; only score execution changes."""
     kernel = load("records")
     if policy == "elisa" and getattr(kernel, "modal_score", None) is None:
@@ -368,22 +372,36 @@ def categorical_trial(seed: int, policy: str, size: int) -> dict[str, float]:
     try:
         started = process_time()
         rng = random.Random(seed)
-        targets = rng.sample(range(8), 8)
+        targets = rng.sample(range(2**target_width), 2**target_width)
         inputs = list(product(range(2), repeat=6))
 
         def target(value: tuple[int, ...]) -> str:
-            return f"label:{targets[4 * value[0] + 2 * value[1] + value[2]]}"
+            index = 0
+            for bit in value[:target_width]:
+                index = 2 * index + bit
+            return f"label:{targets[index]}"
 
         rows = [(rng.choice(inputs),) for _ in range(size)]
         labels = [target(value) for value, in rows]
         features = [CategoryFeature(i) for i in range(6)]
         score_started = process_time()
-        proposals = propose_joint_refinements(Proposal(features[0]),
-            [Proposal(feature) for feature in features[1:]], rows, labels,
-            max_candidates=5, max_companions=2, max_joint_candidates=15, limit=1, pair_cost=0)
+        score_calls = 0
+        original_score = interface_learning.modal_score
+
+        def score(keys: Sequence[Hashable], targets: Sequence[Hashable]) -> int:
+            nonlocal score_calls
+            score_calls += 1
+            return original_score(keys, targets)
+
+        with patch.object(interface_learning, "modal_score", score):
+            proposals = propose_joint_refinements(Proposal(features[0]),
+                [Proposal(feature) for feature in features[1:]], rows, labels,
+                max_candidates=5, max_companions=2, max_joint_candidates=15, limit=1,
+                pair_cost=0, early_stop=early_stop)
         score_cpu = process_time() - score_started
-        assert len(proposals) == 1
-        feature = proposals[0].expert
+        assert len(proposals) == (0 if target_width == 1 else 1)
+        refinement_calls = sum(feature.calls for feature in features)
+        feature = proposals[0].expert if proposals else features[0]
         keys = [feature.invoke(value) for value, in rows]
         head = fit_decoder(Contract((feature.manifest.contract.output,), "label"), keys, labels, cost=0)
         model = Decoded(feature, head, Base.manifest.contract)
@@ -400,7 +418,8 @@ def categorical_trial(seed: int, policy: str, size: int) -> dict[str, float]:
                 "validation_labels": search.labels, "audit_labels": len(inputs),
                 "audit_errors": errors, "certified_tasks": int(result is not None),
                 "feature_calls": sum(feature.calls for feature in features),
-                "scored_subsets": 15, "refinement_cpu_seconds": score_cpu,
+                "refinement_feature_calls": refinement_calls,
+                "scored_subsets": score_calls - 1, "refinement_cpu_seconds": score_cpu,
                 "cpu_seconds": process_time() - started}
     finally:
         categorical._NATIVE = previous
@@ -440,7 +459,17 @@ if __name__ == "__main__":
     parser.add_argument("--targeted", action="store_true")
     parser.add_argument("--categorical", action="store_true")
     parser.add_argument("--unary-depth", action="store_true")
+    parser.add_argument("--saturated", action="store_true")
     args = parser.parse_args()
+    if args.saturated:
+        backend = "elisa" if getattr(load("records"), "modal_score", None) is not None else "python"
+        for width in (1, 2, 3, 6):
+            for early_stop in (False, True):
+                for seed in (3716, 3717, 3718):
+                    print(json.dumps({"width": width, "early_stop": early_stop, "seed": seed,
+                        **categorical_trial(seed, backend, 4096, early_stop=early_stop,
+                                            target_width=width)}), flush=True)
+        raise SystemExit
     if args.unary_depth:
         for depth in (8, 1500):
             for iterative in (False, True):

@@ -224,7 +224,8 @@ def propose_heads(incumbent: Module, features: Sequence[Proposal], fit: HeadProp
 def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
         rows: Sequence[tuple[Any, ...]], labels: Sequence[Hashable], *,
         max_candidates: int, limit: int, pair_cost: float,
-        max_companions: int = 1, max_joint_candidates: int | None = None) -> list[Proposal]:
+        max_companions: int = 1, max_joint_candidates: int | None = None,
+        early_stop: bool = False) -> list[Proposal]:
     """Resolve empirical category ambiguity by pairing representations (§36.45).
 
     Observe the seed once per training row and each bounded companion once.
@@ -238,9 +239,16 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
     (default max_candidates), including non-improving subsets. No intermediate
     gain is required. Snapshots trade temporary memory for one observation per
     supplied companion; the retained product is left-associated in subset order.
+    Opt-in ``early_stop`` (§36.70) observes companions only when used and stops
+    once limit candidates score every training row correctly. A perfect seed
+    needs no refinement. With frozen observations and stable ties this returns
+    the same proposals, but skips unused executions and their effects. It is
+    training compute control, not independent evidence of generalization.
     """
     if max_joint_candidates is None:
         max_joint_candidates = max_candidates
+    if type(early_stop) is not bool:
+        raise ValueError("early_stop must be a boolean")
     if any(type(n) is not int or n < 1
            for n in (max_candidates, limit, max_companions, max_joint_candidates)):
         raise ValueError("companion and output budgets must be positive integers")
@@ -258,14 +266,26 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
 
     keys = tuple(invoke_scoped(feature.expert, *row) for row in rows)
     baseline = modal_score(keys, labels)
-    observations = tuple(tuple(invoke_scoped(p.expert, *row) for row in rows) for p in companions)
+    if early_stop and baseline == len(rows):
+        return []
+    observations: dict[int, tuple[Hashable, ...]] = {}
+
+    def observe(index: int) -> tuple[Hashable, ...]:
+        if index not in observations:
+            observations[index] = tuple(invoke_scoped(companions[index].expert, *row) for row in rows)
+        return observations[index]
+
+    if not early_stop:
+        for index in range(len(companions)):
+            observe(index)
     subsets = chain.from_iterable(combinations(range(len(companions)), size)
                                   for size in range(1, min(max_companions, len(companions)) + 1))
     ranked = []
+    perfect = 0
     for subset in islice(subsets, max_joint_candidates):
         joint_keys = keys
         for index in subset:
-            joint_keys = tuple(zip(joint_keys, observations[index], strict=True))
+            joint_keys = tuple(zip(joint_keys, observe(index), strict=True))
         successes = modal_score(joint_keys, labels)
         if successes > baseline:
             joined = feature.expert
@@ -274,6 +294,9 @@ def propose_joint_refinements(feature: Proposal, companions: Sequence[Proposal],
                 joined = JointFeature(joined, companions[index].expert, pair_cost)
                 constructors += companions[index].constructors
             ranked.append((successes, Proposal(joined, constructors)))
+            perfect += int(successes == len(rows))
+            if early_stop and perfect >= limit:
+                break
     ranked.sort(key=lambda item: -item[0])
     return [proposal for _, proposal in ranked[:limit]]
 
