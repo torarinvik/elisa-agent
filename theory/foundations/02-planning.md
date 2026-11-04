@@ -262,6 +262,13 @@ fixes every variable occurring in that output (Theorem 2.4), and the remaining
 variables range over the declared universe. A fixed value outside that universe
 is excluded because it is outside the search space, not because it is invalid.
 
+A resumable typed-route frontier may instead prioritize the bits already
+chosen plus one bit for each unfinished hole. If every remaining production
+has positive length, `frontier_lower_bound` proves that this value is a lower
+bound on every completion's length. This does not prove that the implementation
+enumerates all routes, bounds the cost of constructing a production table, or
+establishes a Levin scheduling guarantee; witness search is not yet integrated.
+
 A tuple-field path is modeled as a sequence of partial projections. For any
 field operation, following a concatenated path equals following its first part
 and then its second, including failure (`followPath_append`). This supports

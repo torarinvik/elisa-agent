@@ -32,6 +32,26 @@ theorem first_consistent_minimal {α : Type} (cost : α → Nat) (accept : α �
       · exact ih ordered.2 found member
 
 
+/-- Each unfinished hole costs at least one bit when all productions have
+positive code lengths. This is the lower bound used by the route frontier;
+it assumes the remaining lengths faithfully describe a completion. -/
+theorem frontier_lower_bound (known : ℕ) (remaining : List ℕ)
+    (positive : ∀ bits ∈ remaining, 1 ≤ bits) :
+    known + remaining.length ≤ known + remaining.sum := by
+  have bound : remaining.length ≤ remaining.sum := by
+    induction remaining with
+    | nil => simp
+    | cons head tail ih =>
+      have hh : 1 ≤ head := positive head (by simp)
+      have ht : ∀ bits ∈ tail, 1 ≤ bits := by
+        intro bits member
+        exact positive bits (by simp [member])
+      simp only [List.length_cons, List.sum_cons]
+      have := ih ht
+      omega
+  omega
+
+
 /-- Follow a partial projection path; a missing field yields `none`. -/
 def followPath {α : Type} (field : α → Nat → Option α) : List Nat → α → Option α
   | [], value => some value
