@@ -377,6 +377,16 @@ route has a deterministic error guarantee. Conditional freshness and a valid
 code are hypotheses; the current empirical expert-use search costs have not
 been shown to be prefix lengths or to satisfy Kraft's inequality.
 
+For a finite local production choice, let positive integer weights sum to
+`W`, and assign a production of weight `w` length
+`max(1, bit_length((W - 1) // w))`. `productionBits_capacity` proves
+`W ≤ w · 2^length`, and `productionBits_kraft` proves that these local lengths
+have Kraft sum at most one. The external route code uses these lengths and a
+canonical prefix assignment in each scope; a formal Kraft proof for complete
+recursive route encodings, including slot scopes, remains open. Consequently
+the existing route-length allocation theorem cannot yet be claimed as a
+machine-checked guarantee for that implementation.
+
 
 ## 31.16 Finite service thresholds
 
