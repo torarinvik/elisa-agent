@@ -302,10 +302,20 @@ malformed metadata and exhaustive small lookup tables. `correction_reloaded_eq`
 proves function equality conditional on faithful children and lookup, not codec,
 filesystem or executable fidelity. Binding resolution now refuses exports
 whose nondefault execution configuration would change on default installation.
-Such configurations must be represented by a faithful binding before retention;
-this change does not serialize them. Saved model parameters contain no admission
-certificate. The restart benchmark freshly certifies each reopened model and
+Exact `Export` nodes are now retained with their execution settings as described
+below; opaque bindings still refuse configuration changes. Saved model
+parameters contain no admission certificate. The restart benchmark freshly certifies each reopened model and
 measures parameter reuse against forgetful retraining.
+
+Configured acquired composites (§36.66) retain their actual ordered member graph,
+export position, planning fuel, execution budget and manifest-length parameter.
+`learning.export_objects` rebuilds exports from retained member bindings rather
+than reinstalling their original composites with defaults. Their primitive
+wrappers declare internal risk accounting. `configuredExport_reloaded_eq` in
+`Planning/FeatureClosure` proves interpretation equality conditional on identical
+settings and faithful semantic member descriptors; tests exercise real planning,
+refusal and save/reopen. Mutable expert state, opaque binding fidelity and
+filesystem atomicity remain outside this guarantee.
 
 Every open row requires a mechanism-level theorem, explicit assumptions and
 executable differential or theorem-linked property tests before it is treated

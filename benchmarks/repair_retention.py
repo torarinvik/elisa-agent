@@ -16,9 +16,9 @@ from redundancy import VALUES, InputKey, LaneFactory, endpoint_proposal
 
 from nca.abi import Contract, Module
 from nca.learning.acquisition_objects import store_acquired_model
-from nca.learning.discovery import decoder_object
+from nca.learning.discovery import decoder_object, fit_decoder
 from nca.objects import Composite, Primitive, Store
-from nca.packages import install
+from nca.packages import Export, install
 from nca.planner import Apply, Given, Plan
 from nca.retention.ensembles import EnsembleSearch, VoteCase, VoteFailure
 
@@ -100,7 +100,61 @@ def trial(seed: int, retain: bool) -> dict[str, float]:
             "cpu_seconds": process_time() - started}
 
 
+def configured_trial(policy: str, sessions: int = 3) -> dict[str, float]:
+    """Compare default rebinding, retraining and configured retention (§36.66).
+
+    All labels train a nine-stage chain; no statistical certificate is claimed.
+    Reopening uses fresh store instances in one process, not process restart.
+    """
+    started = process_time()
+    fits = labels = successes = refusals = stored_bytes = 0
+    binding: tuple[str, int] | None = None
+    with TemporaryDirectory() as directory:
+        path = Path(directory)
+        for _ in range(sessions):
+            if binding is not None:
+                store = Store.open(path)
+                expert = install(store, binding[0])[binding[1]]
+            else:
+                store = Store()
+                modules = [fit_decoder(Contract((f"t{i}",), f"t{i + 1}"),
+                                       [i], [i + 1], cost=1.0) for i in range(9)]
+                fits += 9
+                labels += 9
+                refs = tuple(store.put(decoder_object(module, size=0)) for module in modules)
+                obj = Composite("chain", "1", refs,
+                                exports=(Contract(("t0",), "t9"),), effects=frozenset())
+                reference = store.put(obj)
+                if policy == "default":
+                    try:
+                        expert = install(store, reference)[0]
+                    except ValueError:
+                        refusals += 1
+                        continue
+                else:
+                    expert = Export(obj, 0, modules, budget=20, fuel=12)
+            successes += expert.invoke(0) == 9
+            if policy == "retain" and binding is None:
+                def no_opaque(module: Module) -> tuple[str, int]:
+                    raise AssertionError("the graph contains only known interpreters")
+
+                binding = store_acquired_model(store, expert, no_opaque, size=lambda module: 0)
+                store.save(path)
+                stored_bytes = sum(p.stat().st_size for p in path.glob("*.json"))
+    return {"successful_sessions": float(successes), "refusals": float(refusals),
+            "fits": float(fits), "training_labels": float(labels),
+            "session_requests": float(sessions), "execution_requests": float(successes),
+            "acquisition_requests": 0.0,
+            "stored_bytes": float(stored_bytes), "cpu_seconds": process_time() - started}
+
+
 if __name__ == "__main__":
+    import sys
+
+    if "--configured" in sys.argv:
+        for policy in ("default", "rebuild", "retain"):
+            print(json.dumps({"policy": policy, **configured_trial(policy)}), flush=True)
+        raise SystemExit(0)
     for retain in (False, True):
         for seed in (3716, 3717, 3718):
             print(json.dumps({"retain": retain, "seed": seed, **trial(seed, retain)}), flush=True)

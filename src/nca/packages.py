@@ -130,10 +130,14 @@ class Export:
         if exported.slots:
             raise ValueError("exported contracts take inputs only; requirements are the slots")
         self.composite = composite
+        self.export_index = index
+        self.members = tuple(members)
         self.budget = budget
+        self.length = length
+        self.fuel = fuel
         self.requirements = [Requirement(composite.name, composite.version, i, slot)
                              for i, slot in enumerate(composite.requires)]
-        self.library: list[Module] = [*members, *self.requirements]
+        self.library: list[Module] = [*self.members, *self.requirements]
         producer_index = ProducerIndex(self.library)
         route = plan_stable_indexed(producer_index, exported.inputs, exported.output, fuel)
         if route is None:

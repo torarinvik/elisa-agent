@@ -8,10 +8,11 @@ from nca.abi import Module
 from nca.learning.affine import AffineAdapter, affine_object
 from nca.learning.discovery import Corrected, Decoded, Decoder, JointFeature, decoder_object
 from nca.learning.features import AppliedFeature
+from nca.learning.export_objects import export_object
 from nca.learning.numeric_objects import _ENCODERS, _increment, _parameters, encoder_object
 from nca.objects import Json, Primitive, Ref, Store, canonical, contract_data, contract_from, digest, manifest_data
 from nca.value_codec import decode_value, encode_value
-from nca.packages import install, resolve_binding
+from nca.packages import Export, install, resolve_binding
 from nca.learning.regional import RegionalExpert, RegionalPolicy
 from nca.learning.regional_objects import policy_object, regional_object
 from nca.learning.vector import VectorAffineAdapter, vector_affine_object
@@ -22,6 +23,8 @@ Binding = tuple[Ref, int]
 def _children(model: Module) -> tuple[Module, ...]:
     # Exact runtime types only: subclasses may implement different semantics.
     kind = type(model)
+    if kind is Export:
+        return model.members
     if kind in (RegionalExpert, RegionalPolicy):
         return (model.incumbent, model.feature, *model.specialists.values())
     if kind is Decoded:
@@ -99,6 +102,11 @@ def _metadata(original: Module, rebuilt: Module) -> None:
 def _object(store: Store, model: Module, bindings: tuple[Binding, ...],
             children: tuple[Module, ...], size: int) -> Primitive | None:
     kind = type(model)
+    if kind is Export:
+        rebuilt = Export(model.composite, model.export_index, children, budget=model.budget,
+                         length=model.length, fuel=model.fuel)
+        _metadata(model, rebuilt)
+        return export_object(rebuilt, bindings, size=size)
     if kind is AffineAdapter:
         rebuilt = AffineAdapter(model.manifest.contract, model.slope, model.offset, model.manifest.cost)
         _metadata(model, rebuilt)
@@ -196,8 +204,8 @@ def store_acquired_models(store: Store, models: Sequence[Module],
     Callers choose which learned components to expose; no private graph inspection
     is needed after reopening. Empty roots perform no writes or callbacks.
 
-    Supports multi-input applications, endpoint corrections, regional policies,
-    feature/head composition, structural products,
+    Supports configured composite exports, multi-input applications, endpoint
+    corrections, regional policies, feature/head composition, structural products,
     numeric encoders and categorical/scalar/vector fitted heads. Other leaves
     must already be content-identified. Byte sizes apply per learned node and
     exclude dependencies. Sizes/factories must remain faithful, and models stable
@@ -209,7 +217,7 @@ def store_acquired_models(store: Store, models: Sequence[Module],
     active: set[int] = set()
     pending = [(model, False) for model in reversed(models)]
     known = (*_ENCODERS, RegionalExpert, RegionalPolicy, Decoded, JointFeature,
-             AppliedFeature, Corrected, Decoder, AffineAdapter, VectorAffineAdapter)
+             AppliedFeature, Corrected, Decoder, AffineAdapter, VectorAffineAdapter, Export)
     while pending:
         node, leaving = pending.pop()
         identity = id(node)

@@ -130,4 +130,18 @@ theorem feature_priority_closure {α : Type*} [DecidableEq α] (seeds : Finset �
     exact order.mem_iff
   rw [same]
 
+/-- Retain ordered semantic descriptors and execution settings. The result may
+include refusal, costs and effects; interpreter fidelity remains a hypothesis. -/
+theorem configuredExport_reloaded_eq {C A D X O : Type*}
+    (run : C → List D → X → O) (config restoredConfig : C)
+    (members : List A) (describe restoredDescribe : A → D)
+    (settings : restoredConfig = config)
+    (faithful : ∀ member ∈ members, restoredDescribe member = describe member) :
+    run restoredConfig (members.map restoredDescribe) =
+      run config (members.map describe) := by
+  have same : members.map restoredDescribe = members.map describe := by
+    apply List.map_congr_left
+    exact faithful
+  rw [settings, same]
+
 end NCA

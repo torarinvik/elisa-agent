@@ -222,3 +222,24 @@ claim follows for capped search. Supplied scores are hypotheses, not semantic
 certificates. Whole-task acceptance still requires independent evaluation of
 the frozen selected model. Inspecting/scoring a whole library also costs work
 that cannot be hidden as free acquisition or assumed to amortize on new tasks.
+
+## 36.66 Retaining configured compositions
+
+Let an interpreter R take execution settings c, an ordered list of semantic
+member descriptors D, and an input x. Its result may include an answer or refusal,
+resource consumption, and an effect trace. A descriptor must include everything
+used in planning and execution, including contracts and request behavior.
+
+**Theorem 36.66 (configured interpretation preservation).** If restoration
+preserves c and every member descriptor at every ordered position, then the
+restored interpreter has the same result for every x.
+
+*Proof.* Pointwise descriptor equality gives equality of the mapped member list,
+including multiplicities and order. Substitute this equality and the settings
+equality into R. ∎
+
+This is conditional on a faithful, deterministic interpreter and semantic
+member restoration. Matching type signatures alone is insufficient. Omitting
+settings can change which route is selected, whether execution has enough
+resources, or which request is issued. No mutable state snapshot, filesystem
+atomicity, or statistical certificate preservation follows from this theorem.
