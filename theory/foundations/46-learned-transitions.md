@@ -256,4 +256,16 @@ observations, the hypothesis class, or the planner's work bound. Distinguishing
 those causes requires an explicitly designed diagnostic with its own evidence.
 The gate and any new proposal must use fresh draws after the prior test closes.
 
+## 46.22 Distinguishing unsupported paths from search exhaustion
+
+For a finite model graph with at most N distinct states and K supplied actions,
+a breadth-first search that visits each state at most once makes at most N K
+prediction calls. With at least that call budget and N retained-state slots,
+and assuming faithful state identities, deterministic predictions and finite
+calls, a returned refusal after complete traversal means there is no path in
+that model's supported graph. It does not imply that the true environment has
+no path. Comparing supported edges with independently supplied environment
+transitions can identify model refusals, but those diagnostic environment
+lookups are separate from policy certification and must be counted.
+
 [Theory index](../../THEORY.md)
