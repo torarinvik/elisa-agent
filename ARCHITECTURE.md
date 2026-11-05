@@ -685,3 +685,4 @@ with the commands above.
 | §46.6 realizable unanimous rollout | `NCA.version_rollout_sound` | `learning/version_space.py`; `tests/learning/test_version_space.py` exhausts finite tables, including a missing-truth counterexample. |
 | §46.13 absorbing starts | `NCA.absorbing_rollout` | Deterministic transition model; no claim that arbitrary environments have an absorbing state. |
 | §46.28 refinement preserves rollouts | `NCA.refinement_preserves_rollout` | `learning/version_space.py` and `planner/dynamics.py`; `tests/learning/test_version_space.py` checks complete-search reach over all two-state deterministic worlds. |
+| §46.35 separating projection signatures | `NCA.projection_model_identified` | External structural route compilation and `tests/test_transitions.py` exhaust two-field permutations; supplied representation and realizability remain assumptions. |

@@ -67,6 +67,19 @@ theorem refinement_preserves_rollout {S A : Type} (old refined : S → A → Opt
       have newer : refined s action = some next := preserves s action next edge
       simpa [modelRollout, newer] using ih next t tail
 
+/-- Distinct observed field signatures identify every projection, hence unseen states. -/
+theorem projection_model_identified {I J F V : Type} (observed : I → F → V)
+    (truth candidate : J → F)
+    (separates : Function.Injective (fun field => fun sample => observed sample field))
+    (consistent : ∀ sample output, observed sample (candidate output) = observed sample (truth output))
+    (state : F → V) : (fun output => state (candidate output)) = (fun output => state (truth output)) := by
+  funext output
+  have same : candidate output = truth output := by
+    apply separates
+    funext sample
+    exact consistent sample output
+  rw [same]
+
 /-- No finite action sequence leaves an absorbing environment state. -/
 theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
     (absorbing : ∀ action, step state action = state) (actions : List A) :
@@ -75,6 +88,7 @@ theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
   | nil => rfl
   | cons action rest ih => simpa [actualRollout, absorbing action] using ih
 
+#print axioms projection_model_identified
 #print axioms refinement_preserves_rollout
 #print axioms absorbing_rollout
 #print axioms version_rollout_sound

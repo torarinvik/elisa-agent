@@ -454,4 +454,44 @@ sampling and faithful implementation are empirical platform assumptions, not
 consequences of the Lean proof. Recording the realized indices supports
 reproduction but does not make the now-visible cases fresh for future tuning.
 
+## 46.35 When observations identify a projection rule
+
+In a tuple-field-copy family, each output position chooses one input field.
+For each input field, form its observation signature: its sequence of values
+across the training states for a particular action. A candidate field is
+consistent with an output position exactly when its signature matches that
+position's observed output signature. Consequently the number of consistent
+whole rules is the product of the numbers of matching fields at each output
+position. If all input-field signatures are distinct and the true rule is in
+the family, every output position identifies its field and the fitted rule
+agrees on every state of the declared representation. Lean proves this
+conditional generalization as `projection_model_identified`; the finite
+implementation check also exercises candidate enumeration and runtime routes.
+This is an identifiability theorem for supplied tuple fields, not a theorem
+that raw observations reveal a useful representation.
+
+For three fields over three values, two uniformly sampled distinct training
+states give pairwise-distinct field signatures with probability 498/702 =
+83/117: of 9·8·7 ordered distinct signature triples, six correspond to two
+identical training states and must be excluded. With a bijective true rule,
+this condition is also necessary for uniqueness in the family of all field
+copies. This probability assumes the stated ideal uniform sampling, not fixed
+public pseudorandom seeds. In the six-world control, all twelve action-specific
+training sets happened to have distinct signatures, so no additional
+observation could shrink any version space. The result is not evidence that
+the exploration strategy chose well.
+
+## 46.36 Testing exploration when there is something to learn
+
+An evaluation of information-seeking should state whether initial ambiguity is
+part of the target distribution. Stratifying on a model's pre-intervention
+version space can isolate cases with unresolved rules, but the resulting
+performance claim applies only to that conditional distribution. All arms must
+be fixed before fresh gate draws. A label- and interaction-matched alternative
+is needed to attribute gains to the disagreement selector rather than to
+additional evidence. If no informative reachable action exists in a sampled
+episode, that refusal is part of the outcome, not a reason to silently replace
+the episode. Realizability, supplied candidate states and reset access remain
+separate assumptions.
+
 [Theory index](../../THEORY.md)
