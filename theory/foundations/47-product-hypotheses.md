@@ -51,4 +51,14 @@ explicit enumeration cover predictions, refusals, refinement and ranking on
 finite product families; coupled and noninjectively assembled output examples
 remain counterexamples to applying the shortcut outside its declared scope.
 
+## 47.3 Representation is not capability
+
+A product representation stores a joint version without listing its members;
+it does not reduce the number of logically possible joint rules or prove that
+the true rule lies in the declared family. It therefore changes neither the
+realizability assumption nor the need for independent admission. A small
+number of retained components after fitting is evidence about those observations,
+not evidence that arbitrary future states or tasks will be represented. A
+coupled or noninjectively assembled family remains outside this exact shortcut.
+
 [Theory index](../../THEORY.md)
