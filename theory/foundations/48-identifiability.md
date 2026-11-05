@@ -124,4 +124,21 @@ develop the mechanism remain development data even if a new partition is
 chosen. Neither partition comparison replaces a fresh whole-expert gate or a
 test on an untouched external distribution.
 
+## 48.8 Precision of newly answered cases
+
+In two further public-data partitions, exact-context composition corrected 57
+and 44 cases while producing one and five new wrong answers. Broader-context
+fallback corrected eight and seven additional cases, but also produced five and
+seven additional wrong answers. The latter equality in one partition shows why
+a gain in total correct answers alone is not an adequate measure of a proposal's
+precision. In a whole-task gate both refusal and a wrong answer are failures;
+outside that gate their practical consequences may differ.
+
+These partitions share examples with each other and with earlier development,
+so neither the observed differences nor a sign statistic establish independent
+generalization. The observed backoff tradeoff motivates examining candidate
+evidence and precision before any claim that wider context is an improvement
+in reliability. The proof in §48.1 continues to require the true procedure to
+be included in the compared family.
+
 [Theory index](../../THEORY.md)
