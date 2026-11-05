@@ -74,4 +74,24 @@ admissible candidates; support thresholds and screening on chosen training
 templates cannot establish that condition. Whole-expert certification and
 independent evaluation remain necessary.
 
+## 48.5 Backing off input context
+
+An insertion's immediate input neighbors define a narrow evidence group. A
+broader group can ignore either or both neighbors, while retaining the inserted
+block. Every narrow-group example also belongs to each corresponding broader
+group, but support for a rule and absence of observed contradiction in that
+group do not imply that it is true outside the examples. Contradiction screening
+must be repeated on the broader group; merely copying a narrowly screened rule
+to a broader context loses that property.
+
+A selective fallback can first examine the original narrow group, preserving
+its answer or refusal whenever it produced at least one derivation. Only if it
+produced none does the learner examine all applicable broader groups together,
+returning a result if their completed derivations agree and refusing otherwise.
+This preserves earlier answered cases by construction, provided the underlying
+template model and exact-context rules are unchanged. It does not preserve
+earlier refusals, identify the true rule, or certify the wider hypothesis
+family; the impossibility theorem in §48.1 still applies. Limits on input
+length, rule counts and candidate execution remain caller responsibilities.
+
 [Theory index](../../THEORY.md)
