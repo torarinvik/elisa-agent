@@ -614,4 +614,27 @@ and resets across selection strategies, and measure whether acquired evidence
 improves independently tested goal service. Conditional selection and supplied
 world structure limit the resulting claim; no discovery rate follows here.
 
+## 46.43 When an observation makes progress
+
+For a finite version space containing the true deterministic predictor, a
+truthful observation at an input where retained predictors disagree preserves
+truth and strictly decreases the number of retained hypotheses
+(`disagreement_refinement_progress`). This is true for every possible answer
+from that family. A query at a unanimous input leaves the version unchanged;
+if the true predictor is absent, disagreement may disappear without making the
+remaining predictors correct. A strict reduction is an information result, not
+a guarantee of improved goal reachability or successful policy admission.
+
+An interaction-matched comparison can use a single shared start per world and
+one action per arm: select the first action whose retained predictors disagree
+at that start, versus a baseline action sampled without consulting model
+disagreement. If none disagrees, the information-seeking arm uses the same
+baseline action. Both arms consume one transition observation and one reset;
+the no-intervention arm consumes neither. All resulting policies must be fixed
+before independently sampled admission and audit episodes. The theory predicts
+strictly fewer hypotheses for the disagreement arm when a disagreement exists,
+but does not predict its advantage over the baseline or any change in certified
+goal service. Start selection, possible worlds, action order and case streams are
+part of the experimental distribution and must be recorded.
+
 [Theory index](../../THEORY.md)

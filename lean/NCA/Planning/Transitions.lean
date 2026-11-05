@@ -1,4 +1,5 @@
 import Mathlib.Data.List.Basic
+import Mathlib.Data.Finset.Card
 
 namespace NCA
 
@@ -143,6 +144,30 @@ theorem unvisited_transition_alternative {S A : Type} [DecidableEq S] [Decidable
     simp [second, missing]
   · simpa [second] using different
 
+/-- A truthful observation at a disagreement strictly shrinks a finite version
+space while retaining the true hypothesis. -/
+theorem disagreement_refinement_progress {H Y : Type} [DecidableEq H] [DecidableEq Y]
+    (versions : Finset H) (predict : H → Y) (truth : H) (member : truth ∈ versions)
+    (disagreement : ∃ left ∈ versions, ∃ right ∈ versions, predict left ≠ predict right) :
+    truth ∈ versions.filter (fun h => predict h = predict truth) ∧
+    (versions.filter (fun h => predict h = predict truth)).card < versions.card := by
+  classical
+  refine ⟨by simp [member], ?_⟩
+  obtain ⟨left, hleft, right, hright, different⟩ := disagreement
+  have excluded : ∃ h ∈ versions, predict h ≠ predict truth := by
+    by_cases h : predict left = predict truth
+    · exact ⟨right, hright, fun same => different (h.trans same.symm)⟩
+    · exact ⟨left, hleft, h⟩
+  obtain ⟨h, hmem, hnot⟩ := excluded
+  apply Finset.card_lt_card
+  apply Finset.ssubset_iff_subset_ne.mpr
+  refine ⟨Finset.filter_subset _ _, ?_⟩
+  intro equal
+  have : h ∈ versions.filter (fun candidate => predict candidate = predict truth) := by
+    rw [equal]
+    exact hmem
+  exact hnot (Finset.mem_filter.mp this).2
+
 /-- No finite action sequence leaves an absorbing environment state. -/
 theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
     (absorbing : ∀ action, step state action = state) (actions : List A) :
@@ -154,6 +179,7 @@ theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
 #print axioms projection_model_identified
 #print axioms adaptive_trace_indistinguishable
 #print axioms unvisited_transition_alternative
+#print axioms disagreement_refinement_progress
 #print axioms refinement_preserves_rollout
 #print axioms absorbing_rollout
 #print axioms version_rollout_sound

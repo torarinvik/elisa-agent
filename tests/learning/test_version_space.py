@@ -97,6 +97,26 @@ def test_disagreement_choice_minimizes_worst_survivors_without_mutation() -> Non
         model.choose_disagreement((0, 1), max_inputs=1)
 
 
+def test_truthful_disagreement_strictly_shrinks_each_finite_version() -> None:
+    tables = tuple(product((0, 1), repeat=3))
+    for membership in product((False, True), repeat=len(tables)):
+        selected = tuple(table for table, included in zip(tables, membership, strict=True) if included)
+        if not selected:
+            continue
+        family = [lambda index, table=table: table[index] for table in selected]
+        for truth in selected:
+            model = VersionSpace(family, [(0, truth[0])], max_candidates=len(family))
+            for index in (1, 2):
+                choice = model.choose_disagreement((index,), max_inputs=1)
+                refined = model.refine([(index, truth[index])])
+                if choice is None:
+                    assert refined.hypothesis_count == model.hypothesis_count
+                else:
+                    assert refined.hypothesis_count < model.hypothesis_count
+                assert any(all(predict(i) == truth[i] for i in range(3))
+                           for predict in refined.hypotheses)
+
+
 def test_refinement_preserves_complete_search_reach_for_all_two_state_worlds() -> None:
     states, actions = ('p', 'q'), ('a', 'b')
     inputs = tuple(product(states, actions))
