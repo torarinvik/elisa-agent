@@ -141,4 +141,23 @@ evidence and precision before any claim that wider context is an improvement
 in reliability. The proof in §48.1 continues to require the true procedure to
 be included in the compared family.
 
+## 48.9 Screening against alternative observed templates
+
+The current rewrite screen sees only the most frequent output template for
+each input shape. If a shape has other observed templates, a rule may pass that
+screen while contradicting another observed template. One conservative proposal
+is to test every retained broad-context rule against every combination of
+observed shorter- and longer-shape templates for each applicable shape pair.
+An application is rejected if any result conflicts with the longer template;
+the narrow-context path can remain unchanged. This is a finite contradiction
+screen, not a statistical certificate or a proof of truth on unseen inputs.
+
+The Cartesian check can reject a correct context-dependent rule: independently
+observed templates need not be a compatible pair. It is therefore expected to
+trade some coverage for precision. Removing candidates can also turn an
+ambiguous proposal into a unanimous one, so outputs previously refused may
+become wrong; it is not enough to assume that a smaller candidate set is safer.
+The rule's training observations and pairing assumptions must be reported, and
+whole-expert admission remains a fresh, independent step.
+
 [Theory index](../../THEORY.md)
