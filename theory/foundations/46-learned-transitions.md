@@ -199,4 +199,17 @@ trajectories. Consequently, transition-level admission does not replace a fresh
 whole-policy gate for an adaptive planner. Query, gate and audit streams must
 remain separate, and failures must not be reported as certified predictions.
 
+## 46.17 Fresh evaluation of a whole simulated policy
+
+Fix the learned model and all planner and execution semantics before sampling
+fresh IID episodes. Each episode supplies an initial state and goal, runs the
+fixed policy against the environment, and labels success by its actual final
+state. An independent admission gate can bound the policy's episode error on
+that declared joint distribution under the existing gate assumptions; refusal
+is an error. It does not certify other goal or start distributions, live-world
+effect safety, or each intermediate prediction. Generating reachable goals by
+simulated actions supplies task goals rather than demonstration plans, but the
+actions used to create them and those used in policy execution must both be
+counted. An independent post-admission audit is separate from the gate.
+
 [Theory index](../../THEORY.md)
