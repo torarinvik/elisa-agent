@@ -61,3 +61,17 @@ When search labels and work are small, the fresh gate dominates labels. A gate n
 a candidate was chosen, so it does not fall with the table's cost. A candidate identified from a table is one of `M` fixed in advance of the goal's
 labels, which is a smaller selection than an adaptive search over many goals. Whether that can lower gate cases soundly is open. A wrong candidate
 fails early, so most gate labels go to candidates that pass.
+
+## 50.8 The zero-error gate cannot go much lower
+
+For a candidate with error just above `ε`, a test admitting on zero errors in `m` independent cases admits with probability about
+`(1 - ε) ^ m`. So a test at level `α` requires `m ≥ log (1 / α) / -log (1 - ε)`. At `ε = 0.05` and `α = 0.001` this is 135 cases.
+
+**Theorem 50.4 (exact count).** If `log (1 / α) ≤ -log (1 - ε) * m` and `ε < ℓ ≤ 1`, then `(1 - ℓ) ^ m ≤ α`.
+
+**Theorem 50.5 (known decisions).** `N` decisions at shares `δ / N` spend exactly `δ`.
+
+An open-ended sequence of requests must reserve budget, so its first decision receives at most part of `δ`. An instance that decides a known number
+need not. Beyond this floor, fewer labels require a different claim: a larger `ε`, a larger `α`, or a statement about a population
+of candidates, such as the expected share of false admissions, which depends on how wrong candidates' errors are distributed. Near-tolerance
+candidates are the ones such a statement must weigh, because they alone survive long tests.

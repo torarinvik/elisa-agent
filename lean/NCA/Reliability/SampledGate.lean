@@ -27,6 +27,26 @@ theorem zeroLoss_miss {ε ℓ α : ℝ} {m : ℕ} (hεℓ : ε < ℓ) (hℓ : �
     _ ≤ Real.exp (-Real.log (1 / α)) := Real.exp_le_exp.mpr (by linarith)
     _ = α := by rw [Real.exp_neg, Real.exp_log (by positivity)]; field_simp
 
+/-- The exact count: zero losses in `m` cases miss a rate above `ε` with probability at most
+`α`, once `log (1/α) ≤ -log (1 - ε) * m`. -/
+theorem zeroLoss_miss_exact {ε ℓ α : ℝ} {m : ℕ} (hεℓ : ε < ℓ) (hℓ : ℓ ≤ 1)
+    (hα : 0 < α) (size : Real.log (1 / α) ≤ -Real.log (1 - ε) * m) :
+    (1 - ℓ) ^ m ≤ α := by
+  have positive : 0 < 1 - ε := by linarith
+  have base : 0 ≤ 1 - ℓ := by linarith
+  calc (1 - ℓ) ^ m ≤ (1 - ε) ^ m := pow_le_pow_left₀ base (by linarith) m
+    _ = Real.exp (Real.log (1 - ε) * m) := by
+        rw [mul_comm, Real.exp_nat_mul, Real.exp_log positive]
+    _ ≤ Real.exp (-Real.log (1 / α)) := Real.exp_le_exp.mpr (by linarith)
+    _ = α := by rw [Real.exp_neg, Real.exp_log (by positivity)]; field_simp
+
+/-- `N` known decisions at equal shares spend exactly the whole budget. -/
+theorem known_decisions_total {δ : ℝ} {N : ℕ} (positive : 0 < N) :
+    ∑ _k ∈ Finset.range N, δ / (N : ℝ) = δ := by
+  have : (N : ℝ) ≠ 0 := by positivity
+  simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  field_simp
+
 /-- Decision `k` (from 0) spends `δ / ((k+1)(k+2))`. -/
 noncomputable def decisionLevel (δ : ℝ) (k : ℕ) : ℝ := δ / (((k : ℝ) + 1) * ((k : ℝ) + 2))
 

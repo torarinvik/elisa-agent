@@ -127,3 +127,22 @@ def test_wrong_candidates_are_admitted_within_the_requested_confidence() -> None
         admitted += CertifiedAcquirer(fit, cases(seed), train=1, tolerance=0.05,
                                       confidence=CONFIDENCE)(CONTRACT) is not None
     assert admitted / runs <= 0.1
+
+
+def test_known_decisions_spend_the_whole_budget_and_refuse_extra_requests() -> None:
+    from nca.abi import Contract, Manifest
+    from nca.retention.sampled import required_cases
+
+    contract = Contract(("sha256:" + "0" * 64,), "sha256:" + "0" * 64)
+
+    class Same:
+        manifest = Manifest("same", "1", contract, effects=frozenset())
+
+        def invoke(self, value: int) -> int:
+            return value
+
+    acquirer = CertifiedAcquirer(lambda *_: Same(), lambda _, count: [(1, 1)] * count, train=1, tolerance=0.05,
+                                 confidence=0.001, known_decisions=1)
+    assert acquirer(contract) is not None
+    assert acquirer.labels == 1 + required_cases(0.05, 0.001) == 136
+    assert acquirer(contract) is None

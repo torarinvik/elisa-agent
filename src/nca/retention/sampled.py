@@ -39,7 +39,7 @@ def decision_level(confidence: float, index: int) -> float:
 
 
 def required_cases(tolerance: float, level: float) -> int:
-    """Conservative count from an outward estimate of ``-log(level)``.
+    """Conservative count from an outward estimate of ``-log(level) / -log(1 - tolerance)``.
 
     Integer-ratio ceiling avoids overflow and downward rounding in division.
     The logarithm bound assumes libm error is within one adjacent binary64
@@ -50,7 +50,9 @@ def required_cases(tolerance: float, level: float) -> int:
     need = (_LOG_UPPER(level) if _LOG_UPPER is not None
             else math.nextafter(-math.log(level), math.inf))
     numerator, denominator = need.as_integer_ratio()
-    epsilon, scale = tolerance.as_integer_ratio()
+    # Zero losses in m cases miss at most (1 - ε) ^ m, so the rate is -log(1 - ε), rounded down.
+    rate = max(tolerance, math.nextafter(-math.log1p(-tolerance), 0.0))
+    epsilon, scale = rate.as_integer_ratio()
     top, bottom = numerator * scale, denominator * epsilon
     return max(1, (top + bottom - 1) // bottom)
 

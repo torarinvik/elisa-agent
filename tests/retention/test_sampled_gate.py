@@ -38,12 +38,13 @@ def gate(store: MemoryStore, claims: tuple[Attestation, ...]) -> SampledGate:
 
 
 def test_required_cases_preserves_minimal_sizes_on_ordinary_levels() -> None:
-    """``NCA.zeroLoss_miss``: ``log(1/α) ≤ ε m`` and no smaller ``m`` qualifies."""
+    """``NCA.zeroLoss_miss_exact``: ``log(1/α) ≤ -log(1-ε) m`` and no smaller ``m`` qualifies."""
     for tolerance in (0.01, 0.05, 0.2, 0.5, 0.9):
         for level in (1e-9, 1e-4, 0.01, 0.2, 0.9):
             cases = required_cases(tolerance, level)
-            assert math.log(1 / level) <= tolerance * cases
-            assert cases == 1 or math.log(1 / level) > tolerance * (cases - 1)
+            rate = -math.log1p(-tolerance)
+            assert math.log(1 / level) <= rate * cases
+            assert cases == 1 or math.log(1 / level) >= rate * (cases - 1) * (1 - 1e-12)
             assert (1 - tolerance) ** cases <= level
 
 
@@ -156,9 +157,10 @@ def test_sample_size_covers_extreme_binary64_levels_and_exact_ceiling(
             exact = -Decimal.from_float(level).ln()
             assert Decimal.from_float(upper) >= exact
             # log_upper_ceil_size: exact binary ratios avoid rounded products.
-            assert Fraction(tolerance) * cases >= Fraction(upper)
-            assert Fraction(tolerance) * (cases - 1) < Fraction(upper)
-            covered = Fraction(tolerance) * cases
+            rate = max(tolerance, math.nextafter(-math.log1p(-tolerance), 0.0))
+            assert Fraction(rate) * cases >= Fraction(upper)
+            assert Fraction(rate) * (cases - 1) < Fraction(upper)
+            covered = Fraction(rate) * cases
             assert Decimal(covered.numerator) / Decimal(covered.denominator) >= exact
 
 

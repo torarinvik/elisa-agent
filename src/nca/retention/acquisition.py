@@ -105,6 +105,8 @@ class CertifiedAcquirer:
     Optional ``validation_cases`` fixes a held-out size and admits a certified
     positive error count (§20.22). The cutoff is chosen before fitting or draws;
     insufficient sizes are inconclusive. None retains zero-error admission.
+    ``known_decisions`` fixes how many requests this instance will ever decide:
+    each receives an equal share and later requests are refused (§50.8).
     """
 
     def __init__(self, fit: Fitter, sample: Sampler, *, train: int, tolerance: float,
@@ -112,7 +114,8 @@ class CertifiedAcquirer:
                  screen: FeasibilityScreen | None = None,
                  history: AcquisitionHistory | None = None,
                  stages: Sequence[int] | None = None,
-                 batch_limit: int | None = None, validation_cases: int | None = None) -> None:
+                 batch_limit: int | None = None, validation_cases: int | None = None,
+                 known_decisions: int | None = None) -> None:
         if isinstance(train, bool) or not isinstance(train, int) or train < 1:
             raise ValueError("training needs at least one case")
         schedule = (train,) if stages is None else tuple(stages)
@@ -120,6 +123,9 @@ class CertifiedAcquirer:
                                 for n in schedule) or schedule[-1] != train
                 or any(a >= b for a, b in zip(schedule, schedule[1:]))):
             raise ValueError("training stages must strictly increase to train")
+        if known_decisions is not None and (isinstance(known_decisions, bool) or not isinstance(known_decisions, int)
+                                            or known_decisions < 1 or history is not None):
+            raise ValueError("known decisions must be positive and exclude durable history")
         validate_batch_limit(batch_limit)
         validate_validation_cases(validation_cases)
         required_cases(tolerance, confidence)
@@ -130,6 +136,7 @@ class CertifiedAcquirer:
         self.stages = schedule
         self.batch_limit = batch_limit
         self.validation_cases = validation_cases
+        self.known_decisions = known_decisions
         self.cache_hits = 0
         self.decisions = 0
         self.labels = 0
@@ -145,7 +152,12 @@ class CertifiedAcquirer:
                 self.cache_hits += 1
                 return None
             index, ticket = self.history.reserve(key)
-        level = decision_level(self.confidence, index)
+        if self.known_decisions is None:
+            level = decision_level(self.confidence, index)
+        elif index >= self.known_decisions:
+            return None
+        else:
+            level = family_audit_alpha(self.confidence, self.known_decisions)
         self.decisions += 1
         level = family_audit_alpha(level, len(self.stages))
         if validation_plan(self.tolerance, level, self.validation_cases)[1] < 0:
