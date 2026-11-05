@@ -441,4 +441,17 @@ and a supplied finite candidate-state universe; its gate for the subsequent
 frozen policy does not certify the exploration procedure or its interaction
 cost in a different environment.
 
+## 46.34 Fresh randomness is an assumption, not a seed label
+
+A deterministic, publicly fixed sequence of test cases is not itself an IID
+random sample after conditioning on that sequence. The gate's probability
+statement therefore needs an explicit random sampling mechanism that remains
+independent of policy selection. For paired tests, both policies can use the
+same sequence of independently drawn uniform case indices, provided both are
+frozen before the first index is exposed; their test outcomes may be dependent.
+The audit must use a separate stream. Operating-system entropy, uniform-index
+sampling and faithful implementation are empirical platform assumptions, not
+consequences of the Lean proof. Recording the realized indices supports
+reproduction but does not make the now-visible cases fresh for future tuning.
+
 [Theory index](../../THEORY.md)
