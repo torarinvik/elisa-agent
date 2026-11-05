@@ -44,6 +44,27 @@ def test_missing_truth_can_be_unanimously_wrong_and_is_not_certification() -> No
         VersionSpace([expensive], [("observed", "p")], max_candidates=1)
 
 
+def test_version_prediction_refuses_exactly_the_observational_ambiguities() -> None:
+    tables = tuple(product((0, 1), repeat=3))
+    for membership in product((False, True), repeat=len(tables)):
+        family_tables = tuple(table for table, include in zip(tables, membership, strict=True) if include)
+        if not family_tables:
+            continue
+        family = [lambda index, table=table: table[index] for table in family_tables]
+        for observed_value in (0, 1):
+            consistent = [table for table in family_tables if table[0] == observed_value]
+            if not consistent:
+                continue
+            version = VersionSpace(family, [(0, observed_value)], max_candidates=len(family))
+            for index in (1, 2):
+                answers = {table[index] for table in consistent}
+                if len(answers) == 1:
+                    assert version.predict(index) == next(iter(answers))
+                else:
+                    with pytest.raises(UnresolvedRequest):
+                        version.predict(index)
+
+
 def test_adaptive_disagreement_cannot_reveal_an_unvisited_transition() -> None:
     states, actions = (0, 1), (0, 1)
     inputs = tuple(product(states, actions))
