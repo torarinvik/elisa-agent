@@ -104,3 +104,11 @@ with `n c` goals of contract `c`, shares proportional to `√(n c)` minimize `�
 This compares only classes found so far. Early tables are small, so few inputs separate them, and the rule then picks too small a pool for later classes: distinctness among found classes says nothing about classes a small pool never retained. Label-free stopping of this form is therefore unreliable.
 
 **Pool from fit.** Without that signal, a goal's own cases can judge a pool. Enumerate at each candidate size on an equal part of the budget, count the goals for which a hypothesis agrees with all their training cases, and continue at the size that fits the most, the smaller on a tie. The count is a selection score from training labels, not evidence of correctness.
+
+## 50.11 Composing answers from tables
+
+A label may determine labels for parts of a goal. If an output constructor is injective, as a pair is, each case gives each part a case of its own, so each part is its own goal with its own table.
+
+**Theorem 50.8 (a product is its parts).** For `f x = (g x, h x)`, a pair of functions agrees with `f` on a case exactly when each agrees with its part.
+
+Narrowing parts separately tests about `M₁ + M₂` hypotheses, where the whole needs `M₁ * M₂`, so a table of depth `n` reaches pairs of depth `n` at nearly no added work. The checks on parts bind jointly, and agreement on training cases is only a proposal: a composed route still passes the gate as one candidate. A failure of either part means no composition exists in these tables.

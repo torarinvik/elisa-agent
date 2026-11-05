@@ -45,4 +45,8 @@ theorem prefixes_refine {M V : Type} (vector : M → ℕ → V) {p q : ℕ} (le 
     (same : ∀ i < q, vector a i = vector b i) : ∀ i < p, vector a i = vector b i :=
   fun i below => same i (lt_of_lt_of_le below le)
 
+/-- Theorem 50.8: a pair of functions agrees with a pair-valued goal exactly when each part agrees. -/
+theorem product_is_parts {X A B : Type} (g g' : X → A) (h h' : X → B) (x : X) :
+    (g' x, h' x) = (g x, h x) ↔ g' x = g x ∧ h' x = h x := Prod.mk_inj
+
 end NCA
