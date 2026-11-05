@@ -304,4 +304,17 @@ or succeed for goals outside the declared distribution. A finite independent
 audit measures that same distribution and does not strengthen the theorem to
 universal correctness.
 
+## 46.26 Fixed families of policy tests
+
+For m policies fixed before their respective fresh-case tests, allocate each a
+failure probability at most α/m. The union bound limits the probability of
+any false admission to α, without requiring different policy tests to be
+independent. Each test still requires IID episodes conditional on everything
+used to choose that policy. Paired candidate policies may use identical fresh
+episode draws when both are frozen before either draw is examined; sharing
+those draws does not remove the need to allocate confidence across tests.
+The independent audit is descriptive evidence, not a replacement for that
+allocation. A finite family of similar development environments measures
+robustness within that family, not general transfer to arbitrary dynamics.
+
 [Theory index](../../THEORY.md)
