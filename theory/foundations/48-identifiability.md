@@ -49,6 +49,8 @@ template on that training pair. Express position references in the replacement
 relative to the insertion site, and associate the replacement with the block
 and its immediate input context. Multiple independent shape pairs can support
 the same proposal; support is a selection criterion, not an error bound.
+The current implementation screens against the selected representative template
+for each training shape, not against every original example separately.
 
 For a new shape, a bounded proposer can try every supported single-block
 reduction to a known shape and every matching replacement. It may return a
@@ -60,5 +62,16 @@ all proposals agree incorrectly, so the unchanged fresh whole-expert gate is
 still required. Prefix/suffix matching, coordinate renaming, support and search
 budgets are implementation choices, not discovered semantic laws; there is no
 claim that this grammar can represent arbitrary transformations.
+
+## 48.4 What agreement did and did not establish
+
+In one previously inspected development split, the paired-shape proposer
+converted 38 refusals into correct answers and one into a wrong answer, without
+changing previous predictions. The wrong answer is a direct counterexample to
+treating agreement among the retained rewrites as proof of the true output.
+The theorem in §48.1 is conditional on the true procedure being among the
+admissible candidates; support thresholds and screening on chosen training
+templates cannot establish that condition. Whole-expert certification and
+independent evaluation remain necessary.
 
 [Theory index](../../THEORY.md)
