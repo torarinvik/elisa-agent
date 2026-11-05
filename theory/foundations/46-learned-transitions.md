@@ -164,4 +164,16 @@ capability, such as a supplied reset distribution, another initial episode, or
 an action that actually leaves the state. This is an environment condition,
 not a claim that every unsuccessful search begins in an absorbing state.
 
+## 46.14 Independent initial episodes
+
+Suppose a fixed model and candidate-search budget classify an initial state as
+informative when an observation with at least two predicted outcomes is
+reachable through supported transitions. If independent resets draw from a
+fixed distribution with informative probability p, the probability of finding
+at least one informative episode in k attempts is 1 − (1 − p)^k. This statement
+requires independent draws and a fixed model until the first success; it gives
+no positive bound when p is unknown or zero. Each reset and every executed
+transition remains a separately counted interaction. Adaptation after a
+successful observation requires a new conditional argument.
+
 [Theory index](../../THEORY.md)
