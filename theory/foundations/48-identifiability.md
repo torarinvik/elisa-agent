@@ -94,4 +94,14 @@ earlier refusals, identify the true rule, or certify the wider hypothesis
 family; the impossibility theorem in §48.1 still applies. Limits on input
 length, rule counts and candidate execution remain caller responsibilities.
 
+## 48.6 Observed tradeoff of broader context
+
+On the inspected development split, separately screened broader contexts
+produced eight additional correct answers and three additional wrong answers;
+previous answers did not change. This demonstrates both the opportunity from
+sharing evidence across contexts and the limit of finite screening: an
+uncontradicted, unanimous candidate can still be wrong outside its supporting
+examples. The result does not identify the true transformation family or
+establish performance on an independent split.
+
 [Theory index](../../THEORY.md)
