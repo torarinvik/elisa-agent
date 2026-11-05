@@ -91,4 +91,13 @@ neither tuple fields nor action meanings. The experiment holds out state-action
 pairs, not just plans over remembered edges. All output observations and
 execution interactions are counted independently of hypothesis evaluations.
 
+## 46.7 Agreement and reach
+
+Unanimity may establish many previously unseen one-step transitions while
+still refusing the intermediate steps needed for a longer plan. Thus coverage
+of transitions does not imply coverage of paths: planning requires agreement
+at every state-action pair encountered. More diverse observations can eliminate
+remaining consistent hypotheses, but improve coverage only under the stated
+realizability assumption; they do not certify an incorrect hypothesis family.
+
 [Theory index](../../THEORY.md)
