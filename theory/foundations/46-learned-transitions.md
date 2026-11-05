@@ -110,4 +110,16 @@ remove an existing supported edge under realizability and deterministic,
 unchanged predictors. Which observation expands reach most is a separate
 search problem; no reduction per observation is guaranteed.
 
+## 46.9 Choosing a disagreement
+
+For each supplied candidate input, partition the retained predictors by their
+predicted answer. If an observed answer belongs to a partition, refinement
+retains exactly that partition. Selecting an input whose largest partition is
+smallest maximizes the worst-case number eliminated among the supplied inputs.
+It requires no oracle call to rank inputs; observing an answer is separate and
+must be counted. If all predictors agree, no such observation reduces this
+family. Realizability and correct observations remain assumptions, and the
+rule does not promise that the most informative input is reachable or best for
+a particular goal.
+
 [Theory index](../../THEORY.md)

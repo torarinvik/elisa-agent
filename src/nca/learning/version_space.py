@@ -58,3 +58,29 @@ class VersionSpace(Generic[X, Y]):
         The existing version remains unchanged if fitting fails.
         """
         return VersionSpace(self.hypotheses, observations, max_candidates=len(self.hypotheses))
+
+    def choose_disagreement(self, inputs: Sequence[X], *, max_inputs: int) -> int | None:
+        """Return the index of the input with the smallest worst-case survivor set.
+
+        No observations are requested. Ties retain input order; predictors
+        must all produce an answer or the underlying refusal propagates.
+        """
+        if type(max_inputs) is not int or max_inputs < 1 or len(inputs) > max_inputs:
+            raise ValueError("input enumeration exceeds its positive bound")
+        best = None
+        best_largest = len(self.hypotheses)
+        for position, item in enumerate(inputs):
+            groups: list[tuple[Y, int]] = []
+            for predict in self.hypotheses:
+                self.prediction_evaluations += 1
+                answer = predict(item)
+                for index, (value, count) in enumerate(groups):
+                    if value == answer:
+                        groups[index] = (value, count + 1)
+                        break
+                else:
+                    groups.append((answer, 1))
+            largest = max(count for _, count in groups)
+            if largest < best_largest:
+                best, best_largest = position, largest
+        return best

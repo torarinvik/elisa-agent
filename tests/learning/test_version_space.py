@@ -56,3 +56,14 @@ def test_refinement_preserves_prior_agreement_and_resolves_disagreement() -> Non
     with pytest.raises(ValueError):
         refined.refine([("p", "other")])
     assert refined.predict("q") == "q"
+
+
+def test_disagreement_choice_minimizes_worst_survivors_without_mutation() -> None:
+    family = [lambda x, table=table: table[x] for table in
+              ((0, 0, 0), (0, 0, 1), (0, 1, 0), (0, 1, 1))]
+    model = VersionSpace(family, [(0, 0)], max_candidates=4)
+    assert model.choose_disagreement((0, 1, 2), max_inputs=3) == 1
+    assert len(model.hypotheses) == 4
+    assert len(model.refine([(1, 1)]).hypotheses) == 2
+    with pytest.raises(ValueError):
+        model.choose_disagreement((0, 1), max_inputs=1)
