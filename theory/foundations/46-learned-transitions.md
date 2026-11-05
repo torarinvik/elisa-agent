@@ -279,4 +279,16 @@ answer's partition. Repeated observations preserve soundness only under the
 same realizability and truthful-observation assumptions. Whole-policy
 admission remains a separate fresh test after the final model is fixed.
 
+## 46.24 Adaptive exploration before policy admission
+
+An observation strategy may choose actions and refine the model using earlier
+interaction outcomes. Once exploration stops, freeze the resulting model and
+policy before drawing an independent IID gate stream. Existing fresh-case
+admission applies conditionally on all exploration history; the observations
+used to choose the policy must not be reused as gate examples. A separate audit
+is drawn after admission. Resets, navigation actions, observation actions,
+goal-discovery lookups, gate and audit labels, and policy execution are counted
+separately. This separation controls evaluation reuse; it does not prove that
+the hypothesis family is realizable or that exploration terminates successfully.
+
 [Theory index](../../THEORY.md)
