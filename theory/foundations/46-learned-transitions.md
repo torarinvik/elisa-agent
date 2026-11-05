@@ -143,4 +143,14 @@ interaction whose outcome can refine the model. No reset or arbitrary-state
 oracle is assumed. Search refusal does not establish unreachability. A plan
 consumes one real interaction per action, in addition to the observation action.
 
+## 46.12 The supported-exploration barrier
+
+If every disagreement is outside the current supported reachable set, a
+strategy that only travels along unanimous predictions and only observes
+reachable disagreements must refuse without acquiring evidence. Escaping that
+barrier requires an additional mechanism, such as a permitted exploratory
+action or observations from an external process. Its possible consequences,
+budget and any refusal policy must be represented; supported-rollout soundness
+alone cannot guarantee the result of an unsupported exploratory action.
+
 [Theory index](../../THEORY.md)
