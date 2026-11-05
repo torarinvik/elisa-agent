@@ -54,3 +54,10 @@ classes, and is no evidence on goals outside the table. Identification is theref
 2. Most tabled goals are identified in about `log_b M` labels, and most failing goals are rejected as quickly.
 3. Tree-identified candidates that are wrong are rejected at the gate at the cost of few labels.
 4. Goals that only guided search solves remain outside the table and need a guided strategy or a larger table.
+
+## 50.7 What identification leaves
+
+When search labels and work are small, the fresh gate dominates labels. A gate needs its cases because its confidence is not tied to how
+a candidate was chosen, so it does not fall with the table's cost. A candidate identified from a table is one of `M` fixed in advance of the goal's
+labels, which is a smaller selection than an adaptive search over many goals. Whether that can lower gate cases soundly is open. A wrong candidate
+fails early, so most gate labels go to candidates that pass.
