@@ -122,3 +122,7 @@ A higher-order route `h(x, b)` has a body `b` that runs in its own scope. Enumer
 The condition is on states the fold reaches, which a pool only samples, so a merged pair can differ on a goal. Candidates still pass the gate. Measured on simple accumulations, whole enumeration costs 76,596 to reach sum on two inputs, and 3,000,000 does not reach counting above a threshold.
 
 Slot tables reach single-operation bodies cheaply but not the bodies these goals need. A count needs a guarded step, `if p (a) then s + 1 else s`, whose body is itself large when enumerated whole, so an eightfold budget adds nothing.
+
+## 50.13 What a proposer can buy
+
+Restricting search to a subset of `k` of `m` library entries lowers the branching of a size `n` route from `m` to about `k`, so cost falls by about `(k / m) ^ n`, far more than any budget buys (44.5). A proposer failing on a goal costs its share only, if the full library keeps a reserve (45.5). The proposal needs no certification, because every result still passes the gate, so a poor proposer costs work and never soundness.
