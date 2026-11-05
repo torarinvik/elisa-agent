@@ -568,4 +568,17 @@ retain their actual joint constraints or use the existing explicit version
 space. This boundary also applies when a task's semantic requirements couple
 fields, even if the runtime values happen to be tuples.
 
+## 46.41 Opaque outputs and assembly
+
+A generic mechanism may receive component predictors and a caller-supplied
+assembly function instead of assigning a core type to a tuple. The product
+partition formula still applies to assembled outputs if assembly is injective
+on the relevant component outcomes (`assembled_partition_count`). Otherwise,
+distinct component outcomes may assemble to the same value, and their
+partitions merge: multiplying component maxima can underestimate the true
+largest output partition and change the selected observation. An observed
+round-trip check alone cannot prove global injectivity. A future generic
+interface must state and justify this representation assumption, or compute
+actual joint output partitions without the shortcut.
+
 [Theory index](../../THEORY.md)

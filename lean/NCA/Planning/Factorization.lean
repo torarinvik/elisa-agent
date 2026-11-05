@@ -74,9 +74,34 @@ theorem largest_output_partition {J F V : Type} [Fintype J] [DecidableEq J]
     intro j hj
     exact htarget j
 
+/-- Injective assembly preserves the product outcome partition counts. -/
+theorem assembled_partition_count {J F V Y : Type} [Fintype J] [DecidableEq J]
+    [DecidableEq F] [DecidableEq V] [DecidableEq Y]
+    (allowed : J → Finset F) (value : F → V) (encode : (J → V) → Y)
+    (injective : Function.Injective encode) (target : J → V) :
+    ((Fintype.piFinset allowed).filter
+      (fun rule => encode (fun j => value (rule j)) = encode target)).card =
+        ∏ j, ((allowed j).filter (fun field => value field = target j)).card := by
+  classical
+  have same : (Fintype.piFinset allowed).filter
+      (fun rule => encode (fun j => value (rule j)) = encode target) =
+      (Fintype.piFinset allowed).filter (fun rule => ∀ j, value (rule j) = target j) := by
+    ext rule
+    simp only [Finset.mem_filter]
+    constructor
+    · intro h
+      exact ⟨h.1, fun j => congrFun (injective h.2) j⟩
+    · intro h
+      refine ⟨h.1, ?_⟩
+      congr 1
+      funext j
+      exact h.2 j
+  rw [same, output_partition_count]
+
 #print axioms training_version_eq
 #print axioms training_version_count
 #print axioms output_partition_count
 #print axioms largest_output_partition
+#print axioms assembled_partition_count
 
 end NCA

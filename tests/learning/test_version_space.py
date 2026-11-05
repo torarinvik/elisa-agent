@@ -133,3 +133,16 @@ def test_marginalizing_a_coupled_family_can_create_false_refusal() -> None:
     assert len(expanded.hypotheses) == 2
     with pytest.raises(UnresolvedRequest):
         expanded.predict(later)
+
+
+def test_noninjective_assembly_merges_joint_output_partitions() -> None:
+    rules = tuple(product(range(2), repeat=2))
+    state = ('p', 'q')
+    # An order-erasing assembler maps two distinct coordinate outputs to one value.
+    family = [lambda value, rule=rule: frozenset(value[index] for index in rule) for rule in rules]
+    observed = ('p', 'p')
+    model = VersionSpace(family, [(observed, frozenset({'p'}))], max_candidates=len(family))
+    outcomes = [predict(state) for predict in model.hypotheses]
+    actual_maximum = max(outcomes.count(value) for value in outcomes)
+    componentwise_maximum = 1 * 1
+    assert actual_maximum == 2 > componentwise_maximum
