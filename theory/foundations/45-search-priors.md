@@ -66,3 +66,23 @@ decomposition (44.5) or from requests. Absent such signals, the additive bound d
 2. Removing the reference reserve speeds known goals by at most `1 / (1 - λ)` and loses goals of new kinds.
 3. Providing intermediate goals turns goals beyond the frontier into ones solved at the sum of stage costs,
    while providing the same subroutines unranked gains less, by 44.14.
+
+## 45.6 Ranked candidates at one gate
+
+A gate that receives one candidate turns a selection mistake into a refusal, even when another fitted
+candidate would pass. Let training data alone fix an ordered list of `c` candidates, before any fresh case.
+Test them in order on new cases, each at level `α / c`, and admit the first that passes.
+
+**Theorem 45.8 (ranked acquisition).** If, conditional on each training outcome with `c` candidates, every
+one of its `c` tests wrongly admits with probability at most `α / c`, then a wrong admission has probability at
+most `α`.
+
+The count `c` may depend on training data, because it is fixed before any test case is drawn. A learner
+with no training support therefore costs later candidates nothing. Each test needs a frozen candidate and cases
+independent of the history before it. Requests and stages compose by Theorems 20.14 and 20.18.
+
+The split has a price. A sole candidate keeps level `α`; with `c` candidates each faces `α / c`, which needs
+more cases at zero error, or permits fewer errors at a fixed size. Wrong early candidates also consume labels up
+to their first decisive failures. Ranking need not be correct for soundness, only for cost: a mistake delays a
+true candidate and tightens its test. Selection scores remain proposals and are not evidence of correctness.
+Unequal shares are possible by the same union bound, and how to set them is the question of 45.2.

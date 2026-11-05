@@ -515,6 +515,7 @@ correctness of interactions between mechanisms.
 | [44.13–44.17](theory/foundations/44-search-failure.md) | `retained_behaviours_bound`, `library_tax`, `library_change_pays`, `union_keeps_found`, `checks_scale_with_size` | `Planning/SearchFailure` |
 | [45.1–45.3](theory/foundations/45-search-priors.md) | `heavy_hypotheses_bound`, `prior_cost_lower`, `prior_cost_attained` | `Planning/SearchPrior` |
 | [45.4–45.7](theory/foundations/45-search-priors.md) | `mismatch_cost`, `mixture_bounds_any_goal`, `mixture_keeps_prior`, `curriculum_adds` | `Planning/SearchPrior` |
+| [45.8](theory/foundations/45-search-priors.md) | `ranked_acquisition_sound` | `Reliability/SampledGate` |
 
 ### Additional theorem declarations
 

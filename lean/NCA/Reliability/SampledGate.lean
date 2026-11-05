@@ -1,6 +1,7 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.MeasureTheory.Measure.MeasureSpace
+import Mathlib.MeasureTheory.Measure.Typeclasses.Probability
 import Mathlib.Algebra.BigOperators.Intervals
 
 /-! Sampled admission with fresh retained cases (§43.7). A decision draws `m`
@@ -207,6 +208,46 @@ theorem staged_acquisition_sound {Ω : Type*} [MeasurableSpace Ω] (μ : Measure
   refine (measure_mono tested).trans ?_
   simpa using sampledGate_sound μ hδ n (fun k => range (stages k)) wrong
     (fun k hk r hr => by simpa using share k hk r hr)
+
+/-- Ranked candidates at one gate (§45.6): training fixes how many candidates `c` will
+be tested, before any fresh case. If each of the `c` tests has conditional miss probability
+at most `α / c` on that training outcome, a wrong admission has probability at most `α`,
+including when `c` depends on the training data. -/
+theorem ranked_acquisition_sound {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    [IsProbabilityMeasure μ] {α : ℝ} (K : ℕ) (ranked : ℕ → Set Ω)
+    (measurable : ∀ c ∈ range K, MeasurableSet (ranked c))
+    (disjoint : Set.PairwiseDisjoint (↑(range K)) ranked)
+    (wrong : ℕ → ℕ → Set Ω) (admittedWrong : Set Ω)
+    (tested : admittedWrong ⊆ ⋃ c ∈ range K, ⋃ r ∈ range c, wrong c r)
+    (share : ∀ c ∈ range K, ∀ r ∈ range c,
+      μ (wrong c r) ≤ ENNReal.ofReal (α / c) * μ (ranked c)) :
+    μ admittedWrong ≤ ENNReal.ofReal α := by
+  have each : ∀ c ∈ range K,
+      μ (⋃ r ∈ range c, wrong c r) ≤ ENNReal.ofReal α * μ (ranked c) := by
+    intro c hc
+    have scaled : (c : ENNReal) * ENNReal.ofReal (α / c) ≤ ENNReal.ofReal α := by
+      rcases Nat.eq_zero_or_pos c with rfl | positive
+      · simp
+      · have cast : (0 : ℝ) < c := by exact_mod_cast positive
+        rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul cast.le]
+        apply le_of_eq
+        congr 1
+        field_simp
+    calc μ (⋃ r ∈ range c, wrong c r)
+        ≤ ∑ r ∈ range c, μ (wrong c r) := measure_biUnion_finset_le _ _
+      _ ≤ ∑ _r ∈ range c, ENNReal.ofReal (α / c) * μ (ranked c) :=
+          sum_le_sum (share c hc)
+      _ = (c : ENNReal) * ENNReal.ofReal (α / c) * μ (ranked c) := by
+          simp [sum_const, nsmul_eq_mul, mul_assoc]
+      _ ≤ ENNReal.ofReal α * μ (ranked c) := by gcongr
+  calc μ admittedWrong
+      ≤ μ (⋃ c ∈ range K, ⋃ r ∈ range c, wrong c r) := measure_mono tested
+    _ ≤ ∑ c ∈ range K, μ (⋃ r ∈ range c, wrong c r) := measure_biUnion_finset_le _ _
+    _ ≤ ∑ c ∈ range K, ENNReal.ofReal α * μ (ranked c) := sum_le_sum each
+    _ = ENNReal.ofReal α * μ (⋃ c ∈ range K, ranked c) := by
+        rw [← mul_sum, measure_biUnion_finset disjoint measurable]
+    _ ≤ ENNReal.ofReal α * 1 := by gcongr; exact prob_le_one
+    _ = ENNReal.ofReal α := mul_one _
 
 /-- Exact ceiling division of an upper logarithm supplies the required size.
 The numerical logarithm must establish the stated upper-bound hypothesis. -/
