@@ -71,3 +71,4 @@ link for its definitions, arguments, and results.
 - [42. Working state and bounded streams](theory/foundations/42-working-state.md)
 - [43. Durable typed episodic records](theory/foundations/43-episodic-memory.md)
 - [44. What failed search establishes](theory/foundations/44-search-failure.md)
+- [45. Priors over a growing library](theory/foundations/45-search-priors.md)
