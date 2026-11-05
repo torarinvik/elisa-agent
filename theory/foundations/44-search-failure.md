@@ -171,3 +171,11 @@ These are consequences to test, conditional on the model:
    beyond that tax.
 4. A family with a witness-compatible reference is solved at cost governed by 44.10, not by its size.
 5. A failing goal with no reference route over the library gains from no search remedy.
+
+## 44.13 Size is relative to the library
+
+The size `n` in this chapter is the size of a route over the installed library, not the size of a
+description in another language. Adding an entry for a common composite can reduce `n` by more than any
+budget reaches, and a goal that is short in its own language can be long over the library. A size reported in a
+task's own grammar therefore does not determine reach. Measured growth per size also need not be geometric
+at small sizes, where types admit few applications, so `m` must be taken from the sizes near the frontier.
