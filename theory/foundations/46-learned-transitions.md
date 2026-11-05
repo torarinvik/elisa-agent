@@ -133,4 +133,14 @@ Informative input selection also assumes an environment can be reset or
 otherwise brought to the selected state; arbitrary-state access is not a
 consequence of the model or of this result.
 
+## 46.11 Observations reachable from the current state
+
+For each supplied candidate state, use a bounded supported-plan search from the
+current state. Rank disagreements only among candidates for which a plan was
+found. Under the supported-correctness assumptions of §46.2, executing the
+selected plan reaches the selected state; the subsequent action is an actual
+interaction whose outcome can refine the model. No reset or arbitrary-state
+oracle is assumed. Search refusal does not establish unreachability. A plan
+consumes one real interaction per action, in addition to the observation action.
+
 [Theory index](../../THEORY.md)
