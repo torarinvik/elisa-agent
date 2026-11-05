@@ -245,4 +245,15 @@ therefore scores that case as failure. This rule applies to explicit runtime
 refusals, not arbitrary implementation exceptions. It changes no confidence
 allocation and does not turn untested candidates into admitted policies.
 
+## 46.21 Early rejection and coverage
+
+A zero-error gate may reject a proposed policy after its first refused episode.
+That establishes failure of that admission attempt, not an estimate of the
+policy's success rate or the fraction of goals it can reach. A deeper-goal
+filter establishes the minimum distance of sampled episodes in the evaluator's
+fixed transition graph, but does not reveal whether failure came from missing
+observations, the hypothesis class, or the planner's work bound. Distinguishing
+those causes requires an explicitly designed diagnostic with its own evidence.
+The gate and any new proposal must use fresh draws after the prior test closes.
+
 [Theory index](../../THEORY.md)
