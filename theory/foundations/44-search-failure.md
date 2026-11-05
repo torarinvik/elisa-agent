@@ -192,3 +192,6 @@ A cap set from solved goals therefore loses a future solvable goal with a probab
 unsolvable goals stop at the cap. Costs are exchangeable only if goals arrive in random order; a curriculum sorted by difficulty
 violates this. A goal lost to the cap is never observed, which biases the cap downward, so a share of goals must keep the full
 limit (45.5). Search order may also depend on the limit, so measured costs at one limit only approximate those at another.
+
+A cap from the largest cost helps only if solved costs sit well below the limit. Where the hardest solved goal is within the
+margin of the limit, the cap equals the limit and saves nothing, and saving then requires giving up goals or predicting failure per goal.
