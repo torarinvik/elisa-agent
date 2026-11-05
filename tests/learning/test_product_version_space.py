@@ -23,6 +23,9 @@ def test_product_matches_explicit_enumeration_on_small_families() -> None:
             factored = ProductVersionSpace(factors, observations, max_candidates=len(family))
             assert factored.hypothesis_count == explicit.hypothesis_count
             for state in states:
+                assert [predict(state) for predict in factored.hypotheses] == [
+                    predict(state) for predict in explicit.hypotheses]
+            for state in states:
                 try:
                     expected = explicit.predict(state)
                 except UnresolvedRequest:
@@ -84,3 +87,27 @@ def test_partial_candidate_refusal_matches_explicit_family() -> None:
         explicit.choose_disagreement((2,), max_inputs=1)
     with pytest.raises(UnresolvedRequest):
         factored.choose_disagreement((2,), max_inputs=1)
+
+
+def test_lazy_joint_view_preserves_order_indexing_and_unbounded_count() -> None:
+    def first(value: tuple[str, str]) -> str:
+        return value[0]
+    def second(value: tuple[str, str]) -> str:
+        return value[1]
+    factors = ((first, second), (first, second))
+    model = ProductVersionSpace(factors, [(('p', 'p'), ('p', 'p'))], max_candidates=4)
+    values = ('p', 'q')
+    assert [hypothesis(values) for hypothesis in model.hypotheses] == [
+        ('p', 'p'), ('p', 'q'), ('q', 'p'), ('q', 'q')]
+    assert model.hypotheses[-1](values) == ('q', 'q')
+    assert [hypothesis(values) for hypothesis in model.hypotheses[1:3]] == [('p', 'q'), ('q', 'p')]
+    with pytest.raises(IndexError):
+        model.hypotheses[4]
+    large = ProductVersionSpace(((first,) * 32,) * 32, [(values, ('p',) * 32)], max_candidates=32 ** 32)
+    assert large.hypothesis_count == 2 ** 160
+    assert large.hypotheses[0](values) == ('p',) * 32
+    assert large.hypotheses[-1](values) == ('p',) * 32
+    sliced = large.hypotheses[:]
+    assert sliced[0](values) == sliced[-1](values) == ('p',) * 32
+    with pytest.raises(OverflowError):
+        len(large.hypotheses)

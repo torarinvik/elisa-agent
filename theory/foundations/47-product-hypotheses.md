@@ -61,4 +61,15 @@ number of retained components after fitting is evidence about those observations
 not evidence that arbitrary future states or tasks will be represented. A
 coupled or noninjectively assembled family remains outside this exact shortcut.
 
+## 47.4 Access to joint hypotheses
+
+The product retains a lazy indexed view of the same ordered joint predictors,
+including lazy slices, so inspecting one rule does not materialize the family.
+A caller that explicitly iterates or copies all rules still incurs work
+proportional to their number. Python's platform-sized `len` may overflow for a
+large view; `hypothesis_count` returns the exact arbitrary-precision integer.
+The view's implementation and mixed-radix order have differential tests;
+the Lean results in §46 establish product membership and counts, not a formal
+proof of this host-language indexing implementation.
+
 [Theory index](../../THEORY.md)

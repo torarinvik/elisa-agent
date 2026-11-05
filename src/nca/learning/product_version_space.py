@@ -1,13 +1,51 @@
 """Explicit Cartesian-product version spaces over independent predictors."""
 
-from collections.abc import Callable, Sequence
+from __future__ import annotations
+
+from collections.abc import Callable, Iterator, Sequence
 from math import prod
-from typing import Generic, TypeVar
+from operator import index as integer_index
+from typing import Generic, TypeVar, overload
 
 from nca.runtime import UnresolvedRequest
 
 X = TypeVar("X")
 Y = TypeVar("Y")
+
+
+class _JointHypotheses(Sequence[Callable[[X], tuple[Y, ...]]], Generic[X, Y]):
+    """A lazy compatibility view, including lazy slices."""
+
+    def __init__(self, factors: tuple[tuple[Callable[[X], Y], ...], ...],
+                 indices: range | None = None) -> None:
+        self._factors = factors
+        self._indices = range(prod(map(len, factors))) if indices is None else indices
+
+    def __len__(self) -> int:
+        return len(self._indices)
+
+    @overload
+    def __getitem__(self, index: int) -> Callable[[X], tuple[Y, ...]]: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> _JointHypotheses[X, Y]: ...
+
+    def __getitem__(self, index: int | slice) -> Callable[[X], tuple[Y, ...]] | _JointHypotheses[X, Y]:
+        if isinstance(index, slice):
+            return _JointHypotheses(self._factors, self._indices[index])
+        return self._at(self._indices[integer_index(index)])
+
+    def _at(self, position: int) -> Callable[[X], tuple[Y, ...]]:
+        choices = []
+        for factor in reversed(self._factors):
+            position, offset = divmod(position, len(factor))
+            choices.append(factor[offset])
+        selected = tuple(reversed(choices))
+        return lambda inputs: tuple(predict(inputs) for predict in selected)
+
+    def __iter__(self) -> Iterator[Callable[[X], tuple[Y, ...]]]:
+        for position in self._indices:
+            yield self._at(position)
 
 
 class ProductVersionSpace(Generic[X, Y]):
@@ -49,6 +87,7 @@ class ProductVersionSpace(Generic[X, Y]):
                 raise ValueError("no hypothesis is consistent with the observations")
             retained.append(tuple(choices))
         self.factors = tuple(retained)
+        self.hypotheses = _JointHypotheses(self.factors)
         self.prediction_evaluations = 0
 
     @property
