@@ -153,4 +153,15 @@ action or observations from an external process. Its possible consequences,
 budget and any refusal policy must be represented; supported-rollout soundness
 alone cannot guarantee the result of an unsupported exploratory action.
 
+## 46.13 Absorbing starts and the limits of exploration
+
+Suppose every available action leaves the current environment state unchanged.
+Induction over any finite action sequence shows that every executed trajectory
+remains at that state, whether or not the model predicts the actions. Neither
+uncertainty-guided action choice nor a longer interaction budget can access a
+different state in that episode. Progress needs additional environment
+capability, such as a supplied reset distribution, another initial episode, or
+an action that actually leaves the state. This is an environment condition,
+not a claim that every unsuccessful search begins in an absorbing state.
+
 [Theory index](../../THEORY.md)

@@ -684,3 +684,7 @@ with the commands above.
 | §46.2 supported deterministic rollout | `NCA.supported_rollout` (`Planning/Transitions.lean`) | `planner/dynamics.py`; `tests/planner/test_dynamics.py` checks every partial support of a finite model and returned-plan execution/minimality. External transition fits are proposal-only; supported correctness is an assumption, not inferred from the theorem. |
 
 | §46.6 realizable unanimous rollout | `NCA.version_rollout_sound` | `learning/version_space.py`; `tests/learning/test_version_space.py` exhausts finite tables, including a missing-truth counterexample. |
+
+| Theory | Proof | Scope |
+|---|---|---|
+| §46.13 absorbing starts | `NCA.absorbing_rollout` | Deterministic transition model; no claim that arbitrary environments have an absorbing state. |

@@ -50,6 +50,15 @@ theorem version_rollout_sound {S A : Type} [DecidableEq S]
     simp [correct edge hedge]
   exact supported_rollout model truth (unanimous truth retained) actions state terminal returned
 
+/-- No finite action sequence leaves an absorbing environment state. -/
+theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
+    (absorbing : ∀ action, step state action = state) (actions : List A) :
+    actualRollout step state actions = state := by
+  induction actions with
+  | nil => rfl
+  | cons action rest ih => simpa [actualRollout, absorbing action] using ih
+
+#print axioms absorbing_rollout
 #print axioms version_rollout_sound
 #print axioms supported_rollout
 
