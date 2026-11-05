@@ -582,4 +582,36 @@ round-trip check alone cannot prove global injectivity. A future generic
 interface must state and justify this representation assumption, or compute
 actual joint output partitions without the shortcut.
 
+## 46.42 What adaptive interaction cannot identify
+
+Fix a deterministic policy that selects each action from its current state and
+all prior transition observations. If two deterministic worlds agree on every
+state-action pair visited in the first world, induction on the interaction
+length shows that their entire observed traces agree, even though actions are
+chosen adaptively (`adaptive_trace_indistinguishable`). The same statement
+holds for a randomized policy after conditioning on its random choices; it does
+not imply that all random choices avoid the disputed transition.
+
+If a state-action pair was never visited, and the state space has another
+possible successor, changing only that transition yields an alternative world
+with the identical trace but a different answer at that pair
+(`unvisited_transition_alternative`). This alternative is relevant only if the
+world class permits it and any initial history also avoids or agrees at that
+pair: the theorem treats the initial history as fixed rather than verifying its
+consistency. Structural assumptions can rule out the alternative. Conversely,
+when the assumed family excludes the actual world, a singleton version can be
+confident and wrong. Agreement inside that family does not establish that it is
+complete; fresh whole-policy certification concerns its operating distribution
+and does not prove the model correct everywhere.
+
+This distinguishes two gaps in the existing six-world control. All twelve
+action versions were already singletons, so that experiment did not test
+information-seeking. More broadly, any successful information-seeking claim
+must specify its world class, observable actions and reachable starts; otherwise
+an unvisited edge can remain indistinguishable. A next development comparison
+should sample ambiguous but realizable initial histories, match interactions
+and resets across selection strategies, and measure whether acquired evidence
+improves independently tested goal service. Conditional selection and supplied
+world structure limit the resulting claim; no discovery rate follows here.
+
 [Theory index](../../THEORY.md)

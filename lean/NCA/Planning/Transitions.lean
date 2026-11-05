@@ -80,6 +80,69 @@ theorem projection_model_identified {I J F V : Type} (observed : I → F → V)
     exact consistent sample output
   rw [same]
 
+/-- A deterministic adaptive interaction, including the successor observed at each step. -/
+def adaptiveTrace {S A : Type} (step : S → A → S)
+    (choose : List (S × A × S) → S → A) :
+    Nat → S → List (S × A × S) → List (S × A × S)
+  | 0, _, _ => []
+  | n + 1, state, history =>
+    let action := choose history state
+    let next := step state action
+    let observation := (state, action, next)
+    observation :: adaptiveTrace step choose n next (history ++ [observation])
+
+/-- Even an adaptive deterministic policy cannot distinguish worlds that agree on
+every state-action pair it actually visits in the first world. -/
+theorem adaptive_trace_indistinguishable {S A : Type} (first second : S → A → S)
+    (choose : List (S × A × S) → S → A) :
+    ∀ n state history,
+      (∀ edge ∈ adaptiveTrace first choose n state history,
+        first edge.1 edge.2.1 = second edge.1 edge.2.1) →
+      adaptiveTrace first choose n state history = adaptiveTrace second choose n state history := by
+  intro n
+  induction n with
+  | zero => intro state history agree; rfl
+  | succ n ih =>
+    intro state history agree
+    let action := choose history state
+    have head : first state action = second state action := by
+      apply agree (state, action, first state action)
+      simp [adaptiveTrace, action]
+    have tail : ∀ edge ∈ adaptiveTrace first choose n (first state action)
+        (history ++ [(state, action, first state action)]),
+        first edge.1 edge.2.1 = second edge.1 edge.2.1 := by
+      intro edge member
+      apply agree edge
+      simp [adaptiveTrace, action, member]
+    simp only [adaptiveTrace]
+    change (state, action, first state action) :: _ = (state, action, second state action) :: _
+    rw [← head]
+    congr 1
+    exact ih _ _ tail
+
+/-- An unvisited transition can be changed without changing the entire adaptive trace. -/
+theorem unvisited_transition_alternative {S A : Type} [DecidableEq S] [DecidableEq A]
+    (first : S → A → S) (choose : List (S × A × S) → S → A)
+    (n : Nat) (initial : S) (history : List (S × A × S))
+    (target : S) (action : A) (other : S)
+    (different : other ≠ first target action)
+    (unvisited : ∀ edge ∈ adaptiveTrace first choose n initial history,
+      edge.1 ≠ target ∨ edge.2.1 ≠ action) :
+    ∃ second : S → A → S,
+      adaptiveTrace first choose n initial history = adaptiveTrace second choose n initial history ∧
+      second target action ≠ first target action := by
+  let second : S → A → S := fun state move =>
+    if state = target ∧ move = action then other else first state move
+  refine ⟨second, ?_, ?_⟩
+  · apply adaptive_trace_indistinguishable
+    intro edge member
+    have missing : ¬ (edge.1 = target ∧ edge.2.1 = action) := by
+      rcases unvisited edge member with hs | ha
+      · exact fun h => hs h.1
+      · exact fun h => ha h.2
+    simp [second, missing]
+  · simpa [second] using different
+
 /-- No finite action sequence leaves an absorbing environment state. -/
 theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
     (absorbing : ∀ action, step state action = state) (actions : List A) :
@@ -89,6 +152,8 @@ theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
   | cons action rest ih => simpa [actualRollout, absorbing action] using ih
 
 #print axioms projection_model_identified
+#print axioms adaptive_trace_indistinguishable
+#print axioms unvisited_transition_alternative
 #print axioms refinement_preserves_rollout
 #print axioms absorbing_rollout
 #print axioms version_rollout_sound

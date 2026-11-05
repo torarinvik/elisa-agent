@@ -44,6 +44,34 @@ def test_missing_truth_can_be_unanimously_wrong_and_is_not_certification() -> No
         VersionSpace([expensive], [("observed", "p")], max_candidates=1)
 
 
+def test_adaptive_disagreement_cannot_reveal_an_unvisited_transition() -> None:
+    states, actions = (0, 1), (0, 1)
+    inputs = tuple(product(states, actions))
+    tables = [dict(zip(inputs, outputs, strict=True)) for outputs in product(states, repeat=4)]
+    family = [lambda pair, table=table: table[pair] for table in tables]
+
+    def interact(world: dict[tuple[int, int], int]) -> list[tuple[tuple[int, int], int]]:
+        observations = [((0, 0), world[0, 0])]
+        current = 0
+        for _ in range(3):
+            model = VersionSpace(family, observations, max_candidates=len(family))
+            choices = tuple((current, action) for action in actions)
+            chosen = model.choose_disagreement(choices, max_inputs=len(choices))
+            pair = choices[0 if chosen is None else chosen]
+            current = world[pair]
+            observations.append((pair, current))
+        return observations
+
+    for world in tables:
+        observed = interact(world)
+        visited = {pair for pair, _ in observed}
+        for pair in set(inputs) - visited:
+            alternate = dict(world)
+            alternate[pair] = 1 - alternate[pair]
+            assert interact(alternate) == observed
+            assert alternate[pair] != world[pair]
+
+
 def test_refinement_preserves_prior_agreement_and_resolves_disagreement() -> None:
     candidates = [lambda x: x, lambda x: "p"]
     prior = VersionSpace(candidates, [("p", "p")], max_candidates=2)
