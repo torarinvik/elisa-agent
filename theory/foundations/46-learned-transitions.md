@@ -176,4 +176,14 @@ no positive bound when p is unknown or zero. Each reset and every executed
 transition remains a separately counted interaction. Adaptation after a
 successful observation requires a new conditional argument.
 
+## 46.15 Episode access and inference
+
+Multiple starts expand the available observation set only when the environment
+actually grants resets or independently supplies new episodes. A sampled start
+is an environment outcome, not an arbitrary state selected by the learner.
+The probability formula in §46.14 does not certify a policy and a single
+successful reset does not estimate its success rate reliably. The admitted
+behaviour still requires fresh episode-level evaluation under its target
+initial-state and goal distributions.
+
 [Theory index](../../THEORY.md)
