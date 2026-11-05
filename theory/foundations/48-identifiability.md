@@ -160,4 +160,14 @@ become wrong; it is not enough to assume that a smaller candidate set is safer.
 The rule's training observations and pairing assumptions must be reported, and
 whole-expert admission remains a fresh, independent step.
 
+## 48.10 Limits of the alternative-template screen
+
+On three overlapping public development partitions, screening broader rules
+against every observed representative-template combination removed one wrong
+answer but also two correct answers. This refutes neither the existence of
+missed counterexamples nor the value of a more faithful relation between
+examples; it does show that this Cartesian screen did not improve the
+preregistered precision/coverage tradeoff. The implementation was retired.
+The result is development evidence and does not characterize unobserved tasks.
+
 [Theory index](../../THEORY.md)
