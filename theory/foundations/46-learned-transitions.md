@@ -268,4 +268,15 @@ no path. Comparing supported edges with independently supplied environment
 transitions can identify model refusals, but those diagnostic environment
 lookups are separate from policy certification and must be counted.
 
+## 46.23 Ambiguous transitions as a planning bottleneck
+
+If a model retains several consistent hypotheses for an action, its unanimous
+predictor refuses at inputs where those hypotheses disagree. Such refusals can
+remove paths even when every supported edge is correct. An informative
+reachable observation may shrink the version space (§46.9), but one observation
+need not identify a hypothesis: the number retained is the size of the observed
+answer's partition. Repeated observations preserve soundness only under the
+same realizability and truthful-observation assumptions. Whole-policy
+admission remains a separate fresh test after the final model is fixed.
+
 [Theory index](../../THEORY.md)
