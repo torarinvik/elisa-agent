@@ -38,4 +38,27 @@ split; a fresh gate samples a different distribution of cases and has its own
 confidence and selection conditions. The inspected split is development data,
 not evidence of generalization to sealed data.
 
+## 48.3 Bounded proposals from paired shapes
+
+Suppose a training representation contains two input shapes, one obtained by
+inserting a contiguous block into the other, together with their complete
+output templates. First rename the shorter template's position references into
+the longer input's coordinate system. A common prefix and suffix of the two
+templates delimit a finite replacement that exactly reconstructs the longer
+template on that training pair. Express position references in the replacement
+relative to the insertion site, and associate the replacement with the block
+and its immediate input context. Multiple independent shape pairs can support
+the same proposal; support is a selection criterion, not an error bound.
+
+For a new shape, a bounded proposer can try every supported single-block
+reduction to a known shape and every matching replacement. It may return a
+candidate only when the completed derivations it considered agree, and must
+refuse when search was truncated or matching derivations disagree. That policy
+is sound for the declared candidate set only under the completeness and
+realizability assumptions of §48.1. A shared but wrong inductive bias can make
+all proposals agree incorrectly, so the unchanged fresh whole-expert gate is
+still required. Prefix/suffix matching, coordinate renaming, support and search
+budgets are implementation choices, not discovered semantic laws; there is no
+claim that this grammar can represent arbitrary transformations.
+
 [Theory index](../../THEORY.md)
