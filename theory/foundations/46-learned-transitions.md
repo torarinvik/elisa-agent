@@ -49,4 +49,22 @@ certification unless the existing retention conditions justify reuse.
 The remaining weakness is learning useful dynamics outside observed support;
 exact recall and finite-state planning do not establish that capability.
 
+## 46.5 What must be learned beyond recall
+
+Let D be the observed state-action support and let (s,a) lie outside D.
+If at least two successor states are possible and no further restriction is
+placed on the transition class, there are two deterministic environments
+agreeing on all observations but disagreeing at (s,a): retain every observed
+edge and choose different successors only at that unobserved pair. Any learner
+receiving those observations alone has the same evidence in both environments.
+It cannot guarantee the correct unseen transition in both. More recall or more
+planning over the same support does not remove this ambiguity.
+
+Thus the next capability needs either new interactions or an explicit,
+testable inductive restriction shared across transitions. A structured
+transition learner must state that restriction and be tested on withheld
+state-action pairs, with whole executed plans checked separately. This
+identifiability argument is analytic; the formal theorem above establishes
+supported rollout only, not a representation-learning or exploration rate.
+
 [Theory index](../../THEORY.md)
