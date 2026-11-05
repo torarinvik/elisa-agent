@@ -64,3 +64,19 @@ def test_refusals_do_not_abort_other_learners_or_hide_budget_exhaustion() -> Non
         raise BudgetExceeded("selection work exhausted")
     with pytest.raises(BudgetExceeded):
         Portfolio((("limited", constantly(exhausted)),))(CONTRACT, keys, keys)
+
+
+def test_ranked_offers_supported_learners_best_first_and_builds_lazily() -> None:
+    sizes: list[int] = []
+    def counting(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        sizes.append(len(keys))
+        return Function(lambda value: value + 1)
+    partly = constantly(lambda value: value + 1 if value % 2 else 0)
+    selection = Portfolio((("wrong", constantly(lambda value: 0)), ("partly", partly), ("right", counting)))
+    keys = list(range(1, 21))
+    builders = selection.ranked(CONTRACT, keys, [key + 1 for key in keys]).builders
+    assert selection.last == {"wrong": 0, "partly": 2, "right": 4} and len(builders) == 2
+    assert selection.chosen is None and sizes == [16]
+    first = builders[0]()
+    assert first is not None and first.invoke(4) == 5 and selection.chosen == "right" and sizes == [16, 20]
+    assert builders[1]() is not None and selection.tried == ["right", "partly"] and selection.chosen == "partly"

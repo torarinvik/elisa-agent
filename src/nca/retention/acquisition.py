@@ -31,11 +31,17 @@ Each stage receives an equal share of the request's admission level
 (``NCA.staged_acquisition_sound``); failed-test observations may train later
 candidates, whose tests must still be fresh. This makes no assumption about
 how fast a fitter learns and need not reduce either labels or compute.
+
+A fitter may instead return ``Ranked`` candidates. Training alone fixes their
+number and order; each stage's share is split equally among them, and they are
+tested in order until one passes (§45.6, ``NCA.ranked_acquisition_sound``). A sole
+candidate keeps the whole share.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from nca.abi import Contract, Module
@@ -47,8 +53,21 @@ from nca.retention.certification import (loss_test, validate_batch_limit,
                                         validate_validation_cases, validation_plan)
 from nca.stats import family_audit_alpha
 
-Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
-"""Fits an expert from input keys and labels, or ``None`` if it cannot."""
+
+@dataclass(frozen=True)
+class Ranked:
+    """Candidate builders, best first, fixed from training cases before any fresh case.
+
+    Each builder returns one frozen expert, or ``None`` if it cannot, and runs
+    only when its turn comes. Its order is a proposal, not evidence of correctness.
+    """
+
+    builders: tuple[Callable[[], Module | None], ...]
+
+
+Fitter = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | Ranked | None]
+"""Fits an expert from input keys and labels, ranks candidates, or returns
+``None`` if it cannot."""
 Sampler = Callable[[Contract, int], Sequence[tuple[Any, Any]] | None]
 """Up to the given number of fresh (input, output) cases for a contract, or
 ``None`` if none exist; for several inputs, the input is their tuple."""
@@ -56,6 +75,12 @@ Sampler = Callable[[Contract, int], Sequence[tuple[Any, Any]] | None]
 
 def _equal(output: Any, label: Any) -> bool:
     return bool(output == label)
+
+
+def _builders(fitted: Module | Ranked | None) -> tuple[Callable[[], Module | None], ...]:
+    if isinstance(fitted, Ranked):
+        return fitted.builders
+    return () if fitted is None else (lambda: fitted,)
 
 
 def _invoke(module: Module, contract: Contract, key: Any) -> Any:
@@ -123,8 +148,7 @@ class CertifiedAcquirer:
         level = decision_level(self.confidence, index)
         self.decisions += 1
         level = family_audit_alpha(level, len(self.stages))
-        cases, allowance = validation_plan(self.tolerance, level, self.validation_cases)
-        if allowance < 0:
+        if validation_plan(self.tolerance, level, self.validation_cases)[1] < 0:
             return None
         training: list[tuple[Any, Any]] = []
         prefix = min(self.screen.cases, self.stages[0]) if self.screen is not None else 0
@@ -151,19 +175,28 @@ class CertifiedAcquirer:
                 if drawn is None or len(drawn) != remaining:
                     return None
             examples = training[:size]
-            module = self.fit(contract, [k for k, _ in examples], [v for _, v in examples])
-            if module is None:
+            fitted = self.fit(contract, [k for k, _ in examples], [v for _, v in examples])
+            builders = _builders(fitted)
+            if not builders:
                 continue
-            if module.manifest.contract != contract:
-                raise ValueError("the fitted expert does not have the requested contract")
-            retain = self.train - len(training) if stage + 1 < len(self.stages) else 0
-            admitted, observed = self._test(module, contract, cases, allowance, retain)
-            if admitted is None:
+            share = family_audit_alpha(level, len(builders))
+            cases, allowance = validation_plan(self.tolerance, share, self.validation_cases)
+            if allowance < 0:
                 return None
-            if admitted:
-                self.certified[module.manifest.module_id] = self.tolerance
-                return module
-            training.extend(observed)
+            for build in builders:
+                module = build()
+                if module is None:
+                    continue
+                if module.manifest.contract != contract:
+                    raise ValueError("the fitted expert does not have the requested contract")
+                retain = self.train - len(training) if stage + 1 < len(self.stages) else 0
+                admitted, observed = self._test(module, contract, cases, allowance, retain)
+                if admitted is None:
+                    return None
+                if admitted:
+                    self.certified[module.manifest.module_id] = self.tolerance
+                    return module
+                training.extend(observed)
         return None
 
     def _test(self, module: Module, contract: Contract, cases: int, allowance: int,
