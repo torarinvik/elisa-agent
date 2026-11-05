@@ -494,4 +494,59 @@ episode, that refusal is part of the outcome, not a reason to silently replace
 the episode. Realizability, supplied candidate states and reset access remain
 separate assumptions.
 
+## 46.37 Conditional sample bounds for supplied fields
+
+For d supplied input fields taking q values, m independently uniform training
+states drawn with replacement give each field a signature in a set of q^m
+possible signatures. If d > q^m, the pigeonhole principle forces a collision,
+so every bijective field-copy rule has at least two consistent explanations.
+Under the stronger assumption that all field values are independent and
+uniform across states and fields, the signatures are independent and uniform:
+the probability that all d are distinct is the falling factorial
+(q^m)(q^m−1)…(q^m−d+1)/(q^m)^d when d ≤ q^m, and zero otherwise. A union
+bound gives collision probability at most d(d−1)/(2q^m). These are conditional
+bounds for an already supplied representation and this sampling model, not a
+representation-learning rate. Reachable-state samples can be highly correlated
+or concentrated; observations selected without replacement need a different
+calculation, as in §46.35. Every action-specific observation is counted.
+
+## 46.38 The hypothesis-enumeration barrier
+
+With d input fields and r output positions, allowing each output to copy any
+input produces d^r possible rules per action before filtering. The present
+implementation constructs these rules explicitly, so a user-supplied candidate
+budget can refuse even though a suitable rule exists. Increasing the budget
+alone is not a scalable solution: d=r=32 already gives 2^160 combinations.
+This is an algorithmic representation limit of the current learner, not a
+measured CPU bottleneck or a reason to specialize the core to a task.
+
+## 46.39 Exact factorization and its boundary
+
+For the unrestricted copy family, observations constrain each output position
+independently. Let Cⱼ be its remaining input-field choices. The full version
+space is exactly the Cartesian product of the Cⱼ (`training_version_eq`),
+with cardinality ∏ⱼ|Cⱼ| (`training_version_count`).
+Assume each Cⱼ is nonempty; an empty set means the model has no consistent
+rule and must refuse. An empty output tuple has one rule by the empty-product
+convention. For a candidate state x and possible output y, let nⱼ(yⱼ) count fields in Cⱼ
+whose value in x equals yⱼ. Exactly ∏ⱼ nⱼ(yⱼ) whole rules predict y
+(`output_partition_count`). Since each output position is independently
+chosen, the largest output partition is ∏ⱼ maxᵥ nⱼ(v)
+(`largest_output_partition`). A model can therefore
+compute the same unanimous answers and the same worst-case disagreement score
+without constructing every whole rule. An output is unanimous exactly when
+all remaining fields for every position agree on that state's value.
+
+Storing the independent field sets requires at most r·d field references per
+action instead of d^r rules; fitting m observations takes at most m·r·d field
+comparisons under constant-cost access. Scoring C states uses at most C·r·d
+field reads plus grouping comparisons and arbitrary-precision product costs.
+This exact reduction assumes the candidate class is the full Cartesian product,
+fields and outcomes are total and equality is faithful. Constraints coupling
+output positions, such as requiring a permutation, break the product assumption;
+a factorized result must not be used for such a restricted class without a
+separate proof. The existing implementation still enumerates complete rules;
+this section is a proved counting foundation for a future implementation, not
+a claim of measured scalability or new task service.
+
 [Theory index](../../THEORY.md)

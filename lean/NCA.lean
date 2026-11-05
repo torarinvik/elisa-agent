@@ -83,3 +83,4 @@ import NCA.Reliability.Occam
 
 import NCA.Reliability.Protocol
 import NCA.Planning.Transitions
+import NCA.Planning.Factorization

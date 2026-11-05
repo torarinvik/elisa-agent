@@ -90,3 +90,29 @@ def test_refinement_preserves_complete_search_reach_for_all_two_state_worlds() -
                     for action in after:
                         actual = truth[actual, action]
                     assert actual == goal
+
+
+def test_factorized_output_counts_match_enumerated_version_space() -> None:
+    from math import prod
+
+    states = tuple(product(('p', 'q'), repeat=2))
+    rules = tuple(product(range(2), repeat=2))
+    family = [lambda state, rule=rule: tuple(state[index] for index in rule) for rule in rules]
+    for sample, truth in product(states, family):
+        output = truth(sample)
+        model = VersionSpace(family, [(sample, output)], max_candidates=len(family))
+        allowed = tuple(tuple(index for index in range(2) if sample[index] == target) for target in output)
+        assert len(model.hypotheses) == prod(map(len, allowed))
+        worst = []
+        for state in states:
+            outcome_counts = []
+            for target in states:
+                enumerated = sum(candidate(state) == target for candidate in model.hypotheses)
+                factorized = prod(sum(state[index] == target[j] for index in fields)
+                                  for j, fields in enumerate(allowed))
+                assert enumerated == factorized
+                outcome_counts.append(enumerated)
+            worst.append(max(outcome_counts))
+        minimum = min(worst)
+        expected = worst.index(minimum) if minimum < len(model.hypotheses) else None
+        assert model.choose_disagreement(states, max_inputs=len(states)) == expected
