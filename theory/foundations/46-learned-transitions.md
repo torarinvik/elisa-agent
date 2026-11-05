@@ -186,4 +186,17 @@ successful reset does not estimate its success rate reliably. The admitted
 behaviour still requires fresh episode-level evaluation under its target
 initial-state and goal distributions.
 
+## 46.16 Misspecification and fresh tests
+
+Unanimity across an incomplete hypothesis family is not evidence that the true
+transition belongs to that family. If every retained hypothesis agrees on an
+unseen input but the environment differs there, the proposal is confidently
+wrong. A gate using fresh examples drawn after the proposal is fixed can reject
+such a candidate according to its declared error criterion. A finite gate may
+still miss rare errors; its confidence guarantee applies to its sampling
+distribution and assumptions, not to every input or to adaptively selected
+trajectories. Consequently, transition-level admission does not replace a fresh
+whole-policy gate for an adaptive planner. Query, gate and audit streams must
+remain separate, and failures must not be reported as certified predictions.
+
 [Theory index](../../THEORY.md)
