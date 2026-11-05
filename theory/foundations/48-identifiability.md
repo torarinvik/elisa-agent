@@ -170,4 +170,22 @@ examples; it does show that this Cartesian screen did not improve the
 preregistered precision/coverage tradeoff. The implementation was retired.
 The result is development evidence and does not characterize unobserved tasks.
 
+## 48.11 Selecting selective proposals
+
+A training-only selection comparison can rank alternative selective learners
+without consuming a fresh admission stream. A learner's refusal on a selection
+case is an unsuccessful prediction for this comparison; it must not abort
+evaluation of other learners. A fitting refusal means that learner provides no
+candidate. Resource exhaustion is distinct: it indicates an incomplete
+computation and must not be silently reported as a completed refusal. Selection
+scores are proposal signals and say nothing by themselves about deployed risk.
+
+For a fixed candidate with independent IID validation cases, zero observed
+errors in m cases gives the usual one-sided upper error bound
+`1 − α^(1/m)` at confidence `1 − α`; six successes yield approximately 39%
+at α = 0.05. Selection of a group or model using those same cases, non-IID
+splits, or refitting after selection invalidates a naive interpretation of
+that bound. The existing fresh whole-candidate gate, with its stated confidence
+allocation, remains necessary after adaptive training-only selection.
+
 [Theory index](../../THEORY.md)
