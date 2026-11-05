@@ -110,3 +110,64 @@ the frontier size. Without a reference, only exhaustive stages give evidence (44
 The results use a uniform cost model and independent subgoals. Observational pruning, types and memoization
 lower the effective `m`, which must be measured, and correlated subgoals can weaken 44.9 and 44.10 in
 practice. The theorems state consequences of the model, not measurements of a particular search.
+
+## 44.8 Saturation under observational pruning
+
+Bottom-up search retains one hypothesis per behaviour on the examples.
+
+**Theorem 44.13 (behaviour bound).** Retained hypotheses with pairwise distinct behaviours on `e` examples
+over `v` values number at most `v ^ e`.
+
+The per-size retained count is thus at most `min(m ^ n, v ^ e)`. Once it saturates, further sizes cost a
+bounded amount and 44.5 no longer applies: budget buys size linearly. For rich values and many examples
+`v ^ e` is astronomically large and the bound alone says little. The effective count must be measured:
+if retained counts per size flatten, budget is a live remedy, and if they keep growing geometrically,
+their ratio estimates `m`.
+
+## 44.9 How large a library may grow
+
+**Theorem 44.14 (library tax).** For `m > 0` and `k ≥ 0`, `(m + k) ^ n ≤ exp (n * k / m) * m ^ n`.
+
+Adding `k ≤ m / n` entries costs at most a factor of `e` for goals of size `n`, while one useful entry
+changes a useful route's exponent (Theorem 44.8). Growth beyond this margin multiplies cost
+exponentially in `n * k / m`, so without selection a growing library eventually defeats its own reuse. This
+bound presumes uniform choice. Types, retrieval by contract and priors reduce the effective `k`, which is
+why they are a precondition for scale and not an optimization.
+
+**Theorem 44.15 (aggregate payoff).** If a change saves users more than `tax` in total and costs other goals
+at most `tax` in total, it lowers total cost over the goals.
+
+Admission to a library is thereby a population question. A route that compresses one goal may raise
+total cost, and the decision needs a distribution of goals, or a sample standing in for one.
+
+## 44.10 Combining strategies
+
+**Theorem 44.16 (union keeps success).** What one strategy finds at `b`, the union of strategies finds at `b`.
+
+Combined with 44.11, dovetailing an incomplete guided strategy with a complete enumerator removes the
+unguided class, at a cost of the inverse share, and retains the guided strategy's speed where its witnesses
+apply. The complete strategy need not be fast, only given a positive share.
+
+## 44.11 Reach raises risk
+
+Consider `m ^ n` hypotheses, each wrong one passing a fresh case with probability at most `q`.
+
+**Theorem 44.17 (checks scale with size).** If `m * q ^ s ≤ 1`, then `m ^ n * q ^ (s * n) ≤ 1`.
+
+The union bound over examined hypotheses stays bounded when fresh cases grow as `s * n`, with `s` about
+`log m / log (1 / q)`. Reaching further therefore costs labels as well as work, in proportion to size.
+This is a bound on the expected number of false passes and needs independent fresh cases; the value `1` is
+a threshold, and a target `δ` requires additional `log (1 / δ) / log (1 / q)` cases. Reuse shortens `n`, so
+it also reduces checks. Decomposition reduces them only if each subgoal has checkable cases of its own.
+
+## 44.12 What this predicts
+
+These are consequences to test, conditional on the model:
+
+1. Retained counts per size grow geometrically for failing goals; their ratio gives `m`, and an eightfold
+   budget then buys at most `log_m 8` sizes.
+2. Families whose reference solutions are within that margin are unreached and benefit from budget.
+3. Adding unselected entries raises cost as 44.14 predicts, and adding the entry a route needs lowers it
+   beyond that tax.
+4. A family with a witness-compatible reference is solved at cost governed by 44.10, not by its size.
+5. A failing goal with no reference route over the library gains from no search remedy.

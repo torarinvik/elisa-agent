@@ -1,5 +1,7 @@
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Analysis.SpecialFunctions.Exp
+import Mathlib.Data.Fintype.Pi
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -105,5 +107,49 @@ theorem sharing_only_redistributes {H : Type} {reach : Nat → Set H} {ok : H �
     (mono : ∀ {a b}, a ≤ b → reach a ⊆ reach b) {share T : Nat} (within : share ≤ T)
     (found : SearchFound reach ok share) : SearchFound reach ok T :=
   searchFound_mono mono within found
+
+/-- Retained hypotheses with distinct behaviour on `e` examples over `v` values number
+at most `v ^ e`, whatever their size. -/
+theorem retained_behaviours_bound {H V : Type} [Fintype V] [DecidableEq V] {e : Nat}
+    (retained : Finset H) (behaviour : H → Fin e → V)
+    (distinct : Set.InjOn behaviour retained) :
+    retained.card ≤ Fintype.card V ^ e := by
+  have bound := Finset.card_le_card_of_injOn (t := Finset.univ) behaviour
+    (fun _ _ => Finset.mem_coe.mpr (Finset.mem_univ _)) distinct
+  simpa [Fintype.card_fun] using bound
+
+/-- With `k` further entries, enumeration costs at most `exp (n * k / m)` times as much. -/
+theorem library_tax {m : ℝ} (positive : 0 < m) (k : ℝ) (nonnegative : 0 ≤ k) (n : Nat) :
+    (m + k) ^ n ≤ Real.exp (n * k / m) * m ^ n := by
+  have step : m + k ≤ Real.exp (k / m) * m := by
+    have one : k / m + 1 ≤ Real.exp (k / m) := Real.add_one_le_exp _
+    calc m + k = (k / m + 1) * m := by field_simp; ring
+      _ ≤ Real.exp (k / m) * m := by gcongr
+  have base : 0 ≤ m + k := by linarith
+  calc (m + k) ^ n ≤ (Real.exp (k / m) * m) ^ n := pow_le_pow_left₀ base step n
+    _ = Real.exp (n * k / m) * m ^ n := by
+      rw [mul_pow, ← Real.exp_nat_mul]
+      congr 2
+      ring
+
+/-- A library change lowers total cost when users save more than others pay. -/
+theorem library_change_pays {usersOld usersNew othersOld othersNew tax : Nat}
+    (saves : usersNew + tax < usersOld) (pays : othersNew ≤ othersOld + tax) :
+    usersNew + othersNew < usersOld + othersOld := by
+  omega
+
+/-- A search is at least as successful on a union of reaches as on either part. -/
+theorem union_keeps_found {H : Type} {first second : Nat → Set H} {ok : H → Prop} {b : Nat}
+    (found : SearchFound first ok b) :
+    SearchFound (fun a => first a ∪ second a) ok b := by
+  obtain ⟨h, member, good⟩ := found
+  exact ⟨h, Or.inl member, good⟩
+
+/-- If `s` fresh cases per size level offset branching, then the union bound on all `m ^ n`
+hypotheses passing `s * n` cases stays at most one. -/
+theorem checks_scale_with_size {m q : ℝ} (hm : 0 ≤ m) (hq : 0 ≤ q) {s : Nat}
+    (offset : m * q ^ s ≤ 1) (n : Nat) : m ^ n * q ^ (s * n) ≤ 1 := by
+  rw [pow_mul, ← mul_pow]
+  exact pow_le_one₀ (mul_nonneg hm (pow_nonneg hq s)) offset
 
 end NCA
