@@ -649,4 +649,35 @@ the user's goals. A goal-directed comparison needs an explicit distribution of
 goals, reachable actions and interaction costs, with evidence separated from
 the data used to choose the observation.
 
+## 46.45 Goal-directed observation under explicit uncertainty
+
+Let a finite, caller-supplied set of start/goal tasks be fixed before selecting
+an observation. Define model coverage as the number admitting a supported
+finite route. If refinement preserves every supported transition, every old
+route remains supported and coverage cannot decrease
+(`refinement_preserves_goal_coverage`). This is an unbounded existence result;
+resource-limited search may fail to rediscover a route after refinement, and
+model coverage is not itself successful execution or certification.
+
+For each available action, enumerate every outcome consistent with the current
+finite version, form the hypothetical refined model for that outcome, and
+score the action by its minimum coverage over those hypothetical models. With
+complete outcome enumeration and exact coverage, choosing a maximum score
+maximizes the worst-case model coverage among the supplied actions. Including
+a fallback action in that same set makes the selected worst-case score no worse
+than the fallback's. Hypothetical outcomes are computed from the model and are
+not observed labels; the real action still costs an intervention. These claims
+assume faithful equality, a fixed model and goal set, exhaustive outcomes and
+coverage, and realizability for interpreting the actual outcome as one of the
+enumerated branches. Bounded implementations must abort or refuse on any
+incomplete branch instead of treating a partial minimum as exact.
+
+The guarantee compares worst cases, not the two actions' realized outcomes;
+the higher-scoring action can still fare worse in the actual world. It also
+does not establish a useful goal distribution, raw-state representation,
+interaction safety, or policy reliability. Development goals used to rank the
+actions must be distinct from independently sampled evaluation episodes; a
+simulation's oracle-derived reachability list is not a permissible hidden
+source of task-specific information for the selector.
+
 [Theory index](../../THEORY.md)

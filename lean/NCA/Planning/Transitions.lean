@@ -68,6 +68,25 @@ theorem refinement_preserves_rollout {S A : Type} (old refined : S → A → Opt
       have newer : refined s action = some next := preserves s action next edge
       simpa [modelRollout, newer] using ih next t tail
 
+noncomputable def supportedGoals {S A : Type} (model : S → A → Option S)
+    (goals : Finset (S × S)) : Finset (S × S) := by
+  classical
+  exact goals.filter (fun task => ∃ actions, modelRollout model task.1 actions = some task.2)
+
+/-- Preserving supported edges cannot reduce the number of supplied goals with
+some supported finite route. This is independent of which routes are selected. -/
+theorem refinement_preserves_goal_coverage {S A : Type} [DecidableEq S]
+    (old refined : S → A → Option S) (goals : Finset (S × S))
+    (preserves : ∀ s a t, old s a = some t → refined s a = some t) :
+    (supportedGoals old goals).card ≤ (supportedGoals refined goals).card := by
+  classical
+  apply Finset.card_le_card
+  intro task member
+  simp only [supportedGoals] at member ⊢
+  simp only [Finset.mem_filter] at member ⊢
+  obtain ⟨goalMember, actions, route⟩ := member
+  exact ⟨goalMember, actions, refinement_preserves_rollout old refined preserves actions _ _ route⟩
+
 /-- Distinct observed field signatures identify every projection, hence unseen states. -/
 theorem projection_model_identified {I J F V : Type} (observed : I → F → V)
     (truth candidate : J → F)
@@ -181,6 +200,7 @@ theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
 #print axioms unvisited_transition_alternative
 #print axioms disagreement_refinement_progress
 #print axioms refinement_preserves_rollout
+#print axioms refinement_preserves_goal_coverage
 #print axioms absorbing_rollout
 #print axioms version_rollout_sound
 #print axioms supported_rollout
