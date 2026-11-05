@@ -680,4 +680,16 @@ actions must be distinct from independently sampled evaluation episodes; a
 simulation's oracle-derived reachability list is not a permissible hidden
 source of task-specific information for the selector.
 
+## 46.46 Ties and the cost of robust ranking
+
+The first bounded goal-directed control produced the same selected action as
+the simpler disagreement selector in all six development worlds. Five of the
+six action-score comparisons tied, so tie-breaking alone preserved the earlier
+choice in those cases. The minimax guarantee remains valid for the supplied
+ranking goals and model branches; it does not imply a strict improvement or
+justify the additional computation when the scores tie. A more informative
+goal representation or objective needs an independently specified rationale
+and a new comparison; choosing one because it fixes these six worlds would be
+development tuning, not external evidence.
+
 [Theory index](../../THEORY.md)
