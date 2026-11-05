@@ -76,6 +76,7 @@ import NCA.Reliability.RepairFeedback
 
 import NCA.Planning.RouteSearch
 import NCA.Planning.SearchFailure
+import NCA.Planning.SearchAllocation
 import NCA.Planning.SearchPrior
 import NCA.Planning.Completion
 

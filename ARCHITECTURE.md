@@ -519,6 +519,8 @@ correctness of interactions between mechanisms.
 | [45.1–45.3](theory/foundations/45-search-priors.md) | `heavy_hypotheses_bound`, `prior_cost_lower`, `prior_cost_attained` | `Planning/SearchPrior` |
 | [45.4–45.7](theory/foundations/45-search-priors.md) | `mismatch_cost`, `mixture_bounds_any_goal`, `mixture_keeps_prior`, `curriculum_adds` | `Planning/SearchPrior` |
 | [45.8](theory/foundations/45-search-priors.md) | `ranked_acquisition_sound` | `Reliability/SampledGate` |
+| [49.1–49.3](theory/foundations/49-search-allocation.md) | `capped_work_monotone`, `uniform_cap_minimax`, `underfunded_goal_unsolved`, `doubling_rounds`, `doubling_competitive` | `Planning/SearchAllocation` |
+| [49.4–49.9](theory/foundations/49-search-allocation.md) | `marginal_value`, `parallel_within_sum`, `predictor_saving`, `shared_enumeration`, `shared_search_dominates`, `labels_log_reach` | `Planning/SearchAllocation` |
 
 ### Additional theorem declarations
 

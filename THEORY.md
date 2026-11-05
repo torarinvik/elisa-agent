@@ -75,3 +75,4 @@ link for its definitions, arguments, and results.
 - [46. Learning consequences and planning](theory/foundations/46-learned-transitions.md)
 - [47. Product hypothesis implementation](theory/foundations/47-product-hypotheses.md)
 - [48. Identifying composition from final answers](theory/foundations/48-identifiability.md)
+- [49. Allocating search across goals](theory/foundations/49-search-allocation.md)
