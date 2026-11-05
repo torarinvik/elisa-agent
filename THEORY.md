@@ -72,3 +72,4 @@ link for its definitions, arguments, and results.
 - [43. Durable typed episodic records](theory/foundations/43-episodic-memory.md)
 - [44. What failed search establishes](theory/foundations/44-search-failure.md)
 - [45. Priors over a growing library](theory/foundations/45-search-priors.md)
+- [46. Learning consequences and planning](theory/foundations/46-learned-transitions.md)

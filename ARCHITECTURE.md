@@ -676,3 +676,9 @@ decoding, evidence, learning, retention, memory and native support. The root
 paths preserve fixture-module names across groups, including stored test loader
 entries. Run individual files by their grouped paths or run the complete suite
 with the commands above.
+
+## Learned transition proposals
+
+| Theory | Proof | Implementation and differential check |
+|---|---|---|
+| §46.2 supported deterministic rollout | `NCA.supported_rollout` (`Planning/Transitions.lean`) | `planner/dynamics.py`; `tests/planner/test_dynamics.py` checks every partial support of a finite model and returned-plan execution/minimality. External transition fits are proposal-only; supported correctness is an assumption, not inferred from the theorem. |
