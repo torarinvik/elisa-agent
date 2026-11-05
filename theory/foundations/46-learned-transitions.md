@@ -223,4 +223,18 @@ include goals whose shortest paths are longer, and those cases must be counted
 and scored without using the gate data to choose the policy. Even then the
 result remains specific to its sampled environment and distribution.
 
+## 46.19 Testing a minimum required path length
+
+For a finite deterministic evaluation environment, breadth-first traversal of
+its transition graph computes shortest path lengths. A host can define an
+episode distribution by uniformly sampling start/goal pairs with distance at
+least d, and keep the graph and paths private from the learner. A fresh gate
+on that fixed distribution tests policies on goals requiring at least d real
+actions; a separate audit can estimate success under the same distribution.
+The traversal uses environment transitions and must be included in the
+interaction accounting. Selecting this distribution using the actual graph is
+an evaluation capability, not a skill acquired by the agent. Admission is
+conditional on the gate's sampling and fixed-policy assumptions and says
+nothing about other environments or longer distances.
+
 [Theory index](../../THEORY.md)
