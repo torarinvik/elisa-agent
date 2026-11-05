@@ -1,12 +1,11 @@
 """A table of hypothesis behaviours on a shared pool of inputs.
 
-One enumeration can serve every goal with the same contract: a goal is identified
-by a few labels chosen to split the table, and a goal whose label matches no
-remaining class lies outside the table. Identification only proposes a hypothesis.
-A proposal must still pass independent fresh cases before admission.
+One enumeration can serve every goal with the same contract, needing no labels: a
+goal narrows the table on a few of its own cases, and a goal whose label matches no
+remaining class lies outside the table. Narrowing only proposes a hypothesis, which
+must still pass independent fresh cases before admission.
 """
 
-from collections import Counter
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
@@ -15,11 +14,12 @@ Hypothesis = TypeVar("Hypothesis")
 
 
 @dataclass(frozen=True)
-class Identification(Generic[Hypothesis]):
-    """The hypothesis a goal's labels leave, if one, and the pool positions labelled."""
+class Narrowing(Generic[Hypothesis]):
+    """The hypothesis a goal's own cases leave, if one, with what finding it cost."""
 
     hypothesis: Hypothesis | None
-    asked: tuple[int, ...]
+    labels: int
+    evaluations: int
 
 
 class BehaviourTable(Generic[Hypothesis]):
@@ -32,7 +32,6 @@ class BehaviourTable(Generic[Hypothesis]):
         self.hypotheses: list[Hypothesis] = []
         self.vectors: list[tuple[Hashable, ...]] = []
         self._seen: set[tuple[Hashable, ...]] = set()
-        self._questions: dict[tuple[int, ...], int | None] = {}
 
     def add(self, hypothesis: Hypothesis, outputs: Sequence[Any]) -> bool:
         """Keep a hypothesis if its behaviour is new; the earliest of a class is kept."""
@@ -44,29 +43,20 @@ class BehaviourTable(Generic[Hypothesis]):
         self._seen.add(vector)
         self.hypotheses.append(hypothesis)
         self.vectors.append(vector)
-        self._questions.clear()
         return True
 
-    def _question(self, remaining: tuple[int, ...]) -> int | None:
-        """The position leaving the smallest largest group, or None if none splits them."""
-        if remaining not in self._questions:
-            best, smallest = None, len(remaining)
-            for position in range(len(self.pool)):
-                largest = max(Counter(self.vectors[index][position] for index in remaining).values())
-                if largest < smallest:
-                    best, smallest = position, largest
-            self._questions[remaining] = best
-        return self._questions[remaining]
+    def narrow(self, cases: Sequence[tuple[Any, Any]], run: Callable[[Hypothesis, Any], Any]) -> Narrowing[Hypothesis]:
+        """Read a goal's labelled cases in turn until at most one class agrees.
 
-    def identify(self, label: Callable[[int], Any]) -> Identification[Hypothesis]:
-        """Ask for labels at chosen pool positions until at most one class remains."""
-        remaining = tuple(range(len(self.vectors)))
-        asked: list[int] = []
-        while len(remaining) > 1:
-            position = self._question(remaining)
-            if position is None:
+        This needs no chosen inputs. A failing ``run`` should return a value no label equals.
+        """
+        remaining = list(self.hypotheses)
+        labels = evaluations = 0
+        for item, label in cases:
+            if len(remaining) <= 1 and labels:
                 break
-            answer = self.key(label(position))
-            asked.append(position)
-            remaining = tuple(index for index in remaining if self.vectors[index][position] == answer)
-        return Identification(self.hypotheses[remaining[0]] if remaining else None, tuple(asked))
+            answer = self.key(label)
+            labels += 1
+            evaluations += len(remaining)
+            remaining = [hypothesis for hypothesis in remaining if self.key(run(hypothesis, item)) == answer]
+        return Narrowing(remaining[0] if remaining else None, labels, evaluations)

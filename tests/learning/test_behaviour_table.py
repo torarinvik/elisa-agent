@@ -14,21 +14,11 @@ def test_duplicate_behaviour_keeps_the_earliest() -> None:
     assert built.hypotheses == ["a", "b", "c", "d"]
 
 
-def test_each_class_is_identified_with_few_labels() -> None:
-    built = table()
-    for name, vector in zip(built.hypotheses, built.vectors, strict=True):
-        found = built.identify(lambda position, known=vector: known[position])
-        assert found.hypothesis == name
-        assert len(found.asked) <= 2
-
-
-def test_goal_outside_the_table_is_refused_from_labels() -> None:
-    found = table().identify(lambda position: 9)
-    assert found.hypothesis is None
-    assert len(found.asked) == 1
-
-
-def test_single_class_needs_no_label_and_still_only_proposes() -> None:
-    built: BehaviourTable[str] = BehaviourTable((0,), lambda value: value)
-    built.add("only", (5,))
-    assert built.identify(lambda position: 9) .hypothesis == "only"
+def test_narrowing_uses_a_goals_own_cases_and_stops_early() -> None:
+    built: BehaviourTable[int] = BehaviourTable((0,), lambda value: value)
+    for factor in (1, 2, 3):
+        built.add(factor, (factor,))
+    found = built.narrow([(1, 2), (5, 10), (6, 12)], lambda factor, item: factor * item)
+    assert (found.hypothesis, found.labels, found.evaluations) == (2, 1, 3)
+    missing = built.narrow([(1, 9), (5, 10)], lambda factor, item: factor * item)
+    assert (missing.hypothesis, missing.labels, missing.evaluations) == (None, 1, 3)

@@ -75,3 +75,19 @@ An open-ended sequence of requests must reserve budget, so its first decision re
 need not. Beyond this floor, fewer labels require a different claim: a larger `ε`, a larger `α`, or a statement about a population
 of candidates, such as the expected share of false admissions, which depends on how wrong candidates' errors are distributed. Near-tolerance
 candidates are the ones such a statement must weigh, because they alone survive long tests.
+
+## 50.9 Tables without queries
+
+Inputs need no labels, so a table can be built on an unlabelled pool even when a goal cannot answer chosen inputs. A goal then has only its own
+labelled cases, on inputs outside the pool, so each remaining class's hypothesis must be run on them. Read cases in turn, keep the classes that agree, and stop when at most one
+remains.
+
+**Theorem 50.6 (narrowing cost).** If at most `r` classes remain after each case and the first case tests all `M`, narrowing over `s + 1` cases costs at most
+`M + s * r` evaluations, for one goal, and it needs at most `s + 1` labels.
+
+With `C` candidates, `N` goals and pool `P`, the total is about `C * (1 + P) + N * M`, in place of `N * C * (1 + s)`. It saves whenever `M` is far below `C`.
+The table's classes are distinct only on the pool, so a hypothesis merged there may be the one a goal's inputs needed. This loss falls as
+the pool grows and needs the pool to resemble the goals' inputs. A single goal shares with nothing, so this does not help a task such as a lone
+translation problem, where `N = 1`; sharing there would need many subgoals of one contract.
+
+Measured, narrowing lost nothing to chosen inputs on these families (see the diary), so chosen inputs are not needed for sharing where goals share a contract. Sections 50.3 and 50.4 remain the theory of what chosen inputs would add.

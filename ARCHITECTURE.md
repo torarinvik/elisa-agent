@@ -521,7 +521,7 @@ correctness of interactions between mechanisms.
 | [45.8](theory/foundations/45-search-priors.md) | `ranked_acquisition_sound` | `Reliability/SampledGate` |
 | [49.1–49.3](theory/foundations/49-search-allocation.md) | `capped_work_monotone`, `uniform_cap_minimax`, `underfunded_goal_unsolved`, `doubling_rounds`, `doubling_competitive` | `Planning/SearchAllocation` |
 | [49.4–49.9](theory/foundations/49-search-allocation.md) | `marginal_value`, `parallel_within_sum`, `predictor_saving`, `shared_enumeration`, `shared_search_dominates`, `labels_log_reach` | `Planning/SearchAllocation` |
-| [50.1–50.3](theory/foundations/50-shared-tables.md) | `staged_evaluation`, `identification_lower_bound`, `failure_certificate` | `Planning/SharedTable` |
+| [50.1–50.3, 50.6](theory/foundations/50-shared-tables.md) | `staged_evaluation`, `identification_lower_bound`, `failure_certificate`, `narrowing_cost` | `Planning/SharedTable` |
 | [50.4–50.5](theory/foundations/50-shared-tables.md) | `zeroLoss_miss_exact`, `known_decisions_total` | `Reliability/SampledGate` |
 
 ### Additional theorem declarations

@@ -1,3 +1,4 @@
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.BigOperators
@@ -27,5 +28,16 @@ theorem failure_certificate {M I V : Type} (remaining : M → Prop) (output : M 
     ¬ ∃ m, remaining m ∧ ∀ i, output m i = goal i := by
   rintro ⟨m, member, fits⟩
   exact differs m member (fits j)
+
+/-- Theorem 50.6: `M` tests on the first case and at most `r` on each of `s` others. -/
+theorem narrowing_cost {M r s : ℕ} (count : ℕ → ℕ) (first : count 0 ≤ M)
+    (later : ∀ i, count (i + 1) ≤ r) :
+    ∑ i ∈ Finset.range (s + 1), count i ≤ M + s * r := by
+  induction s with
+  | zero => simpa using first
+  | succ n ih =>
+    rw [Finset.sum_range_succ]
+    have := later n
+    nlinarith
 
 end NCA
