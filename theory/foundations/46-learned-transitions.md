@@ -122,4 +122,15 @@ family. Realizability and correct observations remain assumptions, and the
 rule does not promise that the most informative input is reachable or best for
 a particular goal.
 
+## 46.10 Reachability and observation access
+
+When refinement preserves every previously supported edge, it also preserves
+every plan using those edges. Newly supported edges can connect previously
+disconnected paths. This conclusion assumes unchanged transition semantics,
+faithful state identities and enough search budget: with finite budgets a
+larger graph may change expansion order and lose a previously found plan.
+Informative input selection also assumes an environment can be reset or
+otherwise brought to the selected state; arbitrary-state access is not a
+consequence of the model or of this result.
+
 [Theory index](../../THEORY.md)
