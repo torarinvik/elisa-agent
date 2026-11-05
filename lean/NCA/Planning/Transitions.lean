@@ -26,6 +26,31 @@ theorem supported_rollout {S A : Type} (model : S → A → Option S) (step : S 
         simpa [modelRollout, edge] using h
       simpa [actualRollout, faithful s a next edge] using ih next t tail
 
+def transitionConsistent {S A : Type} [DecidableEq S]
+    (observed : List (S × A × S)) (predict : S → A → S) : Bool :=
+  observed.all (fun edge => decide (predict edge.1 edge.2.1 = edge.2.2))
+
+/-- Correct observations and finite-family unanimity justify an adaptively chosen rollout. -/
+theorem version_rollout_sound {S A : Type} [DecidableEq S]
+    (family : List (S → A → S)) (truth : S → A → S)
+    (observed : List (S × A × S)) (member : truth ∈ family)
+    (correct : ∀ edge ∈ observed, truth edge.1 edge.2.1 = edge.2.2)
+    (model : S → A → Option S)
+    (unanimous : ∀ h ∈ family.filter (transitionConsistent observed),
+      ∀ s a next, model s a = some next → h s a = next)
+    (actions : List A) (state terminal : S)
+    (returned : modelRollout model state actions = some terminal) :
+    actualRollout truth state actions = terminal := by
+  have retained : truth ∈ family.filter (transitionConsistent observed) := by
+    simp only [List.mem_filter]
+    refine ⟨member, ?_⟩
+    unfold transitionConsistent
+    apply List.all_eq_true.mpr
+    intro edge hedge
+    simp [correct edge hedge]
+  exact supported_rollout model truth (unanimous truth retained) actions state terminal returned
+
+#print axioms version_rollout_sound
 #print axioms supported_rollout
 
 end NCA

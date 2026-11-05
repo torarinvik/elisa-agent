@@ -41,7 +41,7 @@ Marginal one-step IID accuracy does not certify an adaptively selected plan:
 search may select the model's errors. Conditional error bounds e_i valid at
 every reached history give an any-error bound of sum e_i by the union bound;
 marginal bounds without a shift or conditional guarantee cannot substitute.
-The first control instead checks complete finite deterministic support, then
+The first control instead checks observed finite deterministic support, then
 measures new planning episodes using only that learned model. Whole executed
 episode success can separately use the existing fresh admission gate, covering
 only its declared episode distribution. Model changes require new policy
@@ -66,5 +66,29 @@ transition learner must state that restriction and be tested on withheld
 state-action pairs, with whole executed plans checked separately. This
 identifiability argument is analytic; the formal theorem above establishes
 supported rollout only, not a representation-learning or exploration rate.
+
+## 46.6 Generalization through an explicit hypothesis family
+
+Let H be a finite supplied family of deterministic transition predictors.
+After observing D, retain V = {h in H : h agrees with every observation}.
+Predict at x only if V is nonempty and every retained h returns the same
+answer y. Refusals or disagreements cause refusal, never an arbitrary tie.
+Candidate enumeration must finish: truncating H can silently remove the truth.
+
+**Theorem 46.2 (realizable unanimous prediction).** Suppose observations are
+correct and the true transition belongs to H with the declared execution
+budget. Filtering retains it. Every unanimous prediction therefore agrees
+with it, including on unobserved inputs. Applying Theorem 46.1 gives correct
+supported plans. This is a conditional generalization result, not a claim
+that the chosen H contains an arbitrary environment or that agreement makes
+an unrealizable family correct. Differential tests must include a missing-truth
+family to expose this limitation. No label-efficiency rate follows.
+
+A first external proposer enumerates bounded tuple-field copy constructions,
+using the existing expression-to-route compiler and a separate family for each
+observed action identifier. This is a declared structural bias; the core knows
+neither tuple fields nor action meanings. The experiment holds out state-action
+pairs, not just plans over remembered edges. All output observations and
+execution interactions are counted independently of hypothesis evaluations.
 
 [Theory index](../../THEORY.md)
