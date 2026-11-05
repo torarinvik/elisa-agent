@@ -237,4 +237,12 @@ an evaluation capability, not a skill acquired by the agent. Admission is
 conditional on the gate's sampling and fixed-policy assumptions and says
 nothing about other environments or longer distances.
 
+## 46.20 Refusal during whole-policy admission
+
+A route that cannot resolve a requested subproblem returns no vote. Like an
+exhausted route, it remains in the majority denominator; a single-route gate
+therefore scores that case as failure. This rule applies to explicit runtime
+refusals, not arbitrary implementation exceptions. It changes no confidence
+allocation and does not turn untested candidates into admitted policies.
+
 [Theory index](../../THEORY.md)

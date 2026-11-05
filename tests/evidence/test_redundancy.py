@@ -100,3 +100,24 @@ def test_simulated_independent_routes_stay_within_the_bound() -> None:
         answer: Any = vote(routes, (Message("s", 0, "input"),), 10).answer
         failures += answer != 2
     assert failures / trials <= vote_risk([risk] * 5)
+
+
+def test_unresolved_requests_abstain_and_fail_the_fresh_gate() -> None:
+    from nca.planner import Apply, Given
+    from nca.retention.ensembles import EnsembleSearch
+    from nca.runtime import UnresolvedRequest
+
+    class Refusing:
+        manifest = Manifest("refusal", "1", Contract(("s",), "g"), effects=frozenset())
+        def invoke(self, value: int) -> int:
+            raise UnresolvedRequest("unsupported")
+
+    refused = Apply(Refusing(), (Given("s"),))
+    good = Apply(Shift("good", "s", "g", delta=2), (Given("s"),))
+    inputs = (Message("s", 5, "input"),)
+    assert vote((good, refused), inputs, 10).agreeing == 0
+    assert vote((good, good, refused), inputs, 10).agreeing == 2
+    gate = EnsembleSearch(counts=(1,), tolerance=.1, confidence=.05, budget=10)
+    assert gate.revise(Contract(("s",), "g"), lambda cap, failures: (refused,),
+                       lambda count: [(inputs, 7)] * count) is None
+    assert gate.labels > 0
