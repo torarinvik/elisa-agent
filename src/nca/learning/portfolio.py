@@ -12,9 +12,11 @@ from typing import Any
 
 from nca.abi import Contract, Module
 from nca.effects import invoke_scoped
+from nca.runtime import UnresolvedRequest
 
 Learner = Callable[[Contract, Sequence[Hashable], Sequence[Hashable]], Module | None]
-FAILURES = (ValueError, TypeError, ArithmeticError, IndexError, KeyError, AttributeError, RecursionError)
+FAILURES = (UnresolvedRequest, ValueError, TypeError, ArithmeticError, IndexError, KeyError,
+            AttributeError, RecursionError)
 
 
 def _scored(module: Module, contract: Contract, keys: Sequence[Any], labels: Sequence[Any],
@@ -33,8 +35,9 @@ def _scored(module: Module, contract: Contract, keys: Sequence[Any], labels: Seq
 class Portfolio:
     """A fitter over named learners; every fifth example forms the selection part.
 
-    A learner that refuses or raises a declared failure is skipped. Earlier
-    learners win ties. ``last`` records each learner's selection score.
+    A learner that refuses or raises a declared failure is skipped; a refusal
+    on a selection case scores zero for that case. Resource exhaustion
+    propagates. Earlier learners win ties. ``last`` records selection scores.
     """
 
     learners: Sequence[tuple[str, Learner]]

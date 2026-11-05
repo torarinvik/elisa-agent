@@ -5,6 +5,8 @@ from typing import Any
 
 from nca.abi import Contract, Manifest, Module
 from nca.learning.portfolio import Portfolio
+from nca.runtime import BudgetExceeded, UnresolvedRequest
+import pytest
 
 CONTRACT = Contract(("input",), "output")
 
@@ -42,3 +44,23 @@ def test_failing_learners_are_skipped_and_all_zero_scores_refuse() -> None:
     chosen = Portfolio((("broken", broken), ("wrong", constantly(lambda value: 0))))
     assert chosen(CONTRACT, [1, 2, 3, 4, 5, 6], [2, 3, 4, 5, 6, 7]) is None
     assert chosen.chosen is None and chosen.last == {"wrong": 0}
+
+
+def test_refusals_do_not_abort_other_learners_or_hide_budget_exhaustion() -> None:
+    def refuse(_: Any) -> Any:
+        raise UnresolvedRequest("cannot answer")
+
+    def no_candidate(contract: Contract, keys: Sequence[Hashable], labels: Sequence[Hashable]) -> Module:
+        raise UnresolvedRequest("cannot fit")
+
+    selection = Portfolio((("no-candidate", no_candidate), ("refuses", constantly(refuse)),
+                           ("answers", constantly(lambda value: value + 1))))
+    keys = list(range(10))
+    result = selection(CONTRACT, keys, [key + 1 for key in keys])
+    assert result is not None and selection.chosen == "answers"
+    assert selection.last == {"refuses": 0, "answers": 2}
+
+    def exhausted(_: Any) -> Any:
+        raise BudgetExceeded("selection work exhausted")
+    with pytest.raises(BudgetExceeded):
+        Portfolio((("limited", constantly(exhausted)),))(CONTRACT, keys, keys)
