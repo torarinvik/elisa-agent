@@ -67,3 +67,26 @@ def test_disagreement_choice_minimizes_worst_survivors_without_mutation() -> Non
     assert len(model.refine([(1, 1)]).hypotheses) == 2
     with pytest.raises(ValueError):
         model.choose_disagreement((0, 1), max_inputs=1)
+
+
+def test_refinement_preserves_complete_search_reach_for_all_two_state_worlds() -> None:
+    states, actions = ('p', 'q'), ('a', 'b')
+    inputs = tuple(product(states, actions))
+    tables = [dict(zip(inputs, outputs, strict=True)) for outputs in product(states, repeat=len(inputs))]
+    for truth in tables:
+        family = [lambda pair, table=table: table[pair] for table in tables]
+        for first, second in product(inputs, repeat=2):
+            original = VersionSpace(family, [(first, truth[first])], max_candidates=len(family))
+            refined = original.refine([(second, truth[second])])
+            for initial, goal in product(states, repeat=2):
+                def plan(model: VersionSpace) -> tuple[str, ...] | None:
+                    return plan_actions(initial, lambda state: state == goal, actions,
+                        lambda state, action: model.predict((state, action)), key=lambda state: state,
+                        max_calls=4, max_states=2)
+                before, after = plan(original), plan(refined)
+                if before is not None:
+                    assert after is not None
+                    actual = initial
+                    for action in after:
+                        actual = truth[actual, action]
+                    assert actual == goal

@@ -50,6 +50,23 @@ theorem version_rollout_sound {S A : Type} [DecidableEq S]
     simp [correct edge hedge]
   exact supported_rollout model truth (unanimous truth retained) actions state terminal returned
 
+/-- Preserving supported edges preserves each finite supported rollout. -/
+theorem refinement_preserves_rollout {S A : Type} (old refined : S → A → Option S)
+    (preserves : ∀ s a t, old s a = some t → refined s a = some t)
+    (actions : List A) : ∀ s t, modelRollout old s actions = some t →
+      modelRollout refined s actions = some t := by
+  induction actions with
+  | nil => intro s t h; simpa [modelRollout] using h
+  | cons action rest ih =>
+    intro s t h
+    cases edge : old s action with
+    | none => simp [modelRollout, edge] at h
+    | some next =>
+      have tail : modelRollout old next rest = some t := by
+        simpa [modelRollout, edge] using h
+      have newer : refined s action = some next := preserves s action next edge
+      simpa [modelRollout, newer] using ih next t tail
+
 /-- No finite action sequence leaves an absorbing environment state. -/
 theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
     (absorbing : ∀ action, step state action = state) (actions : List A) :
@@ -58,6 +75,7 @@ theorem absorbing_rollout {S A : Type} (step : S → A → S) (state : S)
   | nil => rfl
   | cons action rest ih => simpa [actualRollout, absorbing action] using ih
 
+#print axioms refinement_preserves_rollout
 #print axioms absorbing_rollout
 #print axioms version_rollout_sound
 #print axioms supported_rollout

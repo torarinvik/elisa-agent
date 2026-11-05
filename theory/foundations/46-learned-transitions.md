@@ -317,4 +317,128 @@ The independent audit is descriptive evidence, not a replacement for that
 allocation. A finite family of similar development environments measures
 robustness within that family, not general transfer to arbitrary dynamics.
 
+## 46.27 Sample size and what the gate actually guarantees
+
+Fix the complete exploration history and one policy. Let its episode failure
+probability under the declared fixed-world distribution be q. If fresh episode
+outcomes are conditionally IID, the probability of observing zero failures in m
+cases is (1 − q)^m. For q > ε this is at most exp(−εm). Therefore a zero-loss
+gate with m ≥ ln(1/δ)/ε has false-admission probability at most δ for that
+policy. This is a frequentist bound on the procedure, not the posterior
+probability that an admitted policy is correct. The rule treats refusal as a
+failure. Finite-precision implementation assumptions remain those of
+`required_cases` and the existing admission theorem.
+
+For six worlds and two fixed arms, choosing total α=.05 and passing α/12 to
+each independent gate bounds the family probability by α via §46.26. The
+current implementation also spends its first-decision share 1/2, so each
+single-stage gate uses at most α/24 and requires 124 zero-loss episodes for
+ε=.05. It may reject early. This calculation does not require independent
+worlds or independent arms, but each gate's fresh cases must be IID conditional
+on both policies' fixed pre-gate histories. Paired gate draws are valid only if
+both candidates are frozen before either candidate's result is inspected.
+
+## 46.28 Refinement preserves supported plans under explicit conditions
+
+Suppose the refined model preserves every previously supported prediction,
+including its output, and neither model changes while planning. By induction
+on an action sequence, every rollout supported by the original model has the
+same result under the refinement (`refinement_preserves_rollout`). With a
+finite model graph, faithful state identities and enough work to complete
+breadth-first search in both models (§46.22), every originally reachable goal
+remains reachable. This is a path-existence and complete-search statement: it
+does not guarantee that an arbitrary work-limited scheduler, a changed world,
+or a gate using different samples has no losses. Correct observations and a
+realizable hypothesis family provide sufficient conditions for unanimity to be
+preserved, but those conditions must be checked or stated separately.
+
+## 46.29 What six related worlds can and cannot show
+
+The six ordered pairs of distinct three-field transpositions are an exhaustive
+finite development family, not six independent draws from a population of
+arbitrary worlds. Per-world paired gains and losses describe this fixed family;
+a numerical sign test interpreted as a population claim additionally needs an
+appropriate randomization or sampling model, which this enumeration does not
+supply. Shared gate cases allow direct comparison of two fixed policies on the
+same episodes, but shared cases do not make worlds independent. The 64-case
+audit per admitted policy estimates success only for that world's declared
+goal distribution; it does not certify unseen action semantics, sensory input,
+or cross-world transfer. A broader claim needs a separately sampled or
+external family and a predeclared sampling and testing protocol.
+
+## 46.30 Information gained per reachable observation
+
+For a nonempty version space V of size n, a candidate observation partitions V
+by predicted outcome. The worst-case survivors are the largest partition, so
+§46.9's minimax rule is optimal for that one observation among the supplied
+reachable candidates. It does not optimize the number of newly reachable goals
+or future navigation cost. If every selected observation has largest partition
+at most ceil(n/2), truthful observations retain the true hypothesis, and the
+predictors are fixed, induction yields at most ceil(n₀/2^k) survivors after k
+observations. Thus ceil(log₂ n₀) observations suffice to reach one survivor
+under this strong balanced-split assumption. It need not hold: reachable
+candidates can all be unanimous, or all available splits can be unbalanced.
+The conclusion concerns identification within the supplied family, not whether
+the true dynamics are in that family.
+
+Ranking C supplied inputs against V predictors makes C·V predictor calls when
+all calls complete. With equality-based grouping, it can additionally require
+quadratically many output comparisons per input. Finding the candidate inputs
+by independent complete breadth-first searches can cost up to C·N·K model
+calls for N states and K actions, before ranking or taking an observation.
+A selected observation also incurs its navigation path, one actual action and
+any reset needed to obtain the start. These are different resources from gate
+and audit labels. The bound assumes finite caller-supplied C, N and K; it is
+not a wall-clock or physical-interaction guarantee.
+
+## 46.31 Interpreting a perfect finite audit
+
+For a fixed admitted policy, suppose an independent audit draws m IID episodes
+from its declared operating distribution and observes m successes. The exact
+one-sided lower confidence bound on its success probability at level 1 − γ is
+γ^(1/m): a policy with success probability below that bound would produce m
+successes with probability below γ. Thus 64/64 successes give a one-sided
+95% lower bound of about .954, not proof of perfect accuracy. For twelve
+preallocated audit claims sharing total γ=.05, a union-bound allocation of
+γ/12 gives an individual lower bound of about .918. These audit intervals are
+additional descriptive claims; the preregistered admission gate has its own
+confidence allocation. They assume the fixed policy and IID sampling from the
+same declared distribution; neither interval generalizes to new worlds.
+
+## 46.32 Local information gain is not a global exploration policy
+
+The implemented selector minimizes the largest surviving partition only
+within a supplied set of states for one action. The current simulated explorer
+tries actions in their supplied order and stops at the first action with a
+reachable disagreement; it does not compare information gain across actions.
+For example, with four consistent hypotheses per action, a reachable first
+action might split its family 3:1 while a later action splits its family 2:2.
+Assuming independent combinations of the two action families, the worst-case
+joint family sizes after those observations are 12 and 8 respectively. The
+first-available rule chooses the former despite its weaker information bound.
+A smaller version space also need not yield more goal-reaching plans: the
+eliminated hypotheses may disagree only on states unrelated to the goals.
+Information gain, navigation cost and task reach are distinct objectives.
+
+Comparing exploration with a passive model measures the combined effect of
+extra evidence and the selection procedure at its additional interaction cost.
+It does not establish that disagreement-based selection is better than another
+strategy given the same number of observations, resets and navigation actions.
+Such an attribution requires a separately preregistered, label- and
+interaction-matched comparison and fresh evaluation. It is not supplied by a
+paired passive/active gate alone.
+
+## 46.33 What exploratory actions assume
+
+A selected observation action is taken precisely where the retained hypotheses
+do not all predict the same successor. Supported-rollout correctness therefore
+does not predict that action's outcome. The environment must actually allow
+the action and return a usable observation; a reset or later episode is a
+separate supplied capability. In an irreversible or terminating environment,
+one observation may remove future options. The finite toy control assumes
+stationary deterministic transitions, complete observations, sampled resets
+and a supplied finite candidate-state universe; its gate for the subsequent
+frozen policy does not certify the exploration procedure or its interaction
+cost in a different environment.
+
 [Theory index](../../THEORY.md)
