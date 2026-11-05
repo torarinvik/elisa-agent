@@ -51,3 +51,10 @@ class VersionSpace(Generic[X, Y]):
             if predict(inputs) != answer:
                 raise UnresolvedRequest("consistent hypotheses disagree")
         return answer
+
+    def refine(self, observations: Sequence[tuple[X, Y]]) -> "VersionSpace[X, Y]":
+        """Return a new version filtered by additional observations.
+
+        The existing version remains unchanged if fitting fails.
+        """
+        return VersionSpace(self.hypotheses, observations, max_candidates=len(self.hypotheses))

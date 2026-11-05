@@ -42,3 +42,17 @@ def test_missing_truth_can_be_unanimously_wrong_and_is_not_certification() -> No
         raise BudgetExceeded("unknown fit outcome")
     with pytest.raises(BudgetExceeded):
         VersionSpace([expensive], [("observed", "p")], max_candidates=1)
+
+
+def test_refinement_preserves_prior_agreement_and_resolves_disagreement() -> None:
+    candidates = [lambda x: x, lambda x: "p"]
+    prior = VersionSpace(candidates, [("p", "p")], max_candidates=2)
+    with pytest.raises(UnresolvedRequest):
+        prior.predict("q")
+    refined = prior.refine([("q", "q")])
+    assert prior.predict("p") == refined.predict("p") == "p"
+    assert refined.predict("q") == "q"
+    assert len(prior.hypotheses) == 2 and len(refined.hypotheses) == 1
+    with pytest.raises(ValueError):
+        refined.refine([("p", "other")])
+    assert refined.predict("q") == "q"

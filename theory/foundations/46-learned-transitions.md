@@ -100,4 +100,14 @@ at every state-action pair encountered. More diverse observations can eliminate
 remaining consistent hypotheses, but improve coverage only under the stated
 realizability assumption; they do not certify an incorrect hypothesis family.
 
+## 46.8 Refining a version space
+
+Adding correct observations filters the existing consistent family to a
+subset. If the true predictor remains in that subset, any previously
+unanimous prediction remains unanimous with the same answer, while some
+previous disagreements may disappear. Thus additional observations cannot
+remove an existing supported edge under realizability and deterministic,
+unchanged predictors. Which observation expands reach most is a separate
+search problem; no reduction per observation is guaranteed.
+
 [Theory index](../../THEORY.md)
