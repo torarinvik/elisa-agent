@@ -291,4 +291,17 @@ goal-discovery lookups, gate and audit labels, and policy execution are counted
 separately. This separation controls evaluation reuse; it does not prove that
 the hypothesis family is realizable or that exploration terminates successfully.
 
+## 46.25 What a restricted deep-goal gate establishes
+
+After adaptive exploration, a successful whole-policy gate can cover a
+predeclared distribution of goals with minimum path length at least two in a
+particular fixed world. The guarantee remains conditional on fresh IID gate
+sampling, the frozen policy and faithful episode execution. Supplying the
+candidate-state universe, reset distribution and a host-filtered goal set are
+explicit environment capabilities; the gate does not establish that an agent
+can discover those capabilities, transfer its learned model to another world,
+or succeed for goals outside the declared distribution. A finite independent
+audit measures that same distribution and does not strengthen the theorem to
+universal correctness.
+
 [Theory index](../../THEORY.md)
