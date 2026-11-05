@@ -509,6 +509,9 @@ correctness of interactions between mechanisms.
 | [43.3](theory/foundations/43-episodic-memory.md) | `meanSignal_unit`, `dependentStability_unit`, `dependentStability_mono` | `Reliability/Plasticity` |
 | [43.4](theory/foundations/43-episodic-memory.md) | `published_only_if_admitted`, `allocate_skips_drawn` | `Reliability/SampledGate` |
 | [43.5](theory/foundations/43-episodic-memory.md) | `evict_keeps_protected`, `withdraw_fresh` | `Reliability/SampledGate` |
+| [44.1–44.4](theory/foundations/44-search-failure.md) | `searchFound_mono`, `inexpressible_never_found`, `exhaustive_failure_bounds_size`, `failure_silent_on_unreached` | `Planning/SearchFailure` |
+| [44.5–44.10](theory/foundations/44-search-failure.md) | `budget_factor_buys_size`, `deepening_overhead`, `unused_entry_costs`, `reuse_pays`, `decomposition_adds`, `guidedCost_closed` | `Planning/SearchFailure` |
+| [44.11–44.12](theory/foundations/44-search-failure.md) | `share_suffices`, `sharing_only_redistributes` | `Planning/SearchFailure` |
 
 ### Additional theorem declarations
 

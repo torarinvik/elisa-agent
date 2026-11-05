@@ -70,3 +70,4 @@ link for its definitions, arguments, and results.
 - [41. Verification](theory/reliability/41-verification.md)
 - [42. Working state and bounded streams](theory/foundations/42-working-state.md)
 - [43. Durable typed episodic records](theory/foundations/43-episodic-memory.md)
+- [44. What failed search establishes](theory/foundations/44-search-failure.md)
