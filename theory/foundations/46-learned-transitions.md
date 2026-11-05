@@ -637,4 +637,16 @@ but does not predict its advantage over the baseline or any change in certified
 goal service. Start selection, possible worlds, action order and case streams are
 part of the experimental distribution and must be recorded.
 
+## 46.44 Model size is not goal value
+
+The matched finite control in §46.43 gives concrete examples: reducing the
+joint version need not increase goal coverage, and two versions of the same
+size can support different numbers of goals. Which state-action predictions
+become unanimous matters to the planner, not just how many models survive.
+The strict-shrink theorem therefore justifies counting information acquired; it
+does not justify choosing the action by survivor count as an optimal method for
+the user's goals. A goal-directed comparison needs an explicit distribution of
+goals, reachable actions and interaction costs, with evidence separated from
+the data used to choose the observation.
+
 [Theory index](../../THEORY.md)
