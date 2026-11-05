@@ -24,6 +24,15 @@ budgets are errors or refusals, never evidence of a unique correct hypothesis.
 
 ## 47.2 Operational assumptions and accounting
 
+The external structural transition library declares this product by
+construction, compiles individual field projections as ordinary routes and
+retains the original logical joint-family cap. Its supplied execution budget
+is checked by compiling and executing one representative original whole route
+on a training input; the current compiler gives all members the same route
+shape and invocation cost. Component execution counts are reported separately
+from logical candidates. This check depends on the compiler and runtime
+retaining that equal-cost property across members.
+
 The algebra establishes equality of results, not equality of evaluation order,
 side effects, exceptions, numerical values with non-equivalence equality, or
 intermediate runtime budgets. Predictors must be pure and total on the declared

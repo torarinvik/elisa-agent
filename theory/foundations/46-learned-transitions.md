@@ -514,9 +514,11 @@ calculation, as in §46.35. Every action-specific observation is counted.
 
 With d input fields and r output positions, allowing each output to copy any
 input produces d^r possible rules per action before filtering. The present
-implementation constructs these rules explicitly, so a user-supplied candidate
-budget can refuse even though a suitable rule exists. Increasing the budget
-alone is not a scalable solution: d=r=32 already gives 2^160 combinations.
+explicit joint-family implementation constructs these rules individually, so a
+user-supplied candidate budget can refuse even though a suitable rule exists.
+The declared-product implementation in §47 avoids constructing those joint
+rules; coupled families still require their joint constraints. Increasing the
+logical budget alone is not a scalable solution: d=r=32 already gives 2^160 combinations.
 This is an algorithmic representation limit of the current learner, not a
 measured CPU bottleneck or a reason to specialize the core to a task.
 
@@ -545,9 +547,8 @@ This exact reduction assumes the candidate class is the full Cartesian product,
 fields and outcomes are total and equality is faithful. Constraints coupling
 output positions, such as requiring a permutation, break the product assumption;
 a factorized result must not be used for such a restricted class without a
-separate proof. The existing implementation still enumerates complete rules;
-this section is a proved counting foundation for a future implementation, not
-a claim of measured scalability or new task service.
+separate proof. The declared-product implementation is specified in §47; this
+counting result is not by itself a measured scalability or task-service claim.
 
 ## 46.40 Coupled hypotheses cannot be silently factorized
 
@@ -561,9 +562,9 @@ Thus factoring an arbitrary coupled family by taking marginals can change both
 coverage and the disagreement score. Conversely, dropping combinations
 without justification can remove the true rule and make unanimity unsound.
 
-A future factored representation should therefore be constructed from an
-explicitly declared product family, not inferred from observed examples or
-assumed for arbitrary experts. For coupled or incomplete candidate families,
+A factored representation must therefore be constructed from an explicitly
+declared product family, not inferred from observed examples or assumed for
+arbitrary experts. For coupled or incomplete candidate families,
 retain their actual joint constraints or use the existing explicit version
 space. This boundary also applies when a task's semantic requirements couple
 fields, even if the runtime values happen to be tuples.

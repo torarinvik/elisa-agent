@@ -43,6 +43,11 @@ class VersionSpace(Generic[X, Y]):
         self.hypotheses = tuple(retained)
         self.prediction_evaluations = 0
 
+    @property
+    def hypothesis_count(self) -> int:
+        """Number of retained joint predictors, including duplicates."""
+        return len(self.hypotheses)
+
     def predict(self, inputs: X) -> Y:
         self.prediction_evaluations += 1
         answer = self.hypotheses[0](inputs)
