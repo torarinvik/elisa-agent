@@ -104,4 +104,24 @@ uncontradicted, unanimous candidate can still be wrong outside its supporting
 examples. The result does not identify the true transformation family or
 establish performance on an independent split.
 
+## 48.7 Comparing learned proposals on new partitions
+
+For two frozen proposals evaluated on the same cases, count a paired win when
+the new proposal is correct and the old one is not, and a loss in the reverse
+case. Their difference is exactly the change in the number of correct answers;
+ties include cases where both are wrong or both refuse. Report wrong answers
+and refusals separately, because an accuracy gain can coexist with additional
+wrong answers. The paired sign statistic under independent, exchangeable
+discordant cases has the binomial null described in §30; overlapping hash
+partitions of a previously inspected dataset are not independent fresh samples
+and do not by themselves justify a population significance claim.
+
+Distinct public partition seeds can nevertheless test whether a development
+improvement depends on a particular train/validation partition. Both versions
+must be fit on the same training part and evaluated on the same unseen input
+sentences, with the seed and source versions fixed in advance. Data used to
+develop the mechanism remain development data even if a new partition is
+chosen. Neither partition comparison replaces a fresh whole-expert gate or a
+test on an untouched external distribution.
+
 [Theory index](../../THEORY.md)
