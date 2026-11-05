@@ -90,6 +90,8 @@ library checkouts explicitly to the same command. Their READMEs describe this
 setup using developer-selected variables, not prescribed checkout paths.
 The current entry-point boundary is sufficient for discovery; a dedicated
 package-manager interface is future work.
+`benchmarks/check_packages.py --packages <directory>` installs the core and every
+checkout in that directory into a throwaway environment and runs all their tests.
 
 ## Layout
 
