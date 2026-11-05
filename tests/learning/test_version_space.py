@@ -116,3 +116,20 @@ def test_factorized_output_counts_match_enumerated_version_space() -> None:
         minimum = min(worst)
         expected = worst.index(minimum) if minimum < len(model.hypotheses) else None
         assert model.choose_disagreement(states, max_inputs=len(states)) == expected
+
+
+def test_marginalizing_a_coupled_family_can_create_false_refusal() -> None:
+    from collections.abc import Callable
+
+    def rule(first: int, second: int) -> Callable[[tuple[str, ...]], tuple[str, str]]:
+        return lambda state: (state[first], state[second])
+
+    training = (('p', 'p', 'p', 'q'), ('p', 'p'))
+    coupled = VersionSpace((rule(0, 2), rule(1, 3)), (training,), max_candidates=2)
+    expanded = VersionSpace(tuple(rule(a, b) for a in (0, 1) for b in (2, 3)),
+                            (training,), max_candidates=4)
+    later = ('p', 'q', 'p', 'p')
+    assert len(coupled.hypotheses) == 1 and coupled.predict(later) == ('p', 'p')
+    assert len(expanded.hypotheses) == 2
+    with pytest.raises(UnresolvedRequest):
+        expanded.predict(later)

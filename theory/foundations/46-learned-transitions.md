@@ -549,4 +549,23 @@ separate proof. The existing implementation still enumerates complete rules;
 this section is a proved counting foundation for a future implementation, not
 a claim of measured scalability or new task service.
 
+## 46.40 Coupled hypotheses cannot be silently factorized
+
+The Cartesian assumption is substantive. Consider two allowed joint rules
+(a,c) and (b,d). On a training state with field values a=b=c=0 and d=1,
+the observed output (0,0) retains only (a,c). If the learner first replaces
+the joint family by the product of its per-output projections, it also admits
+(b,c); that extra rule fits the same observation. On a later state with a≠b,
+the exact version is unanimous while the expanded family disagrees and refuses.
+Thus factoring an arbitrary coupled family by taking marginals can change both
+coverage and the disagreement score. Conversely, dropping combinations
+without justification can remove the true rule and make unanimity unsound.
+
+A future factored representation should therefore be constructed from an
+explicitly declared product family, not inferred from observed examples or
+assumed for arbitrary experts. For coupled or incomplete candidate families,
+retain their actual joint constraints or use the existing explicit version
+space. This boundary also applies when a task's semantic requirements couple
+fields, even if the runtime values happen to be tuples.
+
 [Theory index](../../THEORY.md)
