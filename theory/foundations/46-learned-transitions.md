@@ -651,6 +651,8 @@ the data used to choose the observation.
 
 ## 46.45 Goal-directed observation under explicit uncertainty
 
+The selector derived here tied the simpler one on its control and was retired; coverage preservation remains valid.
+
 Let a finite, caller-supplied set of start/goal tasks be fixed before selecting
 an observation. Define model coverage as the number admitting a supported
 finite route. If refinement preserves every supported transition, every old

@@ -179,3 +179,16 @@ description in another language. Adding an entry for a common composite can redu
 budget reaches, and a goal that is short in its own language can be long over the library. A size reported in a
 task's own grammar therefore does not determine reach. Measured growth per size also need not be geometric
 at small sizes, where types admit few applications, so `m` must be taken from the sizes near the frontier.
+
+## 44.14 Learning when to stop
+
+A fixed limit spends its whole budget on every goal it cannot solve. Past searches can set the limit instead.
+
+**Theorem 44.18 (largest of exchangeable costs).** Among `n + 1` costs, at most one exceeds all the others. So for
+exchangeable solved goals, a new solved goal needs more than the largest of `n` earlier ones with probability at most
+`1 / (n + 1)`.
+
+A cap set from solved goals therefore loses a future solvable goal with a probability that falls as solves accumulate, while
+unsolvable goals stop at the cap. Costs are exchangeable only if goals arrive in random order; a curriculum sorted by difficulty
+violates this. A goal lost to the cap is never observed, which biases the cap downward, so a share of goals must keep the full
+limit (45.5). Search order may also depend on the limit, so measured costs at one limit only approximate those at another.

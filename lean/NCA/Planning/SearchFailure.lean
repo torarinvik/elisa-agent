@@ -152,4 +152,15 @@ theorem checks_scale_with_size {m q : ℝ} (hm : 0 ≤ m) (hq : 0 ≤ q) {s : Na
   rw [pow_mul, ← mul_pow]
   exact pow_le_one₀ (mul_nonneg hm (pow_nonneg hq s)) offset
 
+/-- At most one of finitely many costs strictly exceeds all the others. -/
+theorem strict_maximum_unique {ι : Type} [DecidableEq ι] (s : Finset ι) (cost : ι → Nat) :
+    (s.filter fun i => ∀ j ∈ s, j ≠ i → cost j < cost i).card ≤ 1 := by
+  refine Finset.card_le_one.mpr fun a ha b hb => ?_
+  by_contra different
+  obtain ⟨as, above⟩ := Finset.mem_filter.mp ha
+  obtain ⟨bs, below⟩ := Finset.mem_filter.mp hb
+  have left := above b bs (Ne.symm different)
+  have right := below a as different
+  omega
+
 end NCA

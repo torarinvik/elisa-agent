@@ -76,6 +76,8 @@ independent evaluation remain necessary.
 
 ## 48.5 Backing off input context
 
+The measured learner no longer uses backoff, which added wrong answers almost as fast as correct ones. The result below stands as mathematics.
+
 An insertion's immediate input neighbors define a narrow evidence group. A
 broader group can ignore either or both neighbors, while retaining the inserted
 block. Every narrow-group example also belongs to each corresponding broader
