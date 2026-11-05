@@ -73,3 +73,4 @@ link for its definitions, arguments, and results.
 - [44. What failed search establishes](theory/foundations/44-search-failure.md)
 - [45. Priors over a growing library](theory/foundations/45-search-priors.md)
 - [46. Learning consequences and planning](theory/foundations/46-learned-transitions.md)
+- [47. Product hypothesis implementation](theory/foundations/47-product-hypotheses.md)
