@@ -112,3 +112,13 @@ A label may determine labels for parts of a goal. If an output constructor is in
 **Theorem 50.8 (a product is its parts).** For `f x = (g x, h x)`, a pair of functions agrees with `f` on a case exactly when each agrees with its part.
 
 Narrowing parts separately tests about `M₁ + M₂` hypotheses, where the whole needs `M₁ * M₂`, so a table of depth `n` reaches pairs of depth `n` at nearly no added work. The checks on parts bind jointly, and agreement on training cases is only a proposal: a composed route still passes the gate as one candidate. A failure of either part means no composition exists in these tables.
+
+## 50.12 Tables for slots
+
+A higher-order route `h(x, b)` has a body `b` that runs in its own scope. Enumerating such routes whole multiplies body choices by every argument choice and pays for all bodies at every enclosing size. A body has its own contract, so it can have its own behaviour table on inputs from its scope. With `B` body classes and `A` argument choices, the enclosing table needs at most `A * B` routes. Bodies that agree on the body pool collapse into one.
+
+**Theorem 50.9 (behaviourally equal bodies fold equally).** If two steps agree on every state and item a fold visits, the folds agree.
+
+The condition is on states the fold reaches, which a pool only samples, so a merged pair can differ on a goal. Candidates still pass the gate. Measured on simple accumulations, whole enumeration costs 76,596 to reach sum on two inputs, and 3,000,000 does not reach counting above a threshold.
+
+Slot tables reach single-operation bodies cheaply but not the bodies these goals need. A count needs a guarded step, `if p (a) then s + 1 else s`, whose body is itself large when enumerated whole, so an eightfold budget adds nothing.

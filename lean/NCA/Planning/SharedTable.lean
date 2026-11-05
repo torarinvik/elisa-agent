@@ -49,4 +49,14 @@ theorem prefixes_refine {M V : Type} (vector : M → ℕ → V) {p q : ℕ} (le 
 theorem product_is_parts {X A B : Type} (g g' : X → A) (h h' : X → B) (x : X) :
     (g' x, h' x) = (g x, h x) ↔ g' x = g x ∧ h' x = h x := Prod.mk_inj
 
+/-- Theorem 50.9: steps agreeing on all visited states and items give equal folds. -/
+theorem equal_steps_fold_equally {S A : Type} (f g : S → A → S) (xs : List A) (s : S)
+    (agree : ∀ t, ∀ a ∈ xs, f t a = g t a) : xs.foldl f s = xs.foldl g s := by
+  induction xs generalizing s with
+  | nil => rfl
+  | cons a rest ih =>
+    simp only [List.foldl_cons]
+    rw [agree s a (by simp)]
+    exact ih _ (fun t b member => agree t b (by simp [member]))
+
 end NCA
