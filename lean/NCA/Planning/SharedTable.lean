@@ -40,4 +40,9 @@ theorem narrowing_cost {M r s : ℕ} (count : ℕ → ℕ) (first : count 0 ≤ 
     have := later n
     nlinarith
 
+/-- Theorem 50.7: equal longer prefixes have equal shorter ones. -/
+theorem prefixes_refine {M V : Type} (vector : M → ℕ → V) {p q : ℕ} (le : p ≤ q) {a b : M}
+    (same : ∀ i < q, vector a i = vector b i) : ∀ i < p, vector a i = vector b i :=
+  fun i below => same i (lt_of_lt_of_le below le)
+
 end NCA

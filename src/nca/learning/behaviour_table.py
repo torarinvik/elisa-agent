@@ -8,9 +8,18 @@ must still pass independent fresh cases before admission.
 
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
+from math import sqrt
 from typing import Any, Generic, TypeVar
 
 Hypothesis = TypeVar("Hypothesis")
+
+
+def budget_shares(goals: Sequence[int], budget: int) -> tuple[int, ...]:
+    """Divide work among contracts in proportion to the root of their goal counts (§50.10)."""
+    if budget < 1 or not goals or any(count < 1 for count in goals):
+        raise ValueError("a positive budget and positive goal counts are required")
+    total = sum(sqrt(count) for count in goals)
+    return tuple(max(1, int(budget * sqrt(count) / total)) for count in goals)
 
 
 @dataclass(frozen=True)

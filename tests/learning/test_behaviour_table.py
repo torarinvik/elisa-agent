@@ -1,4 +1,4 @@
-from nca.learning.behaviour_table import BehaviourTable
+from nca.learning.behaviour_table import BehaviourTable, budget_shares
 
 
 def table() -> BehaviourTable[str]:
@@ -22,3 +22,7 @@ def test_narrowing_uses_a_goals_own_cases_and_stops_early() -> None:
     assert (found.hypothesis, found.labels, found.evaluations) == (2, 1, 3)
     missing = built.narrow([(1, 9), (5, 10)], lambda factor, item: factor * item)
     assert (missing.hypothesis, missing.labels, missing.evaluations) == (None, 1, 3)
+
+
+def test_budget_shares_follow_the_root_of_goal_counts() -> None:
+    assert budget_shares((1, 4), 300) == (100, 200)

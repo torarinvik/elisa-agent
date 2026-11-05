@@ -91,3 +91,16 @@ the pool grows and needs the pool to resemble the goals' inputs. A single goal s
 translation problem, where `N = 1`; sharing there would need many subgoals of one contract.
 
 Measured, narrowing lost nothing to chosen inputs on these families (see the diary), so chosen inputs are not needed for sharing where goals share a contract. Sections 50.3 and 50.4 remain the theory of what chosen inputs would add.
+
+## 50.10 Setting the table from no labels
+
+**Work.** Enumeration can stop anywhere and keep what it found, so only a total budget is needed, and that is a declared resource and not a tuned value. By 45.2 and 45.3,
+with `n c` goals of contract `c`, shares proportional to `√(n c)` minimize `∑ n c / share c`, the expected cost when a goal's solution is equally likely at any depth of its contract's share.
+
+**Pool.** A small pool merges classes a goal may need to separate, and a large one costs more per candidate. Whether inputs still separate classes can be read from the table alone, without labels. Let `D p` be the number of distinct prefixes of length `p` among a table's vectors. `D` is monotone, so choose the smallest `p` with `D p = D (2 * p)`, where doubling the pool separates nothing further among those classes.
+
+**Theorem 50.7 (prefixes refine).** If `p ≤ q`, equal prefixes of length `q` have equal prefixes of length `p`, so `D p ≤ D q`.
+
+This compares only classes found so far. Early tables are small, so few inputs separate them, and the rule then picks too small a pool for later classes: distinctness among found classes says nothing about classes a small pool never retained. Label-free stopping of this form is therefore unreliable.
+
+**Pool from fit.** Without that signal, a goal's own cases can judge a pool. Enumerate at each candidate size on an equal part of the budget, count the goals for which a hypothesis agrees with all their training cases, and continue at the size that fits the most, the smaller on a tie. The count is a selection score from training labels, not evidence of correctness.
