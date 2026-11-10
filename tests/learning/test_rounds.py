@@ -1,6 +1,6 @@
 import pytest
 
-from nca.learning.rounds import Attempt, doubling_rounds
+from nca.learning.rounds import Attempt, doubling_rounds, first_of
 
 
 def costing(cost: int | None, dies_at: int | None = None) -> Attempt[str]:
@@ -34,3 +34,17 @@ def test_budget_is_never_exceeded_and_invalid_reports_are_refused() -> None:
         doubling_rounds([lambda limit: (None, limit + 1)], budget=4)
     with pytest.raises(ValueError, match="budget"):
         doubling_rounds([costing(1)], budget=-1)
+
+
+def test_first_of_passes_an_unused_share_to_the_attempt_still_running() -> None:
+    joined = first_of([costing(None, dies_at=3), costing(30)])
+    assert joined(8) == (None, 8)
+    assert joined(64) == ("done", 33)
+    both = first_of([costing(None), costing(None)])
+    assert both(9) == (None, 9) and both(20) == (None, 20)
+    assert first_of([costing(None, dies_at=2), costing(None, dies_at=1)])(50) == (None, 3)
+
+
+def test_first_of_inside_rounds_keeps_the_budget() -> None:
+    results, spent = doubling_rounds([first_of([costing(None, dies_at=3), costing(30)]), costing(None)], budget=200)
+    assert results[0] == "done" and results[1] is None and spent == 200

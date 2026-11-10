@@ -42,3 +42,23 @@ The learner assumes the target answers chosen sequences, including ones outside 
 for no answer. With labelled cases alone, random sequences share few prefixes, and state merging has little to merge on. A
 machine that agrees with every case and random check is still a proposal over an alphabet seen in training. Certification on
 fresh cases is separate and unchanged (20.22).
+
+## 51.5 Counters by differences
+
+Let answers lie in a commutative group, and let a machine also carry a register: each transition adds a gain fixed by the
+state and the symbol, and the register is the answer. Such a target can take unboundedly many values, so 51.3 puts it outside
+the finite class.
+
+**Theorem 51.3 (differences rebuild).** For any `f`, adding the one-step differences `f (p ++ [a]) - f p` along a sequence
+to `f []` gives `f` of the sequence.
+
+**Theorem 51.4 (differences follow the control).** For a register machine, the difference made by one more symbol is the
+gain of the control state reached and that symbol.
+
+So the difference of a counter is a function of a finite control, and if the gains take finitely many values it has a finite
+machine. The learner of 51.2 then applies to the difference unchanged, and 51.3 turns its machine into answers. Each
+difference costs at most two answers, and a prefix-closed table shares most of them.
+
+This needs an answer on the empty sequence and a group on the answers, which a domain supplies. A target whose gain depends
+on the register itself, such as a longest run or a distance from the origin, is outside the class. A finite machine can still
+approximate it on bounded sequences, and whether that is good enough is for the gate to decide.

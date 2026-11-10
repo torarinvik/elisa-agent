@@ -3,7 +3,8 @@ from random import Random
 import pytest
 
 from nca.abi import Contract
-from nca.learning.state_machine import MachineExpert, MachineLearner, Word, learn_machine
+from nca.learning.state_machine import (DifferenceLearner, MachineExpert, MachineLearner, SummingExpert, Word,
+                                        learn_machine)
 
 SEQUENCE, ANSWER = "seq[sha256:" + "0" * 64 + "]", "sha256:" + "1" * 64
 CONTRACT = Contract((SEQUENCE,), ANSWER)
@@ -67,3 +68,40 @@ def test_learner_proposes_an_expert_that_refuses_what_it_cannot_answer() -> None
     used = len(learner.answers)
     assert learner(CONTRACT, keys, [parity(word) for word in keys]) is not None and len(learner.answers) == used
     assert learner(Contract((SEQUENCE, SEQUENCE), ANSWER), keys, [0] * len(keys)) is None
+
+
+def count_twos(word: Word) -> int:
+    return sum(symbol == 2 for symbol in word)
+
+
+def ternary(count: int, seed: int = 0) -> list[Word]:
+    rng = Random(seed)
+    return [tuple(rng.randint(0, 2) for _ in range(rng.randint(1, 8))) for _ in range(count)]
+
+
+def test_a_count_is_learned_from_its_differences_and_holds_on_longer_sequences() -> None:
+    """``NCA.differences_rebuild`` and ``NCA.counter_differences_follow_control``."""
+    keys = ternary(16)
+    labels = [count_twos(word) for word in keys]
+    answers: dict[Word, object] = {}
+    finite = MachineLearner(count_twos, max_queries=2000, max_states=50, answers=answers)
+    assert finite(CONTRACT, keys, labels) is None
+    learner = DifferenceLearner(count_twos, max_queries=2000, max_states=50, answers=answers,
+                                add=lambda left, right: left + right, subtract=lambda left, right: left - right)
+    expert = learner(CONTRACT, keys, labels)
+    assert isinstance(expert, SummingExpert) and len(expert.machine.outputs) == 2
+    assert all(expert.invoke(word) == count_twos(word) for word in ternary(100, seed=3))
+    assert expert.invoke((2,) * 40) == 40
+    assert len(answers) == finite.paid + learner.paid and 0 < learner.paid < 400
+    with pytest.raises(ValueError, match="never saw"):
+        expert.invoke((2, 9))
+
+
+def test_answers_without_a_difference_are_declined_before_any_query() -> None:
+    def subtract(left: object, right: object) -> object:
+        raise TypeError
+
+    keys = ternary(8)
+    learner = DifferenceLearner(lambda word: word, max_queries=100, max_states=10, add=lambda left, right: left,
+                                subtract=subtract)
+    assert learner(CONTRACT, keys, list(keys)) is None and learner.paid == 0

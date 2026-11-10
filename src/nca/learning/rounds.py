@@ -5,7 +5,8 @@ cheap attempts finish before costly ones receive more, and no cap has to be chos
 the rounds stop where the budget stops (``NCA.capped_work_monotone``,
 ``NCA.uniform_cap_minimax``, ``NCA.doubling_rounds``). An attempt must resume at no
 cost, reporting its total spending so far. One that stops below its allowance has
-failed for a reason more budget cannot fix, and is dropped.
+failed for a reason more budget cannot fix, and is dropped. ``first_of`` joins
+several attempts at one goal into one attempt that shares its allowance among them.
 """
 
 from collections.abc import Callable, Sequence
@@ -37,3 +38,32 @@ def doubling_rounds(attempts: Sequence[Attempt[Result]], budget: int) -> tuple[l
             results[position], spent[position] = result, used
         cap *= 2
     return results, sum(spent)
+
+
+def first_of(attempts: Sequence[Attempt[Result]]) -> Attempt[Result]:
+    """One attempt from several at the same goal, returning the first result found.
+
+    Each allowance is divided equally among the attempts still running; one that
+    stops below its share is finished, and what it left passes to the others.
+    """
+    spent = [0] * len(attempts)
+    running = list(range(len(attempts)))
+
+    def attempt(allowed: int) -> tuple[Result | None, int]:
+        while running and sum(spent) < allowed:
+            order = list(running)
+            for index, position in enumerate(order):
+                share = -(-(allowed - sum(spent)) // (len(order) - index))
+                if share <= 0:
+                    continue
+                limit = spent[position] + share
+                result, used = attempts[position](limit)
+                if not spent[position] <= used <= limit:
+                    raise ValueError("an attempt must report spending between its last report and its limit")
+                spent[position] = used
+                if result is not None:
+                    return result, sum(spent)
+                if used < limit:
+                    running.remove(position)
+        return None, sum(spent)
+    return attempt
