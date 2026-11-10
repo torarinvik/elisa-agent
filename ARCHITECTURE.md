@@ -523,6 +523,7 @@ correctness of interactions between mechanisms.
 | [49.4–49.9](theory/foundations/49-search-allocation.md) | `marginal_value`, `parallel_within_sum`, `predictor_saving`, `shared_enumeration`, `shared_search_dominates`, `labels_log_reach` | `Planning/SearchAllocation` |
 | [50.1–50.3, 50.6–50.9](theory/foundations/50-shared-tables.md) | `staged_evaluation`, `identification_lower_bound`, `failure_certificate`, `narrowing_cost`, `prefixes_refine`, `product_is_parts`, `equal_steps_fold_equally` | `Planning/SharedTable` |
 | [50.4–50.5](theory/foundations/50-shared-tables.md) | `zeroLoss_miss_exact`, `known_decisions_total` | `Reliability/SampledGate` |
+| [51.1–51.2](theory/foundations/51-state-machines.md) | `distinguished_prefixes_need_states`, `distinct_answers_need_states` | `Planning/StateMachines` |
 
 ### Additional theorem declarations
 
@@ -700,3 +701,4 @@ with the commands above.
 | §§46.39–46.41, 47 product versions and outcome partitions | `NCA.training_version_eq`, `NCA.training_version_count`, `NCA.output_partition_count`, `NCA.largest_output_partition`, `NCA.assembled_partition_count` (`Planning/Factorization.lean`) | `learning/product_version_space.py`; `tests/learning/test_product_version_space.py` compares filtering, refusals, refinement and ranking with explicit enumeration. Product closure, faithful equality and adequate predictor budgets are assumptions. |
 | §48.1 identifying final-answer procedures | `NCA.universally_sound_refuses_ambiguity` (`Planning/Identification.lean`) | `learning/version_space.py`; `tests/learning/test_version_space.py` exhausts finite predictor families for unanimous answers and refusals. Family completeness remains an assumption. |
 | §48.5 selective context backoff | `NCA.backoff_preserves_nonempty`, `NCA.unanimous_answer_correct` | External structural package tests compare backoff against exact-context proposals and check conflicting derivations; correctness requires the true output among considered candidates. |
+| §51 state machines from queries | `NCA.distinguished_prefixes_need_states`, `NCA.distinct_answers_need_states` | `learning/state_machine.py`; `tests/learning/test_state_machine.py` checks minimal state counts on finite targets, early refusal of an unbounded count, the query limit and refusals by the learned expert. The polynomial query bound is cited, not proved. |

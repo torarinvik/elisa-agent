@@ -79,6 +79,7 @@ import NCA.Planning.SearchFailure
 import NCA.Planning.SearchAllocation
 import NCA.Planning.SearchPrior
 import NCA.Planning.SharedTable
+import NCA.Planning.StateMachines
 import NCA.Planning.Completion
 
 import NCA.Reliability.Occam

@@ -77,3 +77,4 @@ link for its definitions, arguments, and results.
 - [48. Identifying composition from final answers](theory/foundations/48-identifiability.md)
 - [49. Allocating search across goals](theory/foundations/49-search-allocation.md)
 - [50. Shared behaviour tables](theory/foundations/50-shared-tables.md)
+- [51. Learning state machines from queries](theory/foundations/51-state-machines.md)
