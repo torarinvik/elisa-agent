@@ -114,3 +114,23 @@ def test_a_refusing_helper_explains_nothing_and_helpers_exclude_questions() -> N
     assert taught.passed and not any(isinstance(answer, Delegate) for answer in taught.machine.outputs)
     with pytest.raises(ValueError, match="demonstration only"):
         teach(starts(0), right, clean=60, max_episodes=10, ask=right, helpers=(other,))
+
+
+def test_a_late_teacher_still_teaches_when_the_latest_actions_are_left_unjudged() -> None:
+    """``NCA.judged_actions_are_right``: with the delay bounded, nothing wrong is recorded as right."""
+    delays = Random(3)
+    taught = teach(starts(0), right, clean=60, max_episodes=5000, delay=lambda: delays.randint(1, 3), unjudged=3)
+    assert taught.passed and taught.mistakes > 0 and taught.questions == 0
+    rng = Random(9)
+    for _ in range(100):
+        history = tuple(rng.randrange(3) for _ in range(rng.randint(1, 20)))
+        assert taught.machine.run(history) == right(history)
+
+
+def test_a_late_teacher_excludes_questions_and_takeovers_can_be_limited() -> None:
+    with pytest.raises(ValueError, match="demonstration only"):
+        teach(starts(0), right, clean=60, max_episodes=10, ask=right, delay=lambda: 1, unjudged=1)
+    with pytest.raises(ValueError, match="late teacher"):
+        teach(starts(0), right, clean=60, max_episodes=10, unjudged=2)
+    limited = teach(starts(0), right, clean=60, max_episodes=1000, max_takeovers=2)
+    assert not limited.passed and limited.takeovers == 2

@@ -112,4 +112,10 @@ theorem candidates_with_helpers (Q A O ι : Type) [Fintype Q] [DecidableEq Q] [F
         * (Fintype.card O + Fintype.card ι) ^ Fintype.card Q := by
   rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_prod, Fintype.card_sum]
 
+/-- Theorem 52.7: if the teacher takes over at most `unjudged` steps after the first wrong
+action, every step more than `unjudged` before the takeover precedes that action. -/
+theorem judged_actions_are_right (wrong delay taken unjudged step : ℕ) (takeover : taken = wrong + delay)
+    (bounded : delay ≤ unjudged) (judged : step + unjudged < taken) : step < wrong := by
+  omega
+
 end NCA

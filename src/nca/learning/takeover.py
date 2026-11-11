@@ -18,6 +18,11 @@ helper's answer on the history so far (§52.5). A demonstrated action is then
 explained by every choice that produces it, and the machine taught can be as
 small as the rule that chooses between the helpers.
 
+A teacher may also take over late (§52.6). A wrong action then takes effect and
+the episode leaves the teacher's path. The learner cannot tell which of its
+latest actions was the wrong one, so it leaves them unjudged and learns from
+what the teacher shows from the takeover on.
+
 The taught machine is a proposal. Admission needs fresh episodes of its own.
 """
 
@@ -57,11 +62,14 @@ class Taught:
     passed: bool
     """Whether teaching ended on the required run of clean episodes."""
     takeovers: int
+    """Episodes the teacher took over, or marked at their end as having gone wrong."""
     demonstrated: int
     """Actions the teacher supplied from each takeover to the end of its episode."""
     questions: int
     """Answers asked for on histories that had not occurred."""
     episodes: int
+    mistakes: int = 0
+    """Wrong actions of the learner that took effect, which only a late teacher allows."""
 
 
 def merge_states(episodes: Iterable[Episode]) -> Machine:
@@ -78,7 +86,11 @@ Choices = frozenset[Any]
 """The answers that explain one demonstrated action: the action itself and each helper that gave it."""
 
 
-def _merge(episodes: Iterable[tuple[Word, tuple[Choices, ...]]]) -> Machine:
+Judged = tuple[Word, tuple[Choices | None, ...]]
+"""An episode's observations with what explains the action after each; ``None`` where the action is unjudged."""
+
+
+def _merge(episodes: Iterable[Judged]) -> Machine:
     """As ``merge_states``, where histories may share a state while some choice explains all their actions."""
     children: list[dict[Hashable, int]] = [{}]
     label: list[Choices | None] = [None]
@@ -95,7 +107,8 @@ def _merge(episodes: Iterable[tuple[Word, tuple[Choices, ...]]]) -> Machine:
                 rank.append((*rank[node], len(children[node])))
             node = following
             known = label[node]
-            label[node] = choice if known is None else known & choice
+            if choice is not None:
+                label[node] = choice if known is None else known & choice
 
     def fold(kept: int, merged: int, undo: list[tuple[int, Hashable | None, Choices | None]]) -> bool:
         mine, theirs = label[kept], label[merged]
@@ -224,33 +237,65 @@ def _helped(helper: Helper, history: Word) -> Any:
         return _REFUSED
 
 
-def _watch(start: Start, teacher: Teacher, machine: Machine, helpers: Sequence[Helper]
-           ) -> tuple[Episode, tuple[Choices, ...], int | None]:
-    """One episode on the teacher's path, what explains each action, and the first step the machine got wrong."""
-    session, seen, actions, explained = start(), [], [], []
+@dataclass(frozen=True)
+class _Watched:
+    """One episode as the teacher saw it."""
+
+    seen: Word
+    right: tuple[Any, ...]
+    judged: tuple[Choices | None, ...]
+    taken: int | None
+    """The step from which the teacher acted, if it took over."""
+    clean: bool
+    mistakes: int
+
+
+def _watch(start: Start, teacher: Teacher, machine: Machine, helpers: Sequence[Helper],
+           delay: Callable[[], int] | None, unjudged: int) -> _Watched:
+    """Let the machine act until the teacher takes over, and record what the teacher's actions establish.
+
+    With no delay the teacher corrects the first wrong action before it takes
+    effect. With one, wrong actions take effect and the teacher acts from
+    ``delay()`` steps after the first. A refusal is a request and is answered at once.
+    """
+    session, seen, right, explained = start(), [], [], []
     state: int | None = 0
-    taken = None
+    taken = wrong = None
+    due = mistakes = 0
     while (symbol := session.observation()) is not None:
         seen.append(symbol)
         history = tuple(seen)
-        right = teacher(history)
+        correct = teacher(history)
         helped = [_helped(helper, history) for helper in helpers]
+        explained.append(frozenset((correct, *(Delegate(position) for position, answer in enumerate(helped)
+                                               if answer is not _REFUSED and answer == correct))))
+        right.append(correct)
+        if taken is None and wrong is not None and len(seen) - 1 - wrong >= due:
+            taken = len(seen) - 1
         if taken is None:
-            state = machine.transitions.get((state, symbol))
+            state = None if state is None else machine.transitions.get((state, symbol))
             mine = UNLABELLED if state is None else machine.outputs[state]
             if isinstance(mine, Delegate):
                 mine = helped[mine.helper]
-            if state is None or mine is _REFUSED or mine != right:
-                taken = len(actions)
-        explained.append(frozenset((right, *(Delegate(position) for position, answer in enumerate(helped)
-                                             if answer is not _REFUSED and answer == right))))
-        actions.append(right)
-        session.act(right)
-    return (tuple(seen), tuple(actions)), tuple(explained), taken
+            if mine is _REFUSED or mine == UNLABELLED or (mine != correct and delay is None):
+                taken = len(seen) - 1
+            else:
+                if mine != correct:
+                    mistakes += 1
+                    if wrong is None:
+                        wrong, due = len(seen) - 1, delay()  # type: ignore[misc]
+                session.act(mine)
+                continue
+        session.act(correct)
+    settled = (len(seen) if taken is None else taken) - (unjudged if delay is not None else 0)
+    judged = tuple(choices if taken is not None and step >= taken or step < settled else None
+                   for step, choices in enumerate(explained))
+    return _Watched(tuple(seen), tuple(right), judged, taken, taken is None and wrong is None, mistakes)
 
 
 def teach(start: Start, teacher: Teacher, *, clean: int, max_episodes: int, ask: Teacher | None = None,
-          max_states: int = UNBOUNDED, helpers: Sequence[Helper] = ()) -> Taught:
+          max_states: int = UNBOUNDED, helpers: Sequence[Helper] = (), delay: Callable[[], int] | None = None,
+          unjudged: int = 0, max_takeovers: int = UNBOUNDED) -> Taught:
     """Teach by takeover until ``clean`` episodes in a row need none, or a limit is reached.
 
     The teacher corrects the first wrong or refused action before it takes
@@ -259,35 +304,49 @@ def teach(start: Start, teacher: Teacher, *, clean: int, max_episodes: int, ask:
     the learner merges states on the episodes that were taken over. ``helpers``
     apply to merging only: an action of the taught machine may then be a
     ``Delegate`` to one of them.
+
+    ``delay`` makes the teacher late: it gives, for each first wrong action, the
+    steps that pass before the teacher takes over, during which the learner's
+    actions take effect. The learner's last ``unjudged`` actions before a
+    takeover, or before the end of an episode that went wrong, are then
+    recorded as neither right nor wrong. ``unjudged`` must be at least the
+    longest delay, or a wrong action is recorded as right
+    (``NCA.judged_actions_are_right``).
     """
-    if any(type(limit) is not int or limit < 1 for limit in (clean, max_episodes, max_states)):
+    if any(type(limit) is not int or limit < 1 for limit in (clean, max_episodes, max_states, max_takeovers)):
         raise ValueError("positive limits are required")
-    if ask is not None and helpers:
-        raise ValueError("helpers apply to teaching by demonstration only")
+    if ask is not None and (helpers or delay is not None):
+        raise ValueError("helpers and a late teacher apply to teaching by demonstration only")
+    if type(unjudged) is not int or unjudged < 0 or (delay is None and unjudged):
+        raise ValueError("unjudged actions are a count that applies to a late teacher")
     table = _Table(ask, max_states) if ask is not None else None
-    kept: list[tuple[Word, tuple[Choices, ...]]] = []
+    kept: list[Judged] = []
     machine = Machine({}, (UNLABELLED,))
-    takeovers = demonstrated = episodes = run = 0
+    takeovers = demonstrated = episodes = run = mistakes = 0
     try:
-        while run < clean and episodes < max_episodes:
-            episode, explained, taken = _watch(start, teacher, machine, helpers)
+        while run < clean and episodes < max_episodes and takeovers < max_takeovers:
+            watched = _watch(start, teacher, machine, helpers, delay, unjudged)
             episodes += 1
+            mistakes += watched.mistakes
             if table is not None:
-                fresh = any(symbol not in table.alphabet for symbol in episode[0])
-                table.record(episode)
-            if taken is None:
+                fresh = any(symbol not in table.alphabet for symbol in watched.seen)
+                table.record((watched.seen, watched.right))
+            if watched.clean:
                 run += 1
                 continue
-            run, takeovers, demonstrated = 0, takeovers + 1, demonstrated + len(episode[0]) - taken
+            run, takeovers = 0, takeovers + 1
+            if watched.taken is not None:
+                demonstrated += len(watched.seen) - watched.taken
             if table is None:
-                kept.append((episode[0], explained))
+                kept.append((watched.seen, watched.judged))
                 machine = _merge(kept)
                 if len(machine.outputs) > max_states:
                     break
             else:
-                if not fresh:
-                    table.repair(machine, episode[0][:taken + 1])
+                if not fresh and watched.taken is not None:
+                    table.repair(machine, watched.seen[:watched.taken + 1])
                 machine = table.conjecture()
     except _Stopped:
         pass
-    return Taught(machine, run >= clean, takeovers, demonstrated, 0 if table is None else table.questions, episodes)
+    return Taught(machine, run >= clean, takeovers, demonstrated, 0 if table is None else table.questions, episodes,
+                  mistakes)

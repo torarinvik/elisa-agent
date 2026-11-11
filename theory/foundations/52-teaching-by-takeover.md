@@ -84,3 +84,18 @@ A demonstrated action does not say which choice produced it: the fixed action ex
 that gave the same answer. A merging learner therefore keeps, for each history, the set of choices that explain its
 action, and lets histories share a state while some choice explains them all. The counting bound is for the majority
 learner and is not shown for merging.
+
+## 52.6 A late teacher
+
+Let the teacher take over some steps after the learner's first wrong action. That action and those after it take effect,
+so the episode leaves the teacher's path, and the teacher acts from wherever it has got to. The learner sees that a
+takeover happened and what the teacher then does. It is not told which of its own actions was wrong.
+
+**Theorem 52.7 (judged actions are right).** If the delay never exceeds `u`, every action the learner took more than `u`
+steps before a takeover was right.
+
+So the learner may record those earlier actions as right and must leave its last `u` unjudged. Nothing here bounds the
+number of takeovers. The argument of 52.2 needs the history that was answered wrongly, and the halving argument of 52.3
+needs each correction to remove the candidates that agree with the guess at one known history; a late takeover removes only
+those that agree with it at every one of the last `u` steps. Whether teaching by a late teacher has a bound in the size of
+the skill is open.
