@@ -524,7 +524,7 @@ correctness of interactions between mechanisms.
 | [50.1–50.3, 50.6–50.9](theory/foundations/50-shared-tables.md) | `staged_evaluation`, `identification_lower_bound`, `failure_certificate`, `narrowing_cost`, `prefixes_refine`, `product_is_parts`, `equal_steps_fold_equally` | `Planning/SharedTable` |
 | [50.4–50.5](theory/foundations/50-shared-tables.md) | `zeroLoss_miss_exact`, `known_decisions_total` | `Reliability/SampledGate` |
 | [51.1–51.4](theory/foundations/51-state-machines.md) | `distinguished_prefixes_need_states`, `distinct_answers_need_states`, `differences_rebuild`, `counter_differences_follow_control` | `Planning/StateMachines` |
-| [52.1–52.7](theory/foundations/52-teaching-by-takeover.md) | `takeover_exposes_merged_histories`, `takeover_adds_a_state`, `separated_histories_bound`, `wrong_majority_halves`, `halving_corrections_bounded`, `candidates_with_helpers`, `judged_actions_are_right` | `Planning/Takeovers` |
+| [52.1–52.10](theory/foundations/52-teaching-by-takeover.md) | `takeover_exposes_merged_histories`, `takeover_adds_a_state`, `separated_histories_bound`, `wrong_majority_halves`, `halving_corrections_bounded`, `candidates_with_helpers`, `judged_actions_are_right`, `conflicting_judgements_separate`, `popular_action_share`, `share_corrections_bounded` | `Planning/Takeovers` |
 
 ### Additional theorem declarations
 

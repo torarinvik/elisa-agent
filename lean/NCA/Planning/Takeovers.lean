@@ -1,5 +1,8 @@
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Card
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.Fintype.Sum
 import Mathlib.Data.List.Basic
@@ -117,5 +120,66 @@ action, every step more than `unjudged` before the takeover precedes that action
 theorem judged_actions_are_right (wrong delay taken unjudged step : ℕ) (takeover : taken = wrong + delay)
     (bounded : delay ≤ unjudged) (judged : step + unjudged < taken) : step < wrong := by
   omega
+
+/-- Theorem 52.8: where the good actions depend on the state alone, an action accepted after one
+history and rejected after another shows that the two histories end in different states. -/
+theorem conflicting_judgements_separate {A Q O : Type} (step : Q → A → Q) (start : Q) (good : Q → Set O)
+    (s t : List A) (a : O) (accepted : a ∈ good (s.foldl step start))
+    (rejected : a ∉ good (t.foldl step start)) : s.foldl step start ≠ t.foldl step start := by
+  intro same
+  exact rejected (same ▸ accepted)
+
+/-- Theorem 52.9: if every candidate holds some action good, one action is held good by at least
+a share `1 / |O|` of the candidates. -/
+theorem popular_action_share {H O : Type} [Fintype O] [DecidableEq O] [Nonempty O] (candidates : Finset H)
+    (good : H → Finset O) (some : ∀ h ∈ candidates, (good h).Nonempty) :
+    ∃ a, candidates.card ≤ Fintype.card O * (candidates.filter fun h => a ∈ good h).card := by
+  have counted : candidates.card ≤ ∑ a : O, (candidates.filter fun h => a ∈ good h).card := by
+    have swap : ∑ a : O, (candidates.filter fun h => a ∈ good h).card = ∑ h ∈ candidates, (good h).card := by
+      simp only [Finset.card_filter]
+      rw [Finset.sum_comm]
+      refine Finset.sum_congr rfl fun h _ => ?_
+      simp
+    rw [swap]
+    calc candidates.card = ∑ _h ∈ candidates, 1 := by simp
+      _ ≤ ∑ h ∈ candidates, (good h).card :=
+        Finset.sum_le_sum fun h inside => Finset.card_pos.mpr (some h inside)
+  by_contra none
+  have none' : ∀ a : O, Fintype.card O * (candidates.filter fun h => a ∈ good h).card < candidates.card :=
+    fun a => not_le.mp fun enough => none ⟨a, enough⟩
+  have below : ∑ a : O, Fintype.card O * (candidates.filter fun h => a ∈ good h).card
+      < ∑ _a : O, candidates.card :=
+    Finset.sum_lt_sum_of_nonempty Finset.univ_nonempty fun a _ => none' a
+  have total : ∑ a : O, Fintype.card O * (candidates.filter fun h => a ∈ good h).card
+      = Fintype.card O * ∑ a : O, (candidates.filter fun h => a ∈ good h).card :=
+    (Finset.mul_sum _ _ _).symm
+  rw [total, Finset.sum_const, Finset.card_univ] at below
+  have plain : Fintype.card O • candidates.card = Fintype.card O * candidates.card := rfl
+  rw [plain] at below
+  exact absurd (Nat.lt_of_mul_lt_mul_left below) (not_lt.mpr counted)
+
+/-- Theorem 52.10: if each of `k` corrections leaves at most a share `d / (d + 1)` of the
+candidates and one remains, then `(d + 1) ^ k ≤ d ^ k * |candidates|`. -/
+theorem share_corrections_bounded {H : Type} (remaining : ℕ → Finset H) (d k : ℕ)
+    (shrinks : ∀ i < k, (d + 1) * (remaining (i + 1)).card ≤ d * (remaining i).card)
+    (survivor : (remaining k).Nonempty) : (d + 1) ^ k ≤ d ^ k * (remaining 0).card := by
+  have scaled : ∀ i ≤ k, (d + 1) ^ i * (remaining i).card ≤ d ^ i * (remaining 0).card := by
+    intro i
+    induction i with
+    | zero => intro _; simp
+    | succ i ih =>
+      intro within
+      have earlier := ih (by omega)
+      have step := shrinks i (by omega)
+      calc (d + 1) ^ (i + 1) * (remaining (i + 1)).card
+          = (d + 1) ^ i * ((d + 1) * (remaining (i + 1)).card) := by ring
+        _ ≤ (d + 1) ^ i * (d * (remaining i).card) := Nat.mul_le_mul_left _ step
+        _ = d * ((d + 1) ^ i * (remaining i).card) := by ring
+        _ ≤ d * (d ^ i * (remaining 0).card) := Nat.mul_le_mul_left _ earlier
+        _ = d ^ (i + 1) * (remaining 0).card := by ring
+  have positive : 1 ≤ (remaining k).card := Finset.card_pos.mpr survivor
+  calc (d + 1) ^ k = (d + 1) ^ k * 1 := by ring
+    _ ≤ (d + 1) ^ k * (remaining k).card := Nat.mul_le_mul_left _ positive
+    _ ≤ d ^ k * (remaining 0).card := scaled k le_rfl
 
 end NCA

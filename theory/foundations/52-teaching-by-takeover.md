@@ -99,3 +99,37 @@ number of takeovers. The argument of 52.2 needs the history that was answered wr
 needs each correction to remove the candidates that agree with the guess at one known history; a late takeover removes only
 those that agree with it at every one of the last `u` steps. Whether teaching by a late teacher has a bound in the size of
 the skill is open.
+
+## 52.7 A teacher whose choices vary
+
+Let each state of the skill have a nonempty set of good actions. The teacher, when it acts, takes any good action, and
+may take different ones after the same history. It takes over exactly when the learner's action is not good. Its choices
+are then inconsistent and its judgements are not: whether an action is good after a history depends on the state alone.
+
+A learner that takes two different shown actions as a contradiction separates histories that end in the same state, and
+its machine grows without limit. What the model does establish is this.
+
+**Theorem 52.8 (conflicting judgements separate).** If an action is accepted after one history and rejected after
+another, the two histories end in different states.
+
+So the evidence about a history is two sets, the actions known good there (shown by the teacher, or taken by the learner
+and let stand) and the actions known bad (taken by the learner and rejected), and two histories may share a state unless
+an action is known good at one and known bad at the other. A shared state may take any action known good at one of its
+histories. If that action is bad at another of them, the takeover that follows records it as bad there, and by 52.8 the
+two can no longer share a state. Every takeover therefore rules out the machine that caused it.
+
+**Theorem 52.9 (a popular action).** If every candidate holds some action good at a history, one action is held good
+there by at least a share `1 / |O|` of the candidates.
+
+**Theorem 52.10 (share bound).** If each of `k` corrections leaves at most a share `d / (d + 1)` of the candidates and
+one remains, then `(d + 1)^k ≤ d^k` times the number of candidates.
+
+A learner that takes the most popular action loses at least a share `1 / |O|` of its candidates at each takeover. With
+`n` states the candidates number `n^(n|A|) (2^|O| - 1)^n`, so the takeovers are at most
+
+`(n |A| log₂ n + n log₂ (2^|O| - 1)) / log₂ (|O| / (|O| - 1))`.
+
+For three actions the divisor is 0.585, where a consistent teacher has 1 (52.3): about 1.7 times as many takeovers, plus
+the larger count of candidates. The cost of free choice grows with the number of actions, roughly in proportion to it.
+As in 52.3 the bound is for a learner that counts candidates, and merging is not shown to attain it. A consistent teacher
+is the case where every action but the shown one is known bad.
