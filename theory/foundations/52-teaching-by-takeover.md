@@ -52,7 +52,7 @@ action, and is wrong, at most half the candidates give the true action.
 `2 ^ k` is at most the number of candidates.
 
 Take as candidates the machines with `n` states over the observations and actions seen. There are `n^(n|A|) |O|^n` of
-them, so a learner acting by majority needs at most `n (|A| log₂ n + log₂ |O|)` takeovers. The bound holds for any
+them (Theorem 52.6 with no helper), so a learner acting by majority needs at most `n (|A| log₂ n + log₂ |O|)` takeovers. The bound holds for any
 environment and any length of episode. It says nothing about compute: the majority is over an exponential set.
 
 ## 52.4 What the two bounds say
@@ -66,3 +66,21 @@ In both, the teacher's effort grows with the size of the skill and not with the 
 is larger by a factor of about `|A| log₂ n`, and an efficient learner that attains it is an open requirement, to be
 approached by merging states on the histories that did occur. Both assume a teacher who answers consistently and takes
 over at the first wrong action.
+
+## 52.5 A skill as an action
+
+Let `m` helpers be given, each a function from histories to actions, for example skills taught earlier. A machine may
+then take as a state's action either a fixed action or the answer of one helper on the history so far.
+
+**Theorem 52.6 (candidates with helpers).** The machines on `n` states whose actions are fixed actions or helpers number
+`n^(n|A|) (|O| + m)^n`.
+
+With 52.5, a rule that chooses among helpers with a controller of `k` states needs at most
+`k (|A| log₂ k + log₂ (|O| + m))` takeovers from a majority learner. The same skill taught without helpers is bounded by
+its own size `n`, which can be as large as the product of the controller and the helpers' machines. Each helper costs a
+term `log₂ (|O| + m)` per state and no more, so many helpers may be offered at little cost in this bound.
+
+A demonstrated action does not say which choice produced it: the fixed action explains it, and so does every helper
+that gave the same answer. A merging learner therefore keeps, for each history, the set of choices that explain its
+action, and lets histories share a state while some choice explains them all. The counting bound is for the majority
+learner and is not shown for merging.

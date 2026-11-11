@@ -13,14 +13,19 @@ of the machine taught (``NCA.separated_histories_bound``). Without such answers
 the learner merges states on the episodes that were taken over, and only the
 counting bound of §52.3 applies.
 
+Given helpers, such as skills taught earlier, a state's action may be a
+helper's answer on the history so far (§52.5). A demonstrated action is then
+explained by every choice that produces it, and the machine taught can be as
+small as the rule that chooses between the helpers.
+
 The taught machine is a proposal. Admission needs fresh episodes of its own.
 """
 
-from collections.abc import Callable, Hashable, Iterable
+from collections.abc import Callable, Hashable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from nca.learning.state_machine import UNBOUNDED, Machine, Word
+from nca.learning.state_machine import UNBOUNDED, Delegate, Helper, Machine, Word
 
 UNLABELLED = ("unlabelled",)
 """The answer of a state for which no action was ever seen."""
@@ -66,35 +71,47 @@ def merge_states(episodes: Iterable[Episode]) -> Machine:
     actions never contradict its own on anything seen. A state with no action
     seen answers ``UNLABELLED``; a history leaving what was seen has no transition.
     """
+    return _merge((seen, tuple(frozenset((action,)) for action in actions)) for seen, actions in episodes)
+
+
+Choices = frozenset[Any]
+"""The answers that explain one demonstrated action: the action itself and each helper that gave it."""
+
+
+def _merge(episodes: Iterable[tuple[Word, tuple[Choices, ...]]]) -> Machine:
+    """As ``merge_states``, where histories may share a state while some choice explains all their actions."""
     children: list[dict[Hashable, int]] = [{}]
-    label: list[Any] = [UNLABELLED]
+    label: list[Choices | None] = [None]
     rank: list[tuple[int, ...]] = [()]
-    for seen, actions in episodes:
+    for seen, choices in episodes:
         node = 0
-        for symbol, action in zip(seen, actions, strict=True):
+        for symbol, choice in zip(seen, choices, strict=True):
             following = children[node].get(symbol)
             if following is None:
                 following = len(children)
                 children[node][symbol] = following
                 children.append({})
-                label.append(UNLABELLED)
+                label.append(None)
                 rank.append((*rank[node], len(children[node])))
             node = following
-            label[node] = action
+            known = label[node]
+            label[node] = choice if known is None else known & choice
 
-    def fold(kept: int, merged: int, undo: list[tuple[int, Hashable | None]]) -> bool:
-        if label[merged] != UNLABELLED:
-            if label[kept] == UNLABELLED:
-                label[kept] = label[merged]
-                undo.append((kept, None))
-            elif label[kept] != label[merged]:
+    def fold(kept: int, merged: int, undo: list[tuple[int, Hashable | None, Choices | None]]) -> bool:
+        mine, theirs = label[kept], label[merged]
+        if theirs is not None:
+            both = theirs if mine is None else mine & theirs
+            if not both:
                 return False
+            if both != mine:
+                undo.append((kept, None, mine))
+                label[kept] = both
         for symbol, child in children[merged].items():
-            mine = children[kept].get(symbol)
-            if mine is None:
+            existing = children[kept].get(symbol)
+            if existing is None:
                 children[kept][symbol] = child
-                undo.append((kept, symbol))
-            elif not fold(mine, child, undo):
+                undo.append((kept, symbol, None))
+            elif not fold(existing, child, undo):
                 return False
         return True
 
@@ -106,14 +123,14 @@ def merge_states(episodes: Iterable[Episode]) -> Machine:
             break
         _, _, parent, symbol, candidate = min(pending, key=lambda item: item[:2])
         for state in states:
-            undo: list[tuple[int, Hashable | None]] = []
+            undo: list[tuple[int, Hashable | None, Choices | None]] = []
             children[parent][symbol] = state
             if fold(state, candidate, undo):
                 break
             children[parent][symbol] = candidate
-            for node, added in reversed(undo):
+            for node, added, before in reversed(undo):
                 if added is None:
-                    label[node] = UNLABELLED
+                    label[node] = before
                 else:
                     del children[node][added]
         else:
@@ -121,7 +138,15 @@ def merge_states(episodes: Iterable[Episode]) -> Machine:
             is_state.add(candidate)
     index = {state: position for position, state in enumerate(states)}
     return Machine({(index[state], symbol): index[child] for state in states
-                    for symbol, child in children[state].items()}, tuple(label[state] for state in states))
+                    for symbol, child in children[state].items()}, tuple(_chosen(label[state]) for state in states))
+
+
+def _chosen(choices: Choices | None) -> Any:
+    """One answer for a state: the fixed action where it still explains everything, else the first helper."""
+    if not choices:
+        return UNLABELLED
+    fixed = [choice for choice in choices if not isinstance(choice, Delegate)]
+    return fixed[0] if fixed else min(choices, key=lambda choice: choice.helper)
 
 
 class _Stopped(Exception):
@@ -189,41 +214,63 @@ class _Table:
         self.suffixes.append(word[low + 1:])
 
 
-def _watch(start: Start, teacher: Teacher, machine: Machine) -> tuple[Episode, int | None]:
-    """One episode on the teacher's path, and the step of the first action the machine got wrong or refused."""
-    session, seen, actions = start(), [], []
+_REFUSED = object()
+
+
+def _helped(helper: Helper, history: Word) -> Any:
+    try:
+        return helper(history)
+    except ValueError:
+        return _REFUSED
+
+
+def _watch(start: Start, teacher: Teacher, machine: Machine, helpers: Sequence[Helper]
+           ) -> tuple[Episode, tuple[Choices, ...], int | None]:
+    """One episode on the teacher's path, what explains each action, and the first step the machine got wrong."""
+    session, seen, actions, explained = start(), [], [], []
     state: int | None = 0
     taken = None
     while (symbol := session.observation()) is not None:
         seen.append(symbol)
-        right = teacher(tuple(seen))
+        history = tuple(seen)
+        right = teacher(history)
+        helped = [_helped(helper, history) for helper in helpers]
         if taken is None:
             state = machine.transitions.get((state, symbol))
-            if state is None or machine.outputs[state] != right:
+            mine = UNLABELLED if state is None else machine.outputs[state]
+            if isinstance(mine, Delegate):
+                mine = helped[mine.helper]
+            if state is None or mine is _REFUSED or mine != right:
                 taken = len(actions)
+        explained.append(frozenset((right, *(Delegate(position) for position, answer in enumerate(helped)
+                                             if answer is not _REFUSED and answer == right))))
         actions.append(right)
         session.act(right)
-    return (tuple(seen), tuple(actions)), taken
+    return (tuple(seen), tuple(actions)), tuple(explained), taken
 
 
 def teach(start: Start, teacher: Teacher, *, clean: int, max_episodes: int, ask: Teacher | None = None,
-          max_states: int = UNBOUNDED) -> Taught:
+          max_states: int = UNBOUNDED, helpers: Sequence[Helper] = ()) -> Taught:
     """Teach by takeover until ``clean`` episodes in a row need none, or a limit is reached.
 
     The teacher corrects the first wrong or refused action before it takes
     effect, so every episode follows the teacher's path. With ``ask``, a teacher
     who answers any history, the learner keeps an observation table; without it,
-    the learner merges states on the episodes that were taken over.
+    the learner merges states on the episodes that were taken over. ``helpers``
+    apply to merging only: an action of the taught machine may then be a
+    ``Delegate`` to one of them.
     """
     if any(type(limit) is not int or limit < 1 for limit in (clean, max_episodes, max_states)):
         raise ValueError("positive limits are required")
+    if ask is not None and helpers:
+        raise ValueError("helpers apply to teaching by demonstration only")
     table = _Table(ask, max_states) if ask is not None else None
-    kept: list[Episode] = []
+    kept: list[tuple[Word, tuple[Choices, ...]]] = []
     machine = Machine({}, (UNLABELLED,))
     takeovers = demonstrated = episodes = run = 0
     try:
         while run < clean and episodes < max_episodes:
-            episode, taken = _watch(start, teacher, machine)
+            episode, explained, taken = _watch(start, teacher, machine, helpers)
             episodes += 1
             if table is not None:
                 fresh = any(symbol not in table.alphabet for symbol in episode[0])
@@ -233,8 +280,8 @@ def teach(start: Start, teacher: Teacher, *, clean: int, max_episodes: int, ask:
                 continue
             run, takeovers, demonstrated = 0, takeovers + 1, demonstrated + len(episode[0]) - taken
             if table is None:
-                kept.append(episode)
-                machine = merge_states(kept)
+                kept.append((episode[0], explained))
+                machine = _merge(kept)
                 if len(machine.outputs) > max_states:
                     break
             else:

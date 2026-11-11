@@ -1,5 +1,7 @@
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Card
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Data.Fintype.Sum
 import Mathlib.Data.List.Basic
 import Mathlib.Tactic.Ring
 
@@ -100,5 +102,14 @@ theorem halving_corrections_bounded {H : Type} (remaining : ℕ → Finset H) (k
   calc 2 ^ k = 2 ^ k * 1 := by ring
     _ ≤ 2 ^ k * (remaining k).card := Nat.mul_le_mul_left _ positive
     _ ≤ (remaining 0).card := scaled k le_rfl
+
+/-- Theorem 52.6: the machines on given states whose actions are fixed actions or one of the
+helpers number `n ^ (n * |A|) * (|O| + m) ^ n`. -/
+theorem candidates_with_helpers (Q A O ι : Type) [Fintype Q] [DecidableEq Q] [Fintype A] [DecidableEq A]
+    [Fintype O] [Fintype ι] :
+    Fintype.card ((Q × A → Q) × (Q → O ⊕ ι))
+      = Fintype.card Q ^ (Fintype.card Q * Fintype.card A)
+        * (Fintype.card O + Fintype.card ι) ^ Fintype.card Q := by
+  rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_prod, Fintype.card_sum]
 
 end NCA
