@@ -134,3 +134,35 @@ def test_a_late_teacher_excludes_questions_and_takeovers_can_be_limited() -> Non
         teach(starts(0), right, clean=60, max_episodes=10, unjudged=2)
     limited = teach(starts(0), right, clean=60, max_episodes=1000, max_takeovers=2)
     assert not limited.passed and limited.takeovers == 2
+
+
+GOOD = (frozenset(("stay", "left")), frozenset(("left",)), frozenset(("right", "stay")))
+
+
+def good_after(history: Word) -> frozenset[str]:
+    state = 0
+    for symbol in history:
+        state = STEP[state][symbol]  # type: ignore[index]
+    return GOOD[state]
+
+
+def test_a_teacher_who_chooses_freely_is_learned_from_its_judgements() -> None:
+    """``NCA.conflicting_judgements_separate``: only an action good here and bad there keeps histories apart."""
+    picks = Random(2)
+
+    def shown(history: Word) -> str:
+        return picks.choice(sorted(good_after(history)))
+
+    def accepts(history: Word, action: object) -> bool:
+        return action in good_after(history)
+
+    strict = teach(starts(0), shown, clean=60, max_episodes=100)
+    assert not strict.passed
+    taught = teach(starts(0), shown, clean=60, max_episodes=3000, accepts=accepts)
+    assert taught.passed and len(taught.machine.outputs) <= 4
+    rng = Random(9)
+    for _ in range(100):
+        history = tuple(rng.randrange(3) for _ in range(rng.randint(1, 20)))
+        assert taught.machine.run(history) in good_after(history)
+    with pytest.raises(ValueError, match="immediate"):
+        teach(starts(0), shown, clean=60, max_episodes=10, accepts=accepts, delay=lambda: 1, unjudged=1)
