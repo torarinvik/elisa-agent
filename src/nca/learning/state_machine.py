@@ -232,9 +232,11 @@ class DifferenceLearner(_Asking):
 
     ``subtract`` and ``add`` give the answers' group; a ``TypeError`` from
     ``subtract`` marks a pair with no difference, and labels that cannot be
-    subtracted at all make the learner decline before any query. A rebuilt answer
-    that misses a training case adds that case's prefixes as cases and learning
-    repeats, until no new case is added or the queries run out.
+    subtracted at all make the learner decline before any query. With no answer
+    on the empty sequence nothing can be rebuilt, and it declines after that one
+    query. A rebuilt answer that misses a training case adds that case's prefixes
+    as cases and learning repeats, until no new case is added or the queries run
+    out.
     """
 
     add: Callable[[Any, Any], Any] | None = None
@@ -261,6 +263,8 @@ class DifferenceLearner(_Asking):
                 return mark
 
         try:
+            if difference(()) == mark:
+                return None
             cases = {word: difference(word) for word, _ in sample}
             while True:
                 machine = learn_machine(difference, alphabet, list(cases.items()), rng=Random(self.seed),

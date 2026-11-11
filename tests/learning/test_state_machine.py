@@ -105,3 +105,15 @@ def test_answers_without_a_difference_are_declined_before_any_query() -> None:
     learner = DifferenceLearner(lambda word: word, max_queries=100, max_states=10, add=lambda left, right: left,
                                 subtract=subtract)
     assert learner(CONTRACT, keys, list(keys)) is None and learner.paid == 0
+
+
+def test_a_count_with_no_answer_on_the_empty_sequence_is_declined_after_one_query() -> None:
+    undefined = ("undefined",)
+
+    def query(word: Word) -> object:
+        return count_twos(word) if word else undefined
+
+    keys = ternary(8)
+    learner = DifferenceLearner(query, max_queries=100, max_states=10, undefined=undefined,
+                                add=lambda left, right: left + right, subtract=lambda left, right: left - right)
+    assert learner(CONTRACT, keys, [count_twos(word) for word in keys]) is None and learner.paid == 1
