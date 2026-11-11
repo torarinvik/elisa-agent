@@ -145,6 +145,25 @@ class MachineExpert:
         return answer
 
 
+class StepwiseExpert:
+    """A learned machine answering after every symbol: the answers along one sequence, in order."""
+
+    def __init__(self, contract: Contract, machine: Machine, undefined: Any = None) -> None:
+        self.machine, self.undefined = machine, undefined
+        self.manifest = Manifest("learned.stepwise", "1", contract, effects=frozenset())
+
+    def invoke(self, values: Sequence[Hashable]) -> tuple[Any, ...]:
+        state, answers = 0, []
+        for symbol in values:
+            state = self.machine.transitions.get((state, symbol), -1)
+            if state < 0:
+                raise ValueError("the sequence leaves what the machine saw")
+            if self.undefined is not None and self.machine.outputs[state] == self.undefined:
+                raise ValueError("the machine has no answer for this sequence")
+            answers.append(self.machine.outputs[state])
+        return tuple(answers)
+
+
 class SummingExpert:
     """A machine of one-step differences; the answer adds them to the answer on the empty sequence."""
 
