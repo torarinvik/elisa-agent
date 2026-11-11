@@ -133,3 +133,35 @@ For three actions the divisor is 0.585, where a consistent teacher has 1 (52.3):
 the larger count of candidates. The cost of free choice grows with the number of actions, roughly in proportion to it.
 As in 52.3 the bound is for a learner that counts candidates, and merging is not shown to attain it. A consistent teacher
 is the case where every action but the shown one is known bad.
+
+## 52.8 A late teacher whose choices vary
+
+Combine 52.6 and 52.7: the teacher takes any good action, and takes over up to `u` steps after the learner's first bad
+one. Three things are then known. An action the teacher shows is good. By Theorem 52.7, an action of the learner more
+than `u` steps before a takeover, or in an episode with none, is good. And among the learner's last `u`
+actions before a takeover at least one is bad, without saying which.
+
+The merging rule of 52.7 has nothing to work on here, since no action is ever known bad at a particular history. A
+candidate machine, with a set of good actions for each state, is refuted by a takeover exactly when it holds all `u`
+actions of that window good.
+
+Let the learner draw one surviving candidate at random and follow it until the next takeover. Sort the candidates by the
+actions they would themselves take along the window; there are at most `K = |O|^u` such classes, and every candidate in
+the class of the one followed holds the whole window good and is refuted with it.
+
+**Theorem 52.11 (agreement with a random candidate).** For candidates sorted into `K` classes, the number sharing a
+candidate's class, summed over the candidates, is at least the square of their number divided by `K`.
+
+So a takeover removes, on average over the draw, at least a share `1 / |O|^u` of the candidates. By the usual argument
+on the logarithm of their number, which is not proved here, the expected number of takeovers is at most
+
+`|O|^u ln |C|`, with `ln |C| = n |A| ln n + n ln (2^|O| - 1)`.
+
+The bound is polynomial in the size of the skill and exponential in the delay, counted in steps. For `u = 0` it has the
+form of 52.7. Whether the exponential is necessary is open: a learner that puts at most one doubtful action in each
+window would learn one fact per takeover, but it needs actions it already knows to be good around the doubtful one, and
+at the start it knows none.
+
+What the bound says for design is that the delay matters as a number of steps and not as time. A learner that decides
+less often than the teacher reacts has `u` near one, and pays `|O|` where it would pay `|O|^u`. The bound is again for a
+learner that holds all candidates; an efficient learner for this case is not given here.

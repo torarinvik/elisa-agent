@@ -3,6 +3,7 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Algebra.Order.Chebyshev
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.Fintype.Sum
 import Mathlib.Data.List.Basic
@@ -181,5 +182,27 @@ theorem share_corrections_bounded {H : Type} (remaining : ℕ → Finset H) (d k
   calc (d + 1) ^ k = (d + 1) ^ k * 1 := by ring
     _ ≤ (d + 1) ^ k * (remaining k).card := Nat.mul_le_mul_left _ positive
     _ ≤ d ^ k * (remaining 0).card := scaled k le_rfl
+
+/-- Theorem 52.11: sort the candidates into `K` classes. Summed over the candidates, the number
+sharing a candidate's class is at least `|candidates|² / K`: a candidate drawn at random shares
+its class with at least a share `1 / K` of them on average. -/
+theorem random_candidate_agreement {H κ : Type} [Fintype κ] [DecidableEq κ] (candidates : Finset H)
+    (cls : H → κ) :
+    candidates.card ^ 2
+      ≤ Fintype.card κ * ∑ c ∈ candidates, (candidates.filter fun h => cls h = cls c).card := by
+  have fibers : candidates.card = ∑ k : κ, (candidates.filter fun h => cls h = k).card :=
+    Finset.card_eq_sum_card_fiberwise fun _ _ => Finset.mem_univ _
+  have squares : ∑ c ∈ candidates, (candidates.filter fun h => cls h = cls c).card
+      = ∑ k : κ, (candidates.filter fun h => cls h = k).card ^ 2 := by
+    rw [← Finset.sum_fiberwise candidates cls]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    rw [Finset.sum_congr rfl (g := fun _ => (candidates.filter fun h => cls h = k).card)]
+    · rw [Finset.sum_const, smul_eq_mul, sq]
+    · intro c inside
+      rw [(Finset.mem_filter.mp inside).2]
+  rw [squares, fibers]
+  simpa [Finset.card_univ] using
+    sq_sum_le_card_mul_sum_sq (s := (Finset.univ : Finset κ))
+      (f := fun k => (candidates.filter fun h => cls h = k).card)
 
 end NCA
