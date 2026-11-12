@@ -46,6 +46,15 @@ def test_the_price_of_a_class_keeps_probes_from_being_bought_to_split_classes() 
     assert len(free.view) >= 4 and len(priced.view) <= 1
 
 
+def test_a_shortlist_finds_the_same_probes_in_a_large_pool() -> None:
+    whole, short = Inquiry(range(12), read, largest=3), Inquiry(range(12), read, largest=3, shortlist=4)
+    for inquiry in (whole, short):
+        taught(inquiry, lambda seen: seen[2] == 1 and seen[9] == 0, rounds=300)
+    assert {2, 9} <= set(short.looking_at) and len(short.view) <= len(whole.view) + 2
+    with pytest.raises(ValueError, match="shortlist"):
+        Inquiry(range(3), read, largest=2, shortlist=0)
+
+
 def test_the_view_keeps_within_its_limit_and_malformed_pools_are_refused() -> None:
     inquiry = Inquiry(range(12), read, largest=2, limit=1)
     taught(inquiry, lambda seen: seen[2] == 1 and seen[9] == 0, rounds=100)

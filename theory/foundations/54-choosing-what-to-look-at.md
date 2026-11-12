@@ -91,13 +91,19 @@ possible there. Then every set of fixed-position probes that suffices for the ta
 For each of the `N` positions `x` there are two scenes with `u` at `x` that differ only at `x + δ` and have opposite
 targets, so a sufficient set reads `x + δ`; the positions `x + δ` are distinct.
 
-A value that stands at exactly one position of a scene is an **anchor** there. An **anchored probe** reads the value
-at a fixed offset from the anchor of a given value, and a **bearing** reads the sign of the difference between two
-anchors along an axis; both read nothing where an anchor is absent or its value stands at several positions. The
-target of 54.4 depends on one anchored probe, whatever `N` is.
+A value whose positions in a scene are exactly the positions of a box, one solid block, is an **anchor** there, placed
+at the block's least corner. A value at one position is the smallest block; an object drawn as a filled rectangle of
+one colour is a larger one. An **anchored probe** reads the value at a fixed offset from the anchor of a given value,
+and a **bearing** reads the sign of the difference between two anchors along an axis; both read nothing where the
+value is absent or does not form one block. The target of 54.4 depends on one anchored probe, whatever `N` is.
 
 The pool of 54.4's learner is then every value as a candidate anchor, every offset within a reach `r`, and every pair
 of values and axis: `v · ((2r + 1)ⁿ − 1) + n · v(v − 1)/2` probes for `v` values, independent of the size of the scene.
 No value is named as an anchor. A value that never stands alone reads nothing, explains nothing, and is not bought;
 which values are worth looking from is found by 54.4 like any other probe. What remains given is that situations are
-scenes, the set of values, and the reach.
+scenes, the set of values, the reach, and that objects worth looking from are solid blocks of one value. Finding the
+blocks reads the whole scene; only the probes of the view are read after that.
+
+For pools of hundreds of probes the search of 54.4 is shortened: each probe is first joined to at most one probe of
+the view, and only a shortlist of the cheapest is compared in full. A probe that explains the judgements only together
+with two probes of the view can be missed by it.

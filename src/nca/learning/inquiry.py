@@ -16,6 +16,11 @@ of the view, explains the judgements most cheaply, as long as that is cheaper
 than the view explains them. The price of a class keeps a probe from being
 bought for splitting classes alone.
 
+With ``shortlist`` the search is cut short for large pools: every probe is first
+joined to at most one probe of the view, and only the ``shortlist`` cheapest are
+then compared in full. A probe that explains the judgements only together with
+two probes of the view can then be missed.
+
 The probes and their meanings are the caller's; the learner only finds which
 of them to look through.
 """
@@ -36,14 +41,18 @@ class Inquiry:
     """Judged actions over a view that grows by the probes the judgements call for."""
 
     def __init__(self, probes: Sequence[Hashable], read: Callable[[Any, Hashable], Hashable], *, largest: int,
-                 keep: float = 0.0, price: float = 1.0, limit: int | None = None) -> None:
+                 keep: float = 0.0, price: float = 1.0, limit: int | None = None,
+                 shortlist: int | None = None) -> None:
         """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes."""
         if len(set(probes)) != len(probes):
             raise ValueError("the probes are distinct")
         if price < 0 or (limit is not None and limit < 0):
             raise ValueError("the price of a class and the limit of the view are non-negative")
+        if shortlist is not None and shortlist < 1:
+            raise ValueError("a shortlist holds at least one probe")
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
+        self.shortlist = shortlist
         self.view: list[int] = []
         self.cases: list[Case] = []
         self.looked = self.studied = 0
@@ -97,10 +106,24 @@ class Inquiry:
     def _offers(self) -> tuple[float, np.ndarray]:
         """The least cost of a set of the view, and for each probe the least cost of a set of it and the view."""
         codes, actions, good = np.array(self._codes), np.array(self._actions), np.array(self._good)
+        if self.shortlist is None or self.largest <= 2 or codes.shape[1] <= self.shortlist + len(self.view):
+            return self._costs(codes, actions, good, self.largest)
+        _, rough = self._costs(codes, actions, good, 2)
+        rough[self.view] = np.inf
+        listed = np.array([*self.view, *np.argsort(rough, kind="stable")[:self.shortlist]])
+        least, exact = self._costs(codes[:, listed], actions, good, self.largest, range(len(self.view)))
+        offers = np.full(codes.shape[1], np.inf)
+        offers[listed] = exact
+        return least, offers
+
+    def _costs(self, codes: np.ndarray, actions: np.ndarray, good: np.ndarray, largest: int,
+               view: Sequence[int] | None = None) -> tuple[float, np.ndarray]:
+        """The least cost within the view, and each probe's with the view, over sets of at most ``largest``."""
+        view = self.view if view is None else view
         values, probes = int(codes.max()) + 1, codes.shape[1]
         least, offers = float("inf"), np.full(probes, np.inf)
-        for size in range(min(self.largest, len(self.view) + 1)):
-            for subset in combinations(self.view, size):
+        for size in range(min(largest, len(view) + 1)):
+            for subset in combinations(view, size):
                 _, classes = np.unique(np.column_stack((actions, codes[:, subset])), axis=0, return_inverse=True)
                 classes = classes.reshape(-1)
                 span = (int(classes.max()) + 1) * values
@@ -112,7 +135,7 @@ class Inquiry:
                           for verdict in (good, ~good)]
                 offers = np.minimum(offers, np.minimum(*counts).sum(axis=1)
                                     + self.price * np.count_nonzero(counts[0] + counts[1], axis=1))
-        return min(least, float(offers[self.view].min(initial=np.inf))), offers
+        return min(least, float(offers[list(view)].min(initial=np.inf))), offers
 
     def _grow(self) -> None:
         if self.largest < 1:

@@ -4,13 +4,16 @@ from nca.learning.anchors import Scene, at, beside, pool, read, toward
 from nca.learning.inquiry import Inquiry
 
 
-def test_a_value_standing_alone_marks_a_place_and_one_standing_twice_does_not() -> None:
-    scene = Scene({(0, 0): "a", (1, 0): "b", (2, 0): "b", (0, 1): "c"})
+def test_a_value_forming_one_solid_block_marks_a_place_and_a_scattered_one_does_not() -> None:
+    scene = Scene({(0, 0): "a", (1, 0): "b", (2, 1): "b", (0, 1): "c", (1, 1): "d", (2, 0): "d"})
     assert scene.where("a") == (0, 0) and scene.where("b") is None and scene.where("z") is None
+    block = {(x, y): "plain" for x in range(6) for y in range(6)} | {(x, y): "block" for x in (2, 3) for y in (3, 4)}
+    assert Scene(block).where("block") == (2, 3) and Scene(block).where("plain") is None
+    assert Scene(block | {(5, 5): "block"}).where("block") is None
 
 
 def test_probes_read_fixed_places_offsets_from_anchors_and_bearings() -> None:
-    scene = Scene({(0, 0): "a", (1, 0): "b", (2, 0): "b", (0, 1): "c"})
+    scene = Scene({(0, 0): "a", (1, 0): "b", (2, 1): "b", (0, 1): "c", (1, 1): "d", (2, 0): "d"})
     assert read(scene, at((1, 0))) == "b" and read(scene, at((5, 5))) is None
     assert read(scene, beside("a", (1, 0))) == "b" and read(scene, beside("a", (-1, 0))) is None
     assert read(scene, beside("b", (1, 0))) is None

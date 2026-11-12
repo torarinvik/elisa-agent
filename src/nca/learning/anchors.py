@@ -1,11 +1,13 @@
 """Probes placed by what a scene holds, for a learner that chooses what to look at (THEORY §54.6).
 
 A scene is values at positions, each position a tuple of integers. A value
-that stands at exactly one position of a scene marks a place in it, an anchor.
-A probe reads the value at a fixed position, the value at an offset from an
-anchor, or which way one anchor lies from another along an axis. Where the
-anchor's value is absent or stands at several positions, or the position read
-is outside the scene, the reading is ``None``.
+whose positions form one solid block, every position of the box around them,
+marks a place in the scene, an anchor: the block's least corner. A value at a
+single position is the smallest such block. A probe reads the value at a fixed
+position, the value at an offset from an anchor, or which way one anchor lies
+from another along an axis. Where the anchor's value is absent or does not
+form one block, or the position read is outside the scene, the reading is
+``None``.
 
 The values and their meanings are the caller's. No value is named as an
 anchor: every value may be tried as one, and a learner finds which are worth
@@ -14,25 +16,35 @@ looking from.
 
 from collections.abc import Hashable, Mapping, Sequence
 from itertools import permutations, product
+from math import prod
+from typing import Any
 
 Position = tuple[int, ...]
 Probe = tuple[Hashable, ...]
 
 
 class Scene:
-    """Values at positions, and where each value that stands alone is."""
+    """Values at positions, and where each value that forms one solid block is."""
 
     def __init__(self, cells: Mapping[Position, Hashable]) -> None:
         self.cells = cells
-        self._alone: dict[Hashable, Position | None] | None = None
+        self._blocks: dict[Hashable, Position | None] | None = None
 
     def where(self, value: Hashable) -> Position | None:
-        """The one position holding ``value``, or ``None`` if none or several do."""
-        if self._alone is None:
-            self._alone = {}
+        """The least corner of the solid block ``value`` forms, or ``None`` if it is absent or forms none."""
+        if self._blocks is None:
+            boxes: dict[Hashable, list[Any]] = {}
             for position, held in self.cells.items():
-                self._alone[held] = None if held in self._alone else position
-        return self._alone.get(value)
+                box = boxes.get(held)
+                if box is None:
+                    boxes[held] = [1, position, position]
+                else:
+                    box[0] += 1
+                    box[1] = tuple(map(min, box[1], position))
+                    box[2] = tuple(map(max, box[2], position))
+            self._blocks = {held: least if count == prod(high - low + 1 for low, high in zip(least, most, strict=True))
+                            else None for held, (count, least, most) in boxes.items()}
+        return self._blocks.get(value)
 
 
 def at(position: Position) -> Probe:
@@ -41,7 +53,7 @@ def at(position: Position) -> Probe:
 
 
 def beside(value: Hashable, offset: Position) -> Probe:
-    """The value at ``offset`` from where ``value`` stands alone."""
+    """The value at ``offset`` from the corner of the block ``value`` forms."""
     return ("beside", value, offset)
 
 
