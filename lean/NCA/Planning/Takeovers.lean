@@ -205,4 +205,13 @@ theorem random_candidate_agreement {H κ : Type} [Fintype κ] [DecidableEq κ] (
     sq_sum_le_card_mul_sum_sq (s := (Finset.univ : Finset κ))
       (f := fun k => (candidates.filter fun h => cls h = k).card)
 
+/-- **Theorem 52.12 (what belief takes).** Marks against an action are believed on a transition while
+they exceed the share `num / den` of its `b` marks and `g` good judgements there. They then outweigh
+the good judgements in the proportion the share fixes: with a quarter, `g < 3 b`. -/
+theorem believed_mark_outweighs (num den b g : ℕ) (believed : num * (b + g) < den * b) :
+    num * g < (den - num) * b := by
+  rw [Nat.sub_mul]
+  rw [Nat.mul_add, Nat.add_comm] at believed
+  exact Nat.lt_sub_of_add_lt believed
+
 end NCA

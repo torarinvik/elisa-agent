@@ -165,3 +165,37 @@ at the start it knows none.
 What the bound says for design is that the delay matters as a number of steps and not as time. A learner that decides
 less often than the teacher reacts has `u` near one, and pays `|O|` where it would pay `|O|^u`. The bound is again for a
 learner that holds all candidates; an efficient learner for this case is not given here.
+
+## 52.9 A teacher who is sometimes later than assumed
+
+Let the learner assume a delay of one step, as 52.8 recommends, and blame its last action before a takeover. A person
+does not always react within one step. When the reaction is a step late, the blamed action is the one after the bad
+one: an action that may be good is marked bad, and the bad one goes unjudged. Call such a mark *wrong*.
+
+Under the rule of 52.7 one wrong mark is never withdrawn. The history it sits on can no longer share a state with the
+histories where that action is good, and the same follows for the histories before it that lead there. Each wrong mark
+therefore costs states, and a machine with more states draws more takeovers, some of them late in turn.
+
+The remedy is to believe a mark only on repeated evidence, and the question is where to gather it, since a long history
+seldom occurs twice. Take the current machine and call the pair of a state and the observation read from it a
+*transition*. Every judged action after a history belongs to the transition that history ends on. For one transition
+and one action, let `b` be the marks against it and `g` the times it was recorded good.
+
+If the machine is right about the state before, all histories on one transition end in one state of the skill.
+
+- Where the action is bad in that state, it is never recorded good there, by Theorem 52.7 with one more action left
+  unjudged: `g = 0`, and every repetition of the mistake adds a mark.
+- Where the action is good, marks against it are all wrong, and they arrive only when the action before was bad and
+  the teacher was late; every other time the action stands it adds to `g`.
+
+The learner believes the marks of a transition while `b ≥ k` and `b > θ (b + g)`, for a count `k` and a share `θ`.
+
+**Theorem 52.12 (what belief takes).** If `num (b + g) < den b` then `num g < (den - num) b`.
+
+With `θ = 1/4` a mark is believed only while `g < 3b`: wrong marks on a good action must number at least a third of
+the times it stood. A bad action is believed after `k` marks, so each split costs `k` takeovers where it cost one.
+
+The machine is not right at the start, and a transition of a wrong machine mixes states. So nothing believed is kept:
+after every takeover each mark is judged again on the machine as it then is, the machine is rebuilt from the marks
+believed, and this repeats until the beliefs settle or a fixed number of rounds has passed. That this converges is not
+proved. It is measured in the research diary.
