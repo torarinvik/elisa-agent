@@ -167,3 +167,19 @@ Not covered: the comparison uses one probe, so two actions whose likeness shows 
 joined; an action that is another turned only in part is joined or not as a whole; and the turns offered are the
 caller's. Turning offsets about a block's corner agrees with turning the scene only where the blocks sit alike about
 their corners in every direction, as cells of a regular grid do.
+
+## 54.9 Giving probes up
+
+The view of 54.4 only grows. A probe taken up when the judgements were few, or before two actions were joined (54.8),
+may explain nothing later. Let the view be **shed** to the union, over the actions, of each action's cheapest set of
+at most `k` probes of the view.
+
+**Proposition 54.8 (shedding costs nothing by the measure that buys).** The shed view has the cost `c` of the view it
+was shed from, and at most `k` probes for each action that shares no judgements with another.
+
+Each action's cheapest set is still in the view. So no probe is bought back at once: a purchase must lower the cost.
+
+Shedding is not free by another measure. The learner of 53.5 lets every set of the view vote, and the sets besides
+the cheapest carry judgements to observations the cheapest has not met; after shedding it learns afresh over fewer
+sets. Whether the smaller view is worth the corrections it adds is measured, in the research diary, and is the
+caller's choice.

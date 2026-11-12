@@ -18,6 +18,12 @@ cheaply, each action using it or not with at most ``largest - 1`` probes of
 the view, as long as that is cheaper than the view explains them. The price of a class keeps a probe from being
 bought for splitting classes alone.
 
+With ``sheds`` the view also gives probes up: whenever the actions are joined
+anew, it keeps only the probes of each action's cheapest set (§54.9). The cost
+of the view is unchanged by that. The view is then a few probes, at the price
+of more judgements: the sets a larger view holds besides the cheapest also
+carry judgements.
+
 With ``turns`` the learner may find that one action is another turned (§54.8).
 A turn puts a probe in each probe's place. An action joins an earlier action
 under a turn when the two, read through that turn, are explained more cheaply
@@ -50,7 +56,7 @@ class Inquiry:
 
     def __init__(self, probes: Sequence[Hashable], read: Callable[[Any, Hashable], Hashable], *, largest: int,
                  keep: float = 0.0, price: float = 1.0, limit: int | None = None,
-                 shortlist: int | None = None, turns: Sequence[Sequence[int]] = ()) -> None:
+                 shortlist: int | None = None, turns: Sequence[Sequence[int]] = (), sheds: bool = False) -> None:
         """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes."""
         if len(set(probes)) != len(probes):
             raise ValueError("the probes are distinct")
@@ -60,7 +66,7 @@ class Inquiry:
             raise ValueError("a shortlist holds at least one probe")
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
-        self.shortlist = shortlist
+        self.shortlist, self.sheds = shortlist, sheds
         still = tuple(range(len(self.probes)))
         self.turns = (still, *(tuple(turn) for turn in turns if tuple(turn) != still))
         if any(sorted(turn) != list(still) for turn in self.turns):
@@ -79,7 +85,7 @@ class Inquiry:
         return {name: value for name, value in self.__dict__.items() if name != "_relevance"}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        self.__dict__.update({"shortlist": None, "frames": {}} | state)
+        self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False} | state)
         self.__dict__.setdefault("turns", (tuple(range(len(self.probes))),))
         self._learn()
 
@@ -127,6 +133,8 @@ class Inquiry:
         if not turned:
             group, turn = self.frame(action)
             self._relevance.judge(tuple(readings[self.turns[turn][index]] for index in self.view), group, good)
+        if turned and self.sheds:
+            self._shed()
         if self._grow() or turned:
             self._learn()
 
@@ -175,13 +183,35 @@ class Inquiry:
         changed, self.frames = frames != self.frames, frames
         return changed
 
-    def _offers(self) -> tuple[float, np.ndarray]:
-        """The cost the view leaves, and for each probe the cost the view would leave with it."""
+    def _shared(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """The judgements as their actions share them: readings through each action's turn, the action shared, the
+        verdict."""
         raw, good, turns = np.array(self._codes), np.array(self._good), np.array(self.turns)
         frames = [self.frame(action) for _, action, _ in self.cases]
-        codes = np.take_along_axis(raw, turns[[turn for _, turn in frames]], axis=1)
-        names = {}
+        names: dict[Hashable, int] = {}
         actions = np.array([names.setdefault(group, len(names)) for group, _ in frames])
+        return np.take_along_axis(raw, turns[[turn for _, turn in frames]], axis=1), actions, good
+
+    def _shed(self) -> None:
+        """Keep only the probes of each action's cheapest set of the view; among equals the smallest, then first."""
+        codes, actions, good = self._shared()
+        kinds = int(actions.max()) + 1
+        least, kept = np.full(kinds, np.inf), [()] * kinds
+        for size in range(min(self.largest, len(self.view)) + 1):
+            for subset in combinations(self.view, size):
+                _, classes = np.unique(codes[:, subset], axis=0, return_inverse=True)
+                keys = classes.reshape(-1) * kinds + actions
+                counts = [np.bincount(keys[verdict], minlength=(int(keys.max()) // kinds + 1) * kinds)
+                          .reshape(-1, kinds) for verdict in (good, ~good)]
+                costs = np.minimum(*counts).sum(axis=0) + self.price * np.count_nonzero(counts[0] + counts[1], axis=0)
+                for kind in np.flatnonzero(costs < least):
+                    least[kind], kept[kind] = costs[kind], subset
+        used = {index for subset in kept for index in subset}
+        self.view = [index for index in self.view if index in used]
+
+    def _offers(self) -> tuple[float, np.ndarray]:
+        """The cost the view leaves, and for each probe the cost the view would leave with it."""
+        codes, actions, good = self._shared()
         if self.shortlist is None or self.largest <= 2 or codes.shape[1] <= self.shortlist + len(self.view):
             return self._costs(codes, actions, good, self.largest)
         _, rough = self._costs(codes, actions, good, 2)

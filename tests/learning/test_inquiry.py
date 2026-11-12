@@ -75,6 +75,10 @@ def test_actions_that_are_one_action_turned_are_joined_and_taught_together() -> 
     assert {joined.frame(action)[0] for action in range(4)} == {joined.cases[0][1]}
     assert all(action in joined.looking_for(action) for action in range(4))
     assert len(joined.view) <= 2 and len(apart.view) == 4
+    lean = Inquiry(range(8), read, largest=1, turns=(cycle, twice, thrice), sheds=True)
+    for readings, action, good in joined.cases:
+        lean.judge(readings, action, good)
+    assert len(lean.view) == 1 and all(lean.looking_for(action) == (action,) for action in range(4))
     fresh = Inquiry(range(8), read, largest=1, turns=(cycle, twice, thrice))
     for _ in range(12):
         situation = tuple(rng.randrange(2) for _ in range(8))
