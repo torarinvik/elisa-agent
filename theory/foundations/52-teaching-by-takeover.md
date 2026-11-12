@@ -245,3 +245,25 @@ length at most `(w - 1) / k + 2`, and a held action repeats one decision. This i
 The design that follows is a learner that reads every tick, decides every `k` ticks, files marks and good judgements at
 the tick they concern, and counts its unjudged margin in decisions. It is a prediction to be tested. Nothing here shows
 that state merging attains the bound.
+
+## 52.12 Judgements of uncertain time
+
+§52.11 files a judgement at the tick it concerns, but the learner sees only the tick it is made. A teacher who judges
+every tick concerns the tick it judges. One who judges decisions concerns the tick the decision was made. An action the
+teacher shows and holds concerns the tick it was chosen, which may lie before the current step: a teacher who takes
+over in the middle of a step holds what it chose earlier. Which tick a judgement concerns is not known to the learner
+and differs between teachers.
+
+**Theorem 52.15 (a judgement whose ticks agree is filed exactly).** Let a judgement concern some tick of a set `I` of
+ticks at or before the one it is made. If the skill is in the same state after every history ending at a tick of `I`,
+filing it under any tick of `I` files it under the state it concerns, whichever tick that is. For a skill whose state
+is set by its last observation this holds when the observation is the same at every tick of `I`.
+
+This follows from the definition. Two cases make `I` a single tick. A teacher who reconsiders its shown action at every
+decision of the learner has, at a decision tick, just chosen it there, so a shown action filed only at decision ticks is
+filed exactly for every such teacher. The action the teacher held before the step is not judged by being held. The
+learner's own steps between decisions are judged by whether the teacher let them pass, and for those `I` runs from the
+decision to the tick, so 52.15 files them exactly when the ball did not cross a band in between.
+
+Filing shown actions only at decision ticks keeps one of every `k` of them. Whether leaving the learner's changed steps
+unjudged as well is worth the judgements it loses is not shown here and is measured in the research diary.
