@@ -85,11 +85,18 @@ def test_late_reactions_do_not_split_states() -> None:
     assert len(apprentice.machine.outputs) == 3
 
 
-def test_believing_every_mark_splits_states() -> None:
-    """With one mark enough, the same late teacher leaves a larger machine."""
+def test_one_mark_is_believed_when_one_is_needed() -> None:
+    """With one mark enough, the action marked stops being the answer after its history."""
     apprentice = Apprentice(needed=1, share=0.0)
-    teach(apprentice, 0.2, 2)
-    assert len(apprentice.machine.outputs) > 3
+    apprentice.taken_over((0,), ["stay"], [])
+    assert apprentice.action((0,)) != "stay"
+
+
+def test_a_step_not_shown_adds_no_judgement() -> None:
+    """A ``None`` among the teacher's actions leaves its observation unjudged, so the learner has no answer there."""
+    apprentice = Apprentice()
+    apprentice.taken_over((0,), [], [None], asked=True)
+    assert apprentice.action((0,)) == UNLABELLED
 
 
 def test_a_known_reaction_time_moves_the_mark() -> None:

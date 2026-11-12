@@ -131,8 +131,11 @@ Judged = tuple[Word, tuple[_Evidence | None, ...]]
 """An episode's observations with the evidence about the action after each; ``None`` where it is unjudged."""
 
 
-def _merge(episodes: Iterable[Judged]) -> Machine:
-    """As ``merge_states``, on evidence that may name several choices: histories share a state while it agrees."""
+def _merge(episodes: Iterable[Judged], *, prefer_targets: bool = False) -> Machine:
+    """As ``merge_states``, on evidence that may name several choices: histories share a state while it agrees.
+
+    With ``prefer_targets`` a new history is tried first against the states that already take its symbol most often.
+    """
     children: list[dict[Hashable, int]] = [{}]
     label: list[_Evidence | None] = [None]
     rank: list[tuple[int, ...]] = [()]
@@ -175,7 +178,9 @@ def _merge(episodes: Iterable[Judged]) -> Machine:
         if not pending:
             break
         _, _, parent, symbol, candidate = min(pending, key=lambda item: item[:2])
-        for state in states:
+        targets = Counter(children[node][symbol] for node in states if symbol in children[node])
+        order = sorted(states, key=lambda state: -targets[state]) if prefer_targets else states
+        for state in order:
             undo: list[tuple[int, Hashable | None, _Evidence | None]] = []
             children[parent][symbol] = state
             if fold(state, candidate, undo):

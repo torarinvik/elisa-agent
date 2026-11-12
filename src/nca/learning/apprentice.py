@@ -27,16 +27,19 @@ Marks = dict[Word, frozenset[Any]]
 class Apprentice:
     """A machine taught by takeovers, with every mark of a bad action judged again after each one."""
 
-    def __init__(self, *, unjudged: int = 2, needed: int = 2, share: float = 0.25, rounds: int = 4) -> None:
+    def __init__(self, *, unjudged: int = 2, needed: int = 2, share: float = 0.25, rounds: int = 4,
+                 prefer_targets: bool = False) -> None:
         """``unjudged`` is how many of the learner's actions, up to the one marked, are not recorded as good.
 
         A mark is believed once its transition holds ``needed`` marks against
         the action, making up more than ``share`` of the judgements of it
         there. ``rounds`` bounds the judging and merging after one takeover.
+        ``prefer_targets`` orders the merges as ``_merge`` does; it is off by default.
         """
         if any(type(count) is not int or count < 1 for count in (unjudged, needed, rounds)) or not 0 <= share < 1:
             raise ValueError("positive counts and a share below one are required")
         self.unjudged, self.needed, self.share, self.rounds = unjudged, needed, share, rounds
+        self.prefer_targets = prefer_targets
         self.machine = Machine({}, (UNLABELLED,))
         self.takeovers = 0
         self._episodes: list[Word] = []
@@ -53,15 +56,17 @@ class Apprentice:
                 return UNLABELLED
         return self.machine.outputs[state]
 
-    def taken_over(self, seen: Word, played: Sequence[Any], shown: Sequence[Any], *, asked: bool = False,
+    def taken_over(self, seen: Word, played: Sequence[Any], shown: Sequence[Any | None], *, asked: bool = False,
                    late: int = 0) -> None:
         """Learn from an episode the teacher took over.
 
         The learner's actions ``played`` answered the first observations of
-        ``seen`` and the teacher's actions ``shown`` the rest. With ``asked``
-        the learner had no action and requested the takeover, so nothing is
-        marked bad. Otherwise the action marked is the one ``late`` actions
-        before the learner's last: the teacher's reaction time, in steps.
+        ``seen`` and the teacher's actions ``shown`` the rest. A ``None`` among
+        the shown actions is a step the teacher did not show, and it is left
+        unjudged. With ``asked`` the learner had no action and requested the
+        takeover, so nothing is marked bad. Otherwise the action marked is the
+        one ``late`` actions before the learner's last: the teacher's reaction
+        time, in steps.
         """
         if len(played) + len(shown) != len(seen) or type(late) is not int or late < 0:
             raise ValueError("every observation is answered once, and the teacher's lateness is a count")
@@ -71,7 +76,8 @@ class Apprentice:
         for step in range(blamed + 1 - self.unjudged):
             self._good.setdefault(seen[:step + 1], Counter())[played[step]] += 1
         for offset, action in enumerate(shown):
-            self._good.setdefault(seen[:len(played) + offset + 1], Counter())[action] += 1
+            if action is not None:
+                self._good.setdefault(seen[:len(played) + offset + 1], Counter())[action] += 1
         if blamed >= 0 and not asked:
             self._marks.setdefault(seen[:blamed + 1], Counter())[played[blamed]] += 1
         for history, marks in self._marks.items():
@@ -82,7 +88,7 @@ class Apprentice:
             if attempt and believed == self._believed:
                 break
             self._believed = believed
-            self.machine = _merge(self._judged())
+            self.machine = _merge(self._judged(), prefer_targets=self.prefer_targets)
 
     def _judge(self) -> Marks:
         """The marks believed on the current machine."""

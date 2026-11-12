@@ -199,3 +199,17 @@ The machine is not right at the start, and a transition of a wrong machine mixes
 after every takeover each mark is judged again on the machine as it then is, the machine is rebuilt from the marks
 believed, and this repeats until the beliefs settle or a fixed number of rounds has passed. That this converges is not
 proved. It is measured in the research diary.
+
+## 52.10 Order of merges and unjudged steps
+
+A history may join a state when the evidence of both can share one, the fold of §52.7 succeeding. When several states
+admit it, the learner may try them in any order. A step the teacher did not show contributes no good judgement at its
+history, so that history carries no evidence from the step. §52.9 applies the same margin to the actions before the
+marked one.
+
+**Theorem 52.13 (order does not decide admissibility).** Let the states be tried in any order. Some state is then
+admissible if and only if some state of the original list is. The order therefore chooses which admissible merge is
+taken and never removes one, so each machine returned is consistent with the judged evidence that §52.7 guarantees.
+
+The order is a free parameter. Whether a particular order helps is an empirical question, decided in the research diary
+and not by this theorem. The default learner does not use the order that the Pong court does.
