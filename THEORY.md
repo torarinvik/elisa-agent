@@ -80,3 +80,4 @@ link for its definitions, arguments, and results.
 - [51. Learning state machines from queries](theory/foundations/51-state-machines.md)
 - [52. Teaching by takeover](theory/foundations/52-teaching-by-takeover.md)
 - [53. Judgements that carry across observations](theory/foundations/53-judgements-across-observations.md)
+- [54. Choosing what to look at](theory/foundations/54-choosing-what-to-look-at.md)
