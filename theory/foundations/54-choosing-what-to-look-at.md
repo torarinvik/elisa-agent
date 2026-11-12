@@ -183,3 +183,43 @@ Shedding is not free by another measure. The learner of 53.5 lets every set of t
 the cheapest carry judgements to observations the cheapest has not met; after shedding it learns afresh over fewer
 sets. Whether the smaller view is worth the corrections it adds is measured, in the research diary, and is the
 caller's choice.
+
+## 54.10 Situations that are alike turned
+
+54.8 lets two actions share judgements. A single action may also be judged alike in a situation and in the same
+situation turned. Let a turn `g` act on situations as it acts on probes, `p(g·s) = (g·p)(s)`, and call `g` a
+**likeness** of an action `a` if `f(s, a) = f(g·s, a)` for every `s`. The likenesses of an action form a group `G`.
+
+Let `≤` be a total order on tuples of readings, and for a list of probes `L` let the **first image** of `s` be the
+`g·s`, `g ∈ G`, whose readings through `L` come first. Judge and decide every situation in its first image.
+
+**Proposition 54.9 (one image for all).** If every `g ∈ G` is a likeness, then (i) the first image of `s` has the
+verdict of `s`; (ii) `s` and `g·s` have the same readings through `L` in their first images, so a judgement of one
+is a judgement of the other in every class of every set of probes of `L`; and (iii) if `f` depends on a set `S`,
+then the verdict of the first image depends on `S` read there, and the classes of `S` that hold first images number
+at least the orbits of `G` on the classes of `S` and at most all of them.
+
+(i) is the definition. For (ii), `s` and `g·s` have the same images, as `G` is a group, and so the same least tuple
+of readings. (iii) follows from (i) and 54.2 applied to first images.
+
+By (iii) the bound of 53.4 holds with the classes that hold first images in place of all classes. The lower count is
+reached when `L` tells the images of a situation apart wherever `S` does, so that classes that are images of one
+another are met in one image only. It is not reached by adding to each judgement its turned copies instead: a set of
+53.1 is a conjunction of readings, and a target true of `m` images of one class is then `m` conjunctions, each
+needing its own probes in the view.
+
+The learner is not told `G`, nor what tells images apart.
+
+- A turn is taken for a likeness unless one probe explains the judgements together with their turned copies for
+  more than twice what one probe explains the judgements for, by more than `√n` for `n` judgements. A likeness adds
+  no errors to a probe and its turned image read as one (54.7 with 54.2), and the turned copy pays for no classes
+  of its own. A turn that reverses verdicts puts opposite verdicts in one class, at an error each, which grows with
+  `n`. The tolerance is an assumption about chance, not a bound: the cost compared is a least over probes of a
+  finite sample, and without tolerance the choice was seen to alternate.
+- `L` is the readings of one probe, the **pivot**, in every image, followed by the view. The pivot is the probe with
+  which the judgements, each in its first image, are explained most cheaply by one probe; it is kept until another
+  is cheaper.
+
+Not covered: the turns taken need not form a group, and (ii) then holds only for the turns taken; a likeness that
+holds for some situations only is taken or refused as a whole; until a false likeness is refused, its judgements
+are shared wrongly, and the corrections that costs are measured in the research diary.

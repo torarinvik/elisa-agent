@@ -119,3 +119,47 @@ def test_the_view_keeps_within_its_limit_and_malformed_pools_are_refused() -> No
         Inquiry((0, 0), read, largest=1)
     with pytest.raises(ValueError, match="non-negative"):
         Inquiry((0, 1), read, largest=1, price=-1.0)
+
+
+SWAPPED = ((1, 0, 3, 2, 5, 4),)
+
+
+def chosen(inquiry: Inquiry, acceptable: object, *, rounds: int, seed: int) -> int:
+    """Teach a choice among six candidates of six readings in four values and return the takeovers."""
+    rng, takeovers = Random(seed), 0
+    for _ in range(rounds):
+        candidates = [tuple(rng.randrange(4) for _ in range(6)) for _ in range(6)]
+        good = [candidate for candidate in candidates if acceptable(candidate)]
+        taken = candidates[inquiry.choose([(candidate, "take") for candidate in candidates], rng)]
+        if good and not acceptable(taken):
+            takeovers += 1
+            inquiry.judge(taken, "take", False)
+            inquiry.judge(good[0], "take", True)
+    return takeovers
+
+
+def test_situations_alike_under_a_turn_share_their_judgements() -> None:
+    """The target reads probes 0 and 1 in either order: the turn that swaps them leaves every verdict as it was."""
+
+    def acceptable(seen: Situation) -> bool:
+        return {seen[0], seen[1]} in ({0, 2}, {1, 3})
+
+    apart = Inquiry(range(6), read, largest=2, keep=0.3, turns=SWAPPED)
+    alike = Inquiry(range(6), read, largest=2, keep=0.3, turns=SWAPPED, alike=True)
+    early = [chosen(inquiry, acceptable, rounds=300, seed=7) for inquiry in (apart, alike)]
+    assert alike.same == (1,) and alike.pivot in (0, 1) and apart.same == ()
+    assert 3 * early[1] <= 2 * early[0]
+    assert chosen(alike, acceptable, rounds=300, seed=17) == 0
+    assert alike.observe((2, 0, 1, 1, 1, 1), "take") == alike.observe((0, 2, 1, 1, 1, 1), "take")
+    restored = pickle.loads(pickle.dumps(alike))
+    assert (restored.same, restored.pivot) == (alike.same, alike.pivot)
+    assert restored.votes((2, 0, 1, 1, 1, 1), "take") == alike.votes((2, 0, 1, 1, 1, 1), "take")
+
+
+def test_a_turn_that_changes_the_verdict_is_not_taken_for_a_likeness() -> None:
+    def acceptable(seen: Situation) -> bool:
+        return seen[0] == 0 and seen[1] != 0
+
+    inquiry = Inquiry(range(6), read, largest=2, keep=0.3, turns=SWAPPED, alike=True)
+    chosen(inquiry, acceptable, rounds=300, seed=7)
+    assert inquiry.same == () and chosen(inquiry, acceptable, rounds=300, seed=17) == 0
