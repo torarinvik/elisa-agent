@@ -166,12 +166,12 @@ def test_a_turn_that_changes_the_verdict_is_not_taken_for_a_likeness() -> None:
 
 
 def test_each_shared_action_has_its_own_likenesses() -> None:
-    """Action ``a`` reads probes 0 and 1 in either order; action ``b`` reads probe 0 alone."""
+    """Action ``a`` reads probes 0 and 1 in either order; action ``b`` reads probe 0 alone, and against ``a``."""
     inquiry, rng = Inquiry(range(6), read, largest=2, keep=0.3, turns=SWAPPED, alike=True), Random(3)
     for _ in range(150):
         seen = tuple(rng.randrange(4) for _ in range(6))
-        inquiry.judge(seen, "a", {seen[0], seen[1]} in ({0, 2}, {1, 3}))
-        inquiry.judge(seen, "b", seen[0] == 0)
+        inquiry.judge(seen, "a", seen[0] == 0 or seen[1] == 0)
+        inquiry.judge(seen, "b", seen[0] != 0)
     assert inquiry.frame("b")[0] == "b" and inquiry.same == {"a": (1,)}
     assert inquiry.observe((2, 0, 1, 1, 1, 1), "a") == inquiry.observe((0, 2, 1, 1, 1, 1), "a")
-    assert inquiry.votes((0, 3, 1, 1, 1, 1), "b")[0] > inquiry.votes((3, 0, 1, 1, 1, 1), "b")[0]
+    assert inquiry.votes((3, 0, 1, 1, 1, 1), "b")[0] > inquiry.votes((0, 3, 1, 1, 1, 1), "b")[0]

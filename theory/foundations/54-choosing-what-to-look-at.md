@@ -224,7 +224,14 @@ A likeness is of an action. Actions joined under 54.8 have their likenesses in c
 they joined: `g` is a likeness of `a` exactly when `h g h⁻¹` is one of `a` turned by `h`. Actions not joined are
 tested apart, each on its own judgements, and each has its own pivot.
 
-Not covered: the turns taken need not form a group, and (ii) then holds only for the turns taken; an action with
-few judgements of its own refutes no turn, and takes every turn offered until it has more or is joined; a likeness that
+A join of 54.8 and a likeness are one claim, that judgements read through a turn belong with others, and are held
+by one test. Where likenesses are sought, `b` joins `a` under the turn that makes `c(J_a ∪ g·J_b)` least unless that
+exceeds `c(J_a) + c(J_b)` by more than `√(|J_a| + |J_b|)`; the strict comparison of 54.8 would let an action go on
+little evidence, and the action, alone with few judgements, would then refute no turn and take every one for a
+likeness.
+
+Not covered: the turns taken need not form a group, and (ii) then holds only for the turns taken; actions with
+unlike targets are joined until their judgements refute it beyond the tolerance, and never if no one probe tells
+their targets apart; a likeness that
 holds for some situations only is taken or refused as a whole; until a false likeness is refused, its judgements
 are shared wrongly, and the corrections that costs are measured in the research diary.

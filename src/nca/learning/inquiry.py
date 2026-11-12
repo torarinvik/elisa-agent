@@ -39,7 +39,9 @@ the pivot, read in every image, and then through the view. A judgement of one
 image is so a judgement of all. The pivot is the probe that leaves the
 judgements cheapest to explain; with a ``shortlist`` it is sought among the
 probes that alone explain them best. Likenesses and pivots are kept for each
-action, or each group of actions joined by turns, in that group's frame.
+action, or each group of actions joined by turns, in that group's frame. A
+join is then held as a likeness is: an action joins the group and turn that
+explain it most cheaply unless the judgements refute that beyond chance.
 
 With ``shortlist`` the search is cut short for large pools: every probe is first
 joined to at most one probe of the view, and only the ``shortlist`` cheapest are
@@ -186,12 +188,17 @@ class Inquiry:
             rows = np.array([label == action for label in labels])
             mine, verdicts = raw[rows], good[rows]
             alone = self._single(mine, verdicts)
-            saving, group, turn = 0.0, action, 0
-            for other, (codes, others, apart) in groups.items():
-                for place in range(len(turns)):
-                    pooled = self._single(np.vstack((codes, mine[:, turns[place]])), np.concatenate((others, verdicts)))
-                    if apart + alone - pooled > saving:
-                        saving, group, turn = apart + alone - pooled, other, place
+            offers = [(apart + alone - self._single(np.vstack((codes, mine[:, turns[place]])),
+                                                    np.concatenate((others, verdicts))),
+                       (len(others) + len(verdicts)) ** 0.5 if self.alike else 0.0, other, place)
+                      for other, (codes, others, apart) in groups.items() for place in range(len(turns))]
+            group, turn = action, 0
+            if offers:
+                best = max(offers, key=lambda offer: offer[0])
+                held = self.frames.get(action)
+                kept = next((offer for offer in offers if offer[2:] == held and offer[0] >= best[0]), best)
+                if kept[0] > -kept[1]:
+                    group, turn = kept[2:]
             frames[action] = group, turn
             if group == action:
                 groups[action] = mine, verdicts, alone
