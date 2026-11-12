@@ -86,6 +86,23 @@ def test_each_context_finds_its_own_components() -> None:
     assert relevance.surviving(("a", 0, 0)) == relevance.surviving(("b", 0, 0)) == 1
 
 
+def test_actions_kept_apart_find_their_own_components() -> None:
+    """Action ``a`` is good where component 0 is set and ``b`` where component 1 is: no one component serves both."""
+    together, apart = Relevance(2, largest=1, keep=0.3), Relevance(2, largest=1, keep=0.3, apart=True)
+    for observation in product(range(2), repeat=2):
+        for relevance in (together, apart):
+            relevance.judge(observation, "a", observation[0] == 1)
+            relevance.judge(observation, "b", observation[1] == 1)
+    assert apart.surviving((0, 0), "a") == apart.surviving((0, 0), "b") == 3
+    for observation in product(range(2), repeat=2):
+        good, bad = apart.votes(observation, "a")
+        assert (good > bad) == (observation[0] == 1)
+        good, bad = apart.votes(observation, "b")
+        assert (good > bad) == (observation[1] == 1)
+    weights = [together.votes((1, 0), "a"), apart.votes((1, 0), "a")]
+    assert weights[1][0] - weights[1][1] > weights[0][0] - weights[0][1]
+
+
 def test_a_guess_avoids_pairs_judged_bad() -> None:
     relevance = Relevance(2, largest=1)
     relevance.judge((0, 0), "take", False)

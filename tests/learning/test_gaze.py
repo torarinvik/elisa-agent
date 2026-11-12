@@ -34,9 +34,10 @@ def test_a_frame_is_never_read_beyond_its_budget_unless_studied() -> None:
     assert glimpse.looks <= 15
     readings = [glimpse.get((x, 31)) for x in range(32)]
     assert glimpse.looks == 20 and readings[:5] == ["plain"] * 5 and readings[-1] is None
-    glimpse.studying = True
-    assert glimpse.get((31, 31)) == "plain" and glimpse.looks == 20 and glimpse.studied == 1
-    assert glimpse.get((31, 31)) == "plain" and glimpse.studied == 1
+    assert glimpse.where("block") is None
+    glimpse.study()
+    assert glimpse.get((31, 31)) == "plain" and glimpse.looks == 20 and glimpse.studied == 32 * 32 - 20
+    assert glimpse.where("block") == (4, 4) and glimpse.where("plain") is None
 
 
 def test_a_value_found_at_two_corners_or_running_far_is_not_an_anchor() -> None:

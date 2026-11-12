@@ -178,3 +178,16 @@ and with them go the judgements against acceptable proposals that 53.5 could onl
 Only the order of an ordered component's values is used, never their distances, and the learner is not told which
 direction is preferred. A preference that reverses with circumstances, or that trades two components against each
 other, is outside this section.
+
+## 53.8 A set for each action
+
+A set suffices for `t` (53.1) only if it serves every action. Where the actions are many and each depends on
+components of its own, the union of what they depend on can be far larger than what any one depends on. A skill with
+actions `a₁, …, aₘ`, where `aᵢ` is good exactly when component `i` is set, has no sufficient set smaller than `m`,
+though each action depends on one component.
+
+A set `S` **suffices for an action** `a` if observations that agree on `S` have the same target for `a`. Theorems
+53.1 to 53.5 hold for the judgements of `a` alone, with `S` sufficient for `a`: they are the same statements about the
+target `o ↦ t o a` and the judgements of that action. A learner that keeps the actions apart holds a family of sets
+for each action and counts a judgement only against the sets of its action. Its corrections are then bounded by the
+sum over the actions of 53.4's count for the set each one needs, in place of the count for their union.

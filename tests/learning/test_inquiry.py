@@ -1,3 +1,4 @@
+import pickle
 from random import Random
 
 import pytest
@@ -44,6 +45,20 @@ def test_the_price_of_a_class_keeps_probes_from_being_bought_to_split_classes() 
         free.judge(situation, "take", good)
         priced.judge(situation, "take", good)
     assert len(free.view) >= 4 and len(priced.view) <= 1
+
+
+def test_each_action_is_explained_by_its_own_probes_and_a_saved_learner_is_made_again() -> None:
+    rng, inquiry = Random(1), Inquiry(range(10), read, largest=1)
+    depends = {"a": 3, "b": 7, "c": 1}
+    for _ in range(150):
+        situation, action = tuple(rng.randrange(3) for _ in range(10)), rng.choice("abc")
+        inquiry.judge(situation, action, situation[depends[action]] == 1)
+    assert sorted(inquiry.looking_at) == [1, 3, 7]
+    restored = pickle.loads(pickle.dumps(inquiry))
+    for action, probe in depends.items():
+        situation = tuple(1 if index == probe else 0 for index in range(10))
+        good, bad = restored.votes(situation, action)
+        assert good > bad and restored.votes(situation, action) == inquiry.votes(situation, action)
 
 
 def test_a_shortlist_finds_the_same_probes_in_a_large_pool() -> None:

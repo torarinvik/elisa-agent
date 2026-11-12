@@ -19,12 +19,16 @@ solid or the only one beyond what the looks happened to show.
 
 The ``Glimpse`` of a frame answers the readings of ``anchors.read``: a position
 looked at before in the frame is free, a new one costs a look, and none is
-answered once the budget is spent, unless the frame is being studied.
+answered once the budget is spent. A frame that is studied is read whole,
+beyond the budget, and its anchors are then those of the whole scene: what is
+learned from the frame does not depend on what the looks had found in it.
 """
 
 from collections.abc import Callable, Hashable, Sequence
 from itertools import permutations, product
 from random import Random
+
+from .anchors import Scene
 
 Position = tuple[int, ...]
 Look = Callable[[Position], Hashable]
@@ -37,11 +41,18 @@ class _Spent(Exception):
 class Glimpse:
     """What one frame has shown so far, and the places of the anchors found in it."""
 
-    def __init__(self, look: Look, budget: int) -> None:
-        self._look, self.budget = look, budget
+    def __init__(self, look: Look, budget: int, positions: Sequence[Position] = ()) -> None:
+        self._look, self.budget, self._positions = look, budget, positions
+        self._whole: Scene | None = None
         self.seen: dict[Position, Hashable] = {}
         self.places: dict[Hashable, Position] = {}
         self.looks = self.studied = 0
+        self.studying = False
+
+    def study(self) -> None:
+        """Read the whole frame, beyond the budget; its anchors are from then on the whole scene's."""
+        self.studying = True
+        self._whole = Scene({position: self.get(position) for position in self._positions})
         self.studying = False
 
     @property
@@ -52,7 +63,7 @@ class Glimpse:
         """The value at ``position``, looking if it was not looked at and a look is left."""
         if position in self.seen:
             return self.seen[position]
-        if self.studying:
+        if self.studying or self._whole is not None:
             self.studied += 1
         elif self.looks >= self.budget:
             return default
@@ -63,7 +74,7 @@ class Glimpse:
 
     def where(self, value: Hashable) -> Position | None:
         """The least corner of the block ``value`` was found to form, or ``None``."""
-        return self.places.get(value)
+        return self.places.get(value) if self._whole is None else self._whole.where(value)
 
 
 class Gaze:
@@ -88,7 +99,7 @@ class Gaze:
 
     def frame(self, look: Look, reserve: int = 0) -> Glimpse:
         """Look at a new frame, keeping ``reserve`` looks back for the caller's own readings."""
-        glimpse = Glimpse(look, self.budget)
+        glimpse = Glimpse(look, self.budget, self._order)
         spare = self.budget - reserve
 
         def see(position: Position) -> Hashable:

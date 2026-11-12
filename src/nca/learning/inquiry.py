@@ -6,14 +6,16 @@ empty, and learns over the view's readings as ``Relevance`` does (§53). A
 judged situation is studied whole: every probe is read once and kept, so a
 probe taken up later can be read on the judgements already made.
 
-A set of probes explains the judgements at the cost of the judgements it gets
-wrong, one for each judgement outside the majority of its class, plus ``price``
-for each class it uses. A set the target depends on gets none wrong
+A set of probes explains the judgements of an action at the cost of the
+judgements it gets wrong, one for each judgement outside the majority of its
+class, plus ``price`` for each class it uses. Each action is explained by its
+own set, and the view's cost is the sum over the actions of the cheapest
+(§53.8). A set the target depends on gets none wrong
 (``NCA.sufficient_set_consistent``), so judgements no set of the view explains
 show that the view lacks a probe (``NCA.disagreeing_probe_outside_view``). The
-learner then takes up the probe that, joined to at most ``largest - 1`` probes
-of the view, explains the judgements most cheaply, as long as that is cheaper
-than the view explains them. The price of a class keeps a probe from being
+learner then takes up the probe with which the view would explain them most
+cheaply, each action using it or not with at most ``largest - 1`` probes of
+the view, as long as that is cheaper than the view explains them. The price of a class keeps a probe from being
 bought for splitting classes alone.
 
 With ``shortlist`` the search is cut short for large pools: every probe is first
@@ -56,11 +58,19 @@ class Inquiry:
         self.view: list[int] = []
         self.cases: list[Case] = []
         self.looked = self.studied = 0
-        self._relevance = Relevance(0, largest=largest, keep=keep)
+        self._relevance = Relevance(0, largest=largest, keep=keep, apart=True)
         self._codes: list[list[int]] = []
         self._actions: list[int] = []
         self._good: list[bool] = []
         self._names: dict[Hashable, int] = {}
+
+    def __getstate__(self) -> dict[str, Any]:
+        """What is saved: the judgements and the view, from which the learner over the view is made again."""
+        return {name: value for name, value in self.__dict__.items() if name != "_relevance"}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update({"shortlist": None} | state)
+        self._learn()
 
     @property
     def judgements(self) -> int:
@@ -96,16 +106,18 @@ class Inquiry:
         self._relevance.judge(tuple(readings[index] for index in self.view), action, good)
         self._grow()
 
-    def cost(self, subset: Sequence[int]) -> float:
-        """What the set leaves unexplained: judgements outside their class's majority, and ``price`` a class."""
+    def cost(self, subset: Sequence[int], action: Hashable) -> float:
+        """What the set leaves unexplained of an action: judgements outside their class's majority, ``price`` a class."""
         classes: dict[tuple[Hashable, ...], list[int]] = {}
-        for readings, action, good in self.cases:
-            classes.setdefault((action, *(readings[index] for index in subset)), [0, 0])[good] += 1
+        for readings, judged, good in self.cases:
+            if judged == action:
+                classes.setdefault(tuple(readings[index] for index in subset), [0, 0])[good] += 1
         return sum(min(counts) for counts in classes.values()) + self.price * len(classes)
 
     def _offers(self) -> tuple[float, np.ndarray]:
-        """The least cost of a set of the view, and for each probe the least cost of a set of it and the view."""
+        """The cost the view leaves, and for each probe the cost the view would leave with it."""
         codes, actions, good = np.array(self._codes), np.array(self._actions), np.array(self._good)
+        _, actions = np.unique(actions, return_inverse=True)
         if self.shortlist is None or self.largest <= 2 or codes.shape[1] <= self.shortlist + len(self.view):
             return self._costs(codes, actions, good, self.largest)
         _, rough = self._costs(codes, actions, good, 2)
@@ -118,24 +130,25 @@ class Inquiry:
 
     def _costs(self, codes: np.ndarray, actions: np.ndarray, good: np.ndarray, largest: int,
                view: Sequence[int] | None = None) -> tuple[float, np.ndarray]:
-        """The least cost within the view, and each probe's with the view, over sets of at most ``largest``."""
-        view = self.view if view is None else view
-        values, probes = int(codes.max()) + 1, codes.shape[1]
-        least, offers = float("inf"), np.full(probes, np.inf)
+        """Each action's least cost over sets of at most ``largest``, summed: within the view, and with each probe."""
+        view = list(self.view if view is None else view)
+        values, probes, kinds = int(codes.max()) + 1, codes.shape[1], int(actions.max()) + 1
+        least, offers = np.full(kinds, np.inf), np.full((probes, kinds), np.inf)
         for size in range(min(largest, len(view) + 1)):
             for subset in combinations(view, size):
-                _, classes = np.unique(np.column_stack((actions, codes[:, subset])), axis=0, return_inverse=True)
-                classes = classes.reshape(-1)
-                span = (int(classes.max()) + 1) * values
+                _, classes = np.unique(codes[:, subset], axis=0, return_inverse=True)
+                classes = classes.reshape(-1) * kinds + actions
+                span = (int(classes.max()) // kinds + 1) * kinds
                 if not size:
-                    counts = [np.bincount(classes[verdict], minlength=span) for verdict in (good, ~good)]
-                    least = float(np.minimum(*counts).sum() + self.price * np.count_nonzero(counts[0] + counts[1]))
-                keys = (classes[:, None] * values + codes + np.arange(probes) * span)
-                counts = [np.bincount(keys[verdict].ravel(), minlength=probes * span).reshape(probes, span)
-                          for verdict in (good, ~good)]
-                offers = np.minimum(offers, np.minimum(*counts).sum(axis=1)
-                                    + self.price * np.count_nonzero(counts[0] + counts[1], axis=1))
-        return min(least, float(offers[list(view)].min(initial=np.inf))), offers
+                    counts = [np.bincount(actions[verdict], minlength=kinds) for verdict in (good, ~good)]
+                    least = np.minimum(*counts) + self.price * (counts[0] + counts[1] > 0)
+                keys = classes[:, None] + span * codes + np.arange(probes) * (span * values)
+                counts = [np.bincount(keys[verdict].ravel(), minlength=probes * span * values)
+                          .reshape(probes, values, span // kinds, kinds) for verdict in (good, ~good)]
+                offers = np.minimum(offers, np.minimum(*counts).sum(axis=(1, 2))
+                                    + self.price * np.count_nonzero(counts[0] + counts[1], axis=(1, 2)))
+        least = np.minimum(least, offers[view].min(axis=0, initial=np.inf))
+        return float(least.sum()), np.minimum(offers, least).sum(axis=1)
 
     def _grow(self) -> None:
         if self.largest < 1:
@@ -150,6 +163,10 @@ class Inquiry:
             self.view.append(best)
             grown = True
         if grown:
-            self._relevance = Relevance(len(self.view), largest=self.largest, keep=self.keep)
-            for readings, action, good in self.cases:
-                self._relevance.judge(tuple(readings[index] for index in self.view), action, good)
+            self._learn()
+
+    def _learn(self) -> None:
+        """Learn over the view afresh from the judgements kept."""
+        self._relevance = Relevance(len(self.view), largest=self.largest, keep=self.keep, apart=True)
+        for readings, action, good in self.cases:
+            self._relevance.judge(tuple(readings[index] for index in self.view), action, good)

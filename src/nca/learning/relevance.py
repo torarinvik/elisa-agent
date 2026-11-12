@@ -24,14 +24,17 @@ the ordered components, each weighed by its two hypotheses
 (``NCA.fewer_contradictions_weigh_more``). It is not told the direction.
 
 Components named ``always`` split the problem instead: each of their values is
-a context with its own family of sets. The components and their meanings are
-the caller's; the learner only finds which of them matter.
+a context with its own family of sets. With ``apart`` each action is a context
+too: the components one action's verdict depends on need not be another's
+(§53.8). The components and their meanings are the caller's; the learner only
+finds which of them matter.
 """
 
 from collections.abc import Callable, Hashable, Sequence
 from itertools import combinations
 from operator import itemgetter
 from random import Random
+from typing import Any
 
 Observation = Sequence[Hashable]
 Judgement = tuple[tuple[Hashable, ...], Hashable, bool]
@@ -61,7 +64,7 @@ class Relevance:
     """Judged actions, carried to every observation that agrees on a set of components, weighted by its record."""
 
     def __init__(self, components: int, *, largest: int, always: Sequence[int] = (), keep: float = 0.0,
-                 negligible: float = 1e-9, ordered: Sequence[int] = ()) -> None:
+                 negligible: float = 1e-9, ordered: Sequence[int] = (), apart: bool = False) -> None:
         """``components`` per observation, sets of at most ``largest`` of them, ``always`` read as the context.
 
         The values of the ``ordered`` components can be compared with one another.
@@ -75,7 +78,7 @@ class Relevance:
         if not 0 <= keep < 1 or not 0 < negligible < 1:
             raise ValueError("a contradicted set keeps a share below one, and a negligible share is below one")
         self.components, self.largest, self.always = components, largest, tuple(always)
-        self.keep, self.negligible = keep, negligible
+        self.keep, self.negligible, self.apart = keep, negligible, apart
         free = [index for index in range(components) if index not in self.always and index not in ordered]
         self.family = tuple(subset for size in range(min(largest, len(free)) + 1)
                             for subset in combinations(free, size))
@@ -85,6 +88,10 @@ class Relevance:
         self._against = {(index, larger): 0.0 for index in self.ordered for larger in (True, False)}
         self.history: list[Judgement] = []
         self._contexts: dict[tuple[Hashable, ...], _Context] = {}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Take up a saved learner; one saved before actions could be kept apart keeps them together."""
+        self.__dict__.update({"apart": False} | state)
 
     @property
     def judgements(self) -> int:
@@ -113,10 +120,10 @@ class Relevance:
         least = min(larger, smaller)
         return self.keep ** (larger - least) - self.keep ** (smaller - least)
 
-    def _context(self, observation: Observation) -> _Context:
+    def _context(self, observation: Observation, action: Hashable = None) -> _Context:
         if len(observation) != self.components:
             raise ValueError(f"an observation has {self.components} components")
-        key = tuple(observation[index] for index in self.always)
+        key = (*(observation[index] for index in self.always), *((action,) if self.apart else ()))
         context = self._contexts.get(key)
         if context is None:
             context = self._contexts[key] = _Context(self.family)
@@ -124,7 +131,7 @@ class Relevance:
 
     def judge(self, observation: Observation, action: Hashable, good: bool) -> None:
         """Record that ``action`` at ``observation`` is good or bad, counting it against every set it contradicts."""
-        context = self._context(observation)
+        context = self._context(observation, action)
         self.history.append((tuple(observation), action, good))
         context.votes.clear()
         readers = self.readers
@@ -141,7 +148,7 @@ class Relevance:
 
     def votes(self, observation: Observation, action: Hashable) -> tuple[float, float]:
         """The weight of the sets that judge ``action`` at ``observation`` good, and of those that judge it bad."""
-        context = self._context(observation)
+        context = self._context(observation, action)
         remembered = context.votes.get((tuple(observation), action))
         if remembered is not None:
             return remembered
@@ -157,9 +164,9 @@ class Relevance:
         context.votes[tuple(observation), action] = good, bad
         return good, bad
 
-    def surviving(self, observation: Observation) -> int:
+    def surviving(self, observation: Observation, action: Hashable = None) -> int:
         """The sets of the observation's context still voting."""
-        return len(self._context(observation).tables)
+        return len(self._context(observation, action).tables)
 
     def choose(self, pairs: Sequence[tuple[Observation, Hashable]], guesses: Random) -> int:
         """The index of a pair believed good, or failing any a guess that avoids bad majorities.
