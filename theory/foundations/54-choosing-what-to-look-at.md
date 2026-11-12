@@ -220,6 +220,11 @@ The learner is not told `G`, nor what tells images apart.
   which the judgements, each in its first image, are explained most cheaply by one probe; it is kept until another
   is cheaper.
 
-Not covered: the turns taken need not form a group, and (ii) then holds only for the turns taken; a likeness that
+A likeness is of an action. Actions joined under 54.8 have their likenesses in common, in the frame of the action
+they joined: `g` is a likeness of `a` exactly when `h g h⁻¹` is one of `a` turned by `h`. Actions not joined are
+tested apart, each on its own judgements, and each has its own pivot.
+
+Not covered: the turns taken need not form a group, and (ii) then holds only for the turns taken; an action with
+few judgements of its own refutes no turn, and takes every turn offered until it has more or is joined; a likeness that
 holds for some situations only is taken or refused as a whole; until a false likeness is refused, its judgements
 are shared wrongly, and the corrections that costs are measured in the research diary.

@@ -37,7 +37,9 @@ apart, by one probe, beyond what chance allows. A situation is then judged and
 decided in one of its alike images, the one that reads first: by one probe,
 the pivot, read in every image, and then through the view. A judgement of one
 image is so a judgement of all. The pivot is the probe that leaves the
-judgements cheapest to explain; with a ``shortlist`` it is sought in the view.
+judgements cheapest to explain; with a ``shortlist`` it is sought among the
+probes that alone explain them best. Likenesses and pivots are kept for each
+action, or each group of actions joined by turns, in that group's frame.
 
 With ``shortlist`` the search is cut short for large pools: every probe is first
 joined to at most one probe of the view, and only the ``shortlist`` cheapest are
@@ -77,8 +79,8 @@ class Inquiry:
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
         self.shortlist, self.sheds, self.alike = shortlist, sheds, alike
-        self.same: tuple[int, ...] = ()
-        self.pivot: int | None = None
+        self.same: dict[Hashable, tuple[int, ...]] = {}
+        self.pivot: dict[Hashable, int] = {}
         still = tuple(range(len(self.probes)))
         self.turns = (still, *(tuple(turn) for turn in turns if tuple(turn) != still))
         if any(sorted(turn) != list(still) for turn in self.turns):
@@ -97,7 +99,7 @@ class Inquiry:
         return {name: value for name, value in self.__dict__.items() if name != "_relevance"}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False, "alike": False, "same": (), "pivot": None} | state)
+        self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False, "alike": False, "same": {}, "pivot": {}} | state)
         self.__dict__.setdefault("turns", (tuple(range(len(self.probes))),))
         self._learn()
 
@@ -150,12 +152,12 @@ class Inquiry:
         self._good.append(good)
         turned = len(self.turns) > 1 and self._align()
         turned = (self.alike and len(self.turns) > 1 and self._liken()) or turned
-        turned = (bool(self.same) and self._pivot()) or turned
-        if not turned:
+        told = bool(self.same or self.pivot) and self._pivot()
+        if not (turned or told):
             self._relevance.judge(self._first(readings, self._codes[-1], action), self.frame(action)[0], good)
         if turned and self.sheds:
             self._shed()
-        if self._grow() or turned:
+        if self._grow() or turned or told:
             self._learn()
 
     def cost(self, subset: Sequence[int], action: Hashable) -> float:
@@ -163,20 +165,15 @@ class Inquiry:
         and ``price`` a class."""
         classes: dict[tuple[int, ...], list[int]] = {}
         codes, actions, verdicts = self._shared()
-        names = {self.frame(judged)[0]: kind for (_, judged, _), kind in zip(self.cases, actions.tolist(), strict=True)}
+        groups = self._plain()[3]
         for row, kind, good in zip(codes[:, list(subset)].tolist(), actions.tolist(), verdicts.tolist(), strict=True):
-            if kind == names.get(action):
+            if groups[kind] == action:
                 classes.setdefault(tuple(row), [0, 0])[good] += 1
         return sum(min(counts) for counts in classes.values()) + self.price * len(classes)
 
     def _single(self, codes: np.ndarray, good: np.ndarray) -> float:
         """The least cost of explaining judgements by one probe or by none."""
-        values, probes = int(codes.max()) + 1, codes.shape[1]
-        keys = codes + np.arange(probes) * values
-        counts = [np.bincount(keys[verdict].ravel(), minlength=probes * values).reshape(probes, values)
-                  for verdict in (good, ~good)]
-        by_one = np.minimum(*counts).sum(axis=1) + self.price * np.count_nonzero(counts[0] + counts[1], axis=1)
-        return float(min(by_one.min(), min(good.sum(), (~good).sum()) + self.price))
+        return float(min(self._ranked(codes, good).min(), min(good.sum(), (~good).sum()) + self.price))
 
     def _align(self) -> bool:
         """Let each action join an earlier one under the turn that explains the two most cheaply together."""
@@ -207,8 +204,9 @@ class Inquiry:
     def _images(self, action: Hashable) -> list[tuple[int, ...]]:
         """The probes read for ``action`` in the situation as it stands and in each image judged alike: the pivot in
         every image, by which the images are told apart, and then the view."""
-        through, places = self.turns[self.frame(action)[1]], (0, *self.same)
-        told = [] if self.pivot is None or not self.same else [self.turns[place][self.pivot] for place in places]
+        group, turn = self.frame(action)
+        through, places = self.turns[turn], (0, *self.same.get(group, ()))
+        told = [self.turns[place][self.pivot[group]] for place in places] if group in self.pivot else []
         return [tuple(through[self.turns[place][index]] for index in (*told, *self.view)) for place in places]
 
     def _first(self, readings: Sequence[Hashable], codes: Sequence[int], action: Hashable) -> tuple[Hashable, ...]:
@@ -216,25 +214,27 @@ class Inquiry:
         first = min(self._images(action), key=lambda image: [codes[index] for index in image])
         return tuple(readings[index] for index in first[len(first) - len(self.view):])
 
-    def _plain(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _plain(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[Hashable]]:
         """The judgements as their actions share them: readings through each action's turn, the action shared, the
-        verdict."""
+        verdict; and the shared actions as numbered."""
         raw, good, turns = np.array(self._codes), np.array(self._good), np.array(self.turns)
         frames = [self.frame(action) for _, action, _ in self.cases]
         names: dict[Hashable, int] = {}
         actions = np.array([names.setdefault(group, len(names)) for group, _ in frames])
-        return np.take_along_axis(raw, turns[[turn for _, turn in frames]], axis=1), actions, good
+        return np.take_along_axis(raw, turns[[turn for _, turn in frames]], axis=1), actions, good, list(names)
 
     def _shared(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """The judgements, each in the alike image that reads first."""
-        codes, actions, good = self._plain()
-        return self._imaged(codes, self.pivot), actions, good
+        codes, actions, good, groups = self._plain()
+        for kind, group in enumerate(groups):
+            if self.same.get(group):
+                rows = actions == kind
+                codes[rows] = self._imaged(codes[rows], self.same[group], self.pivot.get(group))
+        return codes, actions, good
 
-    def _imaged(self, codes: np.ndarray, pivot: int | None) -> np.ndarray:
+    def _imaged(self, codes: np.ndarray, same: Sequence[int], pivot: int | None) -> np.ndarray:
         """Each row in its alike image that reads first: by ``pivot`` in every image, then through the view."""
-        if not self.same:
-            return codes
-        turns = np.array(self.turns)[[0, *self.same]]
+        turns = np.array(self.turns)[[0, *same]]
         order = np.hstack((turns[:, [] if pivot is None else turns[:, pivot]], turns[:, self.view])).astype(int)
         seen = codes[:, order]
         first = np.ones(seen.shape[:2], dtype=bool)
@@ -243,34 +243,50 @@ class Inquiry:
             first &= values == values.min(axis=1, keepdims=True)
         return np.take_along_axis(codes, turns[first.argmax(axis=1)], axis=1)
 
+    def _ranked(self, codes: np.ndarray, good: np.ndarray) -> np.ndarray:
+        """The cost of explaining judgements by each probe alone."""
+        values, probes = int(codes.max()) + 1, codes.shape[1]
+        keys = codes + np.arange(probes) * values
+        counts = [np.bincount(keys[verdict].ravel(), minlength=probes * values).reshape(probes, values)
+                  for verdict in (good, ~good)]
+        return np.minimum(*counts).sum(axis=1) + self.price * np.count_nonzero(counts[0] + counts[1], axis=1)
+
     def _pivot(self) -> bool:
-        """Tell the alike images apart by the probe that leaves the judgements cheapest to explain by one probe."""
-        codes, actions, good = self._plain()
-        groups = [actions == kind for kind in range(int(actions.max()) + 1)]
-
-        def cost(pivot: int | None) -> float:
-            imaged = self._imaged(codes, pivot)
-            return sum(self._single(imaged[rows], good[rows]) for rows in groups)
-
-        candidates = self.view if self.shortlist is not None else range(len(self.probes))
-        least, best = cost(self.pivot), self.pivot
-        for pivot in candidates:
-            offer = cost(pivot)
-            if offer < least:
-                least, best = offer, pivot
-        changed, self.pivot = best != self.pivot, best
+        """For each shared action with a likeness, tell the alike images apart by the probe that leaves its
+        judgements cheapest to explain by one probe."""
+        codes, actions, good, groups = self._plain()
+        pivots: dict[Hashable, int] = {}
+        for kind, group in enumerate(groups):
+            same = self.same.get(group)
+            if not same:
+                continue
+            mine, verdicts = codes[actions == kind], good[actions == kind]
+            candidates = (range(len(self.probes)) if self.shortlist is None
+                          else np.argsort(self._ranked(mine, verdicts), kind="stable")[:self.shortlist].tolist())
+            best = self.pivot.get(group)
+            least = self._single(self._imaged(mine, same, best), verdicts)
+            for pivot in candidates:
+                offer = self._single(self._imaged(mine, same, pivot), verdicts)
+                if offer < least:
+                    least, best = offer, pivot
+            if best is not None:
+                pivots[group] = best
+        changed, self.pivot = pivots != self.pivot, pivots
         return changed
 
     def _liken(self) -> bool:
-        """Take each turn for a likeness unless the judgements and their turned copies cost more together than twice
-        apart by more than chance allows (54.10)."""
-        codes, actions, good = self._plain()
-        groups = [actions == kind for kind in range(int(actions.max()) + 1)]
-        apart = sum(self._single(codes[rows], good[rows]) for rows in groups)
-        same = tuple(place for place in range(1, len(self.turns))
-                     if sum(self._single(np.vstack((codes[rows], codes[rows][:, self.turns[place]])),
-                                         np.tile(good[rows], 2)) for rows in groups) < 2 * apart + len(good) ** 0.5)
-        changed, self.same = same != self.same, same
+        """For each shared action, take each turn for a likeness unless its judgements and their turned copies cost
+        more together than twice apart by more than chance allows (54.10)."""
+        codes, actions, good, groups = self._plain()
+        likenesses: dict[Hashable, tuple[int, ...]] = {}
+        for kind, group in enumerate(groups):
+            mine, verdicts = codes[actions == kind], good[actions == kind]
+            most = 2 * self._single(mine, verdicts) + len(verdicts) ** 0.5
+            same = tuple(place for place in range(1, len(self.turns))
+                         if self._single(np.vstack((mine, mine[:, self.turns[place]])), np.tile(verdicts, 2)) < most)
+            if same:
+                likenesses[group] = same
+        changed, self.same = likenesses != self.same, likenesses
         return changed
 
     def _shed(self) -> None:
