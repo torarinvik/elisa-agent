@@ -110,3 +110,31 @@ per-takeover factor to the power is proved in Lean as `weight_le_pow`.
 When some sets abstain, only the weight of the sets that predicted falls, and the bound is not claimed. A learner may
 drop a set whose weight is a negligible share of the best set's in its context; its votes could not change a decision
 unless the sets outnumbered the inverse of that share.
+
+## 53.6 Comparisons
+
+A takeover on a choice among candidates says less than two verdicts. The teacher replaced the proposal `x` with `y`, so
+they prefer `y` to `x`; they need not find `x` unacceptable. Recorded as `x` bad and `y` good, a preference the
+components do not show contradicts every set whose class of `x` leans good, including a set that judges acceptability
+correctly. That is the failure 53.5 only dampens.
+
+Record the takeover instead as the **comparison** `y ≻ x`. A set scores each of its classes by the comparisons it won
+there minus those it lost. It **ranks** `y` above `x` when the score of `y`'s class exceeds that of `x`'s, and it is
+**contradicted** by `y ≻ x` when it ranks `x` above `y`. A set that puts `x` and `y` in one class, or scores their
+classes equally, abstains. Its weight is `βᵐ` as in 53.5, and the comparison then adds a win to `y`'s class and a loss to
+`x`'s. Candidates in different contexts are scored by the same set of components in each context, and a contradiction
+there counts against that set in both.
+
+**Theorem 53.6 (a set blind to the preference is not contradicted).** Suppose the teacher prefers acceptable candidates
+to unacceptable ones and, among candidates alike in acceptability, by components outside a set `S` that suffices for
+acceptability. Then a comparison `y ≻ x` between two candidates of one context contradicts `S` only if `x` and `y` lie
+in different classes of `S` and `S` ranks `x` above `y`. Among acceptable candidates whose classes of `S` coincide, as
+two placements that both cover nothing do, no comparison contradicts `S`.
+
+The first part is the definition of a contradiction, and the second follows because one class has one score. Absolute
+marks would have counted every such takeover against `S`. The bound of 53.5 holds for comparisons as stated, with
+predicting read as ranking, since a set's weight falls only where it ranked the pair the wrong way. Theorem 53.6 is not
+in Lean.
+
+How the scores of different classes compare is not shown here: a set may rank two acceptable classes in either order
+until comparisons between them arrive, and those arrive only as fast as the teacher takes over between them.
