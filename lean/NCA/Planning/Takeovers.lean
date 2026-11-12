@@ -214,10 +214,4 @@ theorem believed_mark_outweighs (num den b g : ℕ) (believed : num * (b + g) < 
   rw [Nat.mul_add, Nat.add_comm] at believed
   exact Nat.lt_sub_of_add_lt believed
 
-/-- **Theorem 52.13 (order does not decide admissibility).** Whether some state is admissible does not depend on the
-order in which the states are tried: a reordering of them has an admissible state exactly when the original does. -/
-theorem admissible_order_free {α : Type*} (ok : α → Prop) {states order : List α} (h : order.Perm states) :
-    (∃ s ∈ order, ok s) ↔ (∃ s ∈ states, ok s) :=
-  ⟨fun ⟨s, hs, hok⟩ => ⟨s, h.mem_iff.mp hs, hok⟩, fun ⟨s, hs, hok⟩ => ⟨s, h.mem_iff.mpr hs, hok⟩⟩
-
 end NCA

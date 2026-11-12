@@ -27,19 +27,16 @@ Marks = dict[Word, frozenset[Any]]
 class Apprentice:
     """A machine taught by takeovers, with every mark of a bad action judged again after each one."""
 
-    def __init__(self, *, unjudged: int = 2, needed: int = 2, share: float = 0.25, rounds: int = 4,
-                 prefer_targets: bool = False) -> None:
+    def __init__(self, *, unjudged: int = 2, needed: int = 2, share: float = 0.25, rounds: int = 4) -> None:
         """``unjudged`` is how many of the learner's actions, up to the one marked, are not recorded as good.
 
         A mark is believed once its transition holds ``needed`` marks against
         the action, making up more than ``share`` of the judgements of it
         there. ``rounds`` bounds the judging and merging after one takeover.
-        ``prefer_targets`` orders the merges as ``_merge`` does; it is off by default.
         """
         if any(type(count) is not int or count < 1 for count in (unjudged, needed, rounds)) or not 0 <= share < 1:
             raise ValueError("positive counts and a share below one are required")
         self.unjudged, self.needed, self.share, self.rounds = unjudged, needed, share, rounds
-        self.prefer_targets = prefer_targets
         self.machine = Machine({}, (UNLABELLED,))
         self.takeovers = 0
         self._episodes: list[Word] = []
@@ -88,7 +85,7 @@ class Apprentice:
             if attempt and believed == self._believed:
                 break
             self._believed = believed
-            self.machine = _merge(self._judged(), prefer_targets=self.prefer_targets)
+            self.machine = _merge(self._judged())
 
     def _judge(self) -> Marks:
         """The marks believed on the current machine."""
