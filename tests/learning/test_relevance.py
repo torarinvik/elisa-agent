@@ -37,6 +37,21 @@ def test_a_correct_teacher_is_bounded_by_the_set_that_matters() -> None:
         assert (good > bad) == acceptable(observation) or good == bad == 0
 
 
+def test_a_teacher_who_contradicts_themselves_is_outweighed_not_obeyed() -> None:
+    """One judgement in ten is reversed: refuting sets loses every one, weighing them keeps the right one ahead."""
+    rng = Random(3)
+    judgements = [(observation, (observation[1] == 1) != (rng.random() < 0.1))
+                  for observation in (tuple(rng.randrange(2) for _ in range(6)) for _ in range(300))]
+    strict, weighed = Relevance(6, largest=2), Relevance(6, largest=2, keep=0.5)
+    for observation, good in judgements:
+        strict.judge(observation, "take", good)
+        weighed.judge(observation, "take", good)
+    assert strict.surviving((0,) * 6) == 0 and weighed.judgements == 300
+    for observation in product(range(2), repeat=6):
+        good, bad = weighed.votes(observation, "take")
+        assert (good > bad) == (observation[1] == 1)
+
+
 def test_each_context_finds_its_own_components() -> None:
     relevance = Relevance(3, largest=1, always=(0,))
     for context, matters in (("a", 1), ("b", 2)):
@@ -62,5 +77,7 @@ def test_malformed_observations_and_sets_are_refused() -> None:
         Relevance(2, largest=1, always=(0, 0))
     with pytest.raises(ValueError, match="components"):
         Relevance(2, largest=1).votes((0,), "take")
+    with pytest.raises(ValueError, match="share"):
+        Relevance(1, largest=1, keep=1.0)
     with pytest.raises(ValueError, match="nothing"):
         Relevance(1, largest=1).choose([], Random(0))

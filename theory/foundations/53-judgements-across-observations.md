@@ -75,11 +75,38 @@ the bound of 53.4 is polynomial in `n` instead.
 
 ## 53.4 What this does not cover
 
-The theorems assume a correct teacher. A judgement made late, as in §52.6 and §52.9, can refute the sufficient set, and
-53.1 then fails. They cover a target that depends on the current observation only. A skill with memory, as in §52, also
-needs states, and how the classes of this chapter combine with the merging of states is not settled here. When every
-consistent set votes, each takeover of the first kind in 53.3 refutes half of the sets left, and the halving argument of
-§52.3 bounds those takeovers by `log₂ |H|`; abstaining sets weaken this, and only the count of 53.4 is claimed.
+Theorems 53.1 to 53.4 assume a correct teacher; §53.5 replaces them for one who is not. A judgement made late, as in
+§52.6 and §52.9, contradicts the sufficient set like any other error. The theorems cover a target that depends on the
+current observation only. A skill with memory, as in §52, also needs states, and how the classes of this chapter combine
+with the merging of states is not settled here. When every consistent set votes, each takeover of the first kind in 53.3
+refutes half of the sets left, and the halving argument of §52.3 bounds those takeovers by `log₂ |H|`; abstaining sets
+weaken this, and only the count of 53.4 is claimed.
 
 Which components exist is the domain's choice, as the sensor of a game is. The learner chooses only which of them
 matter.
+
+## 53.5 A teacher who contradicts themselves
+
+A person does not judge by a fixed target. They take over when they prefer another placement, not only when the proposal
+is unacceptable, and they weigh what the components do not show. Then no set of `H` may be consistent with the
+judgements, every set is refuted, and the learner of 53.3 can only guess. The bound of 53.4 holds only for a correct
+teacher.
+
+Let each set keep a weight instead. A set **predicts** a verdict for an action at a class when its judgements of that
+action there lean one way, and it is **contradicted** by a new judgement that goes the other way. Its weight is `βᵐ`,
+where `m` counts its contradictions and `0 ≤ β < 1`, and the votes of 53.3 are weighted. With `β = 0` a contradicted set
+weighs nothing, which is the learner of 53.3. With `β > 0` no set is lost, and a set contradicted less often outweighs
+one contradicted more often.
+
+**Theorem 53.5 (weighted majority).** Let `0 < β < 1`. Suppose every set predicts at every takeover's chosen pair, that
+`N` sets start with weight one, and that some set is contradicted `m*` times. If each takeover follows a weighted
+majority that the teacher contradicts, the learner is taken over at most `(ln N + m* ln(1/β)) / ln(2 / (1 + β))` times.
+
+This is the bound of Littlestone and Warmuth. At each such takeover the sets that predicted wrongly hold at least half
+the weight and keep a share `β` of it, so the total weight falls by at least the factor `(1 + β) / 2`. After `M`
+takeovers it is at most `((1 + β) / 2)ᴹ N` and at least the weight `β^{m*}` of the best set. The step from a
+per-takeover factor to the power is proved in Lean as `weight_le_pow`.
+
+When some sets abstain, only the weight of the sets that predicted falls, and the bound is not claimed. A learner may
+drop a set whose weight is a negligible share of the best set's in its context; its votes could not change a decision
+unless the sets outnumbered the inverse of that share.

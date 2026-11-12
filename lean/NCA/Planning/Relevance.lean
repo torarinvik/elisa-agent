@@ -1,8 +1,10 @@
 import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Real.Basic
+import Mathlib.Tactic.Ring
 
 /-! Judgements that carry across observations: a set of components that suffices for the target is never refuted
-by correct judgements, refutation is permanent, and a learner whose every takeover lowers a potential is taken over
-at most as often as the potential's start. -/
+by correct judgements, refutation is permanent, a learner whose every takeover lowers a potential is taken over at
+most as often as the potential's start, and a weight that falls by a factor at each takeover falls by its power. -/
 
 namespace NCA
 
@@ -49,5 +51,16 @@ theorem steps_le_potential (potential : ℕ → ℕ) (steps : ℕ)
       omega
   have := bound steps le_rfl
   omega
+
+/-- **Theorem 53.5 (weighted majority)**, its step to the power: a total weight that falls by at least the factor `c`
+at each of `M` takeovers is at most `c ^ M` times its start. -/
+theorem weight_le_pow (weight : ℕ → ℝ) (c : ℝ) (nonneg : 0 ≤ c) (M : ℕ)
+    (falls : ∀ t < M, weight (t + 1) ≤ c * weight t) : weight M ≤ c ^ M * weight 0 := by
+  induction M with
+  | zero => simp
+  | succ n ih =>
+    calc weight (n + 1) ≤ c * weight n := falls n (by omega)
+      _ ≤ c * (c ^ n * weight 0) := mul_le_mul_of_nonneg_left (ih fun t ht => falls t (by omega)) nonneg
+      _ = c ^ (n + 1) * weight 0 := by ring
 
 end NCA
