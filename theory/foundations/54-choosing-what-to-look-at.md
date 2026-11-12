@@ -74,6 +74,30 @@ purchase lowers `c(Q)` by at least `1/q`, and `c(Q)` is never negative (the coun
 - **The cost of studying.** A judged situation is read through the whole pool, and choosing a probe compares
   `|P| · C(|Q|, k − 1)` sets on every judgement kept. This suits a pool of tens or hundreds of probes, not one probe
   for each point of a large image.
-- **Where probes come from.** The pool is the caller's. A probe that is useful across situations is usually placed
-  relative to something in the situation, and that placement is given here, not learned.
+- **Where probes come from.** The pool is the caller's. 54.6 builds one from the situation's own contents for
+  situations that are values at positions; other kinds of situation need pools of their own.
 - **Values that are nearly equal.** Readings are symbols. Two readings carry a judgement only if they are the same.
+
+## 54.6 Probes placed by what the situation holds
+
+Let a situation be a **scene**: a value at each position of a finite set of positions in `ℤⁿ`. A probe that reads a
+fixed position is the plainest. A target that depends on what stands next to some object, wherever the object is, is
+not a function of few such probes.
+
+**Proposition 54.4 (fixed positions do not follow an object).** Let the target depend on the value at offset `δ` from
+the one position holding a value `u`, and let `u` occur at each of `N` positions in some scene, with both verdicts
+possible there. Then every set of fixed-position probes that suffices for the target has at least `N` probes.
+
+For each of the `N` positions `x` there are two scenes with `u` at `x` that differ only at `x + δ` and have opposite
+targets, so a sufficient set reads `x + δ`; the positions `x + δ` are distinct.
+
+A value that stands at exactly one position of a scene is an **anchor** there. An **anchored probe** reads the value
+at a fixed offset from the anchor of a given value, and a **bearing** reads the sign of the difference between two
+anchors along an axis; both read nothing where an anchor is absent or its value stands at several positions. The
+target of 54.4 depends on one anchored probe, whatever `N` is.
+
+The pool of 54.4's learner is then every value as a candidate anchor, every offset within a reach `r`, and every pair
+of values and axis: `v · ((2r + 1)ⁿ − 1) + n · v(v − 1)/2` probes for `v` values, independent of the size of the scene.
+No value is named as an anchor. A value that never stands alone reads nothing, explains nothing, and is not bought;
+which values are worth looking from is found by 54.4 like any other probe. What remains given is that situations are
+scenes, the set of values, and the reach.

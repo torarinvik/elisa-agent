@@ -25,6 +25,8 @@ from itertools import combinations
 from random import Random
 from typing import Any
 
+import numpy as np
+
 from .relevance import Relevance
 
 Case = tuple[tuple[Hashable, ...], Hashable, bool]
@@ -46,7 +48,10 @@ class Inquiry:
         self.cases: list[Case] = []
         self.looked = self.studied = 0
         self._relevance = Relevance(0, largest=largest, keep=keep)
-        self._settled = 0
+        self._codes: list[list[int]] = []
+        self._actions: list[int] = []
+        self._good: list[bool] = []
+        self._names: dict[Hashable, int] = {}
 
     @property
     def judgements(self) -> int:
@@ -75,6 +80,10 @@ class Inquiry:
         self.studied += len(self.probes)
         readings = tuple(self.read(situation, probe) for probe in self.probes)
         self.cases.append((readings, action, good))
+        names = self._names
+        self._codes.append([names.setdefault(reading, len(names)) for reading in readings])
+        self._actions.append(names.setdefault((Inquiry, action), len(names)))
+        self._good.append(good)
         self._relevance.judge(tuple(readings[index] for index in self.view), action, good)
         self._grow()
 
@@ -85,26 +94,38 @@ class Inquiry:
             classes.setdefault((action, *(readings[index] for index in subset)), [0, 0])[good] += 1
         return sum(min(counts) for counts in classes.values()) + self.price * len(classes)
 
-    def _least(self, having: tuple[int, ...] = ()) -> float:
-        """The least cost of a set of the view, of at most ``largest`` probes, that includes ``having``."""
-        room = self.largest - len(having)
-        return min(self.cost((*subset, *having)) for size in range(min(room, len(self.view)) + 1)
-                   for subset in combinations(self.view, size))
+    def _offers(self) -> tuple[float, np.ndarray]:
+        """The least cost of a set of the view, and for each probe the least cost of a set of it and the view."""
+        codes, actions, good = np.array(self._codes), np.array(self._actions), np.array(self._good)
+        values, probes = int(codes.max()) + 1, codes.shape[1]
+        least, offers = float("inf"), np.full(probes, np.inf)
+        for size in range(min(self.largest, len(self.view) + 1)):
+            for subset in combinations(self.view, size):
+                _, classes = np.unique(np.column_stack((actions, codes[:, subset])), axis=0, return_inverse=True)
+                classes = classes.reshape(-1)
+                span = (int(classes.max()) + 1) * values
+                if not size:
+                    counts = [np.bincount(classes[verdict], minlength=span) for verdict in (good, ~good)]
+                    least = float(np.minimum(*counts).sum() + self.price * np.count_nonzero(counts[0] + counts[1]))
+                keys = (classes[:, None] * values + codes + np.arange(probes) * span)
+                counts = [np.bincount(keys[verdict].ravel(), minlength=probes * span).reshape(probes, span)
+                          for verdict in (good, ~good)]
+                offers = np.minimum(offers, np.minimum(*counts).sum(axis=1)
+                                    + self.price * np.count_nonzero(counts[0] + counts[1], axis=1))
+        return min(least, float(offers[self.view].min(initial=np.inf))), offers
 
     def _grow(self) -> None:
         if self.largest < 1:
             return
-        current, grown = self._least(), False
-        if current <= self._settled:
-            return
-        while self.limit is None or len(self.view) < self.limit:
-            offers = {index: self._least((index,)) for index in range(len(self.probes)) if index not in self.view}
-            best = min(offers, key=lambda index: (offers[index], index), default=None)
-            if best is None or offers[best] >= current:
+        grown = False
+        while True:
+            current, offers = self._offers()
+            offers[self.view] = np.inf
+            best = int(offers.argmin())
+            if (self.limit is not None and len(self.view) >= self.limit) or offers[best] >= current:
                 break
             self.view.append(best)
-            current, grown = offers[best], True
-        self._settled = current
+            grown = True
         if grown:
             self._relevance = Relevance(len(self.view), largest=self.largest, keep=self.keep)
             for readings, action, good in self.cases:
