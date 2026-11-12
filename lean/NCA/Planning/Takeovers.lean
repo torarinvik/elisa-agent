@@ -214,4 +214,10 @@ theorem believed_mark_outweighs (num den b g : ℕ) (believed : num * (b + g) < 
   rw [Nat.mul_add, Nat.add_comm] at believed
   exact Nat.lt_sub_of_add_lt believed
 
+/-- **Theorem 52.13 (misfiled marks are bounded by changes).** The steps that contain a change of observation are the
+image of the changes under the step each falls in, so there are no more of them than changes. -/
+theorem steps_with_change_le_changes {ι κ : Type*} [DecidableEq κ] (changes : Finset ι) (step : ι → κ) :
+    (changes.image step).card ≤ changes.card :=
+  Finset.card_image_le
+
 end NCA

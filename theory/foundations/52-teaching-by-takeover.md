@@ -205,3 +205,43 @@ proved. It is measured in the research diary.
 A step the teacher did not show contributes no good judgement at its history, so that history carries no evidence
 from the step. The learner's answer after such a history is unchanged by the step. §52.9 applies the same margin to
 the actions before the marked one. The rule is in `taken_over`, which takes a missing action as an unjudged step.
+
+## 52.11 Reading more often than deciding
+
+Let time run in ticks. The learner reads an observation at every tick but decides only every `k` ticks, and holds its
+action in between. The teacher watches every tick and judges the action in force against the state of the skill at that
+tick, which the observations up to it determine.
+
+A judgement at tick `t` is a fact about `f` after the history up to `t`. A learner whose histories are read only at
+decisions files it under the history of the last decision, `t₀ ≤ t`. The two histories differ by the observations of the
+ticks `t₀ + 1, …, t`. Call the mark *misfiled* when they end in different states of the skill. A judgement that the held
+action is bad at `t` may then be filed against a decision that was right when it was made.
+
+**Theorem 52.13 (misfiled marks are bounded by changes).** For a skill whose state after a history is determined by
+its last observation, a judgement made in a step with no change of observation since the decision is filed correctly.
+For any skill, the steps that contain a change number at most the changes.
+
+For the first part, the history up to the judgement and the history of the decision end in the same observation, so
+they end in the same state. For a skill with longer memory nothing is claimed: the steps without a change are only the
+ones where misfiling cannot come from the reading rate. The count holds because each change falls in one step, so the
+steps containing one are the image of the changes. The count is proved in Lean as `steps_with_change_le_changes`.
+
+So misfiling grows with `k`, because a longer step contains more changes. Deciding every tick removes it but lengthens
+the window of 52.8: a reaction spread of `s` ticks spans `s / k` decisions, and the bound of 52.8 is exponential in
+that. This is the trade-off measured in the research diary, where a shorter step helped a teacher who judges every tick
+and hurt one who judges at decisions.
+
+The trade-off disappears if the learner keeps its histories at the rate it reads and not at the rate it acts. A mark is
+then filed under the history up to the tick it judges, which is exact. The window still counts decisions, since the
+action is held between them.
+
+**Theorem 52.14 (held actions do not widen the window).** Within `w` consecutive ticks there are at most
+`(w - 1) / k + 2` distinct decisions, so the candidate classes of 52.8 along such a window number at most
+`|O|^((w - 1) / k + 2)`.
+
+The ticks of the window fall into the steps `⌊t / k⌋` for `t` from `t₁` to `t₁ + w - 1`, an interval of integers of
+length at most `(w - 1) / k + 2`, and a held action repeats one decision. This is not yet proved in Lean.
+
+The design that follows is a learner that reads every tick, decides every `k` ticks, files marks and good judgements at
+the tick they concern, and counts its unjudged margin in decisions. It is a prediction to be tested. Nothing here shows
+that state merging attains the bound.
