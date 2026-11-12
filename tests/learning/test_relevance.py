@@ -1,0 +1,66 @@
+from itertools import product
+from math import comb
+from random import Random
+
+import pytest
+
+from nca.learning.relevance import Relevance
+
+
+def test_a_judgement_carries_to_observations_agreeing_on_what_matters() -> None:
+    relevance = Relevance(3, largest=1)
+    relevance.judge((1, 0, 0), "take", True)
+    relevance.judge((0, 0, 0), "take", False)
+    relevance.judge((1, 1, 1), "take", True)
+    good, bad = relevance.votes((1, 1, 0), "take")
+    assert good > bad and relevance.votes((0, 1, 1), "take") == (0, 1)
+
+
+def test_a_correct_teacher_is_bounded_by_the_set_that_matters() -> None:
+    """A choice among candidates whose acceptability reads components 2 and 5 of eight (THEORY 53.4)."""
+    rng, relevance, takeovers = Random(7), Relevance(8, largest=2), 0
+
+    def acceptable(observation: tuple[int, ...]) -> bool:
+        return observation[2] == 1 and observation[5] == 0
+
+    for _ in range(400):
+        candidates = [tuple(rng.randrange(2) for _ in range(8)) for _ in range(6)]
+        good = [candidate for candidate in candidates if acceptable(candidate)]
+        chosen = candidates[relevance.choose([(candidate, "take") for candidate in candidates], rng)]
+        if good and not acceptable(chosen):
+            takeovers += 1
+            relevance.judge(chosen, "take", False)
+            relevance.judge(good[0], "take", True)
+    assert takeovers <= 1 * 2**2 + sum(comb(8, size) for size in range(3))
+    for observation in product(range(2), repeat=8):
+        good, bad = relevance.votes(observation, "take")
+        assert (good > bad) == acceptable(observation) or good == bad == 0
+
+
+def test_each_context_finds_its_own_components() -> None:
+    relevance = Relevance(3, largest=1, always=(0,))
+    for context, matters in (("a", 1), ("b", 2)):
+        for values in product(range(2), repeat=2):
+            observation = (context, *values)
+            relevance.judge(observation, "take", observation[matters] == 1)
+    assert relevance.votes(("a", 1, 0), "take")[0] > 0 and relevance.votes(("b", 1, 0), "take")[1] > 0
+    assert relevance.surviving(("a", 0, 0)) == relevance.surviving(("b", 0, 0)) == 1
+
+
+def test_a_guess_avoids_pairs_judged_bad() -> None:
+    relevance = Relevance(2, largest=1)
+    relevance.judge((0, 0), "take", False)
+    relevance.judge((1, 0), "take", True)
+    assert relevance.surviving((0, 0)) == 1
+    pairs = [((0, 1), "take"), ((2, 1), "take")]
+    assert all(relevance.choose(pairs, Random(seed)) == 1 for seed in range(20))
+    assert relevance.choose([((0, 1), "take"), ((1, 1), "take")], Random(0)) == 1
+
+
+def test_malformed_observations_and_sets_are_refused() -> None:
+    with pytest.raises(ValueError, match="distinct"):
+        Relevance(2, largest=1, always=(0, 0))
+    with pytest.raises(ValueError, match="components"):
+        Relevance(2, largest=1).votes((0,), "take")
+    with pytest.raises(ValueError, match="nothing"):
+        Relevance(1, largest=1).choose([], Random(0))
