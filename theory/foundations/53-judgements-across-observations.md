@@ -138,3 +138,43 @@ in Lean.
 
 How the scores of different classes compare is not shown here: a set may rank two acceptable classes in either order
 until comparisons between them arrive, and those arrive only as fast as the teacher takes over between them.
+
+## 53.7 Ordered components
+
+A set of components treats each value as a symbol of its own, so no judgement about one value says anything about the
+next. Some components are ordered, as a position is, and a teacher may prefer candidates further one way along such a
+component. Which way is not given. Declare a component **ordered** when its values can be compared. It is then left
+out of the sets of 53.2 and carries two hypotheses instead, `(i, ↑)` that larger values are preferred and `(i, ↓)` that
+smaller ones are.
+
+A takeover shows the teacher's candidate `y` chosen over every other candidate, not only over the proposal. Let the
+**rivals** be the other candidates the learner does not believe bad that differ from `y` on component `i`. The
+takeover costs `(i, ↑)` the share of rivals with a larger value than `yᵢ` and `(i, ↓)` the share with a smaller one. A
+hypothesis whose costs sum to `m` weighs `βᵐ`, as in 53.5.
+
+The learner chooses in two steps. It first keeps the candidates it believes acceptable, those with a good majority in
+53.3, or failing any, those without a bad majority. Among them it takes the candidate furthest along the ordered
+components, each counted with the weight of its `↑` hypothesis minus that of its `↓`.
+
+**Theorem 53.7 (the true direction costs nothing where beliefs are right).** Suppose the teacher prefers acceptable
+candidates to unacceptable ones and, among acceptable candidates, those with the larger value of component `i`. At a
+takeover where every rival is acceptable, `(i, ↑)` costs nothing and `(i, ↓)` costs one.
+
+The teacher's `y` is an acceptable candidate with the largest value of `i`, so no acceptable rival has a larger one, and
+every rival differs from `y` on `i`, so all have a smaller one. An unacceptable candidate the learner has not yet been
+told is bad can lie beyond `y` and cost the true direction; each judgement against such a candidate removes its class
+from the rivals, and those judgements are bounded by 53.4 or 53.5. Comparing `y` with the proposal alone does not have
+this property: where unacceptable candidates tend to lie further along the component, every takeover over
+acceptability counts against the true direction, and the two directions' costs were measured to balance.
+
+**Theorem 53.8 (fewer contradictions weigh more).** For `0 < β ≤ 1`, a hypothesis contradicted `a` times weighs at
+least as much as one contradicted `b ≥ a` times.
+
+Proved in Lean as `fewer_contradictions_weigh_more`. So once the false direction has cost more than the true one the
+learner's second step follows the true direction, and a learner whose beliefs about acceptability are right then
+proposes a candidate the teacher ranks first, up to ties on `i`. The teacher's preference no longer produces takeovers,
+and with them go the judgements against acceptable proposals that 53.5 could only dampen.
+
+Only the order of an ordered component's values is used, never their distances, and the learner is not told which
+direction is preferred. A preference that reverses with circumstances, or that trades two components against each
+other, is outside this section.

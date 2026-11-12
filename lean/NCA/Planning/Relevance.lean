@@ -63,4 +63,9 @@ theorem weight_le_pow (weight : ℕ → ℝ) (c : ℝ) (nonneg : 0 ≤ c) (M : �
       _ ≤ c * (c ^ n * weight 0) := mul_le_mul_of_nonneg_left (ih fun t ht => falls t (by omega)) nonneg
       _ = c ^ (n + 1) * weight 0 := by ring
 
+/-- **Theorem 53.8 (fewer contradictions weigh more).** -/
+theorem fewer_contradictions_weigh_more (β : ℝ) (pos : 0 < β) (le_one : β ≤ 1) {a b : ℕ} (fewer : a ≤ b) :
+    β ^ b ≤ β ^ a :=
+  pow_le_pow_of_le_one pos.le le_one fewer
+
 end NCA

@@ -15,6 +15,14 @@ one contradicted less often outweighs one contradicted more often
 (``NCA.weight_le_pow``). A set whose weight falls below ``negligible`` times
 the best in its context is dropped.
 
+Components named ``ordered`` have comparable values (§53.7). They are left out
+of the sets, and each carries two hypotheses instead: that larger values are
+preferred, and that smaller ones are. A choice of one candidate over the others
+counts against each by the share of them it would have ranked above the choice.
+Among the pairs it believes good, the learner chooses the one furthest along
+the ordered components, each weighed by its two hypotheses
+(``NCA.fewer_contradictions_weigh_more``). It is not told the direction.
+
 Components named ``always`` split the problem instead: each of their values is
 a context with its own family of sets. The components and their meanings are
 the caller's; the learner only finds which of them matter.
@@ -53,26 +61,57 @@ class Relevance:
     """Judged actions, carried to every observation that agrees on a set of components, weighted by its record."""
 
     def __init__(self, components: int, *, largest: int, always: Sequence[int] = (), keep: float = 0.0,
-                 negligible: float = 1e-9) -> None:
-        """``components`` per observation, sets of at most ``largest`` of them, ``always`` read as the context."""
+                 negligible: float = 1e-9, ordered: Sequence[int] = ()) -> None:
+        """``components`` per observation, sets of at most ``largest`` of them, ``always`` read as the context.
+
+        The values of the ``ordered`` components can be compared with one another.
+        """
         if type(components) is not int or type(largest) is not int or components < 0 or largest < 0:
             raise ValueError("counts of components are non-negative integers")
         if any(index not in range(components) for index in always) or len(set(always)) != len(always):
             raise ValueError("the context components are distinct components")
+        if any(index not in range(components) for index in ordered) or len(set(ordered)) != len(ordered):
+            raise ValueError("the ordered components are distinct components")
         if not 0 <= keep < 1 or not 0 < negligible < 1:
             raise ValueError("a contradicted set keeps a share below one, and a negligible share is below one")
         self.components, self.largest, self.always = components, largest, tuple(always)
         self.keep, self.negligible = keep, negligible
-        free = [index for index in range(components) if index not in self.always]
+        free = [index for index in range(components) if index not in self.always and index not in ordered]
         self.family = tuple(subset for size in range(min(largest, len(free)) + 1)
                             for subset in combinations(free, size))
         self.readers = {subset: _reader(subset) for subset in self.family}
+        self.ordered = tuple(ordered)
+        self.preferences = 0
+        self._against = {(index, larger): 0.0 for index in self.ordered for larger in (True, False)}
         self.history: list[Judgement] = []
         self._contexts: dict[tuple[Hashable, ...], _Context] = {}
 
     @property
     def judgements(self) -> int:
-        return len(self.history)
+        """Verdicts and preferences recorded so far."""
+        return len(self.history) + self.preferences
+
+    def prefer(self, better: Observation, others: Sequence[Observation], action: Hashable) -> None:
+        """Record that the teacher chose ``action`` at ``better`` over it at each of ``others``.
+
+        Each direction of an ordered component loses the share of the others,
+        among those not believed bad that differ from ``better`` on the
+        component, that it would have ranked above the teacher's choice.
+        """
+        rivals = [other for other in others if (lambda good, bad: bad <= good)(*self.votes(other, action))]
+        self.preferences += 1
+        for index in self.ordered:
+            beyond = sum(other[index] > better[index] for other in rivals)
+            short = sum(other[index] < better[index] for other in rivals)
+            if beyond + short:
+                self._against[index, True] += beyond / (beyond + short)
+                self._against[index, False] += short / (beyond + short)
+
+    def direction(self, index: int) -> float:
+        """The weight that larger values of an ordered component are preferred, minus the weight that smaller are."""
+        larger, smaller = self._against[index, True], self._against[index, False]
+        least = min(larger, smaller)
+        return self.keep ** (larger - least) - self.keep ** (smaller - least)
 
     def _context(self, observation: Observation) -> _Context:
         if len(observation) != self.components:
@@ -123,12 +162,27 @@ class Relevance:
         return len(self._context(observation).tables)
 
     def choose(self, pairs: Sequence[tuple[Observation, Hashable]], guesses: Random) -> int:
-        """The index of a pair with a good majority, the widest first; else a guess, avoiding bad majorities."""
+        """The index of a pair believed good, or failing any a guess that avoids bad majorities.
+
+        Among those pairs the one furthest along the ordered components is
+        taken, by the directions learned; with no direction learned, the widest
+        good majority, or any of the guesses.
+        """
         if not pairs:
             raise ValueError("there is nothing to choose from")
         tallies = [self.votes(observation, action) for observation, action in pairs]
-        margin, best = max((good - bad, -index) for index, (good, bad) in enumerate(tallies))
-        if margin > 0:
-            return -best
-        open_pairs = [index for index, (good, bad) in enumerate(tallies) if bad <= good]
-        return guesses.choice(open_pairs or range(len(pairs)))
+        believed = [index for index, (good, bad) in enumerate(tallies) if good > bad]
+        kept = believed or [index for index, (good, bad) in enumerate(tallies) if bad <= good] or range(len(pairs))
+        along = dict.fromkeys(kept, 0.0)
+        for component in self.ordered:
+            direction = self.direction(component)
+            if direction:
+                places = {value: place for place, value in enumerate(sorted({pairs[index][0][component]
+                                                                             for index in kept}))}
+                for index in kept:
+                    along[index] += direction * places[pairs[index][0][component]]
+        furthest = max(along.values())
+        kept = [index for index in kept if along[index] == furthest]
+        if believed:
+            return max(kept, key=lambda index: (tallies[index][0] - tallies[index][1], -index))
+        return guesses.choice(kept)
