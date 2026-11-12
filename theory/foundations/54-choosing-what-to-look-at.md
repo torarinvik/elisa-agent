@@ -107,3 +107,33 @@ blocks reads the whole scene; only the probes of the view are read after that.
 For pools of hundreds of probes the search of 54.4 is shortened: each probe is first joined to at most one probe of
 the view, and only a shortlist of the cheapest is compared in full. A probe that explains the judgements only together
 with two probes of the view can be missed by it.
+
+## 54.7 Looking within a budget
+
+So far a decision reads only the probes of the view, but placing an anchored probe needs the anchor's place, and
+54.6 found it by reading the whole scene. Let each frame of a scene be read at no more than `B` positions, counting
+every reading, and let the learner keep what it found from one frame to the next.
+
+**Proposition 54.5 (finding a block).** Positions are read in a fixed order that visits each position of a scene of
+`M` positions once. A block of `b` positions is first hit after at most `M − b + 1` readings, and after `(M + 1)/(b +
+1)` on average over the orders.
+
+The first is counting; the second is the expected place of the first of `b` marked items among `M` in a random order.
+With `s` readings to spare in each frame, a block is found within about `M/(b·s)` frames of appearing.
+
+**Proposition 54.6 (following a block).** A block of side at most `w` along each of `n` axes that moved as it last
+did, or as far along another axis or the opposite way, is found again within `2n` readings and its corner within `n ·
+w` more.
+
+There are at most `2n` such places, each one reading, and from a position in the block the corner is reached by
+stepping back along each axis in turn.
+
+So a learner whose view holds `q` probes, placed from `m` anchors that keep their speed, decides a frame from at most
+`q + m · (2n + n·w)` readings, whatever the size of the scene, and pays the search of 54.5 only when an anchor is
+lost or new. The readings left over are spent on that search. Once the search has covered the scene and every block
+found before is found again, nothing is known to be missing, and it is cut to a small share of the budget.
+
+What a budget does not allow is checking the definition of 54.6: that a value forms one block and that the block is
+solid. A value seen at two corners in a frame, or running further than the reach, is given up as an anchor; one that
+merely has a second block the readings did not land on is taken for an anchor until they do. A judged frame is
+studied beyond the budget, as in 54.1.
