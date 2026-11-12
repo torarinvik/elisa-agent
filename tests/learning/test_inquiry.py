@@ -61,6 +61,43 @@ def test_each_action_is_explained_by_its_own_probes_and_a_saved_learner_is_made_
         assert good > bad and restored.votes(situation, action) == inquiry.votes(situation, action)
 
 
+def test_actions_that_are_one_action_turned_are_joined_and_taught_together() -> None:
+    """Action ``i`` of four is good where probe ``i`` is set; a turn moves each probe one place round the four."""
+    cycle = tuple((index + 1) % 4 if index < 4 else index for index in range(8))
+    twice = tuple(cycle[place] for place in cycle)
+    thrice = tuple(cycle[place] for place in twice)
+    rng, joined, apart = Random(2), Inquiry(range(8), read, largest=1, turns=(cycle, twice, thrice)), None
+    apart = Inquiry(range(8), read, largest=1)
+    for _ in range(60):
+        situation, action = tuple(rng.randrange(2) for _ in range(8)), rng.randrange(4)
+        for inquiry in (joined, apart):
+            inquiry.judge(situation, action, situation[action] == 1)
+    assert {joined.frame(action)[0] for action in range(4)} == {joined.cases[0][1]}
+    assert all(action in joined.looking_for(action) for action in range(4))
+    assert len(joined.view) <= 2 and len(apart.view) == 4
+    fresh = Inquiry(range(8), read, largest=1, turns=(cycle, twice, thrice))
+    for _ in range(12):
+        situation = tuple(rng.randrange(2) for _ in range(8))
+        for action in (0, 1):
+            fresh.judge(situation, action, situation[action] == 1)
+    fresh.judge((0, 0, 1, 0, 0, 0, 0, 0), 2, True)
+    fresh.judge((0, 0, 0, 0, 0, 0, 0, 0), 2, False)
+    fresh.judge((1, 1, 0, 0, 1, 1, 1, 1), 2, False)
+    good, bad = fresh.votes((0, 0, 1, 0, 1, 0, 1, 0), 2)
+    assert good > bad
+
+
+def test_actions_with_unlike_targets_stay_apart() -> None:
+    cycle = tuple((index + 1) % 4 if index < 4 else index for index in range(8))
+    rng, inquiry = Random(3), Inquiry(range(8), read, largest=1, turns=(cycle,))
+    for _ in range(80):
+        situation, action = tuple(rng.randrange(2) for _ in range(8)), rng.randrange(2)
+        inquiry.judge(situation, action, situation[0] == 1 if action == 0 else situation[5] == 0)
+    assert inquiry.frame(0)[0] != inquiry.frame(1)[0]
+    with pytest.raises(ValueError, match="turn"):
+        Inquiry(range(3), read, largest=1, turns=((0, 0, 1),))
+
+
 def test_a_shortlist_finds_the_same_probes_in_a_large_pool() -> None:
     whole, short = Inquiry(range(12), read, largest=3), Inquiry(range(12), read, largest=3, shortlist=4)
     for inquiry in (whole, short):

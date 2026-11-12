@@ -137,3 +137,33 @@ What a budget does not allow is checking the definition of 54.6: that a value fo
 solid. A value seen at two corners in a frame, or running further than the reach, is given up as an anchor; one that
 merely has a second block the readings did not land on is taken for an anchor until they do. A judged frame is
 studied beyond the budget, as in 54.1.
+
+## 54.8 Actions that are one action turned
+
+With a set for each action (53.8), `m` actions that do the same thing in `m` directions are taught `m` times. Let a
+**turn** `g` be a permutation of the pool: it puts a probe `g(p)` in each probe's place. For scenes, the turns of 54.6's
+pool are those induced by sending each axis to an axis, forwards or backwards: an offset goes to the turned offset,
+and a bearing to the bearing along the turned axis, reversed where the axis is.
+
+Action `b` **is action `a` turned by `g`** if `t s b` is the same function of the readings `(g(p)(s))` that `t s a` is
+of the readings `(p(s))`. Then a judgement of `b`, with each probe `p` read as `g(p)`, is a correct judgement of `a`.
+
+**Proposition 54.7 (a turned action shares its teacher).** If `b` is `a` turned by `g` and `S` suffices for `a`, the
+judgements of `a` together with those of `b` read through `g` are consistent with `S`, and `g(S)` suffices for `b`.
+
+Both kinds of judgement agree with the one target `o ↦ t o a` over the readings, so 53.1 applies to their union.
+
+The learner is not told which actions are turns of which, or by what. For an action `b` and an earlier action `a`,
+write `c(·)` for the least cost (54.3) of explaining a set of judgements by one probe or none. `b` **joins** `a` under
+the turn `g` that makes `c(J_a ∪ g·J_b)` least, if that is less than `c(J_a) + c(J_b)`; otherwise it stays apart. By
+54.7 and 54.2 the true turn adds no errors, and joining saves the price of the classes the two would each have paid
+for. A wrong turn saves the same price but puts judgements with opposite verdicts in one class, at one error each, so
+it loses once the judgements outnumber the classes. The choice is made again after every judgement.
+
+A joined action is decided and taught through its turn: its view is `g` applied to the shared view, and one
+correction of any of the `m` directions is a judgement of all of them.
+
+Not covered: the comparison uses one probe, so two actions whose likeness shows only in a pair of probes are not
+joined; an action that is another turned only in part is joined or not as a whole; and the turns offered are the
+caller's. Turning offsets about a block's corner agrees with turning the scene only where the blocks sit alike about
+their corners in every direction, as cells of a regular grid do.

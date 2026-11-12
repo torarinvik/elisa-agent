@@ -18,6 +18,12 @@ cheaply, each action using it or not with at most ``largest - 1`` probes of
 the view, as long as that is cheaper than the view explains them. The price of a class keeps a probe from being
 bought for splitting classes alone.
 
+With ``turns`` the learner may find that one action is another turned (§54.8).
+A turn puts a probe in each probe's place. An action joins an earlier action
+under a turn when the two, read through that turn, are explained more cheaply
+together by one probe than apart; they then share their judgements, each read
+through its own turn, and a judgement of one teaches the other.
+
 With ``shortlist`` the search is cut short for large pools: every probe is first
 joined to at most one probe of the view, and only the ``shortlist`` cheapest are
 then compared in full. A probe that explains the judgements only together with
@@ -44,7 +50,7 @@ class Inquiry:
 
     def __init__(self, probes: Sequence[Hashable], read: Callable[[Any, Hashable], Hashable], *, largest: int,
                  keep: float = 0.0, price: float = 1.0, limit: int | None = None,
-                 shortlist: int | None = None) -> None:
+                 shortlist: int | None = None, turns: Sequence[Sequence[int]] = ()) -> None:
         """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes."""
         if len(set(probes)) != len(probes):
             raise ValueError("the probes are distinct")
@@ -55,12 +61,16 @@ class Inquiry:
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
         self.shortlist = shortlist
+        still = tuple(range(len(self.probes)))
+        self.turns = (still, *(tuple(turn) for turn in turns if tuple(turn) != still))
+        if any(sorted(turn) != list(still) for turn in self.turns):
+            raise ValueError("a turn puts each probe in one place")
+        self.frames: dict[Hashable, tuple[Hashable, int]] = {}
         self.view: list[int] = []
         self.cases: list[Case] = []
         self.looked = self.studied = 0
         self._relevance = Relevance(0, largest=largest, keep=keep, apart=True)
         self._codes: list[list[int]] = []
-        self._actions: list[int] = []
         self._good: list[bool] = []
         self._names: dict[Hashable, int] = {}
 
@@ -69,7 +79,8 @@ class Inquiry:
         return {name: value for name, value in self.__dict__.items() if name != "_relevance"}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        self.__dict__.update({"shortlist": None} | state)
+        self.__dict__.update({"shortlist": None, "frames": {}} | state)
+        self.__dict__.setdefault("turns", (tuple(range(len(self.probes))),))
         self._learn()
 
     @property
@@ -81,18 +92,28 @@ class Inquiry:
         """The probes of the view, in the order they were taken up."""
         return tuple(self.probes[index] for index in self.view)
 
-    def observe(self, situation: Any) -> tuple[Hashable, ...]:
-        """The situation as the view shows it."""
+    def frame(self, action: Hashable) -> tuple[Hashable, int]:
+        """The action whose judgements ``action`` shares, and the turn it is read through."""
+        return self.frames.get(action, (action, 0))
+
+    def looking_for(self, action: Hashable) -> tuple[Hashable, ...]:
+        """The probes read for ``action``: the view through the action's turn."""
+        turn = self.turns[self.frame(action)[1]]
+        return tuple(self.probes[turn[index]] for index in self.view)
+
+    def observe(self, situation: Any, action: Hashable = None) -> tuple[Hashable, ...]:
+        """The situation as the view shows it for ``action``."""
         self.looked += len(self.view)
-        return tuple(self.read(situation, self.probes[index]) for index in self.view)
+        return tuple(self.read(situation, probe) for probe in self.looking_for(action))
 
     def votes(self, situation: Any, action: Hashable) -> tuple[float, float]:
         """The weight judging ``action`` in ``situation`` good, and the weight judging it bad."""
-        return self._relevance.votes(self.observe(situation), action)
+        return self._relevance.votes(self.observe(situation, action), self.frame(action)[0])
 
     def choose(self, pairs: Sequence[tuple[Any, Hashable]], guesses: Random) -> int:
         """The index of a pair believed good, or failing any a guess that avoids bad majorities."""
-        return self._relevance.choose([(self.observe(situation), action) for situation, action in pairs], guesses)
+        return self._relevance.choose([(self.observe(situation, action), self.frame(action)[0])
+                                       for situation, action in pairs], guesses)
 
     def judge(self, situation: Any, action: Hashable, good: bool) -> None:
         """Record that ``action`` in ``situation`` is good or bad, and take up probes the judgements now call for."""
@@ -101,23 +122,66 @@ class Inquiry:
         self.cases.append((readings, action, good))
         names = self._names
         self._codes.append([names.setdefault(reading, len(names)) for reading in readings])
-        self._actions.append(names.setdefault((Inquiry, action), len(names)))
         self._good.append(good)
-        self._relevance.judge(tuple(readings[index] for index in self.view), action, good)
-        self._grow()
+        turned = len(self.turns) > 1 and self._align()
+        if not turned:
+            group, turn = self.frame(action)
+            self._relevance.judge(tuple(readings[self.turns[turn][index]] for index in self.view), group, good)
+        if self._grow() or turned:
+            self._learn()
 
     def cost(self, subset: Sequence[int], action: Hashable) -> float:
-        """What the set leaves unexplained of an action: judgements outside their class's majority, ``price`` a class."""
+        """What the set leaves unexplained of the judgements ``action`` shares: those outside their class's majority,
+        and ``price`` a class."""
         classes: dict[tuple[Hashable, ...], list[int]] = {}
         for readings, judged, good in self.cases:
-            if judged == action:
-                classes.setdefault(tuple(readings[index] for index in subset), [0, 0])[good] += 1
+            group, turn = self.frame(judged)
+            if group == action:
+                classes.setdefault(tuple(readings[self.turns[turn][index]] for index in subset), [0, 0])[good] += 1
         return sum(min(counts) for counts in classes.values()) + self.price * len(classes)
+
+    def _single(self, codes: np.ndarray, good: np.ndarray) -> float:
+        """The least cost of explaining judgements by one probe or by none."""
+        values, probes = int(codes.max()) + 1, codes.shape[1]
+        keys = codes + np.arange(probes) * values
+        counts = [np.bincount(keys[verdict].ravel(), minlength=probes * values).reshape(probes, values)
+                  for verdict in (good, ~good)]
+        by_one = np.minimum(*counts).sum(axis=1) + self.price * np.count_nonzero(counts[0] + counts[1], axis=1)
+        return float(min(by_one.min(), min(good.sum(), (~good).sum()) + self.price))
+
+    def _align(self) -> bool:
+        """Let each action join an earlier one under the turn that explains the two most cheaply together."""
+        raw, good = np.array(self._codes), np.array(self._good)
+        labels = [action for _, action, _ in self.cases]
+        turns = np.array(self.turns)
+        frames: dict[Hashable, tuple[Hashable, int]] = {}
+        groups: dict[Hashable, tuple[np.ndarray, np.ndarray, float]] = {}
+        for action in dict.fromkeys(labels):
+            rows = np.array([label == action for label in labels])
+            mine, verdicts = raw[rows], good[rows]
+            alone = self._single(mine, verdicts)
+            saving, group, turn = 0.0, action, 0
+            for other, (codes, others, apart) in groups.items():
+                for place in range(len(turns)):
+                    pooled = self._single(np.vstack((codes, mine[:, turns[place]])), np.concatenate((others, verdicts)))
+                    if apart + alone - pooled > saving:
+                        saving, group, turn = apart + alone - pooled, other, place
+            frames[action] = group, turn
+            if group == action:
+                groups[action] = mine, verdicts, alone
+            else:
+                codes, others = np.vstack((groups[group][0], mine[:, turns[turn]])), np.concatenate((groups[group][1], verdicts))
+                groups[group] = codes, others, self._single(codes, others)
+        changed, self.frames = frames != self.frames, frames
+        return changed
 
     def _offers(self) -> tuple[float, np.ndarray]:
         """The cost the view leaves, and for each probe the cost the view would leave with it."""
-        codes, actions, good = np.array(self._codes), np.array(self._actions), np.array(self._good)
-        _, actions = np.unique(actions, return_inverse=True)
+        raw, good, turns = np.array(self._codes), np.array(self._good), np.array(self.turns)
+        frames = [self.frame(action) for _, action, _ in self.cases]
+        codes = np.take_along_axis(raw, turns[[turn for _, turn in frames]], axis=1)
+        names = {}
+        actions = np.array([names.setdefault(group, len(names)) for group, _ in frames])
         if self.shortlist is None or self.largest <= 2 or codes.shape[1] <= self.shortlist + len(self.view):
             return self._costs(codes, actions, good, self.largest)
         _, rough = self._costs(codes, actions, good, 2)
@@ -150,9 +214,9 @@ class Inquiry:
         least = np.minimum(least, offers[view].min(axis=0, initial=np.inf))
         return float(least.sum()), np.minimum(offers, least).sum(axis=1)
 
-    def _grow(self) -> None:
+    def _grow(self) -> bool:
         if self.largest < 1:
-            return
+            return False
         grown = False
         while True:
             current, offers = self._offers()
@@ -162,11 +226,11 @@ class Inquiry:
                 break
             self.view.append(best)
             grown = True
-        if grown:
-            self._learn()
+        return grown
 
     def _learn(self) -> None:
-        """Learn over the view afresh from the judgements kept."""
+        """Learn over the view afresh from the judgements kept, each read through its action's turn."""
         self._relevance = Relevance(len(self.view), largest=self.largest, keep=self.keep, apart=True)
         for readings, action, good in self.cases:
-            self._relevance.judge(tuple(readings[index] for index in self.view), action, good)
+            group, turn = self.frame(action)
+            self._relevance.judge(tuple(readings[self.turns[turn][index]] for index in self.view), group, good)

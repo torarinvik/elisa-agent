@@ -1,6 +1,6 @@
 from random import Random
 
-from nca.learning.anchors import Scene, at, beside, pool, read, toward
+from nca.learning.anchors import Scene, at, beside, pool, read, toward, turns
 from nca.learning.inquiry import Inquiry
 
 
@@ -23,7 +23,18 @@ def test_probes_read_fixed_places_offsets_from_anchors_and_bearings() -> None:
 
 def test_the_pool_does_not_grow_with_the_scene() -> None:
     probes = pool(("a", "b", "c"), 1, 2)
-    assert len(probes) == len(set(probes)) == 3 * 8 + 2 * 3
+    assert len(probes) == len(set(probes)) == 3 * 8 + 2 * 6
+
+
+def test_the_turns_of_a_pool_are_its_axis_maps() -> None:
+    probes = pool(("a", "b"), 1, 2)
+    found = turns(probes, 2)
+    assert len(found) == 8 and found[0] == tuple(range(len(probes)))
+    right = probes.index(beside("a", (1, 0)))
+    assert {probes[turn[right]] for turn in found} == {beside("a", step) for step in ((1, 0), (-1, 0), (0, 1), (0, -1))}
+    along = probes.index(toward("a", "b", 0))
+    assert {probes[turn[along]] for turn in found} == {toward("a", "b", 0), toward("b", "a", 0), toward("a", "b", 1),
+                                                       toward("b", "a", 1)}
 
 
 def test_a_learner_takes_up_the_offset_from_the_value_the_target_follows() -> None:

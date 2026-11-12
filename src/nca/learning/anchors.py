@@ -66,8 +66,36 @@ def pool(values: Sequence[Hashable], reach: int, dimensions: int) -> tuple[Probe
     """Every offset within ``reach`` of every value, and every way from one value to another."""
     offsets = [offset for offset in product(range(-reach, reach + 1), repeat=dimensions) if any(offset)]
     return (*(beside(value, offset) for value in values for offset in offsets),
-            *(toward(origin, goal, axis) for origin, goal in permutations(values, 2) if values.index(origin)
-              < values.index(goal) for axis in range(dimensions)))
+            *(toward(origin, goal, axis) for origin, goal in permutations(values, 2) for axis in range(dimensions)))
+
+
+def turns(probes: Sequence[Probe], dimensions: int) -> tuple[tuple[int, ...], ...]:
+    """The ways of turning a pool onto itself: for each, the probe that stands in each probe's place.
+
+    A turn sends each axis to an axis, forwards or backwards. It carries an
+    offset to the turned offset and a bearing to the bearing along the turned
+    axis, reversed where the axis is. Fixed positions stay. The first turn
+    leaves every probe in place. A turn that would carry a probe out of the
+    pool is left out.
+    """
+    index = {probe: place for place, probe in enumerate(probes)}
+    found = []
+    for axes in permutations(range(dimensions)):
+        for signs in product((1, -1), repeat=dimensions):
+            def turned(probe: Probe, axes: tuple[int, ...] = axes, signs: tuple[int, ...] = signs) -> Probe:
+                if probe[0] == "beside":
+                    offset = [0] * dimensions
+                    for axis, step in enumerate(probe[2]):
+                        offset[axes[axis]] = signs[axis] * step
+                    return beside(probe[1], tuple(offset))
+                if probe[0] == "toward":
+                    ends = probe[1:3] if signs[probe[3]] > 0 else probe[2:0:-1]
+                    return toward(*ends, axes[probe[3]])
+                return probe
+            places = [index.get(turned(probe)) for probe in probes]
+            if None not in places:
+                found.append(tuple(places))
+    return tuple(sorted(found, key=lambda places: places != tuple(range(len(probes)))))
 
 
 def read(scene: Scene, probe: Probe) -> Hashable:
