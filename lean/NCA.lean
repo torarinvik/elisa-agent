@@ -83,6 +83,7 @@ import NCA.Planning.StateMachines
 import NCA.Planning.Takeovers
 import NCA.Planning.Relevance
 import NCA.Planning.Inquiry
+import NCA.Planning.Relations
 import NCA.Planning.Completion
 
 import NCA.Reliability.Occam
