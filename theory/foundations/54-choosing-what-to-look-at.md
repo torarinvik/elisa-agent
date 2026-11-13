@@ -300,3 +300,26 @@ is taken up again, made finer by the new displacement, when the block is found.
 Not covered: a stride is an assumption about the future drawn from the past, with no bound on how long a coarser
 stride may hold before it fails; each failure costs a pass. Places are remembered only as a stride from one corner,
 so a block that keeps to some other set of places gains nothing.
+
+## 54.13 A scene moved as a whole
+
+For a scene `s` and a displacement `v`, the **moved** scene holds at each position `p + v` the value `s` holds at
+`p`.
+
+**Proposition 54.12 (a moved scene reads the same).** A value that is an anchor of `s` at `a` is an anchor of the
+moved scene at `a + v`, and every anchored probe and every bearing of 54.6 reads the same in both.
+
+The positions of a value in the moved scene are its positions in `s` displaced by `v`: they fill a box when those
+do, with least corner `a + v`. The position at offset `δ` from it is `a + v + δ`, which holds what `s` holds at
+`a + δ` and lies outside the moved scene exactly when `a + δ` lies outside `s`. The difference between two anchors
+along an axis is unchanged.
+
+So a learner whose view holds only such probes chooses in the moved scene as it does in `s`, and nothing it reads
+names the extent of the scene, except that an offset may fall outside it.
+
+Not covered: what the learner meets. Let `P` be the distribution of the view's readings over the situations met, and
+`e(r)` the share of situations with reading `r` in which the choice made is one the teacher would not let stand. The
+rate of such choices is `Σ_r P(r) · e(r)`. Where the target is a function of the view, `e` is fixed by what was
+taught; where it is not, `e(r)` is a property of the situations met as well. A gate certifies the rate under the
+`P` and `e` of the situations it draws (36). Other situations, with no reading new among them, may bring the
+readings of high `e` more often, and the same learner then fails the same gate.

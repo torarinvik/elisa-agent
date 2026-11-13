@@ -25,4 +25,16 @@ theorem run_holds_multiple (w a : ℕ) (positive : 0 < w) : ∃ k, a ≤ w * k �
   have small := Nat.mod_lt (a + w - 1) positive
   exact ⟨(a + w - 1) / w, by omega, by omega⟩
 
+/-- **Proposition 54.12 (a moved scene reads the same).** The value at an offset from an anchor is unchanged when the
+scene and its anchor are moved together. -/
+theorem anchored_reading_moved {P V : Type*} [AddCommGroup P] (scene : P → V) (anchor offset move : P) :
+    (fun position => scene (position - move)) (anchor + move + offset) = scene (anchor + offset) := by
+  show scene (anchor + move + offset - move) = scene (anchor + offset)
+  rw [add_right_comm, add_sub_cancel_right]
+
+/-- **Proposition 54.12, bearings.** The difference between two anchors along an axis, and so its sign, is unchanged
+when both are moved. -/
+theorem bearing_moved (origin goal move : ℤ) : (goal + move) - (origin + move) = goal - origin := by
+  omega
+
 end NCA

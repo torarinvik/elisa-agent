@@ -49,3 +49,17 @@ def test_a_learner_takes_up_the_offset_from_the_value_the_target_follows() -> No
     fresh = {(x, y): "plain" for x in range(6) for y in range(6)} | {(2, 2): "marker", (3, 2): "odd"}
     good, bad = inquiry.votes(Scene(fresh), "take")
     assert good > bad
+
+
+def test_a_scene_moved_as_a_whole_reads_the_same() -> None:
+    """Every probe placed by an anchor reads the same wherever the scene lies (THEORY 54.12)."""
+    rng, probes = Random(2), pool(("marker", "mark", "plain", "odd"), 2, 2)
+    places = [(x, y) for x in range(7) for y in range(7)]
+    for _ in range(20):
+        cells = {place: rng.choice(("plain", "odd")) for place in places}
+        cells.update(zip(rng.sample(places, 2), ("marker", "mark"), strict=True))
+        move = (rng.randrange(-9, 10), rng.randrange(-9, 10))
+        moved = Scene({(x + move[0], y + move[1]): value for (x, y), value in cells.items()})
+        scene = Scene(cells)
+        assert read(scene, toward("marker", "mark", 0)) is not None
+        assert [read(scene, probe) for probe in probes] == [read(moved, probe) for probe in probes]
