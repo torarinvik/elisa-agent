@@ -43,6 +43,11 @@ action, or each group of actions joined by turns, in that group's frame. A
 join is then held as a likeness is: an action joins the group and turn that
 explain it most cheaply unless the judgements refute that beyond chance.
 
+With ``steady`` joins are held that way without likenesses being sought, and a
+join once made is kept until another group or turn explains the action more
+cheaply beyond what chance allows (§54.8). Joins that change with every few
+judgements cost a view learned afresh each time.
+
 With ``shortlist`` the search is cut short for large pools: every probe is first
 joined to at most one probe of the view, and only the ``shortlist`` cheapest are
 then compared in full. A probe that explains the judgements only together with
@@ -70,7 +75,7 @@ class Inquiry:
     def __init__(self, probes: Sequence[Hashable], read: Callable[[Any, Hashable], Hashable], *, largest: int,
                  keep: float = 0.0, price: float = 1.0, limit: int | None = None,
                  shortlist: int | None = None, turns: Sequence[Sequence[int]] = (), sheds: bool = False,
-                 alike: bool = False) -> None:
+                 alike: bool = False, steady: bool = False) -> None:
         """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes."""
         if len(set(probes)) != len(probes):
             raise ValueError("the probes are distinct")
@@ -80,7 +85,7 @@ class Inquiry:
             raise ValueError("a shortlist holds at least one probe")
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
-        self.shortlist, self.sheds, self.alike = shortlist, sheds, alike
+        self.shortlist, self.sheds, self.alike, self.steady = shortlist, sheds, alike, steady
         self.same: dict[Hashable, tuple[int, ...]] = {}
         self.pivot: dict[Hashable, int] = {}
         still = tuple(range(len(self.probes)))
@@ -101,7 +106,8 @@ class Inquiry:
         return {name: value for name, value in self.__dict__.items() if name != "_relevance"}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False, "alike": False, "same": {}, "pivot": {}} | state)
+        self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False, "alike": False, "steady": False,
+                              "same": {}, "pivot": {}} | state)
         self.__dict__.setdefault("turns", (tuple(range(len(self.probes))),))
         self._learn()
 
@@ -190,13 +196,13 @@ class Inquiry:
             alone = self._single(mine, verdicts)
             offers = [(apart + alone - self._single(np.vstack((codes, mine[:, turns[place]])),
                                                     np.concatenate((others, verdicts))),
-                       (len(others) + len(verdicts)) ** 0.5 if self.alike else 0.0, other, place)
+                       (len(others) + len(verdicts)) ** 0.5 if self.alike or self.steady else 0.0, other, place)
                       for other, (codes, others, apart) in groups.items() for place in range(len(turns))]
             group, turn = action, 0
             if offers:
                 best = max(offers, key=lambda offer: offer[0])
                 held = self.frames.get(action)
-                kept = next((offer for offer in offers if offer[2:] == held and offer[0] >= best[0]), best)
+                kept = next((offer for offer in offers if offer[2:] == held and offer[0] >= best[0] - offer[1]), best)
                 if kept[0] > -kept[1]:
                     group, turn = kept[2:]
             frames[action] = group, turn

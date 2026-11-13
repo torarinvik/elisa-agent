@@ -163,6 +163,14 @@ it loses once the judgements outnumber the classes. The choice is made again aft
 A joined action is decided and taught through its turn: its view is `g` applied to the shared view, and one
 correction of any of the `m` directions is a judgement of all of them.
 
+The strict comparison is a least over probes of a finite sample, and under a teacher who contradicts themselves it
+changes sides with every few judgements; each change is a view learned afresh. A learner may instead hold its joins
+**steadily**: `b` joins the cheapest group and turn unless that exceeds `c(J_a) + c(J_b)` by more than `√(|J_a| +
+|J_b|)`, and keeps the group and turn it holds until another is cheaper by more than the same. A true turn adds no
+errors (54.7), so it is neither refused nor left for long; a wrong one adds an error for each judgement that
+contradicts it, which outgrows `√n`. As in 54.10 the tolerance is an assumption about chance, not a bound, and how
+long a wrong join is held before it is refuted is measured, not proved.
+
 Not covered: the comparison uses one probe, so two actions whose likeness shows only in a pair of probes are not
 joined; an action that is another turned only in part is joined or not as a whole; and the turns offered are the
 caller's. Turning offsets about a block's corner agrees with turning the scene only where the blocks sit alike about

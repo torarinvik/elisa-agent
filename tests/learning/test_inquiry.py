@@ -175,3 +175,21 @@ def test_each_shared_action_has_its_own_likenesses() -> None:
     assert inquiry.frame("b")[0] == "b" and inquiry.same == {"a": (1,)}
     assert inquiry.observe((2, 0, 1, 1, 1, 1), "a") == inquiry.observe((0, 2, 1, 1, 1, 1), "a")
     assert inquiry.votes((3, 0, 1, 1, 1, 1), "b")[0] > inquiry.votes((0, 3, 1, 1, 1, 1), "b")[0]
+
+
+def test_steady_joins_change_less_under_a_teacher_who_contradicts_themselves() -> None:
+    """Four actions that are one turned, one judgement in five reversed: the joins are counted as they change."""
+    cycle = tuple((index + 1) % 4 if index < 4 else index for index in range(8))
+    twice = tuple(cycle[place] for place in cycle)
+    turns = (cycle, twice, tuple(cycle[place] for place in twice))
+    changes = []
+    for steady in (False, True):
+        rng, inquiry = Random(3), Inquiry(range(8), read, largest=1, keep=0.3, turns=turns, steady=steady)
+        held, count = dict(inquiry.frames), 0
+        for _ in range(200):
+            situation, action = tuple(rng.randrange(2) for _ in range(8)), rng.randrange(4)
+            inquiry.judge(situation, action, (situation[action] == 1) != (rng.random() < 0.2))
+            count, held = count + (inquiry.frames != held), dict(inquiry.frames)
+        changes.append(count)
+        assert len({inquiry.frame(action)[0] for action in range(4)}) == 1
+    assert 2 * changes[1] <= changes[0]
