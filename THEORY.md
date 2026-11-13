@@ -82,3 +82,4 @@ link for its definitions, arguments, and results.
 - [53. Judgements that carry across observations](theory/foundations/53-judgements-across-observations.md)
 - [54. Choosing what to look at](theory/foundations/54-choosing-what-to-look-at.md)
 - [55. Relations between what is read](theory/foundations/55-relations.md)
+- [56. Looking ahead](theory/foundations/56-looking-ahead.md)
