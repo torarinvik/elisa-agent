@@ -75,8 +75,12 @@ class Inquiry:
     def __init__(self, probes: Sequence[Hashable], read: Callable[[Any, Hashable], Hashable], *, largest: int,
                  keep: float = 0.0, price: float = 1.0, limit: int | None = None,
                  shortlist: int | None = None, turns: Sequence[Sequence[int]] = (), sheds: bool = False,
-                 alike: bool = False, steady: bool = False) -> None:
-        """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes."""
+                 alike: bool = False, steady: bool = False, pairs: bool = False) -> None:
+        """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes.
+
+        With ``pairs``, where no probe alone lowers the cost two are taken up together if they do: what is bad
+        only where two readings meet shows in neither alone. It costs a pass over the judgements for each probe.
+        """
         if len(set(probes)) != len(probes):
             raise ValueError("the probes are distinct")
         if price < 0 or (limit is not None and limit < 0):
@@ -86,6 +90,7 @@ class Inquiry:
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
         self.shortlist, self.sheds, self.alike, self.steady = shortlist, sheds, alike, steady
+        self.pairs = pairs
         self.same: dict[Hashable, tuple[int, ...]] = {}
         self.pivot: dict[Hashable, int] = {}
         still = tuple(range(len(self.probes)))
@@ -103,11 +108,11 @@ class Inquiry:
 
     def __getstate__(self) -> dict[str, Any]:
         """What is saved: the judgements and the view, from which the learner over the view is made again."""
-        return {name: value for name, value in self.__dict__.items() if name != "_relevance"}
+        return {name: value for name, value in self.__dict__.items() if name not in ("_relevance", "_met")}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False, "alike": False, "steady": False,
-                              "same": {}, "pivot": {}} | state)
+                              "same": {}, "pivot": {}, "pairs": False} | state)
         self.__dict__.setdefault("turns", (tuple(range(len(self.probes))),))
         self._learn()
 
@@ -145,6 +150,24 @@ class Inquiry:
         """The weight judging ``action`` in ``situation`` good, and the weight judging it bad."""
         return self._relevance.votes(self.observe(situation, action), self.frame(action)[0])
 
+    def unmet(self, situation: Any, action: Hashable, together: int = 1) -> int:
+        """How many sets of at most ``together`` probes read in ``situation`` what they have read in no situation
+        where ``action`` was judged good."""
+        met = self.__dict__.setdefault("_met", {})
+        if (action, together) not in met:
+            met[action, together] = set()
+            for readings, judged, good in self.cases:
+                if good and judged == action:
+                    met[action, together].update(self._sets(readings, together))
+        readings = tuple(self.read(situation, probe) for probe in self.probes)
+        return sum(key not in met[action, together] for key in self._sets(readings, together))
+
+    @staticmethod
+    def _sets(readings: Sequence[Hashable], together: int) -> list[tuple[Hashable, ...]]:
+        """Each set of at most ``together`` probes with what it reads."""
+        return [(*chosen, *(readings[index] for index in chosen))
+                for size in range(1, together + 1) for chosen in combinations(range(len(readings)), size)]
+
     def choose(self, pairs: Sequence[tuple[Any, Hashable]], guesses: Random) -> int:
         """The index of a pair believed good, or failing any a guess that avoids bad majorities."""
         return self._relevance.choose([(self.observe(situation, action), self.frame(action)[0])
@@ -155,6 +178,9 @@ class Inquiry:
         self.studied += len(self.probes)
         readings = tuple(self.read(situation, probe) for probe in self.probes)
         self.cases.append((readings, action, good))
+        for (judged, together), met in self.__dict__.get("_met", {}).items():
+            if good and judged == action:
+                met.update(self._sets(readings, together))
         names = self._names
         self._codes.append([names.setdefault(reading, len(names)) for reading in readings])
         self._good.append(good)
@@ -362,11 +388,27 @@ class Inquiry:
             current, offers = self._offers()
             offers[self.view] = np.inf
             best = int(offers.argmin())
-            if (self.limit is not None and len(self.view) >= self.limit) or offers[best] >= current:
+            if self.limit is not None and len(self.view) >= self.limit:
                 break
-            self.view.append(best)
+            if offers[best] < current:
+                self.view.append(best)
+            elif not self.pairs or not self._pair(current):
+                break
             grown = True
         return grown
+
+    def _pair(self, current: float) -> bool:
+        """Take up the two probes that together lower the cost most, if any two do."""
+        held, least, found = list(self.view), current, None
+        for first in range(len(self.probes)):
+            if first not in held:
+                self.view = [*held, first]
+                offers = self._offers()[1]
+                offers[self.view] = np.inf
+                if offers.min() < least:
+                    least, found = float(offers.min()), (first, int(offers.argmin()))
+        self.view = [*held, *(found or ())]
+        return found is not None
 
     def _learn(self) -> None:
         """Learn over the view afresh from the judgements kept, each read through its action's turn."""

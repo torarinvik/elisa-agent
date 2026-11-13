@@ -323,3 +323,18 @@ rate of such choices is `Σ_r P(r) · e(r)`. Where the target is a function of t
 taught; where it is not, `e(r)` is a property of the situations met as well. A gate certifies the rate under the
 `P` and `e` of the situations it draws (36). Other situations, with no reading new among them, may bring the
 readings of high `e` more often, and the same learner then fails the same gate.
+
+## 54.14 Probes taken up together
+
+The view grows by the probe that lowers the cost most (54.4). A target may depend on two probes in such a way
+that neither alone says anything of it.
+
+**Proposition 54.13 (two readings that say nothing apart).** Let the target be bad exactly where two two-valued
+probes both read true. No function of the first probe alone is the target, and none of the second alone.
+
+Where the first reads true the target is bad or good as the second reads, and likewise with the two exchanged. So
+where judgements of the bad kind are few, each probe's classes keep their good majorities, taking up either leaves
+the cost where it was or raises it by the price of a class, and growth by one probe stops though two would explain
+every judgement. Where no probe alone lowers the cost, the learner may instead look for the two that lower it most
+together and take up both. That is one pass over the judgements for each probe of the pool, as against one pass
+for all of them, and it is the contributor's to allow.

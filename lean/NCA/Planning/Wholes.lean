@@ -18,4 +18,11 @@ theorem takeover_blames_differing {I P : Type*} (good : P → Prop) (proposed ri
     (Classical.em (proposed i = right i)).elim (fun shared => by rw [shared]; exact choice i)
       (fun differs => Classical.byContradiction fun wrong => none ⟨i, differs, wrong⟩)
 
+/-- **Proposition 57.3 (a bad part shows what no good part shows).** Where whether a part is good is a function of
+what a view reads of it, the view reads of a bad part what it reads of no good part. -/
+theorem bad_part_shows_unmet {P R : Type*} (good : P → Prop) (view : P → R)
+    (settles : ∀ a b, view a = view b → (good a ↔ good b)) (bad kept : P) (wrong : ¬good bad) (right : good kept) :
+    view kept ≠ view bad :=
+  fun alike => wrong ((settles kept bad alike).mp right)
+
 end NCA

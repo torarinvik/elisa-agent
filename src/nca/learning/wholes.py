@@ -10,6 +10,8 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from random import Random
 from typing import Any, Protocol
 
+SLACK = 1e-9
+"""Two grounds within this share of one another are taken as equal."""
 Parts = Mapping[Hashable, tuple[Hashable, Any]]
 """What is seen of each named part of a situation, with the part's sort."""
 
@@ -19,12 +21,15 @@ class Learner(Protocol):
 
     def judge(self, situation: Any, action: Hashable, good: bool) -> None: ...
 
+    def unmet(self, situation: Any, action: Hashable, together: int = 1) -> int: ...
+
 
 class Whole:
     """Chooses the whole with the fewest parts judged bad, and is corrected part by part."""
 
-    def __init__(self, parts: Callable[[Any], Parts], learners: Mapping[Hashable, Learner]) -> None:
-        self.parts, self.learners = parts, learners
+    def __init__(self, parts: Callable[[Any], Parts], learners: Mapping[Hashable, Learner], together: int = 1) -> None:
+        """``together`` is how many readings at once may mark a part as showing what no good part has."""
+        self.parts, self.learners, self.together = parts, learners, together
 
     def against(self, situation: Any, action: Hashable) -> tuple[int, float]:
         """The parts judged bad, and how far the votes against all the parts outweigh those for them."""
@@ -39,14 +44,25 @@ class Whole:
         return guesses.choice([index for index, score in enumerate(scores) if score == min(scores)])
 
     def correct(self, proposed: Any, right: Any, action: Hashable) -> None:
-        """Record a takeover: every part of ``right`` is good, and each part ``proposed`` has otherwise is bad.
+        """Record a takeover: every part of ``right`` is good, and of the parts ``proposed`` has otherwise, the
+        ones the learner has least ground to hold good are bad.
 
-        That each differing part is bad holds where a part has one good value, the rest being as shown (§57.3).
+        Some differing part is bad (§57.3). Once the parts of ``right`` are recorded, the differing parts are
+        ranked by the learner's votes and, among equals, by how much they show that no good part has shown; only
+        the lowest are judged bad. Where nothing tells the differing parts apart, all of them are.
         A part that only one of the two has is not judged: what differs there is that the part is present.
         """
         mine, theirs = self.parts(proposed), self.parts(right)
-        for name, part in mine.items():
-            if name in theirs and theirs[name] != part:
-                self.learners[part[0]].judge(part[1], action, False)
         for sort, seen in theirs.values():
             self.learners[sort].judge(seen, action, True)
+        differing = [part for name, part in mine.items() if name in theirs and theirs[name] != part]
+        grounds = []
+        for sort, seen in differing:
+            good, bad = self.learners[sort].votes(seen, action)
+            grounds.append(good - bad)
+        least = min(grounds, default=0.0) + SLACK * max(1.0, abs(min(grounds, default=0.0)))
+        lowest = [part for part, ground in zip(differing, grounds, strict=True) if ground <= least]
+        unmet = [self.learners[sort].unmet(seen, action, self.together) for sort, seen in lowest]
+        for (sort, seen), count in zip(lowest, unmet, strict=True):
+            if count == max(unmet):
+                self.learners[sort].judge(seen, action, False)

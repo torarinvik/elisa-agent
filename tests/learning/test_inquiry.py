@@ -193,3 +193,20 @@ def test_steady_joins_change_less_under_a_teacher_who_contradicts_themselves() -
         changes.append(count)
         assert len({inquiry.frame(action)[0] for action in range(4)}) == 1
     assert 2 * changes[1] <= changes[0]
+
+
+def test_a_target_bad_only_where_two_probes_meet_is_taken_up_with_two_together() -> None:
+    """Bad where both of two probes read true, which is rare; neither alone lowers the cost (THEORY 54.13)."""
+    def taught(pairs: bool) -> Inquiry:
+        rng, learner = Random(3), Inquiry(tuple(range(6)), lambda seen, probe: seen[probe], largest=2, pairs=pairs)
+        for _ in range(400):
+            seen = tuple(rng.random() < 0.2 for _ in range(6))
+            learner.judge(seen, "take", not (seen[1] and seen[4]))
+        return learner
+
+    assert not {1, 4} <= set(taught(False).looking_at)
+    learner = taught(True)
+    assert set(learner.looking_at) == {1, 4}
+    for seen, good in (((True, True, False, False, True, False), False), ((True, True, True, True, False, True), True)):
+        votes = learner.votes(seen, "take")
+        assert (votes[0] > votes[1]) == good

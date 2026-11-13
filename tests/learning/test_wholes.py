@@ -33,7 +33,21 @@ def test_a_takeover_teaches_every_part_and_what_one_part_shows_holds_of_the_othe
 def test_parts_the_proposal_shares_with_the_right_whole_or_has_alone_are_not_blamed() -> None:
     whole, judged = _whole(), []
     whole.learners = {"pair": type("Kept", (), {"judge": lambda _, seen, action, good: judged.append((seen, good)),
-                                                 "votes": lambda *_: (0.0, 0.0)})()}
+                                                 "votes": lambda *_: (0.0, 0.0), "unmet": lambda *_: 0})()}
     whole.correct({"first": (1, 2), "second": (3, 3), "spare": (5, 6)}, {"first": (1, 1), "second": (3, 3)}, "take")
-    assert judged == [({"shown": 1, "offered": 2}, False), ({"shown": 1, "offered": 1}, True),
-                      ({"shown": 3, "offered": 3}, True)]
+    assert judged == [({"shown": 1, "offered": 1}, True), ({"shown": 3, "offered": 3}, True),
+                      ({"shown": 1, "offered": 2}, False)]
+
+
+def test_where_many_parts_differ_only_those_never_seen_good_are_blamed() -> None:
+    """Good when no part offers what it shows; a wrong whole differs from the right one in every part (57.5)."""
+    rng, whole = Random(2), _whole()
+    names = ("first", "second", "third", "fourth", "fifth")
+    for _ in range(60):
+        shown = {name: rng.randrange(8) for name in names}
+        clash, free = rng.choice(names), rng.choice(sorted(set(range(8)) - set(shown.values())))
+        whole.correct({name: (mark, shown[clash]) for name, mark in shown.items()},
+                      {name: (mark, free) for name, mark in shown.items()}, "take")
+    held = {name: (20 + place, 9) for place, name in enumerate(names)}
+    assert whole.against(held, "take")[0] == 0
+    assert whole.against(held | {"third": (9, 9)}, "take")[0] == 1

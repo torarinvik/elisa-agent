@@ -37,9 +37,22 @@ part of the proposal that differs from the same part of the teacher's choice is 
 
 A part the two share is a part of a good whole, and the proposal has a bad part. So a takeover yields a judgement
 of every part of the choice, and where the two differ in one part, of that part of the proposal. Where they differ
-in several, the proposition names no one of them. Where a part has one good value, the rest being as shown, every
-differing part is bad, and each is judged so. That is an assumption about the task and not a consequence of the
-model; where a part has several good values it records good parts as bad.
+in several, the proposition names no one of them.
+
+**Proposition 57.3 (a bad part shows what no good part shows).** Let whether a part is good be a function of what
+some set of probes reads of it. Then that set reads of a bad part what it reads of no good part.
+
+Two parts the set reads alike are both good or both bad. So among the differing parts a bad one is found where
+some set of probes reads what it has read of no part recorded good, and a part of which every set reads what a
+good part has shown is, for all the learner has been told, good.
+
+The learner therefore records the parts of the teacher's choice first, and then ranks the differing parts: by its
+present votes, and among equals by how many sets of at most `k` probes read of the part what they have read of no
+good part. The lowest are judged bad. `k` is the contributor's; it need be no more than the probes a part's worth
+depends on, and the sets number as the `k`-th power of the pool. This is a rule for choosing among the differing
+parts and not a consequence of the model: a part may show something new and be good. Where nothing tells the
+differing parts apart all are judged bad, which is right where each part has one good value, the rest being as
+shown, and wrong elsewhere.
 
 Where the wholes offered do not all have the same parts, a part that only one of the two has is not judged. What
 differs there is that the part is present, which is no reading of the part; it is a reading of the whole, and is

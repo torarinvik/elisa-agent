@@ -37,4 +37,12 @@ when both are moved. -/
 theorem bearing_moved (origin goal move : ℤ) : (goal + move) - (origin + move) = goal - origin := by
   omega
 
+/-- **Proposition 54.13 (two readings that say nothing apart).** Whether two probes both read true is no function
+of the first alone, and none of the second alone. -/
+theorem both_true_needs_both :
+    (¬∃ of_first : Bool → Bool, ∀ first second, of_first first = (first && second)) ∧
+      ¬∃ of_second : Bool → Bool, ∀ first second, of_second second = (first && second) :=
+  ⟨fun ⟨of_first, is⟩ => by have yes := is true true; have no := is true false; simp_all,
+   fun ⟨of_second, is⟩ => by have yes := is true true; have no := is false true; simp_all⟩
+
 end NCA
