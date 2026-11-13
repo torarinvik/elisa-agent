@@ -84,3 +84,26 @@ def test_a_block_smaller_than_it_was_is_found_once_a_pass_has_missed_it() -> Non
         gaze.close(glimpse)
         found.append(glimpse.where("block") == (22, 19))
     assert not found[0] and found[-1] and gaze.sides == {"block": 1}
+
+
+def test_a_block_seen_only_at_every_fourth_position_is_looked_for_only_there() -> None:
+    """Corners on multiples of four: 64 positions of a square of side 32 where the side alone marks 121."""
+    gaze, places = Gaze((32, 32), 90, reach=5), [(4, 4), (24, 8), (8, 28), (20, 12), (0, 20), (28, 28), (12, 0)]
+    for corner in places[:4]:
+        for _ in range(6):
+            gaze.close(gaze.frame(scene({"block": corner})))
+    assert gaze.strides["block"] == ((4, 4), (4, 4))
+    for corner in places[4:]:
+        glimpse = gaze.frame(scene({"block": corner}))
+        gaze.close(glimpse)
+        assert glimpse.where("block") == corner and glimpse.looks <= 15 + 64 + 2 * 3 + 9
+
+
+def test_a_block_off_its_stride_is_found_on_the_positions_of_its_side() -> None:
+    gaze = Gaze((32, 32), 250, reach=5)
+    for corner in ((4, 4), (24, 8), (8, 28)):
+        for _ in range(6):
+            gaze.close(gaze.frame(scene({"block": corner})))
+    glimpse = gaze.frame(scene({"block": (17, 22)}))
+    assert glimpse.where("block") == (17, 22) and gaze.sides == {"block": 3}
+    assert gaze.strides["block"] == ((4, 4), (1, 2))

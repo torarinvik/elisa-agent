@@ -267,3 +267,28 @@ Not covered: a block that is not solid, or that moves while it is sought, may be
 then forgotten for nothing; blocks never seen are still found by 54.5 alone; and with fewer than `L` readings to
 spare a frame, a block that jumps stays unknown for about `L/(2s)` frames, with `s` readings spare, which no order
 improves by more than the rounding.
+
+## 54.12 Where a block has been
+
+54.10 uses what a block is, not where it has been. Along an axis let a block's corner have been seen at coordinates
+`c_0, c_1, …, c_m`, and let its **stride** there be `g = gcd(c_1 − c_0, …, c_m − c_0)`, with `g = 0` while it has
+been seen at one coordinate only.
+
+**Proposition 54.11 (a block that keeps its stride is met at its corner).** If the block's corner lies at `c_0 +
+g·k` along each axis, then of the positions whose coordinate along each axis is `c_0` plus a multiple of `g`, one is
+the corner. They number `∏ ⌈N_i / g_i⌉`, and where `g_i ≥ w` along every axis that is no more than the marked
+positions of 54.10. If the corners a block may take along an axis are `c_0 + g*·k`, then `g* | g`, and `g = g*` once
+two displacements seen have greatest common divisor `g*`.
+
+The first is the definition and the count; `g* | g` because `g*` divides every displacement. So the stride seen is
+never finer than the true one, and may be coarser: the positions it marks are then too few, and a block may lie on
+none of them.
+
+The two are mixed axis by axis, as both arguments are: along an axis whose stride is at least `w` the marked
+coordinates are `c_0` plus multiples of the stride, and along the others the multiples of `w`. A pass over these
+positions that does not find the block sets its stride aside, the positions of 54.10 are read next, and the stride
+is taken up again, made finer by the new displacement, when the block is found.
+
+Not covered: a stride is an assumption about the future drawn from the past, with no bound on how long a coarser
+stride may hold before it fails; each failure costs a pass. Places are remembered only as a stride from one corner,
+so a block that keeps to some other set of places gains nothing.
