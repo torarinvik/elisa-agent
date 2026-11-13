@@ -57,7 +57,13 @@ class _Context:
             subset: {} for subset in family}
         self.contradicted = dict.fromkeys(family, 0)
         self.weight = dict.fromkeys(family, 1.0)
+        self.predicted: set[tuple[int, ...]] = set()
+        """The sets that have predicted a verdict: a judgement fell in a class of theirs that leaned one way."""
         self.votes: dict[tuple[tuple[Hashable, ...], Hashable], tuple[float, float]] = {}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Take up a saved context; one saved before predictions were kept counts every set as having predicted."""
+        self.__dict__.update({"predicted": set(state["tables"])} | state)
 
 
 class Relevance:
@@ -130,21 +136,30 @@ class Relevance:
         return context
 
     def judge(self, observation: Observation, action: Hashable, good: bool) -> None:
-        """Record that ``action`` at ``observation`` is good or bad, counting it against every set it contradicts."""
+        """Record that ``action`` at ``observation`` is good or bad, counting it against every set it contradicts.
+
+        A set is dropped once its weight is a negligible share of the best set's
+        among those that have predicted. A set that has never predicted, as one
+        over components whose values never recur, is contradicted by nothing and
+        votes on nothing; it is not a measure of the others.
+        """
         context = self._context(observation, action)
         self.history.append((tuple(observation), action, good))
         context.votes.clear()
         readers = self.readers
         for subset, table in context.tables.items():
             counts = table.setdefault((readers[subset](observation), action), [0, 0])
-            if counts[0] != counts[1] and (counts[0] > counts[1]) != good:
-                context.contradicted[subset] += 1
-                context.weight[subset] = self.keep ** context.contradicted[subset]
+            if counts[0] != counts[1]:
+                context.predicted.add(subset)
+                if (counts[0] > counts[1]) != good:
+                    context.contradicted[subset] += 1
+                    context.weight[subset] = self.keep ** context.contradicted[subset]
             counts[not good] += 1
-        least = min(context.contradicted.values(), default=0)
+        least = min(map(context.contradicted.__getitem__, context.predicted), default=0)
         for subset, misses in list(context.contradicted.items()):
             if misses and (self.keep == 0 or self.keep ** (misses - least) < self.negligible):
                 del context.tables[subset], context.contradicted[subset], context.weight[subset]
+                context.predicted.discard(subset)
 
     def votes(self, observation: Observation, action: Hashable) -> tuple[float, float]:
         """The weight of the sets that judge ``action`` at ``observation`` good, and of those that judge it bad."""

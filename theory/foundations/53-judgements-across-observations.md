@@ -109,7 +109,9 @@ per-takeover factor to the power is proved in Lean as `weight_le_pow`.
 
 When some sets abstain, only the weight of the sets that predicted falls, and the bound is not claimed. A learner may
 drop a set whose weight is a negligible share of the best set's in its context; its votes could not change a decision
-unless the sets outnumbered the inverse of that share.
+unless the sets outnumbered the inverse of that share. The best set is taken among those that have predicted. A set
+over components whose values never recur has a class for each judgement: it predicts nothing, is contradicted by
+nothing, and casts no vote, so no other set is negligible beside it.
 
 ## 53.6 Comparisons
 

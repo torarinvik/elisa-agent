@@ -52,6 +52,17 @@ def test_a_teacher_who_contradicts_themselves_is_outweighed_not_obeyed() -> None
         assert (good > bad) == (observation[1] == 1)
 
 
+def test_a_component_that_never_recurs_does_not_cost_the_sets_that_predict() -> None:
+    """Component 0 is a serial number. A set over it is never contradicted, and predicts nothing (THEORY 53.5)."""
+    rng, relevance = Random(3), Relevance(3, largest=2, keep=0.3)
+    for serial in range(600):
+        observation = (serial, rng.randrange(2), rng.randrange(2))
+        relevance.judge(observation, "take", (observation[1] == 1) != (rng.random() < 0.1))
+    for serial, first, second in product((1000, 1001), range(2), range(2)):
+        good, bad = relevance.votes((serial, first, second), "take")
+        assert (good > bad) == (first == 1) and good != bad
+
+
 def test_the_direction_of_an_ordered_component_is_learned_from_the_teachers_choices() -> None:
     """Acceptability reads component 0; among acceptable candidates the teacher takes the largest component 1."""
 
