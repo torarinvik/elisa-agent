@@ -56,8 +56,18 @@ values, and a probe may read whether two steps are the same or how they are orde
 A step is unchanged when one amount is added to every value of the kind, as a bearing is unchanged by moving the
 scene (54.12), so the sameness of two steps is unchanged by that as well as by 55.2.
 
-Probes are built from one another without limit. All pairs of pairs grow as the fourth power of the number of slots
-of a kind; which of them to offer is not settled here.
+Probes are built from one another without limit, and all pairs of pairs grow as the fourth power of the number of
+slots of a kind. Where the slots of a kind stand at places in `ℤⁿ`, two pairs **stand alike** when the second slot
+of each lies at the same displacement from the first, and the pool offers the sameness of two steps only for pairs
+that stand alike: that `b` is to `a` as `d` is to `c`. For `s` places a displacement is shared by fewer than `s`
+pairs, so the pool holds fewer than `s³` such probes; nine places in a square give 52.
+
+Let the places be named from one of them. A probe then names displacements only, and reads nothing where a place it
+names holds nothing, so one pool serves arrangements of every extent within its reach, and what is taught on a
+small arrangement is asked unchanged of a larger one (54.12).
+
+What is given grows with this: besides the kinds, the places of the slots, and values that can be subtracted. An
+order of values without a unit, as of shades or shapes, has no steps until each value is given a number.
 
 ## 55.6 What this does not cover
 

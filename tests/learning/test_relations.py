@@ -1,7 +1,7 @@
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import order, pool, read, same, step, value
+from nca.learning.relations import analogies, order, pool, read, same, step, value
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -62,3 +62,19 @@ def test_a_step_that_repeats_is_found_among_relations_between_relations() -> Non
     for values in ((100, 250, 400), (100, 250, 401), (9, 9, 9), (-2, -7, -12)):
         good, bad = learner.votes(dict(zip(slots, values, strict=True)), "take")
         assert (good > bad) == (values[2] - values[1] == values[1] - values[0])
+
+
+def test_a_step_taught_on_a_small_grid_holds_on_a_larger_one() -> None:
+    """Good when the last cell continues its row as the row above does; cells are named from the last (55.5)."""
+    rng = Random(4)
+    places = {(row, column): (row, column) for row in range(-2, 1) for column in range(-2, 1)}
+    probes = analogies(places)
+    assert len(probes) == len(set(probes)) == 52
+    learner = Inquiry((*pool({"size": tuple(places)}, ordered=("size",)), *probes), read, largest=2)
+    for _ in range(150):
+        seen = {(row, column): rng.randrange(6) for row in (-1, 0) for column in (-1, 0)}
+        learner.judge(seen, "take", seen[0, 0] - seen[0, -1] == seen[-1, 0] - seen[-1, -1])
+    for last in (41, 40):
+        rows = {(-2, -2): 3, (-2, -1): 9, (-2, 0): 1, (-1, -2): 50, (-1, -1): 20, (-1, 0): 31, (0, -2): 7, (0, -1): 30}
+        good, bad = learner.votes(rows | {(0, 0): last}, "take")
+        assert (good > bad) == (last == 41)

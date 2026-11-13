@@ -12,7 +12,7 @@ and a learner finds which probes matter.
 """
 
 from collections.abc import Collection, Hashable, Mapping, Sequence
-from itertools import combinations
+from itertools import combinations, permutations
 from typing import Any
 
 Probe = tuple[Hashable, ...]
@@ -44,6 +44,20 @@ def pool(kinds: Mapping[Hashable, Sequence[Hashable]], ordered: Collection[Hasha
              for first, second in combinations(slots, 2)]
     return (*(same(first, second) for _, first, second in pairs),
             *(order(first, second) for kind, first, second in pairs if kind in ordered))
+
+
+def analogies(places: Mapping[Hashable, Sequence[int]]) -> tuple[Probe, ...]:
+    """Whether two pairs of slots that stand alike take the same step (§55.5).
+
+    ``places`` says where each slot of one kind stands. Two pairs stand alike
+    when the second slot of each lies the same way and as far from the first.
+    """
+    alike: dict[tuple[int, ...], list[Probe]] = {}
+    for first, second in permutations(places, 2):
+        apart = tuple(there - here for here, there in zip(places[first], places[second], strict=True))
+        if apart > tuple(0 for _ in apart):
+            alike.setdefault(apart, []).append(step(value(first), value(second)))
+    return tuple(same(one, other) for steps in alike.values() for one, other in combinations(steps, 2))
 
 
 def read(observation: Mapping[Hashable, Any], probe: Probe) -> Hashable:
