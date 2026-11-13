@@ -42,10 +42,11 @@ class Whole:
         """Record a takeover: every part of ``right`` is good, and each part ``proposed`` has otherwise is bad.
 
         That each differing part is bad holds where a part has one good value, the rest being as shown (§57.3).
+        A part that only one of the two has is not judged: what differs there is that the part is present.
         """
         mine, theirs = self.parts(proposed), self.parts(right)
         for name, part in mine.items():
-            if theirs.get(name) != part:
+            if name in theirs and theirs[name] != part:
                 self.learners[part[0]].judge(part[1], action, False)
         for sort, seen in theirs.values():
             self.learners[sort].judge(seen, action, True)

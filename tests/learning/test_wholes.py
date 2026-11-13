@@ -30,10 +30,10 @@ def test_a_takeover_teaches_every_part_and_what_one_part_shows_holds_of_the_othe
     assert whole.choose([(situation, "take") for situation in offered], Random(0)) == 1
 
 
-def test_parts_the_proposal_shares_with_the_right_whole_are_not_blamed() -> None:
+def test_parts_the_proposal_shares_with_the_right_whole_or_has_alone_are_not_blamed() -> None:
     whole, judged = _whole(), []
     whole.learners = {"pair": type("Kept", (), {"judge": lambda _, seen, action, good: judged.append((seen, good)),
                                                  "votes": lambda *_: (0.0, 0.0)})()}
-    whole.correct({"first": (1, 2), "second": (3, 3)}, {"first": (1, 1), "second": (3, 3)}, "take")
+    whole.correct({"first": (1, 2), "second": (3, 3), "spare": (5, 6)}, {"first": (1, 1), "second": (3, 3)}, "take")
     assert judged == [({"shown": 1, "offered": 2}, False), ({"shown": 1, "offered": 1}, True),
                       ({"shown": 3, "offered": 3}, True)]

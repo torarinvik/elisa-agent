@@ -41,6 +41,10 @@ in several, the proposition names no one of them. Where a part has one good valu
 differing part is bad, and each is judged so. That is an assumption about the task and not a consequence of the
 model; where a part has several good values it records good parts as bad.
 
+Where the wholes offered do not all have the same parts, a part that only one of the two has is not judged. What
+differs there is that the part is present, which is no reading of the part; it is a reading of the whole, and is
+judged where the whole's own readings are made a part.
+
 ## 57.4 What this does not cover
 
 The split is given, not found. A whole whose worth depends on how its parts stand to one another is not the
