@@ -235,3 +235,35 @@ unlike targets are joined until their judgements refute it beyond the tolerance,
 their targets apart; a likeness that
 holds for some situations only is taken or refused as a whole; until a false likeness is refused, its judgements
 are shared wrongly, and the corrections that costs are measured in the research diary.
+
+## 54.11 Looking for a block whose side is known
+
+54.5 reads positions in an order chosen without regard to the block, and finds a block of `b` positions among `M`
+after `(M + 1)/(b + 1)` readings on average and `M − b + 1` at worst. A block found once has shown how large it is.
+Let its **side** `w` be the least run of its value from its corner along an axis, and let the **marked** positions
+of a scene of sides `N_1, …, N_n` be those whose coordinates are all multiples of `w`; they number `L = ∏ ⌈N_i / w⌉`.
+
+**Proposition 54.10 (a block of known side holds a marked position).** A solid block of side at least `w` along
+every axis holds a marked position, wherever it lies. So the marked positions, read in any order, find it within
+`L` readings, and within `(L + 1)/2` on average over the orders if it holds exactly one. No order of readings finds
+every such block within fewer than `∏ ⌊N_i / w⌋`.
+
+Along each axis the block covers `w` positions in a row, which include a multiple of `w`; the block is solid, so it
+holds the position with those coordinates. For the bound, the scene holds `∏ ⌊N_i / w⌋` places for the block that
+share no position, and an order must read a position of each.
+
+So against 54.5 a block of side `w` along `n` axes is found in about a `w^n`-th of the scene at worst, where the
+order of 54.5 needs nearly all of it, and the same holds near a block's last place: a block that moved no further
+than `r` along any axis holds one of the `(⌊r/w⌋ + ⌈(r + w)/w⌉)^n` offsets from its old corner that are multiples
+of `w`, where 54.6's rings read `(2r + 1)^n`.
+
+The learner is not told `w`. It measures the side of each block when it first finds it, steps its rings by that
+side, and when a block found before is missing reads the marked positions of the least side missing before the
+order of 54.5, carrying on from frame to frame. A block that has since grown smaller may hold no marked position: a
+pass over all of them that does not find it forgets the side, and the block is then sought as in 54.5 and measured
+again.
+
+Not covered: a block that is not solid, or that moves while it is sought, may be missed by a pass, and the side is
+then forgotten for nothing; blocks never seen are still found by 54.5 alone; and with fewer than `L` readings to
+spare a frame, a block that jumps stays unknown for about `L/(2s)` frames, with `s` readings spare, which no order
+improves by more than the rounding.

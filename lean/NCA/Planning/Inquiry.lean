@@ -18,4 +18,11 @@ theorem disagreeing_probe_outside_view {Obs ι V A : Type*} (component : Obs →
     exact none ⟨i, inR, fun inQ => unlike (agree i inQ), unlike⟩
   rw [suffices_for o o' alike]
 
+/-- **Proposition 54.10 (a block of known side holds a marked position), along one axis.** Any `w` positions in a
+row, starting anywhere, include a multiple of `w`. -/
+theorem run_holds_multiple (w a : ℕ) (positive : 0 < w) : ∃ k, a ≤ w * k ∧ w * k < a + w := by
+  have split := Nat.div_add_mod (a + w - 1) w
+  have small := Nat.mod_lt (a + w - 1) positive
+  exact ⟨(a + w - 1) / w, by omega, by omega⟩
+
 end NCA

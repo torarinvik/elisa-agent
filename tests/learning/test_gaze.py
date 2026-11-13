@@ -59,3 +59,28 @@ def test_malformed_gazes_are_refused() -> None:
         Gaze((8, 8), -1, reach=2)
     with pytest.raises(ValueError, match="reach"):
         Gaze((8, 8), 4, reach=0)
+
+
+def test_a_block_that_jumps_is_found_on_the_positions_one_of_its_side_must_hold() -> None:
+    """A block of side three in a square of side 32 holds one of 121 positions; rings around its old place hold 15."""
+    gaze, places = Gaze((32, 32), 160, reach=5), [(4, 4), (25, 7), (10, 28), (20, 13), (1, 22), (29, 29), (14, 2)]
+    for _ in range(8):
+        gaze.close(gaze.frame(scene({"block": places[0]})))
+    assert gaze.sides == {"block": 3}
+    for corner in places[1:]:
+        glimpse = gaze.frame(scene({"block": corner}))
+        gaze.close(glimpse)
+        assert glimpse.where("block") == corner and glimpse.looks <= 15 + 121 + 2 * 3 + 16
+
+
+def test_a_block_smaller_than_it_was_is_found_once_a_pass_has_missed_it() -> None:
+    gaze = Gaze((32, 32), 400, reach=5)
+    for _ in range(4):
+        gaze.close(gaze.frame(scene({"block": (6, 6)})))
+    cells = {(x, y): "plain" for x in range(32) for y in range(32)} | {(22, 19): "block"}
+    found = []
+    for _ in range(6):
+        glimpse = gaze.frame(cells.get)
+        gaze.close(glimpse)
+        found.append(glimpse.where("block") == (22, 19))
+    assert not found[0] and found[-1] and gaze.sides == {"block": 1}

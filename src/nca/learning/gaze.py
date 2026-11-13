@@ -12,6 +12,12 @@ Once the scatter has been through the whole scene, it is cut to a share
 ``idle`` of the budget in frames where every block found before is found
 again: there is then nothing known to be missing.
 
+The side of a block is measured when it is first found, and is not given. A
+block of side ``w`` holds a position whose coordinates are all multiples of
+``w``, so the rings step by ``w``, and a block that is missing is looked for
+at those positions of the scene before the scatter (THEORY §54.11). A pass
+over them that does not find it forgets the side.
+
 A value found as one block no larger than ``reach`` is an anchor, as in
 ``anchors.Scene``. A value found at two corners in one frame, or running
 further than ``reach``, is not looked for again. Nothing checks that a block is
@@ -87,10 +93,10 @@ class Gaze:
         self.shape, self.budget, self.reach, self.idle = tuple(shape), budget, reach, idle
         self._order = list(product(*(range(side) for side in shape)))
         Random(f"gaze:{seed}").shuffle(self._order)
-        rings = product(range(-reach, reach + 1), repeat=len(shape))
-        self._rings = sorted((offset for offset in rings if any(offset)),
-                             key=lambda offset: (max(map(abs, offset)), sum(map(abs, offset)), offset))
-        self._cursor = self._scattered = 0
+        self._rings: dict[int, list[Position]] = {}
+        self._lattices: dict[int, list[Position]] = {}
+        self._cursor = self._scattered = self._swept = self._passed = 0
+        self.sides: dict[Hashable, int] = {}
         self.anchored: set[Hashable] = set()
         self.known: dict[Hashable, Position] = {}
         self.moved: dict[Hashable, Position] = {}
@@ -112,26 +118,18 @@ class Gaze:
             for value, corner in remembered.items():
                 found = self._again(see, value, corner)
                 if found is not None:
+                    self._measure(see, value, found)
                     self.moved[value] = tuple(new - old for new, old in zip(found, corner, strict=True))
                     self.known[value] = glimpse.places[value] = found
                 else:
                     self.moved.pop(value, None)
-            settled = self._scattered >= len(self._order) and self.anchored - self.ignored <= self.known.keys()
+            self._sweep(see, glimpse)
+            settled = self._scattered >= len(self._order) and not self._missing()
             for _ in range(int(self.idle * self.budget) if settled else len(self._order)):
                 position = self._order[self._cursor]
                 self._cursor = (self._cursor + 1) % len(self._order)
                 self._scattered += 1
-                value = see(position)
-                if value is None or value in self.ignored:
-                    continue
-                corner = self._corner(see, position, value)
-                if corner is None or self.known.get(value, corner) != corner:
-                    self.ignored.add(value)
-                    self.known.pop(value, None)
-                    glimpse.places.pop(value, None)
-                else:
-                    self.known[value] = glimpse.places[value] = corner
-                    self.anchored.add(value)
+                self._meet(see, glimpse, position)
         except _Spent:
             for value in remembered.keys() - self.known.keys():
                 self.moved.pop(value, None)
@@ -146,6 +144,67 @@ class Gaze:
         """Count a frame's looks once its readings are done."""
         self.looks += glimpse.looks
 
+    def _missing(self) -> set[Hashable]:
+        """The anchors found before that this frame has not shown."""
+        return self.anchored - self.ignored - self.known.keys()
+
+    def _sweep(self, see: Callable[[Position], Hashable], glimpse: Glimpse) -> None:
+        """Look for missing blocks of known side at the positions one of that side must hold."""
+        missing = self._missing()
+        if not missing:
+            self._passed = 0
+        if not missing or not missing <= self.sides.keys():
+            return
+        side = min(self.sides[value] for value in missing)
+        if side not in self._lattices:
+            self._lattices[side] = [position for position in self._order if not any(part % side for part in position)]
+        lattice = self._lattices[side]
+        for _ in lattice:
+            if not self._missing():
+                return
+            self._meet(see, glimpse, lattice[self._swept % len(lattice)])
+            self._swept += 1
+            self._passed += 1
+        if self._passed >= len(lattice):
+            self._passed = 0
+            for value in self._missing():
+                self.sides.pop(value, None)
+
+    def _meet(self, see: Callable[[Position], Hashable], glimpse: Glimpse, position: Position) -> None:
+        """Look at a position and follow a value found there to its block."""
+        value = see(position)
+        if value is None or value in self.ignored:
+            return
+        corner = self._corner(see, position, value)
+        if corner is None or self.known.get(value, corner) != corner:
+            self.ignored.add(value)
+            self.known.pop(value, None)
+            glimpse.places.pop(value, None)
+        else:
+            self.known[value] = glimpse.places[value] = corner
+            self.anchored.add(value)
+            self._measure(see, value, corner)
+
+    def _measure(self, see: Callable[[Position], Hashable], value: Hashable, corner: Position) -> None:
+        """Note the least run of a block from its corner along an axis, once."""
+        if value in self.sides:
+            return
+        runs = []
+        for axis in range(len(corner)):
+            place = list(corner)
+            while place[axis] - corner[axis] <= self.reach and see(tuple(place)) == value:
+                place[axis] += 1
+            runs.append(place[axis] - corner[axis])
+        self.sides[value] = min(runs)
+
+    def _near(self, side: int) -> list[Position]:
+        """The offsets, nearest first, at which a block of ``side`` that moved no further than the reach is met."""
+        if side not in self._rings:
+            steps = range(-(self.reach // side) * side, self.reach + side, side)
+            self._rings[side] = sorted((offset for offset in product(steps, repeat=len(self.shape)) if any(offset)),
+                                       key=lambda offset: (max(map(abs, offset)), sum(map(abs, offset)), offset))
+        return self._rings[side]
+
     def _again(self, see: Callable[[Position], Hashable], value: Hashable, corner: Position) -> Position | None:
         """Where a remembered block is now, or ``None`` if it is not near where it was."""
         if value in self.ignored:
@@ -154,7 +213,8 @@ class Gaze:
         turned = dict.fromkeys(tuple(sign * step for step in turn) for turn in (moved, *permutations(moved))
                                for sign in (1, -1))
         guesses = [tuple(place + step for place, step in zip(corner, offset, strict=True))
-                   for offset in (*(turned if any(moved) else ()), (0,) * len(corner), *self._rings)]
+                   for offset in (*(turned if any(moved) else ()), (0,) * len(corner),
+                                  *self._near(self.sides.get(value, 1)))]
         for position in guesses:
             if see(position) == value:
                 found = self._corner(see, position, value)
