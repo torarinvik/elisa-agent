@@ -37,6 +37,10 @@ looking ahead decides nothing. An end that the situation itself shows, as an epi
 whoever judges it. Ruling out those pairs alone satisfies the proposition, and what it then avoids is ends, not
 objections.
 
+A learner's judgements hold some such pairs as well. A class of readings judged bad and never once good is not a
+preference among the candidates met with it, and may be ruled out; a class judged both ways may not. This is an
+assumption about the teacher, not a consequence of 53: it rules out only what the teaching has met.
+
 ## 56.4 Cost and what is not covered
 
 With at most `b` actions open the search reads at most `b^D` situations for each action. An end further off than
