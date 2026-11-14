@@ -74,6 +74,16 @@ def sums(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, .
                  for first, between, last in lines for near, far in ((first, last), (last, first)))
 
 
+def excesses(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, ...]:
+    """What the step between the ends of a line of three slots holds beyond the value between them (§55.15).
+
+    For each line two readings, taking the step from the first to the last and from the last to the first.
+    Two lines that keep one sum read the same wherever the values' nothing is put, which ``sums`` does not.
+    """
+    return tuple(step(value(between), step(value(near), value(far)))
+                 for first, between, last in lines for near, far in ((first, last), (last, first)))
+
+
 def agreeing(readings: Iterable[Sequence[Probe]]) -> tuple[Probe, ...]:
     """Whether each two readings of one group are the same: that one line does as another does (§55.14).
 

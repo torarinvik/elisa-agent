@@ -182,5 +182,16 @@ theorem agreeing_rows_tell (above last : Bool) :
   have other := told false true
   rw [one] at other
   simp at other
+/-- **Proposition 55.15 (the excess of two rows agrees wherever the nothing is put).** Adding one amount to every
+value lowers each row's excess by that amount, so two rows have the same excess after exactly when they had
+before; that a row is a sum, its excess nothing, is not kept. -/
+theorem excess_agrees_wherever_nothing_is (a b c a' b' c' k : ℤ) :
+    ((c + k) - (a + k) - (b + k) = c - a - b - k) ∧
+      ((c + k) - (a + k) - (b + k) = (c' + k) - (a' + k) - (b' + k) ↔ c - a - b = c' - a' - b') ∧
+      ¬∀ x y z shift : ℤ, z = x + y → z + shift = (x + shift) + (y + shift) := by
+  refine ⟨by omega, by omega, ?_⟩
+  intro kept
+  have := kept 0 0 0 1 rfl
+  omega
 
 end NCA

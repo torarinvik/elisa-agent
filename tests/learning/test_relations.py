@@ -2,7 +2,7 @@ from collections.abc import Hashable, Sequence
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import agreeing, analogies, lifted, order, pool, read, same, step, sums, value
+from nca.learning.relations import agreeing, analogies, excesses, lifted, order, pool, read, same, step, sums, value
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -130,3 +130,18 @@ def test_two_rows_agreeing_on_being_sums_tells_a_right_last_row_where_its_own_re
             for values in ((1, 2, 3, 2, 2, 4), (1, 2, 3, 2, 2, 5), (1, 2, 4, 2, 2, 5), (1, 2, 4, 2, 2, 4))]
     assert [read(one, agree) for one in seen] == [True, False, True, False]
     assert [read(one, sums([rows[1]])[0]) for one in seen] == [True, False, False, True]
+
+
+def test_rows_keeping_one_sum_agree_in_excess_wherever_the_ladder_is_numbered_from() -> None:
+    rows = [tuple((row, column) for column in range(3)) for row in range(2)]
+    (more, less) = agreeing([[excesses([row])[way] for row in rows] for way in (0, 1)])
+    (plain,) = agreeing([[sums([row])[0] for row in rows]])
+    for shift in (0, 1, -3):
+        kept = dict(zip((*rows[0], *rows[1]), (value + shift for value in (1, 2, 3, 2, 4, 6)), strict=True))
+        broken = dict(zip((*rows[0], *rows[1]), (value + shift for value in (1, 2, 3, 2, 4, 7)), strict=True))
+        lessened = dict(zip((*rows[0], *rows[1]), (value + shift for value in (5, 2, 3, 6, 1, 5)), strict=True))
+        assert read(kept, more) is True and read(broken, more) is False
+        assert read(lessened, less) is True and read(lessened, more) is False
+    shifted = dict(zip((*rows[0], *rows[1]), (2, 3, 4, 3, 5, 7), strict=True))
+    assert read(shifted, sums([rows[0]])[0]) is False and read(shifted, plain) is True
+    assert read({rows[0][0]: 1}, more) is None

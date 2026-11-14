@@ -287,3 +287,23 @@ whether its reading is the same as a row's above, and is no function of its own 
 
 So for any reading of a line, the pool also offers whether two lines that stand alike read the same: a relation
 between relations (55.5), one probe that says "as the row above does". In Lean 55.14 is `NCA.agreeing_rows_tell`.
+
+## 55.15 A sum where the nothing is not known
+
+Whether a step is a value (55.13) needs values with a nothing. A rung on a ladder has a unit and no nothing: a
+reader that numbers the rungs it has seen from the least numbers them from wherever the least seen happens to
+stand, and a rule may itself count its rungs from one where the reader counts from nought. Under such a
+numbering a row that keeps a sum does not read as one.
+
+Call the **excess** of a row `a, b, c` what the step from `a` to `c` holds beyond `b`: `c − a − b`. A row is a
+sum when its excess is nothing.
+
+**Proposition 55.15 (the excess of two rows agrees wherever the nothing is put).** Add one amount `k` to every
+value. Each row's excess falls by `k`, so two rows have the same excess after exactly when they had before;
+whether a row's excess is nothing is not kept, since a sum's excess becomes `−k`.
+
+So where the rows keep one sum, on a ladder numbered from anywhere, the asked row is right when its excess is the
+excess of a row shown. This is 55.14 with a reading that is a number and not a truth: the pool offers, for
+lines of three that stand alike, whether their excesses are the same, taking the step either way as in 55.13.
+It still needs the unit: rungs numbered in steps that are not the rule's own do not keep it. In Lean 55.15 is
+`NCA.excess_agrees_wherever_nothing_is`.
