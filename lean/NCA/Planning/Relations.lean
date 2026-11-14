@@ -100,4 +100,23 @@ theorem places_keep_order_and_lose_steps :
       (1 : ℤ) - 0 ≠ 3 - 1 := by
   decide
 
+/-- How alike a row around a circle is to itself moved a gap along: the sum, over the places, of the value there
+times the value a gap on. -/
+def alikeMoved {G : Type*} [AddCommGroup G] [Fintype G] (row : G → ℤ) (gap : G) : ℤ :=
+  ∑ place, row place * row (place + gap)
+
+/-- **Proposition 55.8 (what a turn and a mirror leave alone).** How alike a row around a circle is to itself moved
+along is unchanged, for every gap, when the row is turned by any amount and when it is mirrored. -/
+theorem turning_and_mirroring_keep_alike_moved {G : Type*} [AddCommGroup G] [Fintype G] (row : G → ℤ)
+    (turn gap : G) :
+    alikeMoved (fun place => row (place + turn)) gap = alikeMoved row gap ∧
+      alikeMoved (fun place => row (-place)) gap = alikeMoved row gap := by
+  constructor
+  · exact Fintype.sum_equiv (Equiv.addRight turn) _ _ fun place => by
+      simp only [Equiv.coe_addRight, add_right_comm]
+  · exact Fintype.sum_equiv ((Equiv.neg G).trans (Equiv.subRight gap)) _ _ fun place => by
+      simp only [Equiv.trans_apply, Equiv.neg_apply, Equiv.subRight_apply, neg_add, sub_eq_add_neg,
+        neg_add_cancel_right]
+      exact mul_comm _ _
+
 end NCA

@@ -158,3 +158,25 @@ So a learner numbered by places reads order rightly from its first observation a
 rungs in play have all been seen; a rule of steps taught earlier is taught on numbers that later shift. The
 ordering of each kind by its magnitude is given, as the kinds of 55.1 are, and is not found. In Lean 55.7 is
 `NCA.places_keep_order_and_lose_steps`.
+
+## 55.10 Comparing whatever the turn
+
+A thing and the same thing turned are different pictures, and a comparison that lays one outline on the other
+(55.8) reads them different. Where a task counts them the same, the comparison has to be blind to the turn. A
+comparison is blind to a change when it compares through something the change leaves alone.
+
+For a turn, let a **row around a circle** hold, for each of `n` directions from an outline's middle, how far the
+outline reaches that way. Turning the outline by a multiple of the `n`-th part of a full turn moves the row along
+the circle, and a turn between two such multiples nearly so. For a gap `g` let `A(g)` be the sum over the places
+`p` of `row(p) · row(p + g)`: how alike the row is to itself moved `g` along.
+
+**Proposition 55.8 (what a turn and a mirror leave alone).** For a row over a finite commutative group, `A` is
+unchanged, for every gap, when the row is moved along by any amount and when it is mirrored.
+
+So a comparison through `A` reads a thing and its turned self the same. It pays for this twice: it also reads a
+thing and its mirror image the same, and two rows that are neither a turn nor a mirror of one another can share
+`A`. It is coarser than sameness up to a turn, never finer. The squared magnitudes of the row's discrete Fourier
+coefficients are the transform of `A` (the classical Wiener–Khinchin relation, not proved in Lean here), so they
+hold exactly what `A` holds, and the lowest of them describe the outline's coarse form while leaving out what
+single directions add. Dividing the row by its mean first makes the comparison blind to the outline's size as
+well. In Lean 55.8 is `NCA.turning_and_mirroring_keep_alike_moved`.
