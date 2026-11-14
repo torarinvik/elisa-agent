@@ -220,4 +220,42 @@ theorem steps_with_change_le_changes {ι κ : Type*} [DecidableEq κ] (changes :
     (changes.image step).card ≤ changes.card :=
   Finset.card_image_le
 
+/-- What a choice gives after a history: a fixed action, or the answer of the part it names. -/
+def choiceAnswer {H A ι : Type*} (parts : ι → H → A) (h : H) : A ⊕ ι → A
+  | Sum.inl a => a
+  | Sum.inr i => parts i h
+
+/-- **Proposition 52.16 (a certificate does not travel).** Whatever a part answers, and on whatever histories it
+was found right, a history outside them admits a target that agrees with the part on all of those and differs
+from it there. -/
+theorem certificate_does_not_travel {H A : Type*} [DecidableEq H] (part : H → A) (drawn : Set H) (h : H)
+    (outside : h ∉ drawn) (a : A) (differs : a ≠ part h) :
+    ∃ target : H → A, (∀ x ∈ drawn, part x = target x) ∧ part h ≠ target h := by
+  refine ⟨Function.update part h a, fun x inside => ?_, ?_⟩
+  · have other : x ≠ h := fun same => outside (by rw [← same]; exact inside)
+    rw [Function.update_of_ne other]
+  · rw [Function.update_self]
+    exact fun same => differs same.symm
+
+/-- **Proposition 52.17 (an erring part is told apart).** Let a machine give the right action after every history.
+A history at which a part errs is in another state than any history whose state holds that part as its choice. -/
+theorem erring_part_is_not_the_choice {H A ι S : Type*} (parts : ι → H → A) (right : H → A) (state : H → S)
+    (choice : S → A ⊕ ι) (consistent : ∀ h, choiceAnswer parts h (choice (state h)) = right h) (i : ι) (h h' : H)
+    (errs : parts i h ≠ right h) (held : choice (state h') = Sum.inr i) : state h ≠ state h' := by
+  intro same
+  have given := consistent h
+  rw [same, held] at given
+  exact errs given
+
+/-- **Proposition 52.18 (amended parts keep the rule).** Let the right action be given by a rule that chooses among
+target parts. If each part agrees with its target wherever the rule chooses it, the rule gives the right action
+with the parts as they are: no machine larger than the rule is needed. -/
+theorem amended_parts_keep_the_rule {H A ι S : Type*} (parts targets : ι → H → A) (state : H → S)
+    (choice : S → A ⊕ ι)
+    (amended : ∀ h i, choice (state h) = Sum.inr i → parts i h = targets i h) (h : H) :
+    choiceAnswer parts h (choice (state h)) = choiceAnswer targets h (choice (state h)) := by
+  cases held : choice (state h) with
+  | inl a => rfl
+  | inr i => exact amended h i held
+
 end NCA

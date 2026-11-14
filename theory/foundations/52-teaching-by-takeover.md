@@ -267,3 +267,38 @@ decision to the tick, so 52.15 files them exactly when the ball did not cross a 
 
 Filing shown actions only at decision ticks keeps one of every `k` of them. Whether leaving the learner's changed steps
 unjudged as well is worth the judgements it loses is not shown here and is measured in the research diary.
+
+## 52.13 A part that errs where it is used
+
+A helper of §52.5 that was itself taught is a proposal admitted on episodes of its own. A machine that uses it draws
+other histories.
+
+**Proposition 52.16 (a certificate does not travel).** Let a part be right on every history of a set. For any history
+outside the set there is a target that agrees with the part on the set and differs from it at that history.
+
+So what a part was admitted on bounds its errors on those draws and says nothing of the histories a user of it
+reaches. In Lean this is `NCA.certificate_does_not_travel`.
+
+Let the right action be given by a rule of `k` states that chooses among target parts, and let the parts given err.
+
+**Proposition 52.17 (an erring part is told apart).** In a machine that gives the right action after every history, a
+history at which a part errs is in another state than every history whose state holds that part as its choice.
+
+A learner that leaves the parts as they are must therefore tell apart, by states of its own, the histories at which
+a part it uses errs. These follow the part's state and not the rule's, so the machine is bounded by the product of
+the two and not by `k`. In Lean this is `NCA.erring_part_is_not_the_choice`.
+
+**Proposition 52.18 (amended parts keep the rule).** If each part agrees with its target at every history where the
+rule chooses it, the rule gives the right action with the parts as they are.
+
+A part need be right only where it is chosen. In Lean this is `NCA.amended_parts_keep_the_rule`.
+
+Where a machine delegated to a part and the teacher took over, the demonstrated action `a` after history `h` has two
+readings: the state's choice is wrong, or the choice is right and the part's right action after `h` is `a`. A learner
+may keep the episodes each part was shown and try the second reading by showing the part `(h, a)`. By 52.6 the
+candidates for a machine of `k` states over parts of `n₁, …, n_m` states, each a machine of the same kind, are the
+product of the candidates of each, so a majority learner over all of them needs at most the sum of their bounds in
+takeovers, where a machine with fixed parts that err needs the bound of the product machine.
+
+Which reading holds is not given. Choosing at each takeover the reading that leaves the fewest states in all is a
+rule and is not shown to find the smallest whole; it is measured in the research diary.
