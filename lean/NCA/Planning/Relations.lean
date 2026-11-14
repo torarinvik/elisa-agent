@@ -119,4 +119,28 @@ theorem turning_and_mirroring_keep_alike_moved {G : Type*} [AddCommGroup G] [Fin
         neg_add_cancel_right]
       exact mul_comm _ _
 
+/-- **Proposition 55.9 (a chain reads sameness when no link crosses).** Where no two things read near are truly
+different and any two things truly the same are joined by a chain of things read near, being joined by such a chain
+is being truly the same. -/
+theorem chain_reads_sameness {α : Type*} (same near : α → α → Prop) (eqv : Equivalence same)
+    (none_crosses : ∀ x y, near x y → same x y) (chained : ∀ x y, same x y → Relation.EqvGen near x y) (x y : α) :
+    Relation.EqvGen near x y ↔ same x y := by
+  refine ⟨fun joined => ?_, chained x y⟩
+  induction joined with
+  | rel _ _ link => exact none_crosses _ _ link
+  | refl _ => exact eqv.refl _
+  | symm _ _ _ back => exact eqv.symm back
+  | trans _ _ _ _ _ first second => exact eqv.trans first second
+
+/-- **Proposition 55.10 (a greater divide only joins).** Things joined by a chain of links under one divide are
+joined under every greater divide. -/
+theorem greater_divide_only_joins {α : Type*} (far : α → α → ℚ) {low high : ℚ} (more : low ≤ high) (x y : α)
+    (joined : Relation.EqvGen (fun a b => far a b < low) x y) :
+    Relation.EqvGen (fun a b => far a b < high) x y := by
+  induction joined with
+  | rel _ _ link => exact Relation.EqvGen.rel _ _ (lt_of_lt_of_le link more)
+  | refl _ => exact Relation.EqvGen.refl _
+  | symm _ _ _ back => exact Relation.EqvGen.symm _ _ back
+  | trans _ _ _ _ _ first second => exact Relation.EqvGen.trans _ _ _ first second
+
 end NCA

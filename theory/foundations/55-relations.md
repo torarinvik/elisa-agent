@@ -180,3 +180,39 @@ coefficients are the transform of `A` (the classical Wiener–Khinchin relation,
 hold exactly what `A` holds, and the lowest of them describe the outline's coarse form while leaving out what
 single directions add. Dividing the row by its mean first makes the comparison blind to the outline's size as
 well. In Lean 55.8 is `NCA.turning_and_mirroring_keep_alike_moved`.
+
+## 55.11 A divide found from the things themselves
+
+A comparison by a distance under a divide (55.8) needs the divide. Set by hand it is knowledge of one kind of
+thing, in the units of one distance. Three ways of using a divide ask different things of the distances. Let the
+things of one class lie within `r` of their class's middle and the middles of two classes at least `D` apart.
+
+- **By pairs**: two things are the same when their distance is under the divide. Two of a class can be `2r` apart
+  and two of different classes as near as `D − 2r`, so a divide exists only when `D > 4r`, and the greatest
+  distance within a class grows as more of it is seen.
+- **By middles**: a thing is of the class whose middle it lies nearest. This needs `D > 2r`, and needs the classes
+  before it can be used.
+- **By chains**: two things are the same when a chain of things joins them, each link under the divide. This
+  needs only that no link crosses between classes and that each class hangs together. The longest link a class
+  needs shortens as more of it is seen, since the things between two of its members fill in, while the nearest
+  two things of different classes come no nearer than `D − 2r`.
+
+**Proposition 55.9 (a chain reads sameness when no link crosses).** Let a true sameness be an equivalence. If no
+two things read near are truly different, and any two things truly the same are joined by a chain of things read
+near, then being joined by such a chain is being truly the same.
+
+So chains are the comparison that data improves, and by 55.5 their classes are always an equivalence, with no
+triple to break (55.6). What the distances do not hold is which divide is meant:
+
+**Proposition 55.10 (a greater divide only joins).** Things joined by a chain under one divide are joined under
+every greater divide.
+
+The classes under all divides are therefore nested, from every thing alone to all things together, and each level
+is an equivalence. Which level a task means by "the same" is not in the distances; a rule has to choose one. The
+rule used takes the links of the shortest tree that joins the things seen, which are exactly the links at which
+classes join as the divide grows, and puts the divide in the **widest gap, by ratio, between two successive links
+above the median link**. Things that are the same picture are counted once. The rule carries no distance: it reads
+the same when every distance is multiplied by a constant. It assumes that more than half the links lie within
+classes, which holds once the things seen outnumber twice the classes, and that the classes sought are the finest
+level that stands clear of what redrawing a thing changes. Whether it finds a task's classes is measured in the
+research diary. In Lean 55.9 is `NCA.chain_reads_sameness` and 55.10 is `NCA.greater_divide_only_joins`.
