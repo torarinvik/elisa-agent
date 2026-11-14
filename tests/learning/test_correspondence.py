@@ -3,7 +3,7 @@ from random import Random
 
 import pytest
 
-from nca.learning.correspondence import Structure, alike, described, renaming
+from nca.learning.correspondence import Structure, alike, described, may_be_alike, readings, renaming
 
 RING: Structure = ((0,) * 6, [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)])
 RINGS: Structure = ((0,) * 6, [(0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 3)])
@@ -69,3 +69,19 @@ def test_marks_keep_structures_apart_and_malformed_joins_are_refused() -> None:
     assert alike(((), []), ((), []))
     with pytest.raises(ValueError):
         alike((("a",), [(0, 0)]), (("a",), []))
+
+
+def test_structures_read_with_doubts_may_be_the_same_where_some_reading_of_each_is() -> None:
+    """A run from part 0 to part 2 drawn over part 1 reads as the run, its halves, or the run with a half or both."""
+    doubt = [[(0, 2)], [(0, 1), (1, 2)], [(0, 2), (0, 1)], [(0, 2), (1, 2)], [(0, 2), (0, 1), (1, 2)]]
+    read: Structure = ((0,) * 4, [(0, 1), (1, 2), (0, 2), (2, 3)])
+    assert [joins for _, joins in readings(read, [doubt])] == [
+        [(0, 2), (2, 3)], [(0, 1), (1, 2), (2, 3)], [(0, 1), (0, 2), (2, 3)], [(0, 2), (1, 2), (2, 3)],
+        [(0, 1), (0, 2), (1, 2), (2, 3)]]
+    line: Structure = ((0,) * 4, [(0, 1), (1, 2), (2, 3)])
+    assert not alike(read, line) and may_be_alike(read, line, [doubt]) and may_be_alike(line, read, (), [doubt])
+    star: Structure = ((0,) * 4, [(0, 1), (0, 2), (0, 3)])
+    assert may_be_alike(read, star, [doubt])
+    assert not may_be_alike(read, ((0,) * 4, [(0, 1), (2, 3)]), [doubt])
+    assert not may_be_alike(read, ((0,) * 5, [(0, 1), (1, 2), (2, 3)]), [doubt])
+    assert may_be_alike(read, line, [doubt], most=4) is False and may_be_alike(read, read, [doubt], [doubt], most=4)

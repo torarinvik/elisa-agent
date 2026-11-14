@@ -9,11 +9,17 @@ A learner that looks only through sameness and order probes is taught for
 every value at once: its readings are unchanged when the values are renamed
 or rescaled (§55.3). The slots, their kinds and their values are the caller's,
 and a learner finds which probes matter.
+
+``found`` composes relations from values and steps and takes those the judgements pay for, in place of relations
+written beforehand, and ``moved`` offers a relation at every place that stands alike (§59).
 """
 
 from collections.abc import Collection, Hashable, Iterable, Mapping, Sequence
 from itertools import combinations, permutations
+from math import log2
 from typing import Any
+
+import numpy as np
 
 Probe = tuple[Hashable, ...]
 
@@ -143,3 +149,95 @@ def read(observation: Mapping[Hashable, Any], probe: Probe) -> Hashable:
     if probe[0] == "order":
         return int(second > first) - int(second < first)
     return second - first
+
+
+def _size(probe: Probe) -> int:
+    return len(_slots(probe))
+
+
+def _told(good: np.ndarray, bad: np.ndarray, share: float) -> np.ndarray:
+    """The bits each class of good and bad judgements tells beyond the share of good among them all (§59.2)."""
+    held = good + bad
+    lean = np.divide(good, held, out=np.full(held.shape, share), where=held > 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        bits = (np.where(lean > 0, lean * np.log2(lean / share), 0.0)
+                + np.where(lean < 1, (1 - lean) * np.log2((1 - lean) / (1 - share)), 0.0))
+    return held * bits
+
+
+def found(situations: Sequence[Mapping[Hashable, Any]], verdicts: Sequence[bool], slots: Sequence[Hashable], *,
+          margin: float = 2.0, most: int = 40, deep: bool = True) -> tuple[Probe, ...]:
+    """Relations composed over ``slots`` that the judgements pay for (§59).
+
+    The numbers composed are each value, the step between two values and, with ``deep``, the step from a value
+    to such a step; a relation is whether two of them are the same. The judgements are divided by the relation
+    that tells most of their verdicts beyond what its name costs among the relations of its size, the logarithm
+    of the judgements and ``margin`` bits; the classes it leaves are divided likewise. At most ``most`` are
+    taken. A value that is no number reads as nothing. The work grows with the square of the numbers composed:
+    with ``deep``, with the sixth power of the slots.
+    """
+    held = np.array([[situation.get(slot) if isinstance(situation.get(slot), int | float)
+                      and not isinstance(situation.get(slot), bool) else np.nan for slot in slots]
+                     for situation in situations], dtype=float).reshape(len(situations), len(slots))
+    good = np.asarray(verdicts, dtype=bool)
+    names: list[Probe] = [value(slot) for slot in slots]
+    columns = [held[:, place] for place in range(len(slots))]
+    for one, other in permutations(range(len(slots)), 2):
+        names.append(step(value(slots[one]), value(slots[other])))
+        columns.append(held[:, other] - held[:, one])
+    for place in range(len(slots)) if deep else ():
+        for between in range(len(slots), len(slots) ** 2):
+            if slots[place] not in _slots(names[between]):
+                names.append(step(value(slots[place]), names[between]))
+                columns.append(columns[between] - held[:, place])
+    if len(names) < 2 or not len(good):
+        return ()
+    numbers = np.array(columns).T
+    read_ = ~np.isnan(numbers)
+    sizes = np.array([_size(name) for name in names])
+    together = sizes[:, None] + sizes[None, :]
+    upper = np.triu(np.ones(together.shape, dtype=bool), 1)
+    need = np.log2(np.maximum(np.bincount(together[upper]), 1))[together] + log2(len(good)) + margin
+    taken: list[Probe] = []
+    waiting = [np.ones(len(good), dtype=bool)]
+    while waiting and len(taken) < most:
+        live = waiting.pop(0)
+        verdict = good[live]
+        if verdict.all() or not verdict.any():
+            continue
+        share, here, there = float(verdict.mean()), numbers[live], read_[live]
+        yes, no = verdict.astype(float), (~verdict).astype(float)
+        told = np.empty(together.shape)
+        for one in range(len(names)):
+            both = there[:, [one]] & there
+            same_ = (here[:, [one]] == here) & both
+            other = both & ~same_
+            told[one] = (_told(yes @ same_, no @ same_, share) + _told(yes @ other, no @ other, share)
+                         + _told(yes @ ~both, no @ ~both, share))
+        told = np.where(upper, told - need, -np.inf)
+        one, other = np.unravel_index(int(told.argmax()), told.shape)
+        if told[one, other] <= 0:
+            continue
+        relation = same(names[one], names[other])
+        if relation not in taken:
+            taken.append(relation)
+        both = read_[:, one] & read_[:, other]
+        alike = (numbers[:, one] == numbers[:, other]) & both
+        waiting += [live & alike, live & both & ~alike, live & ~both]
+    return tuple(taken)
+
+
+def moved(probes: Iterable[Probe], moves: Iterable[Mapping[Hashable, Hashable]]) -> tuple[Probe, ...]:
+    """Each probe at every place the moves take it to, each once (§59.4).
+
+    A move gives, for each slot, the slot that stands as it does. A sameness and the same sameness written the
+    other way round are one.
+    """
+    offered: dict[Hashable, Probe] = {}
+    moves = list(moves)
+    for probe in probes:
+        for move in moves:
+            image = _moved(probe, move)
+            name = frozenset(image[1:]) if image[0] == "same" else image
+            offered.setdefault(name, image)
+    return tuple(offered.values())

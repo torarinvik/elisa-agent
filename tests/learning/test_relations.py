@@ -2,7 +2,7 @@ from collections.abc import Hashable, Sequence
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import agreeing, analogies, excesses, lifted, order, pool, read, same, step, sums, value
+from nca.learning.relations import agreeing, analogies, excesses, found, lifted, moved, order, pool, read, same, step, sums, value
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -145,3 +145,38 @@ def test_rows_keeping_one_sum_agree_in_excess_wherever_the_ladder_is_numbered_fr
     shifted = dict(zip((*rows[0], *rows[1]), (2, 3, 4, 3, 5, 7), strict=True))
     assert read(shifted, sums([rows[0]])[0]) is False and read(shifted, plain) is True
     assert read({rows[0][0]: 1}, more) is None
+
+
+def test_a_relation_no_one_wrote_is_found_from_judgements_and_nothing_is_found_where_nothing_is_told() -> None:
+    """Good exactly when the last line has the first line's total; no slot alone, nor any two, says so."""
+    drawn = Random(0)
+    slots = [(row, column) for row in range(2) for column in range(3)]
+    situations, verdicts = [], []
+    for number in range(300):
+        first = [drawn.randrange(6) for _ in range(3)]
+        last = [drawn.randrange(6) for _ in range(3)]
+        if number % 2:
+            last[2] = sum(first) - last[0] - last[1]
+        situations.append(dict(zip(slots, (*first, *last), strict=True)))
+        verdicts.append(sum(first) == sum(last))
+    relations = found(situations, verdicts, slots)
+    assert 1 <= len(relations) <= 2
+    assert [read(situation, relations[0]) for situation in situations] == verdicts
+    assert found(situations, [drawn.random() < 0.5 for _ in situations], slots) == ()
+    assert found(situations[:6], verdicts[:6], slots) == ()
+    assert found([], [], slots) == () and found(situations, verdicts, slots[:1]) == ()
+    assert found([{slots[0]: "a", slots[1]: None}] * 40, [True, False] * 20, slots[:2]) == ()
+
+
+def test_a_relation_is_offered_at_every_place_that_stands_alike_and_reads_the_moved_situation() -> None:
+    slots = [(row, column) for row in range(2) for column in range(2)]
+    relation = same(value((0, 0)), step(value((0, 1)), value((1, 1))))
+    swapped = {(row, column): (1 - row, column) for row, column in slots}
+    turned = {(row, column): (column, row) for row, column in slots}
+    still = {slot: slot for slot in slots}
+    images = moved([relation, same(value((0, 0)), value((0, 1)))], [still, swapped, turned])
+    assert images[0] == relation and len(images) == 6
+    assert moved([same(value(1), value(2))], [{1: 2, 2: 1}, {1: 1, 2: 2}]) == (same(value(2), value(1)),)
+    held = {(0, 0): 3, (0, 1): 1, (1, 0): 7, (1, 1): 4}
+    back = {slot: held[swapped[slot]] for slot in slots}
+    assert read(held, moved([relation], [swapped])[0]) == read(back, relation)

@@ -10,13 +10,21 @@ keeps every description (``NCA.renaming_keeps_descriptions``), so parts are pair
 alike; that the descriptions agree does not make two structures the same (``NCA.counting_joins_does_not_tell``),
 so the pairing is then sought part by part and every pairing returned has been checked join by join.
 
+Where what was read does not say what joins what, a structure comes with doubts, each the ways one place may
+be read, and two structures may be the same when some reading of each is (§58.4).
+
 The parts, their marks and what joins them are the caller's.
 """
 
-from collections.abc import Collection, Hashable, Sequence
+from collections import Counter
+from collections.abc import Collection, Hashable, Iterator, Sequence
+from itertools import product
+from math import prod
 
 Structure = tuple[Sequence[Hashable], Collection[tuple[int, int]]]
 """The mark of each part and the pairs of parts that are joined; a join holds both ways."""
+Doubt = Sequence[Collection[tuple[int, int]]]
+"""The ways one place of a structure may be read, each a set of joins."""
 
 
 def _near(structure: Structure) -> list[set[int]]:
@@ -84,3 +92,37 @@ def renaming(first: Structure, second: Structure) -> tuple[int, ...] | None:
 def alike(first: Structure, second: Structure) -> bool:
     """Whether the two structures are the same under a renaming of their parts."""
     return renaming(first, second) is not None
+
+
+def _joins(joins: Collection[tuple[int, int]]) -> set[tuple[int, int]]:
+    return {(min(join), max(join)) for join in joins}
+
+
+def readings(structure: Structure, doubts: Sequence[Doubt]) -> Iterator[Structure]:
+    """The structures a structure read with doubts may be: the joins no doubt names with one way of each doubt."""
+    marks, joins = structure
+    sure = _joins(joins) - {join for doubt in doubts for way in doubt for join in _joins(way)}
+    for chosen in product(*doubts):
+        yield marks, sorted(sure.union(*map(_joins, chosen)))
+
+
+def may_be_alike(first: Structure, second: Structure, mine: Sequence[Doubt] = (), theirs: Sequence[Doubt] = (),
+                 most: int = 20_000) -> bool:
+    """Whether some reading of the first structure is the same under a renaming as some reading of the second.
+
+    Readings are compared only where as many parts have each number of joins. A structure with more than
+    ``most`` readings is taken as it was given.
+    """
+    def tally(structure: Structure) -> tuple[int, ...]:
+        met = Counter(part for join in structure[1] for part in join)
+        return tuple(sorted(met[part] for part in range(len(structure[0]))))
+
+    def ways(structure: Structure, doubts: Sequence[Doubt]) -> list[Structure]:
+        return list(readings(structure, doubts)) if prod(map(len, doubts)) <= most else [structure]
+
+    if len(first[0]) != len(second[0]):
+        return False
+    held: dict[tuple[int, ...], list[Structure]] = {}
+    for way in ways(second, theirs):
+        held.setdefault(tally(way), []).append(way)
+    return any(alike(way, other) for way in ways(first, mine) for other in held.get(tally(way), ()))

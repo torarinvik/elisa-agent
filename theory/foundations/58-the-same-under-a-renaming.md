@@ -61,5 +61,25 @@ structures of 58.1 enlarged. The descriptions are what keep it short where the p
 To a learner this is a relation like those of §55, read of two things that each have parts: whether they are the
 same under a renaming. What a part's mark is and what counts as joined are given by whoever reads the things.
 
+## 58.4 Where the reading is in doubt
+
+What is read of a thing may not say what joins what. A run drawn over a third part reads as the run, as its two
+halves, or as the run with either half or both (55.16), and the drawing is the same for all of them. A structure
+read with such **doubts** is then several structures: the joins that are sure with, for each doubt, one of the
+ways it may be read.
+
+Two things so read **may be the same** when some reading of the one is the same under a renaming as some reading
+of the other.
+
+**Proposition 58.4 (what may be the same misses no sameness).** If the things as they are lie among their
+readings and are the same under a renaming, they may be the same. The converse does not hold: readings that are
+not how the things are can agree.
+
+So "may be the same" errs only by saying it of things that differ, and does that only where the doubts of the
+two happen to make up for how they differ; "the same as first read" errs both ways, and wherever a doubt is read
+differently in the two it says "not the same" of things that are. Which of the two a task pays for is not given:
+both are readings a learner may look at. Readings are tried only against readings with as many parts described
+alike (Theorem 58.2), which leaves few.
+
 In Lean 58.1 is `NCA.counting_joins_does_not_tell` and 58.2 is `NCA.renaming_keeps_descriptions` with
-`NCA.renamed_structures_described_alike`; 58.3 is not in Lean and is tested against trying every pairing.
+`NCA.renamed_structures_described_alike`; 58.3 is not in Lean and is tested against trying every pairing; 58.4 is immediate from the definition.

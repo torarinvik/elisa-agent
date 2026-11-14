@@ -204,4 +204,33 @@ theorem wearing_takes_runs_and_leaves_parts (t T w : ℕ) :
   intro gone stands run part thin thick
   omega
 
+/-- **Proposition 59.1 (what was written is among them).** A sum is a value that is a step; two lines of three have
+the same excess, and the same total, exactly when two steps from a value to a step are the same; and a line that
+holds another's values in another order has its total. -/
+theorem written_relations_are_composed (a b c a' b' c' : ℤ) :
+    (c = a + b ↔ b = c - a) ∧
+      (c - a - b = c' - a' - b' ↔ (c - a) - b = (c' - a') - b') ∧
+      (a + b + c = a' + b' + c' ↔ (c' - b) - a = (c - b') - a') ∧
+      ((a' = b ∧ b' = c ∧ c' = a) ∨ (a' = c ∧ b' = a ∧ c' = b) ∨ (a' = b ∧ b' = a ∧ c' = c) →
+        a + b + c = a' + b' + c') := by
+  refine ⟨by omega, by omega, by omega, ?_⟩
+  rintro (⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩) <;> omega
+
+/-- **Proposition 59.2 (the bar bounds the chance).** With at most `2 ^ a` relations of a size and `n + 1 ≤ 2 ^ b`,
+a bar of `a + b + c` bits leaves `N * (n + 1)` chances of `2⁻ᵗ` each no more than `2⁻ᶜ` in all: stated without
+fractions. -/
+theorem name_paid_bounds_chance (N n a b c : ℕ) (few : N ≤ 2 ^ a) (short : n + 1 ≤ 2 ^ b) :
+    N * (n + 1) * 2 ^ c ≤ 2 ^ (a + b + c) := by
+  calc N * (n + 1) * 2 ^ c ≤ 2 ^ a * 2 ^ b * 2 ^ c :=
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul few short)
+    _ = 2 ^ (a + b + c) := by rw [← pow_add, ← pow_add]
+
+/-- **Proposition 59.3 (a moved relation reads the moved situation).** Whether the steps between moved slots are
+the same, in a situation, is whether the steps between the slots are the same in the situation with its values
+moved back. -/
+theorem moved_relation_reads_moved {S : Type*} (move : S → S) (held : S → ℤ) (p q r s : S) :
+    (held (move q) - held (move p) = held (move s) - held (move r)) ↔
+      ((held ∘ move) q - (held ∘ move) p = (held ∘ move) s - (held ∘ move) r) :=
+  Iff.rfl
+
 end NCA
