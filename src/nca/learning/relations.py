@@ -11,7 +11,7 @@ or rescaled (§55.3). The slots, their kinds and their values are the caller's,
 and a learner finds which probes matter.
 """
 
-from collections.abc import Collection, Hashable, Mapping, Sequence
+from collections.abc import Collection, Hashable, Iterable, Mapping, Sequence
 from itertools import combinations, permutations
 from typing import Any
 
@@ -46,18 +46,60 @@ def pool(kinds: Mapping[Hashable, Sequence[Hashable]], ordered: Collection[Hasha
             *(order(first, second) for kind, first, second in pairs if kind in ordered))
 
 
-def analogies(places: Mapping[Hashable, Sequence[int]]) -> tuple[Probe, ...]:
+def analogies(places: Mapping[Hashable, Sequence[int]], readings: Mapping[Hashable, Probe] | None = None,
+              ) -> tuple[Probe, ...]:
     """Whether two pairs of slots that stand alike take the same step (§55.5).
 
     ``places`` says where each slot of one kind stands. Two pairs stand alike
     when the second slot of each lies the same way and as far from the first.
+    With ``readings`` the step is between what those probes read at the
+    slots, not between the slots' values.
     """
     alike: dict[tuple[int, ...], list[Probe]] = {}
     for first, second in permutations(places, 2):
         apart = tuple(there - here for here, there in zip(places[first], places[second], strict=True))
         if apart > tuple(0 for _ in apart):
-            alike.setdefault(apart, []).append(step(value(first), value(second)))
+            ends = (readings[first], readings[second]) if readings else (value(first), value(second))
+            alike.setdefault(apart, []).append(step(*ends))
     return tuple(same(one, other) for steps in alike.values() for one, other in combinations(steps, 2))
+
+
+def _slots(probe: Probe) -> list[Hashable]:
+    return [probe[1]] if probe[0] == "value" else [slot for part in probe[1:] for slot in _slots(part)]
+
+
+def _steps(probe: Probe) -> list[Probe]:
+    """The steps a probe is built from, itself among them."""
+    if probe[0] == "value":
+        return []
+    return [*([probe] if probe[0] == "step" else []), *(found for part in probe[1:] for found in _steps(part))]
+
+
+def _moved(probe: Probe, slots: Mapping[Hashable, Hashable]) -> Probe:
+    return value(slots[probe[1]]) if probe[0] == "value" else (probe[0], *(_moved(part, slots) for part in probe[1:]))
+
+
+def lifted(held: Iterable[Probe], places: Mapping[Hashable, Sequence[int]]) -> tuple[Probe, ...]:
+    """Probes one storey above those ``held``: analogies between the steps they are built from (§55.7).
+
+    Each step in a held probe is moved to every place where all its slots
+    stand, which gives one reading at each such place, and the analogies
+    between those readings are offered. Probes built alike on the same
+    slots are offered once.
+    """
+    at = {tuple(place): slot for slot, place in places.items()}
+    offered: dict[Probe, None] = {}
+    for found in dict.fromkeys(step for probe in held for step in _steps(probe)):
+        home = max(tuple(places[slot]) for slot in _slots(found))
+        readings: dict[Hashable, Probe] = {}
+        for slot, place in places.items():
+            moves = {tuple(places[one]): tuple(far - near + here for far, near, here in
+                                                zip(places[one], home, place, strict=True))
+                     for one in _slots(found)}
+            if all(there in at for there in moves.values()):
+                readings[slot] = _moved(found, {at[here]: at[there] for here, there in moves.items()})
+        offered.update(dict.fromkeys(analogies({slot: places[slot] for slot in readings}, readings)))
+    return tuple(offered)
 
 
 def read(observation: Mapping[Hashable, Any], probe: Probe) -> Hashable:

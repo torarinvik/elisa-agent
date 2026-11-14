@@ -75,3 +75,40 @@ Kinds are given, not found. A relation reads two named slots, so things in varia
 latest of those that match" is not a relation of two slots. Where those things are the candidates of one choice,
 each is judged by its own relations and 53.7 orders the acceptable ones. Counting is not covered. The gain is in
 judgements only: a relation costs the two readings it compares.
+
+## 55.7 Probes built on what is held
+
+Let the slots of a kind stand at places in `ℤⁿ` and let a learner hold a probe built from a step `σ`. Moving every
+slot of `σ` by one displacement gives a step that stands alike elsewhere; the **translates** of `σ` are those all
+of whose slots exist, one at each place the greatest slot of `σ` can be moved to. They read one number at each
+such place, as the values of a kind do. The **lift** of what is held is the analogies (55.5) between the
+translates of each step it is built from: whether two pairs of translates that stand alike take the same step.
+
+The lift is one storey above what is held, and lifting again what a learner of the lift comes to hold is one
+storey above that. Along a row write `Δ` for the step from the place before. The sameness of two neighbouring
+steps says the row continues with a constant `Δ`; its lift offers the sameness of two neighbouring steps of
+steps, a constant `Δ²`; and so on.
+
+**Proposition 55.3 (each storey fixes the continuation).** For integers, the last two of `k + 2` consecutive
+`k`-th steps `Δᵏ` are the same exactly when the last value is one fixed combination of those before it: `c = 2b −
+a` for `k = 0`, `d = 3c − 3b + a` for `k = 1`, `e = 4d − 6c + 4b − a` for `k = 2`. So among candidates for the
+last place, a probe of storey `k` reads true of exactly one value.
+
+**Proposition 55.4 (the storey below does not tell).** There are two rows of five values that are ordered alike,
+hold the same value nowhere, take the same step for no two pairs of places that stand alike, and of which one has
+a constant `Δ²` and the other has not. The relations of the pool (55.4, 55.5) read the two alike; the lift of the
+sameness of two neighbouring steps does not.
+
+So a learner whose pool stops at one storey cannot be taught a rule of the next through relations, whatever its
+judgements, and can be once the pool is lifted.
+
+The lift may be taken of the whole pool or only of what a learner holds. A translate needs all its slots to
+exist, so a step that spans more has fewer translates and the storeys run out: a row of `s` places has none above
+storey `s − 3`. Lifting what is held offers one family of translates for each step held, with fewer than `s³`
+analogies; lifting the whole pool offers one for every step in it. The lift changes what can be asked, and
+lifting only what is held keeps what is asked to the families that have paid; it does not change the order of
+growth, which the places bound in either case.
+
+What this does not give: lifting only what is held, a rule of storey `k` is reached through rules of the storeys
+under it, each taught, and not otherwise. And the lift is of steps only: a held sameness or order is not carried
+up, and a rule that multiplies has no storey.

@@ -1,7 +1,8 @@
+from collections.abc import Hashable, Sequence
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import analogies, order, pool, read, same, step, value
+from nca.learning.relations import analogies, lifted, order, pool, read, same, step, value
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -78,3 +79,34 @@ def test_a_step_taught_on_a_small_grid_holds_on_a_larger_one() -> None:
         rows = {(-2, -2): 3, (-2, -1): 9, (-2, 0): 1, (-1, -2): 50, (-1, -1): 20, (-1, 0): 31, (0, -2): 7, (0, -1): 30}
         good, bad = learner.votes(rows | {(0, 0): last}, "take")
         assert (good > bad) == (last == 41)
+
+
+def test_a_rule_one_storey_up_is_taught_through_the_lift_of_what_is_held_and_not_without() -> None:
+    """Good when the last value keeps the step of steps: beyond the pool, within its lift (THEORY 55.7)."""
+    places = {(0, column): (0, column) for column in range(-4, 1)}
+    slots = tuple(places)
+    held = same(step(value(slots[2]), value(slots[3])), step(value(slots[3]), value(slots[4])))
+    lift = lifted([held], places)
+    first = {slot: step(value(before), value(slot)) for before, slot in zip(slots, slots[1:], strict=False)}
+    assert same(step(first[slots[2]], first[slots[3]]), step(first[slots[3]], first[slots[4]])) in lift
+    assert len(lift) == len(set(lift)) == 4 and lifted(lift, places) != lift
+    base = (*pool({"size": slots}, ordered=("size",)), *analogies(places))
+
+    def taught(probes: tuple[Hashable, ...]) -> Inquiry:
+        rng, learner = Random(5), Inquiry(probes, read, largest=2)
+        for _ in range(150):
+            row = [rng.randrange(-9, 10) for _ in slots]
+            if rng.random() < 0.5:
+                row[4] = 3 * row[3] - 3 * row[2] + row[1]
+            learner.judge(dict(zip(slots, row, strict=True)), "take", keeps(row))
+        return learner
+
+    def keeps(row: Sequence[int]) -> bool:
+        return row[4] - 2 * row[3] + row[2] == row[3] - 2 * row[2] + row[1]
+
+    grown, flat = taught((*base, *lift)), taught(base)
+    for row in ((0, 1, 4, 9, 16), (0, 1, 4, 9, 17), (500, 300, 0, -400, -900), (2, 2, 2, 2, 3)):
+        good, bad = grown.votes(dict(zip(slots, row, strict=True)), "take")
+        assert (good > bad) == keeps(row)
+    assert flat.votes(dict(zip(slots, (0, 1, 4, 9, 16), strict=True)), "take")[0] <= flat.votes(
+        dict(zip(slots, (0, 1, 4, 9, 17), strict=True)), "take")[0]
