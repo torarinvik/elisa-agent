@@ -74,6 +74,14 @@ def sums(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, .
                  for first, between, last in lines for near, far in ((first, last), (last, first)))
 
 
+def agreeing(readings: Iterable[Sequence[Probe]]) -> tuple[Probe, ...]:
+    """Whether each two readings of one group are the same: that one line does as another does (§55.14).
+
+    A group holds the same reading taken on lines that stand alike, as a sum on each row.
+    """
+    return tuple(same(one, other) for group in readings for one, other in combinations(group, 2))
+
+
 def _slots(probe: Probe) -> list[Hashable]:
     return [probe[1]] if probe[0] == "value" else [slot for part in probe[1:] for slot in _slots(part)]
 

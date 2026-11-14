@@ -2,7 +2,7 @@ from collections.abc import Hashable, Sequence
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import analogies, lifted, order, pool, read, same, step, sums, value
+from nca.learning.relations import agreeing, analogies, lifted, order, pool, read, same, step, sums, value
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -121,3 +121,12 @@ def test_a_sum_is_read_as_a_step_that_is_a_value_where_sameness_order_and_steps_
     assert read(summed, plus) is True and read(other, plus) is False and read(summed, minus) is False
     assert read({"first": 5, "second": 2, "last": 3}, minus) is True
     assert read({"first": 5, "second": 2}, plus) is None
+
+
+def test_two_rows_agreeing_on_being_sums_tells_a_right_last_row_where_its_own_reading_does_not() -> None:
+    rows = [tuple((row, column) for column in range(3)) for row in range(2)]
+    (agree,) = agreeing([[sums([row])[0] for row in rows]])
+    seen = [dict(zip((*rows[0], *rows[1]), values, strict=True))
+            for values in ((1, 2, 3, 2, 2, 4), (1, 2, 3, 2, 2, 5), (1, 2, 4, 2, 2, 5), (1, 2, 4, 2, 2, 4))]
+    assert [read(one, agree) for one in seen] == [True, False, True, False]
+    assert [read(one, sums([rows[1]])[0]) for one in seen] == [True, False, False, True]

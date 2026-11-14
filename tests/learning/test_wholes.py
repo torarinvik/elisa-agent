@@ -51,3 +51,20 @@ def test_where_many_parts_differ_only_those_never_seen_good_are_blamed() -> None
     held = {name: (20 + place, 9) for place, name in enumerate(names)}
     assert whole.against(held, "take")[0] == 0
     assert whole.against(held | {"third": (9, 9)}, "take")[0] == 1
+
+
+def test_every_whole_offered_teaches_once_the_right_one_is_known_and_what_is_held_is_not_recorded_again() -> None:
+    """Each part has one good value: a part any other whole has otherwise is bad (THEORY 57.5)."""
+    whole = _whole()
+    learner = whole.learners["pair"]
+    offered = [{"first": (1, 1), "second": (2, 2)}, {"first": (1, 3), "second": (2, 2)},
+               {"first": (1, 1), "second": (2, 5)}, {"first": (1, 3), "second": (2, 5)}]
+    again = [{"first": (4, 4), "second": (7, 7)}, {"first": (4, 6), "second": (7, 7)}, {"first": (4, 4), "second": (7, 8)}]
+    whole.study(offered, 0, "take")
+    whole.study(again, 0, "take")
+    kept = learner.judgements
+    assert 0 < sum(good for _, _, good in learner.cases) < kept <= 6
+    more = [{"first": (9, 9), "second": (0, 0)}, {"first": (9, 0), "second": (0, 0)}, {"first": (9, 9), "second": (0, 3)}]
+    assert whole.choose([(seen, "take") for seen in more], Random(0)) == 0
+    whole.study(more, 0, "take")
+    assert learner.judgements == kept

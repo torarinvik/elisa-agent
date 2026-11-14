@@ -169,4 +169,18 @@ step from the last to the first is the second. -/
 theorem sum_is_step_that_is_value (a b c : ℤ) : (c = a + b ↔ c - a = b) ∧ (c = a - b ↔ a - c = b) := by
   constructor <;> constructor <;> intro h <;> omega
 
+/-- **Proposition 55.14 (a rule kept by every row is told by two rows agreeing).** Where the rows above either
+all keep a rule or none does, and the last row is right exactly when it does as they do, whether the last row is
+right is whether its reading agrees with a row's above; and it is not a function of the last row's reading alone,
+which is right when true under one row above and when false under another. -/
+theorem agreeing_rows_tell (above last : Bool) :
+    ((last = above) ↔ (above = true ↔ last = true)) ∧
+      ¬∃ judged : Bool → Bool, ∀ shown asked : Bool, judged asked = decide (asked = shown) := by
+  refine ⟨by cases above <;> cases last <;> simp, ?_⟩
+  rintro ⟨judged, told⟩
+  have one := told true true
+  have other := told false true
+  rw [one] at other
+  simp at other
+
 end NCA

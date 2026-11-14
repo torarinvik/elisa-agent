@@ -53,6 +53,10 @@ joined to at most one probe of the view, and only the ``shortlist`` cheapest are
 then compared in full. A probe that explains the judgements only together with
 two probes of the view can then be missed.
 
+With ``coarsest``, among the probes that lower the cost alike the one that
+has read the fewest values over the judgements kept is taken up (§54.15): it
+will need the fewest classes later.
+
 The probes and their meanings are the caller's; the learner only finds which
 of them to look through.
 """
@@ -75,7 +79,8 @@ class Inquiry:
     def __init__(self, probes: Sequence[Hashable], read: Callable[[Any, Hashable], Hashable], *, largest: int,
                  keep: float = 0.0, price: float = 1.0, limit: int | None = None,
                  shortlist: int | None = None, turns: Sequence[Sequence[int]] = (), sheds: bool = False,
-                 alike: bool = False, steady: bool = False, pairs: bool = False) -> None:
+                 alike: bool = False, steady: bool = False, pairs: bool = False,
+                 coarsest: bool = False) -> None:
         """``read`` gives a probe's value in a situation; the view holds at most ``limit`` probes.
 
         With ``pairs``, where no probe alone lowers the cost two are taken up together if they do: what is bad
@@ -90,7 +95,7 @@ class Inquiry:
         self.probes, self.read = tuple(probes), read
         self.largest, self.keep, self.price, self.limit = largest, keep, price, limit
         self.shortlist, self.sheds, self.alike, self.steady = shortlist, sheds, alike, steady
-        self.pairs = pairs
+        self.pairs, self.coarsest = pairs, coarsest
         self.same: dict[Hashable, tuple[int, ...]] = {}
         self.pivot: dict[Hashable, int] = {}
         still = tuple(range(len(self.probes)))
@@ -112,7 +117,7 @@ class Inquiry:
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update({"shortlist": None, "frames": {}, "sheds": False, "alike": False, "steady": False,
-                              "same": {}, "pivot": {}, "pairs": False} | state)
+                              "same": {}, "pivot": {}, "pairs": False, "coarsest": False} | state)
         self.__dict__.setdefault("turns", (tuple(range(len(self.probes))),))
         self._learn()
 
@@ -388,6 +393,10 @@ class Inquiry:
             current, offers = self._offers()
             offers[self.view] = np.inf
             best = int(offers.argmin())
+            if self.coarsest and offers[best] < current:
+                codes = np.array(self._codes)
+                best = min(np.flatnonzero(offers <= offers[best] + 1e-9).tolist(),
+                           key=lambda index: len(np.unique(codes[:, index])))
             if self.limit is not None and len(self.view) >= self.limit:
                 break
             if offers[best] < current:

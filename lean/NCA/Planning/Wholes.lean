@@ -25,4 +25,10 @@ theorem bad_part_shows_unmet {P R : Type*} (good : P → Prop) (view : P → R)
     view kept ≠ view bad :=
   fun alike => wrong ((settles kept bad alike).mp right)
 
+/-- **Proposition 57.4 (where each part has one good value, every differing part is bad).** If a part's good value
+is the right whole's alone, a part of any whole offered that differs from the right whole's is bad. -/
+theorem differing_part_bad_where_one_is_good {I P : Type*} (good : I → P → Prop) (right offered : I → P)
+    (one : ∀ i p, good i p → p = right i) (i : I) (differs : offered i ≠ right i) : ¬good i (offered i) :=
+  fun held => differs (one i (offered i) held)
+
 end NCA

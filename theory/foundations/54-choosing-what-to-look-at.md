@@ -338,3 +338,16 @@ the cost where it was or raises it by the price of a class, and growth by one pr
 every judgement. Where no probe alone lowers the cost, the learner may instead look for the two that lower it most
 together and take up both. That is one pass over the judgements for each probe of the pool, as against one pass
 for all of them, and it is the contributor's to allow.
+
+## 54.15 Probes that lower the cost alike
+
+On few judgements many probes lower the cost by the same amount, and 54.4 does not say which to take. They are
+not alike in what they will cost later. A set of probes uses at most as many classes as the product of the
+numbers of values its probes read, and each class it comes to use has to be met in a judgement and paid for. A
+probe that reads the value at a slot can separate two judgements by naming their values, and will need a class
+for each further value; a probe that reads whether two things are the same separates them by one distinction and
+needs two.
+
+So among the probes that lower the cost alike the learner may take the one that has read the fewest values over
+the judgements kept. This changes nothing where one probe lowers the cost most, and it is the contributor's to
+allow. It is a preference and not a consequence of the model: the target may depend on the value.

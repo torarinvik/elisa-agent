@@ -273,3 +273,17 @@ whether a step is a value is not, so the values need a nothing that means nothin
 it, places among classes seen (55.9) do not. For three slots in a line the pool offers the two probes of 55.13.
 It does not offer them for longer lines, where the last would be the first plus all between. In Lean 55.12 is
 `NCA.same_and_order_and_steps_do_not_tell_a_sum` and 55.13 is `NCA.sum_is_step_that_is_value`.
+
+## 55.14 Rows that agree
+
+A rule such as 55.13 is kept by every row of an arrangement or by none, and the row asked for is right when it
+does as the rows shown do. What a probe reads of the asked row alone does not say whether it is right: under rows
+that are sums a sum is right, under rows that are not, it is not. Read together with the same probe on a row
+shown it does, but that takes two probes where a learner that takes probes up one at a time finds neither worth
+taking alone (54.13).
+
+**Proposition 55.14 (a rule kept by every row is told by two rows agreeing).** Whether the last row is right is
+whether its reading is the same as a row's above, and is no function of its own reading alone.
+
+So for any reading of a line, the pool also offers whether two lines that stand alike read the same: a relation
+between relations (55.5), one probe that says "as the row above does". In Lean 55.14 is `NCA.agreeing_rows_tell`.

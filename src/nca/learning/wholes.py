@@ -66,3 +66,25 @@ class Whole:
         for (sort, seen), count in zip(lowest, unmet, strict=True):
             if count == max(unmet):
                 self.learners[sort].judge(seen, action, False)
+
+    def study(self, wholes: Sequence[Any], right: int, action: Hashable) -> None:
+        """Record what every whole offered tells once the right one is known (§57.5).
+
+        Each part has one good value, the rest being as shown: every part of the right whole is good, and a
+        part any other whole has otherwise is bad. Only what the votes do not already give is recorded. A
+        part that only one of the two has is not judged.
+        """
+        theirs = self.parts(wholes[right])
+        for sort, seen in theirs.values():
+            good, bad = self.learners[sort].votes(seen, action)
+            if not good > bad:
+                self.learners[sort].judge(seen, action, True)
+        told: list[tuple[Hashable, Any]] = []
+        for place, whole in enumerate(wholes):
+            for name, (sort, seen) in self.parts(whole).items() if place != right else ():
+                if name not in theirs or theirs[name][1] == seen or (name, seen) in told:
+                    continue
+                told.append((name, seen))
+                good, bad = self.learners[sort].votes(seen, action)
+                if not bad > good:
+                    self.learners[sort].judge(seen, action, False)

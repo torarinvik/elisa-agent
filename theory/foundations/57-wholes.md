@@ -63,3 +63,22 @@ judged where the whole's own readings are made a part.
 The split is given, not found. A whole whose worth depends on how its parts stand to one another is not the
 conjunction of its parts' worth; such a relation must itself be made a part. Nothing here orders wholes that are
 all good.
+
+## 57.5 What every whole offered tells
+
+A takeover is told of the one whole the learner proposed. Where the right whole is known after every choice,
+whether or not the learner's choice stood, the other wholes offered are known too, and by 57.2 each has a bad part
+among those in which it differs from the right one. A learner corrected only when it chooses wrongly is told
+nothing in the cases where it chose rightly for want of a reason against, and those are the cases it will get
+wrong another time.
+
+**Proposition 57.4 (where each part has one good value, every differing part is bad).** If, the rest being as
+shown, each part has one good value, a part of any whole offered that differs from the same part of the right
+whole is bad.
+
+That each part has one good value is given, as in 57.3, and is wrong where two values of a part would both do.
+Under it one case judges every part of the right whole good and every differing part of every other whole bad,
+with no part left to choose among. The learner records only the judgements its votes do not already give: a
+part of the right whole it does not vote good, and a differing part it does not vote bad. What it already holds
+is not written down again, so the judgements kept stay few and each is one the learner would have got wrong.
+In Lean 57.4 is `NCA.differing_part_bad_where_one_is_good`.

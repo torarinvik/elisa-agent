@@ -210,3 +210,15 @@ def test_a_target_bad_only_where_two_probes_meet_is_taken_up_with_two_together()
     for seen, good in (((True, True, False, False, True, False), False), ((True, True, True, True, False, True), True)):
         votes = learner.votes(seen, "take")
         assert (votes[0] > votes[1]) == good
+
+
+def test_among_probes_that_lower_the_cost_alike_the_one_that_reads_the_fewest_values_is_taken_up() -> None:
+    """Judgements a value explains with three classes and a sameness with two and one wrong (THEORY 54.15)."""
+    def taught(coarsest: bool) -> Inquiry:
+        learner = Inquiry(("value", "same"), lambda seen, probe: seen[probe], largest=1, limit=1, coarsest=coarsest)
+        for value, same, good in ((1, True, True), (1, True, True), (1, True, True), (2, True, False),
+                                  (3, False, False), (3, False, False)):
+            learner.judge({"value": value, "same": same}, "take", good)
+        return learner
+
+    assert taught(False).looking_at == ("value",) and taught(True).looking_at == ("same",)
