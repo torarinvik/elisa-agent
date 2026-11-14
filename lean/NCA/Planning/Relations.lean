@@ -153,4 +153,20 @@ theorem covered_fixes_reach (r s w : ℚ) (wide : 0 < w) (reaches : 0 ≤ r) (al
     exact this
   nlinarith [sq_nonneg (r - s), sq_nonneg (r + s), mul_nonneg reaches also]
 
+/-- **Proposition 55.12 (sameness, order and the sameness of steps do not tell a sum).** The rows 1, 3, 4 and
+1, 3, 6 are ordered alike, hold no two values the same, and have no two of their three steps the same; in the first
+the last value is the first plus the second and in the other it is not. -/
+theorem same_and_order_and_steps_do_not_tell_a_sum :
+    ((1 : ℤ) < 3 ∧ (3 : ℤ) < 4) ∧ ((1 : ℤ) < 3 ∧ (3 : ℤ) < 6) ∧
+      ((3 : ℤ) - 1 ≠ 4 - 3 ∧ (3 : ℤ) - 1 ≠ 4 - 1 ∧ (4 : ℤ) - 3 ≠ 4 - 1) ∧
+      ((3 : ℤ) - 1 ≠ 6 - 3 ∧ (3 : ℤ) - 1 ≠ 6 - 1 ∧ (6 : ℤ) - 3 ≠ 6 - 1) ∧
+      (4 : ℤ) = 1 + 3 ∧ (6 : ℤ) ≠ 1 + 3 := by
+  decide
+
+/-- **Proposition 55.13 (a sum is a step that is a value).** The last of three values is the first plus the second
+exactly when the step from the first to the last is the second, and the first less the second exactly when the
+step from the last to the first is the second. -/
+theorem sum_is_step_that_is_value (a b c : ℤ) : (c = a + b ↔ c - a = b) ∧ (c = a - b ↔ a - c = b) := by
+  constructor <;> constructor <;> intro h <;> omega
+
 end NCA

@@ -2,7 +2,7 @@ from collections.abc import Hashable, Sequence
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import analogies, lifted, order, pool, read, same, step, value
+from nca.learning.relations import analogies, lifted, order, pool, read, same, step, sums, value
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -110,3 +110,14 @@ def test_a_rule_one_storey_up_is_taught_through_the_lift_of_what_is_held_and_not
         assert (good > bad) == keeps(row)
     assert flat.votes(dict(zip(slots, (0, 1, 4, 9, 16), strict=True)), "take")[0] <= flat.votes(
         dict(zip(slots, (0, 1, 4, 9, 17), strict=True)), "take")[0]
+
+
+def test_a_sum_is_read_as_a_step_that_is_a_value_where_sameness_order_and_steps_read_two_rows_alike() -> None:
+    line = ("first", "second", "last")
+    plus, minus = sums([line])
+    summed, other = dict(zip(line, (1, 3, 4), strict=True)), dict(zip(line, (1, 3, 6), strict=True))
+    asked = (*pool({"held": line}, ordered=("held",)), *analogies({"first": (0,), "second": (1,), "last": (2,)}))
+    assert [read(summed, probe) for probe in asked] == [read(other, probe) for probe in asked]
+    assert read(summed, plus) is True and read(other, plus) is False and read(summed, minus) is False
+    assert read({"first": 5, "second": 2, "last": 3}, minus) is True
+    assert read({"first": 5, "second": 2}, plus) is None

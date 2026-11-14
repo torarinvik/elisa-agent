@@ -251,3 +251,25 @@ Not covered: a line too thin to hold a pixel with all its neighbours has no colo
 so writing is not; things that touch are one patch when they share a colour; a mark laid over a thing breaks its
 patch; and a comparison blind to the turn (55.10) reads a square and the same square stood on its corner as one
 shape, which a task may count as two.
+
+## 55.13 A step that is a value
+
+The pool of 55.1 and 55.5 reads whether two values are the same, which is the greater, and whether two steps are
+the same. A rule that the last of three values is the first plus the second is none of these:
+
+**Proposition 55.12 (sameness, order and the sameness of steps do not tell a sum).** The rows 1, 3, 4 and 1, 3, 6
+are ordered alike, hold no two values the same and have no two of their three steps the same; the first is a sum
+and the second is not.
+
+A learner given that pool can hold such a rule only as a table of the rows it has met, and chooses among
+candidates by chance in a row it has not.
+
+**Proposition 55.13 (a sum is a step that is a value).** `c = a + b` exactly when the step from `a` to `c` is `b`,
+and `c = a − b` exactly when the step from `c` to `a` is `b`.
+
+So the relation wanted is the sameness of a step and a value, and it is built from the probes already there.
+It asks more of the values than a step does. A step is unchanged when one amount is added to every value (55.5);
+whether a step is a value is not, so the values need a nothing that means nothing as well as a unit: counts have
+it, places among classes seen (55.9) do not. For three slots in a line the pool offers the two probes of 55.13.
+It does not offer them for longer lines, where the last would be the first plus all between. In Lean 55.12 is
+`NCA.same_and_order_and_steps_do_not_tell_a_sum` and 55.13 is `NCA.sum_is_step_that_is_value`.

@@ -3,7 +3,7 @@
 An observation gives a value, or nothing, at each of its slots. A probe reads
 the value at a slot, whether two readings are the same, which of two is the
 greater, or the step from one to the other. The readings compared may
-themselves be relations or steps. Where either is nothing, so is the reading.
+themselves be relations or steps, and a step may be compared with a value. Where either is nothing, so is the reading.
 
 A learner that looks only through sameness and order probes is taught for
 every value at once: its readings are unchanged when the values are renamed
@@ -62,6 +62,16 @@ def analogies(places: Mapping[Hashable, Sequence[int]], readings: Mapping[Hashab
             ends = (readings[first], readings[second]) if readings else (value(first), value(second))
             alike.setdefault(apart, []).append(step(*ends))
     return tuple(same(one, other) for steps in alike.values() for one, other in combinations(steps, 2))
+
+
+def sums(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, ...]:
+    """Whether the step between the ends of a line of three slots is the value between them (§55.13).
+
+    For each line two probes: that the last is the first plus the middle, and that it is the first less the
+    middle. The values need a nothing as well as a unit, as counts have.
+    """
+    return tuple(same(step(value(near), value(far)), value(between))
+                 for first, between, last in lines for near, far in ((first, last), (last, first)))
 
 
 def _slots(probe: Probe) -> list[Hashable]:
