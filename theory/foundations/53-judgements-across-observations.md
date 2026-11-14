@@ -193,3 +193,36 @@ A set `S` **suffices for an action** `a` if observations that agree on `S` have 
 target `o ↦ t o a` and the judgements of that action. A learner that keeps the actions apart holds a family of sets
 for each action and counts a judgement only against the sets of its action. Its corrections are then bounded by the
 sum over the actions of 53.4's count for the set each one needs, in place of the count for their union.
+
+## 53.9 Sets that predict seldom
+
+The weight of 53.5 counts a set's contradictions. Theorem 53.5 supposes that every set predicts at every
+takeover, and only then does the count compare the sets fairly. A set over many components has small classes: it
+predicts seldom, so it is contradicted seldom, whatever share of its predictions fail. Where every set is
+contradicted, by a teacher who contradicts themselves, by readings that err, or because one learner serves parts
+whose rules differ (§57), a set's contradictions grow with its predictions, and the weight `βᵐ` favours the set
+that has said least.
+
+**Proposition 53.9 (fewer contradictions, a greater share wrong).** A set right once and contradicted three times
+has fewer contradictions than one right 96 times and contradicted four, and so outweighs it under any `β < 1`,
+though three in four of its predictions failed against one in twenty-five.
+
+Let a set have predicted rightly `h` times and been contradicted `m` times. Its **odds** are `(h + 1) / (m + 1)`:
+the odds that its next prediction is right, where every share of right predictions was held equally likely
+before any was seen (Laplace's rule of succession). A set that has predicted nothing has odds one.
+
+**Proposition 53.10 (odds).** The odds rise with each right prediction and fall with each contradiction, and are
+one exactly when the set has been right as often as contradicted.
+
+**Proposition 53.11 (of two sets that disagree, the one of greater odds).** Let good and bad be equally likely
+beforehand and let two sets err independently of one another, with odds `a` and `b`. Where the first says good
+and the second bad, the odds of good are `a / b`, which exceeds one exactly when `log b < log a`.
+
+So a vote weighs the logarithm of its set's odds. Over sets that err independently the sum of such votes for a
+verdict, less the sum against, is the logarithm of that verdict's odds, and the greater sum is the likelier
+verdict (Nitzan and Paroush 1982). A set as often wrong as right has no say, and one more often wrong than right
+counts for the other verdict. Sets that share components do not err independently: their sum counts what they
+share more than once, and the choice is not claimed to be the likeliest. No bound on takeovers is claimed
+either. No set is dropped, since a set's weight can recover. In Lean these are
+`NCA.fewer_contradictions_can_be_a_greater_share_wrong`, `NCA.odds_rise_and_fall` and
+`NCA.greater_odds_prevail`.

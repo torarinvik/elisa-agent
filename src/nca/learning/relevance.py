@@ -15,6 +15,10 @@ one contradicted less often outweighs one contradicted more often
 (``NCA.weight_le_pow``). A set whose weight falls below ``negligible`` times
 the best in its context is dropped.
 
+With ``odds`` a set votes by its record instead: with the logarithm of the odds that it predicts rightly, one
+more than its right predictions to one more than its contradictions (§53.9). A set that predicts seldom is
+then not favoured for being seldom contradicted, one as often wrong as right has no say, and no set is dropped.
+
 Components named ``ordered`` have comparable values (§53.7). They are left out
 of the sets, and each carries two hypotheses instead: that larger values are
 preferred, and that smaller ones are. A choice of one candidate over the others
@@ -32,6 +36,7 @@ finds which of them matter.
 
 from collections.abc import Callable, Hashable, Sequence
 from itertools import combinations
+from math import log
 from operator import itemgetter
 from random import Random
 from typing import Any
@@ -57,20 +62,23 @@ class _Context:
             subset: {} for subset in family}
         self.contradicted = dict.fromkeys(family, 0)
         self.weight = dict.fromkeys(family, 1.0)
+        self.right = dict.fromkeys(family, 0)
+        """How often each set's prediction was borne out."""
         self.predicted: set[tuple[int, ...]] = set()
         """The sets that have predicted a verdict: a judgement fell in a class of theirs that leaned one way."""
         self.votes: dict[tuple[tuple[Hashable, ...], Hashable], tuple[float, float]] = {}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         """Take up a saved context; one saved before predictions were kept counts every set as having predicted."""
-        self.__dict__.update({"predicted": set(state["tables"])} | state)
+        self.__dict__.update({"predicted": set(state["tables"]), "right": dict.fromkeys(state["tables"], 0)} | state)
 
 
 class Relevance:
     """Judged actions, carried to every observation that agrees on a set of components, weighted by its record."""
 
     def __init__(self, components: int, *, largest: int, always: Sequence[int] = (), keep: float = 0.0,
-                 negligible: float = 1e-9, ordered: Sequence[int] = (), apart: bool = False) -> None:
+                 negligible: float = 1e-9, ordered: Sequence[int] = (), apart: bool = False,
+                 odds: bool = False) -> None:
         """``components`` per observation, sets of at most ``largest`` of them, ``always`` read as the context.
 
         The values of the ``ordered`` components can be compared with one another.
@@ -84,7 +92,7 @@ class Relevance:
         if not 0 <= keep < 1 or not 0 < negligible < 1:
             raise ValueError("a contradicted set keeps a share below one, and a negligible share is below one")
         self.components, self.largest, self.always = components, largest, tuple(always)
-        self.keep, self.negligible, self.apart = keep, negligible, apart
+        self.keep, self.negligible, self.apart, self.odds = keep, negligible, apart, odds
         free = [index for index in range(components) if index not in self.always and index not in ordered]
         self.family = tuple(subset for size in range(min(largest, len(free)) + 1)
                             for subset in combinations(free, size))
@@ -97,7 +105,7 @@ class Relevance:
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         """Take up a saved learner; one saved before actions could be kept apart keeps them together."""
-        self.__dict__.update({"apart": False} | state)
+        self.__dict__.update({"apart": False, "odds": False} | state)
 
     @property
     def judgements(self) -> int:
@@ -133,13 +141,15 @@ class Relevance:
         context = self._contexts.get(key)
         if context is None:
             context = self._contexts[key] = _Context(self.family)
+            if self.odds:
+                context.weight = dict.fromkeys(self.family, 0.0)
         return context
 
     def judge(self, observation: Observation, action: Hashable, good: bool) -> None:
         """Record that ``action`` at ``observation`` is good or bad, counting it against every set it contradicts.
 
-        A set is dropped once its weight is a negligible share of the best set's
-        among those that have predicted. A set that has never predicted, as one
+        Unless the sets vote by their odds, a set is dropped once its weight is a negligible share of the best
+        set's among those that have predicted. A set that has never predicted, as one
         over components whose values never recur, is contradicted by nothing and
         votes on nothing; it is not a measure of the others.
         """
@@ -153,8 +163,13 @@ class Relevance:
                 context.predicted.add(subset)
                 if (counts[0] > counts[1]) != good:
                     context.contradicted[subset] += 1
-                    context.weight[subset] = self.keep ** context.contradicted[subset]
+                else:
+                    context.right[subset] += 1
+                context.weight[subset] = (log((context.right[subset] + 1) / (context.contradicted[subset] + 1))
+                                          if self.odds else self.keep ** context.contradicted[subset])
             counts[not good] += 1
+        if self.odds:
+            return
         least = min(map(context.contradicted.__getitem__, context.predicted), default=0)
         for subset, misses in list(context.contradicted.items()):
             if misses and (self.keep == 0 or self.keep ** (misses - least) < self.negligible):
@@ -172,10 +187,11 @@ class Relevance:
         for subset, table in context.tables.items():
             counts = table.get((readers[subset](observation), action))
             if counts is not None and counts[0] != counts[1]:
-                if counts[0] > counts[1]:
-                    good += weights[subset]
+                weight = weights[subset]
+                if (counts[0] > counts[1]) == (weight > 0):
+                    good += abs(weight)
                 else:
-                    bad += weights[subset]
+                    bad += abs(weight)
         context.votes[tuple(observation), action] = good, bad
         return good, bad
 

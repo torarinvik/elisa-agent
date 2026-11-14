@@ -135,3 +135,26 @@ def test_malformed_observations_and_sets_are_refused() -> None:
         Relevance(1, largest=1, keep=1.0)
     with pytest.raises(ValueError, match="nothing"):
         Relevance(1, largest=1).choose([], Random(0))
+
+
+def test_by_odds_a_set_often_right_outweighs_one_seldom_contradicted() -> None:
+    """The first component gives the verdict but for one judgement in ten; the second recurs only at the end."""
+
+    def taught(odds: bool) -> Relevance:
+        learner, verdicts = Relevance(2, largest=1, keep=0.3, odds=odds), Random(0)
+        for number in range(200):
+            good = verdicts.random() < 0.5
+            learner.judge((good if number % 10 else not good, number), "take", good)
+        for _ in range(3):
+            learner.judge((True, "seldom"), "take", False)
+        return learner
+
+    counted, weighed = taught(False), taught(True)
+    assert (lambda good, bad: bad > good)(*counted.votes((True, "seldom"), "take"))
+    assert (lambda good, bad: good > bad)(*weighed.votes((True, "seldom"), "take"))
+    assert (lambda good, bad: bad > good)(*weighed.votes((False, "seldom"), "take"))
+    fresh = Relevance(1, largest=1, odds=True)
+    fresh.judge((1,), "take", True)
+    assert fresh.votes((1,), "take") == (0.0, 0.0)
+    fresh.judge((1,), "take", True)
+    assert (lambda good, bad: good > bad)(*fresh.votes((1,), "take"))
