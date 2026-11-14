@@ -112,3 +112,31 @@ growth, which the places bound in either case.
 What this does not give: lifting only what is held, a rule of storey `k` is reached through rules of the storeys
 under it, each taught, and not otherwise. And the lift is of steps only: a held sameness or order is not carried
 up, and a rule that multiplies has no storey.
+
+## 55.8 Relations read without values
+
+The probes of 55.1 and 55.5 read whether two values are equal, which is the greater, and whether two pairs take the
+same step. None reads a value. So what stands in a slot need not be given a value at all: it is enough that two
+things of a kind can be **compared**, by a reading of the pair that says whether they are the same, and for an
+ordered kind which is the greater and by what step. By 55.2 this is also all that a value could add, since the
+probes are unchanged by renaming and rescaling.
+
+**Proposition 55.5 (a comparison stands for a value exactly when it is an equivalence).** A reading of whether two
+things are the same is the equality of some value of each if and only if it is reflexive, symmetric and transitive.
+
+A comparison read from two pictures, as a distance under a divide, is reflexive and symmetric by construction and
+need not be transitive. Where it is not, it is wrong somewhere, and this shows without a label:
+
+**Proposition 55.6 (a broken triple holds an error).** Where the true sameness is transitive, three things of which
+the first and second are read the same, the second and third the same and the first and third different have at
+least one of the three read wrongly.
+
+The share of triples broken is therefore a measure of a comparison that needs no labels. It does not rank
+comparisons alone: reading every pair the same, or every pair different, breaks no triple. It is a check on a
+comparison that separates two heaps of distances, as the divide of the pairs' distances does.
+
+What may be compared in a thing cut from a picture is not derived here. A patch set off from its ground has a
+place, an extent, an outline and what fills the outline, whatever the picture is of, and each can be compared
+between two patches without being named: by how far apart, by the ratio of extents, by how much of the outlines
+overlap when laid on one another, by how far the fillings differ. Whether these comparisons tell what a task's
+figures differ in is measured in the research diary.

@@ -66,4 +66,26 @@ theorem storey_below_does_not_tell :
   | 3 => exact ⟨by decide, by decide⟩
   | _ + 4 => exact ⟨List.nodup_nil, List.nodup_nil⟩
 
+/-- **Proposition 55.5 (a comparison stands for a value exactly when it is an equivalence).** A reading of whether
+two things are the same is the equality of some value of each if and only if it is reflexive, symmetric and
+transitive. -/
+theorem sameness_stands_for_a_value {X : Type} (same : X → X → Prop) :
+    (∃ (V : Type) (value : X → V), ∀ x y, same x y ↔ value x = value y) ↔ Equivalence same := by
+  constructor
+  · rintro ⟨V, value, reads⟩
+    exact ⟨fun x => (reads x x).mpr rfl, fun given => (reads _ _).mpr ((reads _ _).mp given).symm,
+      fun first second => (reads _ _).mpr (((reads _ _).mp first).trans ((reads _ _).mp second))⟩
+  · intro equivalence
+    exact ⟨Quotient ⟨same, equivalence⟩, Quotient.mk _, fun x y => (Quotient.eq (r := ⟨same, equivalence⟩)).symm⟩
+
+/-- **Proposition 55.6 (a broken triple holds an error).** Where the true sameness is transitive, three things of
+which the first and second are read the same, the second and third the same and the first and third different
+have at least one of the three read wrongly. No label is needed to see it. -/
+theorem broken_triple_holds_an_error {X : Type*} (truly said : X → X → Prop)
+    (transitive : ∀ x y z, truly x y → truly y z → truly x z) (x y z : X)
+    (first : said x y) (second : said y z) (third : ¬ said x z) :
+    ¬ ((said x y ↔ truly x y) ∧ (said y z ↔ truly y z) ∧ (said x z ↔ truly x z)) := by
+  rintro ⟨one, two, three⟩
+  exact third (three.mpr (transitive x y z (one.mp first) (two.mp second)))
+
 end NCA
