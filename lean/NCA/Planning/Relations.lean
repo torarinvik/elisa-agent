@@ -239,6 +239,30 @@ theorem rungs_keep_what_reaches_lose :
     show 5 * a < 5 * b
     omega
 
+/-- **Proposition 55.19 (made of two).** A line whose last set is the union of its first two and a line whose last
+is the first less the second can both have every two of their sets differ, so sameness reads them alike; and each
+is made its own way and not the other's. -/
+theorem sameness_does_not_tell_how_a_set_is_made :
+    let a : Finset ℕ := {1}
+    let b : Finset ℕ := {2}
+    let c : Finset ℕ := {1, 2}
+    (a ≠ b ∧ a ≠ c ∧ b ≠ c) ∧ (c ≠ b ∧ c ≠ a ∧ b ≠ a) ∧
+      c = a ∪ b ∧ a = c \ b ∧ c ≠ a \ b ∧ a ≠ c ∪ b := by
+  decide
+
+/-- **Proposition 55.20 (a rule that turns is read as turned alike).** On a ring of `n` places a turn by `k`
+carries a set onto its image; if one turn carries the first of each of two pairs onto its second, that turn serves
+both; and two turns one after the other are the turn by their sum. -/
+theorem turned_by_one_turn_are_turned_alike (n : ℕ) [NeZero n] (k j : ZMod n) (a b c d : Finset (ZMod n))
+    (first : b = a.image (· + k)) (second : d = c.image (· + k)) :
+    (∃ turn : ZMod n, b = a.image (· + turn) ∧ d = c.image (· + turn)) ∧
+      (a.image (· + k)).image (· + j) = a.image (· + (k + j)) := by
+  refine ⟨⟨k, first, second⟩, ?_⟩
+  rw [Finset.image_image]
+  congr 1
+  funext place
+  simp [add_assoc]
+
 /-- **Proposition 59.1 (what was written is among them).** A sum is a value that is a step; two lines of three have
 the same excess, and the same total, exactly when two steps from a value to a step are the same; and a line that
 holds another's values in another order has its total. -/

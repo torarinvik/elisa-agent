@@ -2,7 +2,26 @@ from collections.abc import Hashable, Sequence
 from random import Random
 
 from nca.learning.inquiry import Inquiry
-from nca.learning.relations import agreeing, analogies, excesses, found, lifted, moved, order, pool, read, same, step, sums, value
+from nca.learning.relations import (
+    agreeing,
+    analogies,
+    excesses,
+    found,
+    lifted,
+    meld,
+    melds,
+    moved,
+    order,
+    pool,
+    read,
+    same,
+    share,
+    step,
+    sums,
+    turn,
+    turns,
+    value,
+)
 
 
 def test_probes_read_values_sameness_order_and_steps() -> None:
@@ -180,3 +199,28 @@ def test_a_relation_is_offered_at_every_place_that_stands_alike_and_reads_the_mo
     held = {(0, 0): 3, (0, 1): 1, (1, 0): 7, (1, 1): 4}
     back = {slot: held[swapped[slot]] for slot in slots}
     assert read(held, moved([relation], [swapped])[0]) == read(back, relation)
+
+
+def test_a_set_made_of_two_is_read_in_each_way_and_sets_of_places_turned_alike_share_a_turn() -> None:
+    first, second = frozenset({0, 1}), frozenset({1, 3})
+    seen = {"a": first, "b": second, "c": first | second, "d": first - second}
+    line = [("a", "b", "c")]
+    assert [read(seen, probe) for probe in melds(line)] == [True, False, False, False, False]
+    assert [read({**seen, "c": seen["d"]}, probe) for probe in melds(line)] == [False, False, False, True, False]
+    assert read(seen, meld((True, True, False), value("a"), value("b"))) == frozenset({0, 3})
+    assert read({"a": first}, melds(line)[0]) is None
+    places = {(row, column): (row, column) for row in range(2) for column in range(3)}
+    ring = 4
+    turned = {(0, 0): frozenset({0}), (0, 1): frozenset({1}), (0, 2): frozenset({2}),
+              (1, 0): frozenset({1, 2}), (1, 1): frozenset({2, 3}), (1, 2): frozenset({3, 0})}
+    asked = turns(places, ring)
+    assert len(asked) == len(set(asked)) and share(turn(ring, value((0, 0)), value((0, 1))),
+                                                   turn(ring, value((1, 1)), value((1, 2)))) in asked
+    assert all(read(turned, probe) is True for probe in asked if probe[1][2][1][0] == probe[1][3][1][0]
+               and probe[2][2][1][0] == probe[2][3][1][0]
+               and probe[1][3][1][1] - probe[1][2][1][1] == 1)
+    broken = {**turned, (1, 2): frozenset({0, 1})}
+    assert read(broken, share(turn(ring, value((1, 0)), value((1, 1))), turn(ring, value((1, 1)), value((1, 2))))) is False
+    whole = frozenset(range(ring))
+    assert read({"a": whole, "b": whole}, turn(ring, value("a"), value("b"))) == whole
+    assert read({"a": first, "b": second}, turn(ring, value("a"), value("b"))) == frozenset()

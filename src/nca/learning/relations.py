@@ -10,6 +10,9 @@ every value at once: its readings are unchanged when the values are renamed
 or rescaled (§55.3). The slots, their kinds and their values are the caller's,
 and a learner finds which probes matter.
 
+Values may be sets. ``melds`` reads whether the last set of a line holds just what a rule of two memberships
+takes from the first two, and ``turns`` whether two pairs of sets of places on a ring are turned alike (§55.19).
+
 ``found`` composes relations from values and steps and takes those the judgements pay for, in place of relations
 written beforehand, and ``moved`` offers a relation at every place that stands alike (§59).
 """
@@ -98,8 +101,52 @@ def agreeing(readings: Iterable[Sequence[Probe]]) -> tuple[Probe, ...]:
     return tuple(same(one, other) for group in readings for one, other in combinations(group, 2))
 
 
+MELDS = ((True, True, True), (False, False, True), (True, True, False), (False, True, False), (True, False, False))
+"""The ways a set is made of two that turn on both: whether it holds what the second alone holds, what the first
+alone holds, and what both hold. What neither holds is in none."""
+
+
+def meld(how: tuple[bool, bool, bool], first: Probe, second: Probe) -> Probe:
+    """The set made of two sets read: ``how`` says whether it takes what only the second holds, what only the
+    first holds, and what both hold."""
+    return ("meld", how, first, second)
+
+
+def turn(ring: int, first: Probe, second: Probe) -> Probe:
+    """The turns of a ring of ``ring`` places that carry the first set of places read onto the second."""
+    return ("turn", ring, first, second)
+
+
+def share(first: Probe, second: Probe) -> Probe:
+    """Whether two sets read have a member in common."""
+    return ("share", first, second)
+
+
+def melds(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, ...]:
+    """Whether the last set of a line of three slots is made of the first two, in each way of ``MELDS`` (§55.19)."""
+    return tuple(same(meld(how, value(first), value(between)), value(last))
+                 for first, between, last in lines for how in MELDS)
+
+
+def turns(places: Mapping[Hashable, Sequence[int]], ring: int) -> tuple[Probe, ...]:
+    """Whether two pairs of slots that stand alike hold sets of places turned alike on a ring (§55.19).
+
+    Pairs stand alike as in ``analogies``. A set that a turn carries onto itself is carried onto another by
+    several turns, so two pairs are turned alike when some turn serves both.
+    """
+    alike: dict[tuple[int, ...], list[Probe]] = {}
+    for first, second in permutations(places, 2):
+        apart = tuple(there - here for here, there in zip(places[first], places[second], strict=True))
+        if apart > tuple(0 for _ in apart):
+            alike.setdefault(apart, []).append(turn(ring, value(first), value(second)))
+    return tuple(share(one, other) for found in alike.values() for one, other in combinations(found, 2))
+
+
 def _slots(probe: Probe) -> list[Hashable]:
-    return [probe[1]] if probe[0] == "value" else [slot for part in probe[1:] for slot in _slots(part)]
+    if probe[0] == "value":
+        return [probe[1]]
+    return [slot for part in probe[1:] if isinstance(part, tuple) and part and isinstance(part[0], str)
+            for slot in _slots(part)]
 
 
 def _steps(probe: Probe) -> list[Probe]:
@@ -110,7 +157,10 @@ def _steps(probe: Probe) -> list[Probe]:
 
 
 def _moved(probe: Probe, slots: Mapping[Hashable, Hashable]) -> Probe:
-    return value(slots[probe[1]]) if probe[0] == "value" else (probe[0], *(_moved(part, slots) for part in probe[1:]))
+    if probe[0] == "value":
+        return value(slots[probe[1]])
+    return (probe[0], *(_moved(part, slots) if isinstance(part, tuple) and part and isinstance(part[0], str) else part
+                        for part in probe[1:]))
 
 
 def lifted(held: Iterable[Probe], places: Mapping[Hashable, Sequence[int]]) -> tuple[Probe, ...]:
@@ -140,10 +190,18 @@ def read(observation: Mapping[Hashable, Any], probe: Probe) -> Hashable:
     """One probe's reading of an observation."""
     if probe[0] == "value":
         return observation.get(probe[1])
-    first: Any = read(observation, probe[1])
-    second: Any = read(observation, probe[2])
+    first: Any = read(observation, probe[-2])
+    second: Any = read(observation, probe[-1])
     if first is None or second is None:
         return None
+    if probe[0] == "meld":
+        only, alone, both = probe[1]
+        return frozenset((second - first if only else frozenset()) | (first - second if alone else frozenset())
+                         | (first & second if both else frozenset()))
+    if probe[0] == "turn":
+        return frozenset(by for by in range(probe[1]) if {(place + by) % probe[1] for place in first} == second)
+    if probe[0] == "share":
+        return bool(first & second)
     if probe[0] == "same":
         return bool(first == second)
     if probe[0] == "order":

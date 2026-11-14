@@ -385,4 +385,36 @@ between neighbouring rungs, so the steps and sums of 55.13 to 55.15 run on it as
 found from pictures alone, with nothing said of which answer is right; it is found before teaching and kept, so
 that a size means the same from the first case taught to the last.
 
-In Lean 55.17 is `NCA.long_links_joining_many_part` and 55.18 `NCA.rungs_keep_what_reaches_lose`.
+## 55.19 Sets of places: made of two, and turned
+
+Some of what a situation shows is a set and no number: the places of a panel that are filled. Sameness reads
+that two panels fill the same places (55.1) and reads nothing else of them. Two things a rule may do with sets
+are out of its reach, and each is read by composing as numbers are in 55.13.
+
+**Made of two.** A set made of two sets by a rule on membership alone takes or leaves each thing by whether the
+first holds it and whether the second does. What neither holds is in no such set, since nothing names it; so a
+rule is three choices, for what the second alone holds, what the first alone holds and what both hold, eight
+in all. Three of the eight turn on one set or on none; the five that turn on both are the union, the things in
+both, the things in one alone, and each set less the other. The reading offered is whether the last set of a
+line is the set so made of the first two, for each of the five; and, as in 55.14, whether two lines agree in
+that.
+
+**Proposition 55.19 (made of two).** Whether two panels fill the same places does not tell a line whose last
+is the union of its first two from one whose last is the first less the second: `({1}, {2}, {1, 2})` and
+`({1, 2}, {2}, {1})` are read alike, every two of their sets differing. Each of the five readings holds of
+exactly the lines made its way, so it tells them.
+
+**Turned.** Let the places stand on a ring of `n`, and let a **turn** by `k` carry place `p` to `p + k`. A set
+carried onto another by a turn may be carried onto it by several, when a turn carries it onto itself: the turns
+from one set to another are a set of turns. Two pairs of panels are **turned alike** when some turn serves both.
+
+**Proposition 55.20 (a rule that turns is read as turned alike).** If one turn carries the first of each of two
+pairs onto its second, the two pairs are turned alike; and turns compose, so that a line whose panels each
+follow the one before by one turn has its ends turned by twice that. Sameness of the filled places does not read
+this: a line turned by a turn that is not the whole ring has no two panels alike.
+
+That the places stand on a ring, and in which order, is given by whoever names them. Nothing here says that a
+rule makes sets or turns them; the learner of §54 takes the readings up where its judgements call for them.
+
+In Lean 55.17 is `NCA.long_links_joining_many_part`, 55.18 `NCA.rungs_keep_what_reaches_lose`, 55.19
+`NCA.sameness_does_not_tell_how_a_set_is_made` and 55.20 `NCA.turned_by_one_turn_are_turned_alike`.
