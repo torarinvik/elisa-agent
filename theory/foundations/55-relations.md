@@ -307,3 +307,30 @@ excess of a row shown. This is 55.14 with a reading that is a number and not a t
 lines of three that stand alike, whether their excesses are the same, taking the step either way as in 55.13.
 It still needs the unit: rungs numbered in steps that are not the rule's own do not keep it. In Lean 55.15 is
 `NCA.excess_agrees_wherever_nothing_is`.
+
+## 55.16 The parts of a thing
+
+A thing of 55.12 is one patch, whatever it is made of. A thing drawn as thick places with thin runs between
+them, as dots with lines, is so read as one thing, with nothing to say of how its places stand to one another
+(§58). Its parts are found from its shape alone.
+
+**Wear** a patch by taking away every pixel that has a neighbour outside it, and say a pixel has **depth** `d`
+when it lasts `d − 1` wearings and not `d`. Across a run `t` pixels wide the deepest pixel has depth `⌈t / 2⌉`.
+
+**Proposition 55.16 (wearing takes the runs and leaves the parts).** After `w` wearings a run `t` wide is gone
+exactly when `t ≤ 2w`, and a place `T` wide still stands exactly when `T > 2w`. So where every run is at most
+`t` wide and every part at least `T`, with `t < T`, the pieces left after `w` wearings are the parts, one piece
+each, for every `w` with `t ≤ 2w < T`.
+
+Neither width is given. Count the pieces after each number of wearings. While the runs last the thing is in few
+pieces; through the stretch of 55.16 the count stays at the number of parts; beyond it the parts go one by one.
+The parts are taken to be the pieces over the longest stretch of wearings in which the count does not change.
+That is right where the stretch of 55.16, about `(T − t) / 2` wearings, is longer than the `t / 2` wearings the
+runs last and than any stretch in which the parts go: where the parts are a good deal thicker than the runs and
+about as thick as one another. A thing with no runs is one piece until it is gone, and one part.
+
+Two parts are **joined** when a straight run of the thing lies between them, from outside the one to outside the
+other. That joins are drawn straight is given. A run that passes over a third part reads as its two halves do,
+so a drawing in which a join crosses a part does not say which is meant.
+
+In Lean 55.16 is `NCA.wearing_takes_runs_and_leaves_parts`.

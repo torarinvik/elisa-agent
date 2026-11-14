@@ -194,4 +194,14 @@ theorem excess_agrees_wherever_nothing_is (a b c a' b' c' k : ℤ) :
   have := kept 0 0 0 1 rfl
   omega
 
+/-- **Proposition 55.16 (wearing takes the runs and leaves the parts).** Across a run `t` pixels wide the deepest
+pixel lasts `(t + 1) / 2` wearings, so after `w` wearings the run is gone exactly when `t ≤ 2 * w`; and where runs
+are at most `t` wide and parts at least `T`, any `w` with `t ≤ 2 * w < T` takes every run and leaves every part. -/
+theorem wearing_takes_runs_and_leaves_parts (t T w : ℕ) :
+    ((t + 1) / 2 ≤ w ↔ t ≤ 2 * w) ∧
+      (t ≤ 2 * w → 2 * w < T → ∀ run part : ℕ, run ≤ t → T ≤ part → (run + 1) / 2 ≤ w ∧ w < (part + 1) / 2) := by
+  refine ⟨by omega, ?_⟩
+  intro gone stands run part thin thick
+  omega
+
 end NCA

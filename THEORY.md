@@ -84,3 +84,4 @@ link for its definitions, arguments, and results.
 - [55. Relations between what is read](theory/foundations/55-relations.md)
 - [56. Looking ahead](theory/foundations/56-looking-ahead.md)
 - [57. Wholes judged by their parts](theory/foundations/57-wholes.md)
+- [58. The same under a renaming](theory/foundations/58-the-same-under-a-renaming.md)
