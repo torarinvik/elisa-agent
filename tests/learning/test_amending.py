@@ -76,5 +76,10 @@ def test_with_parts_left_as_they_are_the_teaching_is_that_of_takeover() -> None:
     assert Amendable((((0, 1), (UNJUDGED, "left")),)).machine.outputs == ("left",)
     with pytest.raises(ValueError):
         learner((0, 1, 2, "unseen"))
+    early, first = teach_amendable(starts(2, 12), right, clean=2, max_episodes=3000)
+    later, second = teach_amendable(starts(3, 12), right, clean=60, max_episodes=3000, learner=early)
+    assert first.passed and second.passed and len(later.shown) == first.takeovers + second.takeovers
     with pytest.raises(ValueError):
         teach_amendable(starts(2, 12), right, clean=0, max_episodes=1)
+    with pytest.raises(ValueError):
+        teach_amendable(starts(2, 12), right, clean=1, max_episodes=1, helpers=(right,), learner=early)

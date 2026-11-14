@@ -116,17 +116,23 @@ class Amendable:
 
 
 def teach_amendable(start: Start, teacher: Teacher, *, clean: int, max_episodes: int,
-                    helpers: Sequence[Helper] = (), max_takeovers: int = UNBOUNDED) -> tuple[Amendable, Taught]:
+                    helpers: Sequence[Helper] = (), max_takeovers: int = UNBOUNDED,
+                    learner: Amendable | None = None) -> tuple[Amendable, Taught]:
     """Teach by demonstration until ``clean`` episodes in a row need no takeover, or a limit is reached.
 
     As ``takeover.teach`` with an immediate teacher who shows the one right
     action, except that the episodes shown are kept and a helper that is an
     ``Amendable`` may be shown the teacher's action where the machine
     delegated to it. A helper that is any other callable is left as it is.
+
+    With ``learner``, one taught before is taught on with its own helpers,
+    as after a refusal at admission; the counts returned are of this call.
     """
     if any(type(limit) is not int or limit < 1 for limit in (clean, max_episodes, max_takeovers)):
         raise ValueError("positive limits are required")
-    learner = Amendable(helpers=tuple(helpers))
+    if learner is not None and helpers:
+        raise ValueError("a learner taught on keeps its own helpers")
+    learner = learner or Amendable(helpers=tuple(helpers))
     takeovers = demonstrated = episodes = run = 0
     while run < clean and episodes < max_episodes and takeovers < max_takeovers:
         watched = _watch(start, teacher, learner.machine, learner.helpers, None, 0, None)
