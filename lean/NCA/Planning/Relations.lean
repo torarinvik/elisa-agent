@@ -204,6 +204,41 @@ theorem wearing_takes_runs_and_leaves_parts (t T w : ℕ) :
   intro gone stands run part thin thick
   omega
 
+/-- **Proposition 55.17 (a link that is long and joins many).** Where a link between classes is at least `D` long
+and joins at least `m`, and a link within a class that joins more than `k` is at most `l` long, with `l < D` and
+`k < m`, any divide of length in `(l, D]` and number in `(k, m]` takes the links between classes and no link
+within; and a stray may weigh more than a link between classes by length times number. -/
+theorem long_links_joining_many_part (l D k m divide number : ℕ) (hl : l < divide) (hD : divide ≤ D)
+    (hk : k < number) (hm : number ≤ m) :
+    (∀ length joins : ℕ, D ≤ length → m ≤ joins → divide ≤ length ∧ number ≤ joins) ∧
+      (∀ length joins : ℕ, (k < joins → length ≤ l) → ¬(divide ≤ length ∧ number ≤ joins)) ∧
+      (∃ stray far many : ℕ, many * far < stray * 1 ∧ 1 < many) := by
+  refine ⟨fun length joins long much => ⟨by omega, by omega⟩, ?_, ⟨9, 2, 4, by norm_num, by norm_num⟩⟩
+  intro length joins within both
+  have := within (by omega)
+  omega
+
+/-- **Proposition 55.18 (rungs keep what reaches lose).** Where each shape draws its sizes at rising reaches, the
+count of a shape's reaches below a figure's is the figure's size; and two shapes can draw a greater size at no
+greater a reach than a lesser, so that reach alone does not order them. -/
+theorem rungs_keep_what_reaches_lose :
+    (∀ (reach : ℕ → ℕ), StrictMono reach → ∀ sizes size : ℕ, size < sizes →
+      ((Finset.range sizes).filter fun other => reach other < reach size).card = size) ∧
+      (∃ one other : ℕ → ℕ, StrictMono one ∧ StrictMono other ∧ one 2 ≤ other 1) := by
+  refine ⟨?_, ⟨fun size => 2 * size, fun size => 5 * size, ?_, ?_, by norm_num⟩⟩
+  · intro reach rising sizes size within
+    have : ((Finset.range sizes).filter fun other => reach other < reach size) = Finset.range size := by
+      ext other
+      simp only [Finset.mem_filter, Finset.mem_range, rising.lt_iff_lt]
+      omega
+    rw [this, Finset.card_range]
+  · intro a b h
+    show 2 * a < 2 * b
+    omega
+  · intro a b h
+    show 5 * a < 5 * b
+    omega
+
 /-- **Proposition 59.1 (what was written is among them).** A sum is a value that is a step; two lines of three have
 the same excess, and the same total, exactly when two steps from a value to a step are the same; and a line that
 holds another's values in another order has its total. -/

@@ -334,3 +334,55 @@ other. That joins are drawn straight is given. A run that passes over a third pa
 so a drawing in which a join crosses a part does not say which is meant.
 
 In Lean 55.16 is `NCA.wearing_takes_runs_and_leaves_parts`.
+
+## 55.17 A link parts when it is long and joins many
+
+The divide by chains of 55.11 is a length: every link longer than it parts. That asks two things of what is
+seen that pictures do not grant. A class must hang together by links shorter than any between two classes; but
+a class seen at many sizes has its smallest figures read coarsely, as a clump of their own a little way off.
+And nothing may lie far from every class; but a figure misread once lies farther from everything than two
+classes lie from one another. No length parts the classes, keeps the clump with its class, and leaves the
+stray no class of its own.
+
+What tells them apart is how much lies on each side. Join the things by their shortest tree, the shortest links
+first, and say a link **joins** as many as the fewer of the things on its two sides when it joins them.
+
+**Proposition 55.17 (a link that is long and joins many).** Let every link between two classes be at least `D`
+long and join at least `m`; let a link within a class that joins more than `k` be at most `l` long, with
+`l < D`; and let `k < m`. Then with any divide of length in `(l, D]` and any number in `(k, m]`, the links
+that are longer than the divide and join at least the number are exactly the links between classes. A stray
+joins few however far off it lies, and a clump within a class is near however many it holds; neither parts.
+A weight made of the two, as their product, does not do this: a stray `L` away weighs `L` and a link between
+classes `m · D`, and `L` may exceed `m · D`.
+
+The length and the number are found together from the links. For each number, the links that join at least
+as many are put in order of length and the divide is put in their widest gap, by ratio; among the links so found
+long, those that join fewer stand below the number by a ratio too; the lesser of the two ratios says how clear
+that parting is. Classes far apart part more clearly than the nearest two do, so the parting taken is the one
+with the shortest divide among those at least half as clear, in the logarithm, as the clearest. A thing that
+joins few is of the class it is tied to.
+
+## 55.18 A size among its own kind
+
+A size is read as how far a figure reaches (55.9). Figures of two shapes drawn at one size need not reach
+alike: a drawer that rounds lengths to whole pixels draws a square a little smaller than a circle of the same
+size, by a share that changes from size to size and can be half the step between two sizes. No divide on reach
+then says of a square and a circle whether they are one size.
+
+Where sizes are few, the reaches seen of one shape fall into **rungs**, and the rungs of two shapes stand in
+the same order. A figure's size is then its rung, counted on its own shape's ladder.
+
+**Proposition 55.18 (rungs keep what reaches lose).** Let each shape `s` draw size `i` at reach `r_s(i)`,
+rising in `i`, and let the reaches be read to within `e` with `2e` less than the least gap between two rungs
+of one shape. Then the rung of a figure on its shape's ladder is its size, for every shape, whatever the shapes'
+reaches are to one another; while if `r_s(i) ≤ r_t(j)` for some shapes and sizes `i > j`, no rule on reach
+alone orders the two figures as their sizes do.
+
+A ladder is found from what was seen often: a reach seen seldom beside its shape's most seen is a misreading and
+no rung. A shape not yet seen at every size has fewer rungs; they are laid along the ladder of the shapes that
+have the usual number, in order, where they lie nearest in all. A size so read is a whole number with one step
+between neighbouring rungs, so the steps and sums of 55.13 to 55.15 run on it as they stand. The ladder is
+found from pictures alone, with nothing said of which answer is right; it is found before teaching and kept, so
+that a size means the same from the first case taught to the last.
+
+In Lean 55.17 is `NCA.long_links_joining_many_part` and 55.18 `NCA.rungs_keep_what_reaches_lose`.
