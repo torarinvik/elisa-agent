@@ -140,3 +140,21 @@ place, an extent, an outline and what fills the outline, whatever the picture is
 between two patches without being named: by how far apart, by the ratio of extents, by how much of the outlines
 overlap when laid on one another, by how far the fillings differ. Whether these comparisons tell what a task's
 figures differ in is measured in the research diary.
+
+## 55.9 From comparisons to the numbers a step needs
+
+Sameness needs a comparison and nothing more. A step does: by 55.5 an order has no steps until each value is given
+a number. A comparison of an ordered kind supplies a magnitude for each thing, of which only the order is trusted
+(how far an outline reaches, how light a filling is, how much of the circle that holds it an outline fills). The
+things read the same form classes (55.5), and a class is numbered by its **place among the classes seen so far**,
+in the order of their magnitudes. Where the magnitude itself has equal steps along the ladder, as the logarithm of
+an extent has when sizes grow by a ratio, steps are counted in it directly and no places are needed.
+
+**Proposition 55.7 (places keep the order and lose steps while rungs are unseen).** The place of a value among
+those seen is ordered as the values are. While a rung between two seen values is itself unseen, two pairs that take
+different steps on the ladder can read the same step in places.
+
+So a learner numbered by places reads order rightly from its first observation and steps rightly only once the
+rungs in play have all been seen; a rule of steps taught earlier is taught on numbers that later shift. The
+ordering of each kind by its magnitude is given, as the kinds of 55.1 are, and is not found. In Lean 55.7 is
+`NCA.places_keep_order_and_lose_steps`.

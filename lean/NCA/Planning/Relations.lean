@@ -88,4 +88,16 @@ theorem broken_triple_holds_an_error {X : Type*} (truly said : X → X → Prop)
   rintro ⟨one, two, three⟩
   exact third (three.mpr (transitive x y z (one.mp first) (two.mp second)))
 
+/-- A value's place among the values seen so far: how many of them lie below it. -/
+def placeAmong (seen : List ℤ) (value : ℤ) : ℕ := (seen.filter (· < value)).length
+
+/-- **Proposition 55.7 (places keep the order and lose steps while rungs are unseen).** Of a ladder whose rungs
+0, 1 and 3 have been seen and 2 has not, the places among those seen are ordered as the rungs are, and read the
+same step from 0 to 1 as from 1 to 3, where the rungs take different steps. -/
+theorem places_keep_order_and_lose_steps :
+    placeAmong [0, 1, 3] 0 < placeAmong [0, 1, 3] 1 ∧ placeAmong [0, 1, 3] 1 < placeAmong [0, 1, 3] 3 ∧
+      placeAmong [0, 1, 3] 1 - placeAmong [0, 1, 3] 0 = placeAmong [0, 1, 3] 3 - placeAmong [0, 1, 3] 1 ∧
+      (1 : ℤ) - 0 ≠ 3 - 1 := by
+  decide
+
 end NCA
