@@ -143,4 +143,14 @@ theorem greater_divide_only_joins {α : Type*} (far : α → α → ℚ) {low hi
   | symm _ _ _ back => exact Relation.EqvGen.symm _ _ back
   | trans _ _ _ _ _ first second => exact Relation.EqvGen.trans _ _ _ first second
 
+/-- **Proposition 55.11 (how much lies one way fixes the reach that way).** A part of a circle about a middle, of
+reach `r` across an angle `w`, covers `r ^ 2 * w / 2`. Two reaches that cover the same across the same angle are
+the same reach. -/
+theorem covered_fixes_reach (r s w : ℚ) (wide : 0 < w) (reaches : 0 ≤ r) (also : 0 ≤ s)
+    (covered : r ^ 2 * w / 2 = s ^ 2 * w / 2) : r = s := by
+  have squares : r ^ 2 = s ^ 2 := by
+    have := mul_right_cancel₀ (ne_of_gt wide) (by linarith : r ^ 2 * w = s ^ 2 * w)
+    exact this
+  nlinarith [sq_nonneg (r - s), sq_nonneg (r + s), mul_nonneg reaches also]
+
 end NCA

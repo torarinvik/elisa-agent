@@ -216,3 +216,38 @@ the same when every distance is multiplied by a constant. It assumes that more t
 classes, which holds once the things seen outnumber twice the classes, and that the classes sought are the finest
 level that stands clear of what redrawing a thing changes. Whether it finds a task's classes is measured in the
 research diary. In Lean 55.9 is `NCA.chain_reads_sameness` and 55.10 is `NCA.greater_divide_only_joins`.
+
+## 55.12 Things with no pen given
+
+What 55.8 compares is a patch set off from its ground. Finding the patches has so far leaned on what one kind of
+picture is drawn with: a line of the darkest ink around each thing, a thin square around each group of things, a
+fixed distance in colour that sets a pixel off its page. None of these is in the notion of a patch.
+
+A picture drawn in flat colours has **colours of its own**: those some pixels wear together with all their
+neighbours. Every other pixel lies where colours blend and is read as the nearest of the colours beside it, so
+no distance in colour is given. A **patch** is a connected set of pixels of one such colour. The **ground** of a region is the
+colour most of its edge wears. A patch may enclose pixels that are not its own; what it encloses is its
+**inside**, which may be the ground showing through, another colour that fills it, or further patches, for which
+it is in turn the ground. A **panel** is an outermost patch off the page together with all it encloses, large
+enough to hold things. So one rule of two parts, applied twice, finds the panels of a frame and the things of a
+panel: a thing is a patch off its ground, and a patch is ground for what it encloses. A thing drawn as a line
+around a fill and a thing drawn as a flat shape are both patches; the first has an inside of another colour and
+the second has none.
+
+The outline of a thing is compared through how far it reaches in each direction from its middle (55.10). Taking
+the reach as the farthest pixel in a direction leans on one pixel, which is a whole pixel wrong whatever the
+thing's size, so the smaller the thing the worse the reading. All the pixels in a direction can be used instead:
+
+**Proposition 55.11 (how much lies one way fixes the reach that way).** A part of a circle of reach `r` across an
+angle `w` covers `r² w / 2`, and two reaches that cover the same across the same angle are equal.
+
+So the reach in a direction is read as the square root of twice what the thing covers in a narrow angle that way,
+over the angle. For a thing that every ray from its middle leaves once this is its reach where the reach is even
+across the angle, and otherwise a mean of it; it is read from every pixel in the angle, each counted in parts to
+either side of the angle's bounds. A thing drawn as a line has two such reaches, of all it encloses and of its
+inside, and the middle of its line lies between them. In Lean 55.11 is `NCA.covered_fixes_reach`.
+
+Not covered: a line too thin to hold a pixel with all its neighbours has no colour of its own and is not read,
+so writing is not; things that touch are one patch when they share a colour; a mark laid over a thing breaks its
+patch; and a comparison blind to the turn (55.10) reads a square and the same square stood on its corner as one
+shape, which a task may count as two.
