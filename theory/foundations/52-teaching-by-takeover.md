@@ -302,3 +302,33 @@ takeovers, where a machine with fixed parts that err needs the bound of the prod
 
 Which reading holds is not given. Choosing at each takeover the reading that leaves the fewest states in all is a
 rule and is not shown to find the smallest whole; it is measured in the research diary.
+
+## 52.14 Practising a part where every history occurs
+
+By 52.16 a part admitted on the episodes of one world may err on a history that world never gives. Call practice a
+run of episodes in which each observation is drawn evenly from `O` whatever the action taken.
+
+**Proposition 52.19 (practice reaches every history).** Among the sequences of `l + r` observations, those beginning
+with a given `l` are `|O|^r` of `|O|^(l + r)`. A history of `l` observations therefore begins a practice episode of
+at least that length with chance `|O|^(-l)`, and none has chance zero.
+
+**Theorem 52.20 (a part clean in practice is right everywhere).** Let the target be a machine of `n` states and the
+part one of `m`. If the part errs after any history it errs after one of at most `n + m` observations, which begins a
+practice episode with chance at least `|O|^(-(n + m))`. So if `log (1 / α) ≤ -log (1 - |O|^(-(n + m))) N`, then `N`
+practice episodes of at least `n + m` observations run clean with chance at most `α` unless the part is right after
+every history, in every world and for every machine that uses it.
+
+A history after which the two differ has a first observation; the states reached by it are told apart by fewer than
+`n + m` further ones (51.5 in the machine holding both), and the count is that of 50.4. With 52.18, a rule of `k`
+states over parts that passed this is taught as a machine of `k` states. In Lean 52.19 is
+`NCA.sequences_beginning_alike`; 52.20 follows from it, `NCA.answers_to_depth_settle` and `NCA.zeroLoss_miss_exact`
+and is not stated separately.
+
+The count `|O|^(n + m)` is for the worst case of 51.6 and is out of reach beyond small parts. What decides the cost
+for a given part is the length `d` of the shortest history after which it errs: `|O|^d` episodes find it. That
+length is not known beforehand and is measured. The argument needs only that no history has chance zero. A teaching
+distribution with that property serves with its least chance of a history of `n + m` observations in place of
+`|O|^(-(n + m))`; drawing from several worlds raises that chance without reaching it for all histories.
+
+Practice is paid once for a part and the errors it removes are met at every use, so its worth grows with the number
+of machines that use the part.

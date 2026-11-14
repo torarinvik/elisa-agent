@@ -62,3 +62,21 @@ difference costs at most two answers, and a prefix-closed table shares most of t
 This needs an answer on the empty sequence and a group on the answers, which a domain supplies. A target whose gain depends
 on the register itself, such as a longest run or a distance from the origin, is outside the class. A finite machine can still
 approximate it on bounded sequences, and whether that is good enough is for the gate to decide.
+
+## 51.6 How long a sequence tells two machines apart
+
+Sort the states of a machine by the answers they give to every sequence of at most `k` symbols. As `k` grows the
+classes only split, and a step that splits none leaves none to split later, because the answers to sequences of
+`k + 1` symbols are the state's own answer and the classes, at `k`, of the states one symbol on. There are at most as
+many classes as states.
+
+**Theorem 51.5 (short sequences settle it).** Two states of a machine of `N` states that answer alike every sequence
+of at most `N - 1` symbols answer alike every sequence.
+
+**Theorem 51.6 (two machines agree if they agree on short sequences).** Machines of `n` and `m` states that give the
+same answer to every sequence of at most `n + m - 1` symbols give the same answer to every sequence.
+
+51.6 is 51.5 in the machine that holds both. So a machine of `m` states that is wrong about a target of `n` states is
+wrong on a sequence of fewer than `n + m` symbols: whatever is wrong can be found on short sequences, and nothing is
+hidden in the long ones. How many short sequences must be tried is another matter. A target can hold a state that one
+sequence alone reaches, and then all `|A|^(n + m - 1)` may be needed.

@@ -258,4 +258,28 @@ theorem amended_parts_keep_the_rule {H A ι S : Type*} (parts targets : ι → H
   | inl a => rfl
   | inr i => exact amended h i held
 
+/-- **Proposition 52.19 (practice reaches every history).** Of the sequences of `l + r` observations, those that
+begin with a given `l` number `|O| ^ r`: where observations are drawn evenly, every history of `l` observations
+begins an episode with the same chance `|O| ^ l` to one. -/
+theorem sequences_beginning_alike {O : Type} [Fintype O] [DecidableEq O] (l r : ℕ) (start : Fin l → O) :
+    (Finset.univ.filter fun word : Fin (l + r) → O => ∀ i : Fin l, word (Fin.castAdd r i) = start i).card
+      = Fintype.card O ^ r := by
+  have count : (Finset.univ.filter fun word : Fin (l + r) → O =>
+      ∀ i : Fin l, word (Fin.castAdd r i) = start i).card = (Finset.univ : Finset (Fin r → O)).card := by
+    refine Finset.card_nbij' (fun word j => word (Fin.natAdd l j)) (fun rest => Fin.append start rest) ?_ ?_ ?_ ?_
+    · intro word _
+      exact Finset.mem_coe.mpr (Finset.mem_univ _)
+    · intro rest _
+      simp [Fin.append_left]
+    · intro word inside
+      have begins := (Finset.mem_filter.mp (Finset.mem_coe.mp inside)).2
+      funext x
+      refine Fin.addCases (fun i => ?_) (fun j => ?_) x
+      · simp [Fin.append_left, begins i]
+      · simp [Fin.append_right]
+    · intro rest _
+      funext j
+      simp [Fin.append_right]
+  rw [count, Finset.card_univ, Fintype.card_fun, Fintype.card_fin]
+
 end NCA
