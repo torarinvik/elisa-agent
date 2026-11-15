@@ -234,6 +234,11 @@ panel: a thing is a patch off its ground, and a patch is ground for what it encl
 around a fill and a thing drawn as a flat shape are both patches; the first has an inside of another colour and
 the second has none.
 
+Two things drawn as lines of one colour that touch are one patch, and the inside of the lesser is then left a
+patch alone, with a line that is not its own most of the way around it. Such a patch is a thing with that line
+for its own: the line is as wide as the pixels around the patch keep being mostly of the line's colour, taken
+a pixel at a time. A patch that is no deeper than the colour around it is wide lies in a thing and has no line.
+
 The outline of a thing is compared through how far it reaches in each direction from its middle (55.10). Taking
 the reach as the farthest pixel in a direction leans on one pixel, which is a whole pixel wrong whatever the
 thing's size, so the smaller the thing the worse the reading. All the pixels in a direction can be used instead:
