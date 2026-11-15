@@ -133,8 +133,32 @@ degree `d` in their place is completed from `d + 1` of its terms.
 Nothing here is taught, and nothing says how deep the rule of a line lies: it is read off the line. What a
 line of few terms cannot show it does not find: a rule that reaches back three terms is not shown by four.
 
+## 60.8 A line alike at a stride, and steps taken by their place
+
+Steps that are all the same are alike at a stride of one. A line may be alike at a longer stride: each value
+the same as the one `k` before it. Such a line is completed by its value `k` back, and it is shown to be so
+once one value past the first `k` is seen: `k + 1` values. A line of steps reached by stepping `d` times and
+alike at stride `k` is so shown by `d + k + 1` terms of the line above all. Of the lines of steps that are
+alike at some stride, the one shown by the fewest terms completes the line, and among such the one of the
+shortest stride; so 60.7 is the case of stride one, and nothing it completed is completed otherwise unless a
+line as short is alike where 60.7 found none.
+
+A way of stepping may also take a step by its **place** in its line: what is added, over how many steps have
+been taken. The steps 2, 6, 6, 12 agree at no stride; by their places they are 2, 3, 2, 3.
+
+**Proposition 60.8 (a line alike at a stride is completed from a stride back).** Let each term of a line be the
+one before with a step added, and let the steps be alike at stride `k`. Then the term after place `p + k` is
+that term with the step at place `p` added. If instead each step is its place times a rate, and the rates are
+alike at stride `k`, the term after place `p + k` is that term with the rate at place `p` times the place
+`p + k + 1` added.
+
+A stride is not handed over, nor that places matter: both are read off the line, as depth is in 60.7. The
+price is that a short line can be alike at a stride by chance where its rule lies deeper than it shows.
+
 In Lean 60.1 is `NCA.right_candidate_keeps_what_the_rule_keeps`, 60.2
 `NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open`, 60.4
 `NCA.what_turns_on_the_last_is_kept_by_the_right_alone`, 60.5
 `NCA.later_chooser_decides_only_where_earlier_is_level`, 60.6 `NCA.across_the_rule_lines_need_not_agree` and
-60.7 `NCA.line_completed_by_completing_its_steps` with `NCA.steps_of_steps_alike_complete_the_line`.
+60.7 `NCA.line_completed_by_completing_its_steps` with `NCA.steps_of_steps_alike_complete_the_line`, and
+60.8 `NCA.line_alike_at_a_stride_is_completed_from_a_stride_back` with
+`NCA.rates_alike_at_a_stride_complete_the_line`.

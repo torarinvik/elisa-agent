@@ -374,4 +374,21 @@ theorem steps_of_steps_alike_complete_the_line (line : ℕ → ℤ) (alike : ℤ
   have := bent place
   omega
 
+/-- **Proposition 60.8 (a line alike at a stride is completed from a stride back).** If each term is the one
+before with a step added, and the steps are alike at a stride, the term after one a stride on is that term
+with the step a stride back added. -/
+theorem line_alike_at_a_stride_is_completed_from_a_stride_back (line steps : ℕ → ℤ) (stride : ℕ)
+    (stepped : ∀ place, line (place + 1) = line place + steps place)
+    (alike : ∀ place, steps (place + stride) = steps place) (place : ℕ) :
+    line (place + stride + 1) = line (place + stride) + steps place := by
+  rw [stepped, alike]
+
+/-- **Proposition 60.8, by place.** If each step is its place times a rate, and the rates are alike at a
+stride, the term after one a stride on is that term with the rate a stride back times the step's place added. -/
+theorem rates_alike_at_a_stride_complete_the_line (line rates : ℕ → ℤ) (stride : ℕ)
+    (stepped : ∀ place, line (place + 1) = line place + (place + 1 : ℤ) * rates place)
+    (alike : ∀ place, rates (place + stride) = rates place) (place : ℕ) :
+    line (place + stride + 1) = line (place + stride) + ((place + stride : ℕ) + 1 : ℤ) * rates place := by
+  rw [stepped, alike]
+
 end NCA

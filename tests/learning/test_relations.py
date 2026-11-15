@@ -278,11 +278,23 @@ def test_a_line_is_continued_by_the_steps_of_its_steps_with_nothing_taught() -> 
     assert continued([4, 4, 4]) == 4 and continued([9]) == 9 and continued([]) is None
     assert continued([5, 8]) == 11
 
-    def ratio(first: Fraction, second: Fraction) -> Fraction | None:
+    def ratio(first: Fraction, second: Fraction, _: int) -> Fraction | None:
         return second / first if first else None
 
-    times: Way = (ratio, lambda first, by: first * by)
+    times: Way = (ratio, lambda first, by, _: first * by)
     doubling = [Fraction(term) for term in (5, 8, 14, 26)]
     assert continued(doubling, (STEPS, times)) == 50 and continued(doubling) == 47
     assert continued([Fraction(term) for term in (3, 6, 12, 24)], (STEPS, times)) == 48
     assert continued([Fraction(term) for term in (0, 2, 6, 12)], (STEPS, times)) == 20
+
+
+def test_a_line_alike_at_a_stride_is_continued_from_a_stride_back_and_steps_may_be_taken_by_their_place() -> None:
+    assert continued([1, 4, 5, 8, 9], strides=2) == 12 and continued([1, 4, 5, 8, 9]) == -4
+    assert continued([7, 2, 9, 7, 2], strides=3) == 9
+    assert continued([2, 3, 6, 11], strides=3) == 18
+    assert continued([0, 1, 3, 4, 6, 7], strides=2) == 9
+    placed: Way = (lambda first, second, place: Fraction(second - first, place),
+                   lambda first, by, place: first + by * place)
+    assert continued([3, 5, 17, 23], (STEPS, placed), strides=2) == 47
+    assert continued([3, 5, 17, 23], (STEPS, placed)) == 7
+    assert continued([0, 2, 6, 12], (STEPS, placed), strides=2) == 20

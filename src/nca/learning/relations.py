@@ -16,7 +16,8 @@ takes from the first two, and ``turns`` whether two pairs of sets of places on a
 ``kept`` counts what the lines of a situation that are whole agree on and its last line keeps: a way of choosing
 how a situation is completed from the situation alone, with nothing taught (§60).
 
-``continued`` gives what follows one line of values from the line alone, by the steps of its steps (§60.7).
+``continued`` gives what follows one line of values from the line alone, by the steps of its steps (§60.7),
+which may be alike at a stride (§60.8).
 
 ``found`` composes relations from values and steps and takes those the judgements pay for, in place of relations
 written beforehand, and ``moved`` offers a relation at every place that stands alike (§59).
@@ -196,44 +197,55 @@ def kept(observation: Mapping[Hashable, Any], lines: Sequence[Sequence[Hashable]
     return tuple(counts)
 
 
-Way = tuple[Callable[[Any, Any], Any], Callable[[Any, Any], Any]]
-"""A way of stepping: what leads from one value to the next, and the value a step leads to from one. Either may
-return nothing where there is no such step."""
-STEPS: Way = (lambda first, second: second - first, lambda first, by: first + by)
+Way = tuple[Callable[[Any, Any, int], Any], Callable[[Any, Any, int], Any]]
+"""A way of stepping: what leads from one value to the next, and the value a step leads to from a value. Each
+is also handed the step's place in its line, counted from one."""
+
+STEPS: Way = (lambda first, second, _: second - first, lambda first, by, _: first + by)
 """Stepping by what is added."""
 
 
-def continued(line: Sequence[Any], ways: Sequence[Way] = (STEPS,)) -> Any:
-    """What follows a line of values, from the line alone (§60.7); nothing where the line is empty.
+def continued(line: Sequence[Any], ways: Sequence[Way] = (STEPS,), strides: int = 1) -> Any:
+    """What follows a line of values, from the line alone (§60.7, §60.8); nothing where the line is empty.
 
     The steps between neighbours are a line one shorter, and the steps between those another, each taken in
-    one of ``ways``. The shallowest such line whose steps are all the same, two or more of them, is continued
-    by that step, and each line above by the step so found; among lines as shallow, the one of the earlier
-    ways. Where no line has steps that agree, the first way is followed down to a single step.
+    one of ``ways``. A line of steps is alike at a stride when each step is the same as the one that many
+    before it, and is then continued by the step a stride back, and each line above by the step so found.
+    Of the lines alike at a stride of at most ``strides``, the one shown by the fewest terms is followed, a
+    line reached by more steppings and a longer stride being shown by more; among such the shortest stride,
+    then the fewest steppings, then the earlier ways. Where no line is alike, the first way is followed down
+    to a single step.
     """
-    def unwound(lasts: Sequence[tuple[Way, Any]], by: Any) -> Any:
-        for (_, lead), last in reversed(lasts):
-            by = lead(last, by)
+    def unwound(lasts: Sequence[tuple[Way, Any, int]], by: Any) -> Any:
+        for (_, lead), last, place in reversed(lasts):
+            by = lead(last, by, place)
         return by
 
     if not line:
         return None
-    towers: list[tuple[list[Any], list[tuple[Way, Any]]]] = [(list(line), [])]
+    towers: list[tuple[list[Any], list[tuple[Way, Any, int]]]] = [(list(line), [])]
     bottom = None
-    while towers:
+    found: tuple[int, int, Any] | None = None
+    depth = 0
+    while towers and (found is None or found[:2] > (depth + 2, 1)):
+        depth += 1
         below = []
         for held, lasts in towers:
             for way in ways:
-                steps = [way[0](first, second) for first, second in pairwise(held)]
+                steps = [way[0](first, second, place) for place, (first, second) in enumerate(pairwise(held), 1)]
                 if not steps or any(step is None for step in steps):
                     continue
-                under = [*lasts, (way, held[-1])]
-                if len(steps) > 1 and all(step == steps[0] for step in steps):
-                    return unwound(under, steps[0])
+                under = [*lasts, (way, held[-1], len(held))]
+                for stride in range(1, min(strides, len(steps) - 1) + 1):
+                    alike = all(step == back for back, step in zip(steps, steps[stride:], strict=False))
+                    if alike and (found is None or (depth + stride, stride) < found[:2]):
+                        found = (depth + stride, stride, unwound(under, steps[-stride]))
                 if len(steps) == 1 and bottom is None:
                     bottom = unwound(under, steps[0])
                 below.append((steps, under))
         towers = below
+    if found is not None:
+        return found[2]
     return line[0] if bottom is None else bottom
 
 
