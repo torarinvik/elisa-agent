@@ -112,7 +112,29 @@ rows that are alike, rows that step alike and rows that hold the same values eac
 What tells the ways apart is the rules that do not, of which a sum is one; a kind of situation with no such
 rule is completed alike either way.
 
+## 60.7 One line, completed from its own steps
+
+A situation of one line has no whole lines to agree. But the steps between its neighbours are a line, one
+shorter, and they stand alike: each is a line of 60.1 for the one after. If they are all the same, the line is
+completed by that step. If not, the steps are themselves a line to be completed, in the same way, and the
+line is completed by the step so found. A step is taken in one of several **ways**, each with what leads from
+one value to the next and the value a step leads to; what is added is one, what is multiplied by another.
+
+Of the lines of steps so reached, each by some ways in turn, the shallowest whose steps all agree, two or
+more of them, completes the line: two steps that agree were not made to. Where none agrees, one way is
+followed down to a single step, on which, as with one whole line in 60.2, everything is agreed.
+
+**Proposition 60.7 (a line is completed by completing its steps).** Let each term of a line be the one before
+with a step added. If what is said to follow the steps is the step that does follow, then the last term with
+that added is the term that follows the line. So where the steps of the steps of a line, taken `d` times, are
+all the same, the line is completed rightly by `d` such completions: a line whose terms are a polynomial of
+degree `d` in their place is completed from `d + 1` of its terms.
+
+Nothing here is taught, and nothing says how deep the rule of a line lies: it is read off the line. What a
+line of few terms cannot show it does not find: a rule that reaches back three terms is not shown by four.
+
 In Lean 60.1 is `NCA.right_candidate_keeps_what_the_rule_keeps`, 60.2
 `NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open`, 60.4
 `NCA.what_turns_on_the_last_is_kept_by_the_right_alone`, 60.5
-`NCA.later_chooser_decides_only_where_earlier_is_level` and 60.6 `NCA.across_the_rule_lines_need_not_agree`.
+`NCA.later_chooser_decides_only_where_earlier_is_level`, 60.6 `NCA.across_the_rule_lines_need_not_agree` and
+60.7 `NCA.line_completed_by_completing_its_steps` with `NCA.steps_of_steps_alike_complete_the_line`.

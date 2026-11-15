@@ -1,8 +1,12 @@
 from collections.abc import Hashable, Sequence
+from fractions import Fraction
 from random import Random
 
 from nca.learning.inquiry import Inquiry
 from nca.learning.relations import (
+    STEPS,
+    Way,
+    continued,
     agreeing,
     analogies,
     bag,
@@ -265,3 +269,20 @@ def test_the_last_line_is_completed_by_what_the_whole_lines_agree_on_with_nothin
     fours = [tuple((row, column) for column in range(4)) for row in range(3)]
     rising = {(row, column): 2 * row + column for row in range(3) for column in range(4)}
     assert max(range(12), key=lambda last: kept({**rising, (2, 3): last}, fours)) == 7
+
+
+def test_a_line_is_continued_by_the_steps_of_its_steps_with_nothing_taught() -> None:
+    assert continued([3, 7, 11, 15]) == 19
+    assert continued([2, 3, 6, 11]) == 18
+    assert continued([1, 0, 5, 22]) == 57
+    assert continued([4, 4, 4]) == 4 and continued([9]) == 9 and continued([]) is None
+    assert continued([5, 8]) == 11
+
+    def ratio(first: Fraction, second: Fraction) -> Fraction | None:
+        return second / first if first else None
+
+    times: Way = (ratio, lambda first, by: first * by)
+    doubling = [Fraction(term) for term in (5, 8, 14, 26)]
+    assert continued(doubling, (STEPS, times)) == 50 and continued(doubling) == 47
+    assert continued([Fraction(term) for term in (3, 6, 12, 24)], (STEPS, times)) == 48
+    assert continued([Fraction(term) for term in (0, 2, 6, 12)], (STEPS, times)) == 20

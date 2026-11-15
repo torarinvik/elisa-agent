@@ -16,11 +16,13 @@ takes from the first two, and ``turns`` whether two pairs of sets of places on a
 ``kept`` counts what the lines of a situation that are whole agree on and its last line keeps: a way of choosing
 how a situation is completed from the situation alone, with nothing taught (§60).
 
+``continued`` gives what follows one line of values from the line alone, by the steps of its steps (§60.7).
+
 ``found`` composes relations from values and steps and takes those the judgements pay for, in place of relations
 written beforehand, and ``moved`` offers a relation at every place that stands alike (§59).
 """
 
-from collections.abc import Collection, Hashable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Hashable, Iterable, Mapping, Sequence
 from itertools import combinations, pairwise, permutations
 from math import log2
 from typing import Any
@@ -192,6 +194,47 @@ def kept(observation: Mapping[Hashable, Any], lines: Sequence[Sequence[Hashable]
                     fixes = int(probes[-1][1][0] == "count")
             counts[-1 if held is False else fixes] += 1
     return tuple(counts)
+
+
+Way = tuple[Callable[[Any, Any], Any], Callable[[Any, Any], Any]]
+"""A way of stepping: what leads from one value to the next, and the value a step leads to from one. Either may
+return nothing where there is no such step."""
+STEPS: Way = (lambda first, second: second - first, lambda first, by: first + by)
+"""Stepping by what is added."""
+
+
+def continued(line: Sequence[Any], ways: Sequence[Way] = (STEPS,)) -> Any:
+    """What follows a line of values, from the line alone (§60.7); nothing where the line is empty.
+
+    The steps between neighbours are a line one shorter, and the steps between those another, each taken in
+    one of ``ways``. The shallowest such line whose steps are all the same, two or more of them, is continued
+    by that step, and each line above by the step so found; among lines as shallow, the one of the earlier
+    ways. Where no line has steps that agree, the first way is followed down to a single step.
+    """
+    def unwound(lasts: Sequence[tuple[Way, Any]], by: Any) -> Any:
+        for (_, lead), last in reversed(lasts):
+            by = lead(last, by)
+        return by
+
+    if not line:
+        return None
+    towers: list[tuple[list[Any], list[tuple[Way, Any]]]] = [(list(line), [])]
+    bottom = None
+    while towers:
+        below = []
+        for held, lasts in towers:
+            for way in ways:
+                steps = [way[0](first, second) for first, second in pairwise(held)]
+                if not steps or any(step is None for step in steps):
+                    continue
+                under = [*lasts, (way, held[-1])]
+                if len(steps) > 1 and all(step == steps[0] for step in steps):
+                    return unwound(under, steps[0])
+                if len(steps) == 1 and bottom is None:
+                    bottom = unwound(under, steps[0])
+                below.append((steps, under))
+        towers = below
+    return line[0] if bottom is None else bottom
 
 
 def melds(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, ...]:

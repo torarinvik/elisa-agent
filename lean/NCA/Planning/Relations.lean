@@ -359,4 +359,19 @@ theorem across_the_rule_lines_need_not_agree :
       ((4 : ℤ) - 1 - 2 ≠ 1 - 2 - 3) ∧ ((1 : ℤ) - 4 - 2 ≠ 2 - 1 - 3) := by
   norm_num
 
+/-- **Proposition 60.7 (a line is completed by completing its steps).** If each term is the one before with a step
+added, and what is said to follow the steps is the step that does, the last term with that added is the next. -/
+theorem line_completed_by_completing_its_steps (line steps : ℕ → ℤ)
+    (stepped : ∀ place, line (place + 1) = line place + steps place) (place : ℕ) (said : ℤ)
+    (right : said = steps place) : line place + said = line (place + 1) := by
+  rw [right, stepped]
+
+/-- **Proposition 60.7, two deep.** Where the steps of the steps of a line are all the same, the line is completed
+by its last term, its last step and that. -/
+theorem steps_of_steps_alike_complete_the_line (line : ℕ → ℤ) (alike : ℤ)
+    (bent : ∀ place, line (place + 2) - line (place + 1) - (line (place + 1) - line place) = alike)
+    (place : ℕ) : line (place + 2) = line (place + 1) + (line (place + 1) - line place + alike) := by
+  have := bent place
+  omega
+
 end NCA
