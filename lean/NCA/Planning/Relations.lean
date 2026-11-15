@@ -391,4 +391,18 @@ theorem rates_alike_at_a_stride_complete_the_line (line rates : ℕ → ℤ) (st
     line (place + stride + 1) = line (place + stride) + ((place + stride : ℕ) + 1 : ℤ) * rates place := by
   rw [stepped, alike]
 
+/-- **Proposition 60.9 (lines read backwards agree where they agreed).** Two lines of three with the same steps
+have the same steps read backwards, and a last that is the first plus the one between is, read backwards, a
+last that is the first less the one between. -/
+theorem lines_read_backwards_agree_where_they_agreed (a b c x y z : ℤ) :
+    (b - a = y - x → c - b = z - y → (b - c = y - z ∧ a - b = x - y)) ∧
+      (c = a + b → z = x + y → (a = c - b ∧ x = z - y)) := by
+  constructor <;> intros <;> constructor <;> omega
+
+/-- **60.9, counted.** Nine slots in threes with the asked slot last have 20,160 cuts, and 10,080 choices of
+the two whole lines. -/
+theorem cuts_of_nine_slots_in_threes :
+    Nat.factorial 8 / Nat.factorial 2 = 20160 ∧ Nat.factorial 8 / (Nat.factorial 2 * Nat.factorial 2) = 10080 := by
+  decide
+
 end NCA

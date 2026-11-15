@@ -19,12 +19,14 @@ how a situation is completed from the situation alone, with nothing taught (§60
 ``continued`` gives what follows one line of values from the line alone, by the steps of its steps (§60.7),
 which may be alike at a stride (§60.8).
 
+``cuts`` gives every way a bare set of slots may be cut into lines, for a caller to score (§60.9).
+
 ``found`` composes relations from values and steps and takes those the judgements pay for, in place of relations
 written beforehand, and ``moved`` offers a relation at every place that stands alike (§59).
 """
 
-from collections.abc import Callable, Collection, Hashable, Iterable, Mapping, Sequence
-from itertools import combinations, pairwise, permutations
+from collections.abc import Callable, Collection, Hashable, Iterable, Iterator, Mapping, Sequence
+from itertools import combinations, pairwise, permutations, product
 from math import log2
 from typing import Any
 
@@ -247,6 +249,28 @@ def continued(line: Sequence[Any], ways: Sequence[Way] = (STEPS,), strides: int 
     if found is not None:
         return found[2]
     return line[0] if bottom is None else bottom
+
+
+def cuts(slots: Sequence[Hashable], last: Hashable, long: int) -> Iterator[tuple[tuple[tuple[Hashable, ...], ...],
+                                                                               tuple[Hashable, ...]]]:
+    """Every way to cut ``slots`` into lines of ``long`` slots in order with ``last`` the last of its line (§60.9).
+
+    Each is given as its whole lines, those without ``last``, and the slots left to stand before ``last`` in
+    some order. Lines exchanged whole are one cut and given once.
+    """
+    def parted(held: Sequence[Hashable]) -> Iterator[tuple[tuple[Hashable, ...], ...]]:
+        if not held:
+            yield ()
+            return
+        for others in combinations(held[1:], long - 1):
+            for tail in parted([slot for slot in held[1:] if slot not in others]):
+                yield ((held[0], *others), *tail)
+
+    rest = [slot for slot in slots if slot != last]
+    for spare in combinations(rest, long - 1):
+        for lines in parted([slot for slot in rest if slot not in spare]):
+            for ordered in product(*(permutations(line) for line in lines)):
+                yield ordered, spare
 
 
 def melds(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, ...]:

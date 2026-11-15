@@ -1,5 +1,6 @@
 from collections.abc import Hashable, Sequence
 from fractions import Fraction
+from itertools import permutations
 from random import Random
 
 from nca.learning.inquiry import Inquiry
@@ -7,6 +8,7 @@ from nca.learning.relations import (
     STEPS,
     Way,
     continued,
+    cuts,
     agreeing,
     analogies,
     bag,
@@ -298,3 +300,13 @@ def test_a_line_alike_at_a_stride_is_continued_from_a_stride_back_and_steps_may_
     assert continued([3, 5, 17, 23], (STEPS, placed), strides=2) == 47
     assert continued([3, 5, 17, 23], (STEPS, placed)) == 7
     assert continued([0, 2, 6, 12], (STEPS, placed), strides=2) == 20
+
+
+def test_a_bare_set_of_slots_is_cut_into_lines_every_way_once() -> None:
+    slots = list(range(9))
+    found = list(cuts(slots, 8, 3))
+    assert len(found) == 10080 and len({(frozenset(lines), spare) for lines, spare in found}) == 10080
+    assert (((0, 1, 2), (3, 4, 5)), (6, 7)) in found and (((2, 1, 0), (5, 4, 3)), (6, 7)) in found
+    assert all(8 not in line and len(line) == 3 for lines, _ in found for line in lines)
+    assert all(sorted([*spare, *(slot for line in lines for slot in line)]) == slots[:8] for lines, spare in found)
+    assert sorted(cuts(slots[:4], 3, 2)) == sorted((((one, other),), (spare,)) for one, other, spare in permutations(range(3)))

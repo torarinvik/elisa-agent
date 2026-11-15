@@ -155,10 +155,36 @@ alike at stride `k`, the term after place `p + k` is that term with the rate at 
 A stride is not handed over, nor that places matter: both are read off the line, as depth is in 60.7. The
 price is that a short line can be alike at a stride by chance where its rule lies deeper than it shows.
 
+## 60.9 Which slots are a line
+
+So far a situation came cut into lines, and 60.6 chose between two cuts handed over. Nothing in 60.1 needs
+that: the slots may be handed over as a bare set with one of them asked for, and the cut found. A **cut** of
+`n k` slots is `n` lines of `k` slots in order, the asked slot last in its line. Lines exchanged whole give
+the same cut, so there are `(n k − 1)! / (n − 1)!` cuts, and `(n k − 1)! / ((n − 1)! (k − 1)!)` choices of
+the whole lines alone: 20,160 and 10,080 for nine slots in threes.
+
+Over situations of one kind with no answer, the whole lines of a cut are scored as in 60.6, by how many
+attributes they agree on in some reading that fixes a line's last slot. That score cannot see the asked line:
+the slots left over stand before the asked slot in an order nothing shown says. And it cannot tell a cut
+from the same cut with every whole line read backwards:
+
+**Proposition 60.9 (lines read backwards agree where they agreed).** If the steps of two lines of three are
+the same, so are the steps of the two read backwards; and if the last of each is the first plus the one
+between, then read backwards the last of each is the first less the one between.
+
+What decides both is the completions offered, still with none marked right: one of them is the rule's, so
+under the rule's cut some completion keeps, in every attribute, what the whole lines agree on, and under
+another cut often none does. A cut is scored by how many attributes its best completion keeps so, summed over
+the situations, among the cuts whose whole lines scored highest.
+
+Nothing of where a slot stands is used: a slot is a name. What is given is that the lines are alike in
+length, and how long.
+
 In Lean 60.1 is `NCA.right_candidate_keeps_what_the_rule_keeps`, 60.2
 `NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open`, 60.4
 `NCA.what_turns_on_the_last_is_kept_by_the_right_alone`, 60.5
 `NCA.later_chooser_decides_only_where_earlier_is_level`, 60.6 `NCA.across_the_rule_lines_need_not_agree` and
 60.7 `NCA.line_completed_by_completing_its_steps` with `NCA.steps_of_steps_alike_complete_the_line`, and
 60.8 `NCA.line_alike_at_a_stride_is_completed_from_a_stride_back` with
-`NCA.rates_alike_at_a_stride_complete_the_line`.
+`NCA.rates_alike_at_a_stride_complete_the_line`, and 60.9 `NCA.lines_read_backwards_agree_where_they_agreed`
+with `NCA.cuts_of_nine_slots_in_threes`.
