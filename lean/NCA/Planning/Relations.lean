@@ -405,4 +405,39 @@ theorem cuts_of_nine_slots_in_threes :
     Nat.factorial 8 / Nat.factorial 2 = 20160 ∧ Nat.factorial 8 / (Nat.factorial 2 * Nat.factorial 2) = 10080 := by
   decide
 
+/-- Theorem 63.1: two placings of ports that run in rows, each a step along a row, a step from
+row to row and a start, agree on every port once they agree on three ports not in a line. -/
+theorem three_ports_place_the_rest {K : Type} [Field K] (a b c a' b' c' : K) (i₁ j₁ i₂ j₂ i₃ j₃ : K)
+    (apart : (i₂ - i₁) * (j₃ - j₁) - (i₃ - i₁) * (j₂ - j₁) ≠ 0)
+    (h₁ : a * i₁ + b * j₁ + c = a' * i₁ + b' * j₁ + c')
+    (h₂ : a * i₂ + b * j₂ + c = a' * i₂ + b' * j₂ + c')
+    (h₃ : a * i₃ + b * j₃ + c = a' * i₃ + b' * j₃ + c') :
+    ∀ i j : K, a * i + b * j + c = a' * i + b' * j + c' := by
+  have ha : (a - a') * ((i₂ - i₁) * (j₃ - j₁) - (i₃ - i₁) * (j₂ - j₁)) = 0 := by
+    linear_combination (j₃ - j₁) * (h₂ - h₁) - (j₂ - j₁) * (h₃ - h₁)
+  have hb : (b - b') * ((i₂ - i₁) * (j₃ - j₁) - (i₃ - i₁) * (j₂ - j₁)) = 0 := by
+    linear_combination (i₂ - i₁) * (h₃ - h₁) - (i₃ - i₁) * (h₂ - h₁)
+  have ea : a = a' := sub_eq_zero.mp ((mul_eq_zero.mp ha).resolve_right apart)
+  have eb : b = b' := sub_eq_zero.mp ((mul_eq_zero.mp hb).resolve_right apart)
+  have ec : c = c' := by subst ea eb; linear_combination h₁
+  intro i j
+  rw [ea, eb, ec]
+
+/-- Theorem 63.2: where what is paid at a place is read off what lies round it, two presses read
+alike are paid alike, on whatever board and at whatever port. -/
+theorem paid_alike_where_read_alike {Frame Port Reading Pay : Type} (read : Frame → Port → Reading)
+    (paid : Frame → Port → Pay) (rule : Reading → Pay) (local_ : ∀ f p, paid f p = rule (read f p))
+    (f g : Frame) (p q : Port) (alike : read f p = read g q) : paid f p = paid g q := by
+  rw [local_, local_, alike]
+
+/-- Theorem 63.3: a rule kept port by port is settled only at the ports that have been paid, so
+two such rules can agree on every paid port and differ at one never paid. -/
+theorem a_rule_by_port_is_open_where_unpaid {Port : Type} [DecidableEq Port] (seen : Port → Prop)
+    (p : Port) (unseen : ¬ seen p) :
+    ∃ r s : Port → Bool, (∀ q, seen q → r q = s q) ∧ r p ≠ s p := by
+  refine ⟨fun _ => false, fun q => decide (q = p), ?_, by simp⟩
+  intro q hq
+  have : q ≠ p := fun e => unseen (e ▸ hq)
+  simp [this]
+
 end NCA

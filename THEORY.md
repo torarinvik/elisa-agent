@@ -89,3 +89,4 @@ link for its definitions, arguments, and results.
 - [60. A situation completed from itself](theory/foundations/60-completed-from-itself.md)
 - [61. How many experts, and how large](theory/foundations/61-how-many-and-how-large.md)
 - [62. Answers composed along a chain](theory/foundations/62-answers-composed-along-a-chain.md)
+- [63. Places of ports and a rule read round a place](theory/foundations/63-places-of-ports-and-a-rule-read-round-a-place.md)
