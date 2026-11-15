@@ -185,11 +185,12 @@ def kept(observation: Mapping[Hashable, Any], lines: Sequence[Sequence[Hashable]
             held, *rest = (read(observation, probe) for probe in probes)
             if held is None or any(other != held for other in rest):
                 continue
+            fixes = place
             if probes[-1][0] == "bag":
                 before = read(observation, bag(*probes[-1][1:-1]))
                 if before is not None and before < held and len(held) - len(before) == 1:
-                    place = int(probes[-1][1][0] == "count")
-            counts[-1 if held is False else place] += 1
+                    fixes = int(probes[-1][1][0] == "count")
+            counts[-1 if held is False else fixes] += 1
     return tuple(counts)
 
 

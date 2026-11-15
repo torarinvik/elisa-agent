@@ -249,6 +249,10 @@ def test_the_last_line_is_completed_by_what_the_whole_lines_agree_on_with_nothin
     offered = [frozenset({2, 3}), frozenset({2}), frozenset({0, 1, 3}), frozenset({1, 2, 3})]
     scores = [kept({**filled, (2, 2): last}, lines, sets=True, ring=4) for last in offered]
     assert scores.index(max(scores)) == 0 and scores[0][0] > scores[3][0] and scores[0][1] < scores[3][1]
+    dealt = {(0, 0): frozenset({0}), (0, 1): frozenset({1}), (0, 2): frozenset({2}),
+             (1, 0): frozenset({1}), (1, 1): frozenset({2}), (1, 2): frozenset({0}),
+             (2, 0): frozenset({2}), (2, 1): frozenset({0}), (2, 2): frozenset({1})}
+    assert kept(dealt, lines, sets=True, ring=0) == (1, 4, 13)
     assert read({"a": frozenset({4, 5})}, count(value("a"))) == 2
     assert read({"a": 1, "b": 2, "c": 1}, bag(value("a"), value("b"), value("c"))) == frozenset({1, 2})
     assert [len(group) for group in told(lines[0])] == [4, 0, 5]
