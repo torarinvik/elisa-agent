@@ -1,5 +1,6 @@
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Chebyshev
+import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -7,7 +8,8 @@ import Mathlib.Tactic.Positivity
 
 /-! Search ordered by a prior over hypotheses or strategies: how many hypotheses can
 precede one of given weight, which prior minimizes expected cost over a population of
-goals, how mismatch degrades it, and why learned subroutines make cost additive. -/
+goals, how mismatch degrades it, why learned subroutines make cost additive, and how many
+experts of what size cost least to hold and to find. -/
 
 namespace NCA
 
@@ -77,5 +79,39 @@ theorem curriculum_adds {c k : Nat} (hc : 2 ≤ c) (hk : 2 ≤ k) : k * c ≤ c 
     have grown : k + 1 ≤ c ^ k := by nlinarith
     rw [pow_succ]
     exact Nat.mul_le_mul_right c grown
+
+/-- One expert of `l` bits named by `m ≥ 2` users at `a` bits a use costs less than a copy
+held by each, once it holds more than twice its address. -/
+theorem shared_expert_pays {l a m : Nat} (hm : 2 ≤ m) (large : 2 * a < l) :
+    l + m * a < m * l := by
+  obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hm
+  have grown : (j + 1) * (2 * a + 1) ≤ (j + 1) * l := Nat.mul_le_mul_left _ large
+  nlinarith [grown, Nat.zero_le (j * a)]
+
+/-- An expert with one user saves nothing over that user holding it. -/
+theorem expert_used_once_saves_nothing (l a : Nat) : 1 * l ≤ l + 1 * a := by omega
+
+/-- Experts of `l` bits on a route of `k` among `2 ^ a`, holding `c` bits between them: the
+larger of the search for an expert and the search for the route has exponent at least the
+root of `a * c`. -/
+theorem larger_search_bounded_below {l k a c : Nat} (holds : c ≤ l * k) :
+    a * c ≤ (max l (a * k)) ^ 2 := by
+  have one : a * c ≤ l * (a * k) :=
+    calc a * c ≤ a * (l * k) := Nat.mul_le_mul_left a holds
+      _ = l * (a * k) := by ring
+  rw [sq]
+  exact one.trans (Nat.mul_le_mul (le_max_left _ _) (le_max_right _ _))
+
+/-- The bound is met where an expert holds as many bits as its route's addresses. -/
+theorem balanced_search_attains {l k a : Nat} (even : l = a * k) :
+    (max l (a * k)) ^ 2 = a * (l * k) := by
+  subst even
+  rw [max_self]
+  ring
+
+/-- Tasks told apart by their routes of `k` experts among `n` number at most `n ^ k`. -/
+theorem tasks_told_apart_by_routes {t n k : Nat} (route : Fin t → Fin k → Fin n)
+    (apart : Function.Injective route) : t ≤ n ^ k := by
+  simpa using Fintype.card_le_of_injective route apart
 
 end NCA
