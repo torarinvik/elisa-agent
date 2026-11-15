@@ -4,6 +4,9 @@ A situation is split into parts, each of a sort, and a whole is good when
 every part is. One learner serves all the parts of a sort, each read at its
 own slots, so what is taught of one part holds of the others. The split and
 the sorts are the caller's.
+
+``InTurn`` hears several choosers in turn, a later one only where the earlier
+leave candidates level (§60.5).
 """
 
 from collections.abc import Callable, Hashable, Mapping, Sequence
@@ -88,3 +91,23 @@ class Whole:
                 good, bad = self.learners[sort].votes(seen, action)
                 if not bad > good:
                     self.learners[sort].judge(seen, action, False)
+
+
+class Chooser(Protocol):
+    def against(self, situation: Any, action: Hashable) -> tuple[float, ...]: ...
+
+
+class InTurn:
+    """Choosers heard in turn: what a later one holds against a candidate counts only among the candidates the
+    earlier ones hold level (§60.5)."""
+
+    def __init__(self, *choosers: Chooser) -> None:
+        self.choosers = choosers
+
+    def against(self, situation: Any, action: Hashable) -> tuple[float, ...]:
+        """What each chooser holds against the candidate, the earlier chooser's first."""
+        return tuple(held for chooser in self.choosers for held in chooser.against(situation, action))
+
+    def choose(self, pairs: Sequence[tuple[Any, Hashable]], guesses: Random) -> int:
+        scores = [self.against(situation, action) for situation, action in pairs]
+        return guesses.choice([index for index, score in enumerate(scores) if score == min(scores)])

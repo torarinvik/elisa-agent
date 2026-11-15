@@ -77,6 +77,22 @@ with no answer shown (55.17, 55.18). It does not learn: what it cannot read off 
 off a thousand. The taught learner of §54 and §57 does, and is not bound to lines. The two meet in 60.3: what
 a situation leaves open, experience of its kind closes.
 
+## 60.5 What a situation leaves open, experience closes
+
+Two choosers are heard in turn. The first is that of 60.2 and 60.3, which needs nothing taught. Among the
+candidates it holds level, and only among them, the second decides: a learner taught on situations of the
+kind (§57). The second never overrules the first.
+
+**Proposition 60.5 (the later chooser decides only where the earlier is level).** Let the first chooser hold
+no candidate ahead of the right one, and let the second hold the right one ahead of every other candidate the
+first holds level with it. Then the two in turn choose the right candidate. In particular they are right
+wherever the first alone is, whatever the second was taught, and wrong only where the first holds a wrong
+candidate ahead, or holds one level and the second prefers it.
+
+So the learner is asked only what 60.3 says no situation can tell: which of the completions its rows leave
+level the makers of the kind keep. It need not learn the rules the rows already show.
+
 In Lean 60.1 is `NCA.right_candidate_keeps_what_the_rule_keeps`, 60.2
-`NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open` and 60.4
-`NCA.what_turns_on_the_last_is_kept_by_the_right_alone`.
+`NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open`, 60.4
+`NCA.what_turns_on_the_last_is_kept_by_the_right_alone` and 60.5
+`NCA.later_chooser_decides_only_where_earlier_is_level`.

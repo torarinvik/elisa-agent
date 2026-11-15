@@ -1,8 +1,9 @@
+from collections.abc import Hashable
 from random import Random
 
 from nca.learning.inquiry import Inquiry
 from nca.learning.relations import pool, read, value
-from nca.learning.wholes import Whole
+from nca.learning.wholes import InTurn, Whole
 
 SLOTS = ("shown", "offered")
 
@@ -68,3 +69,19 @@ def test_every_whole_offered_teaches_once_the_right_one_is_known_and_what_is_hel
     assert whole.choose([(seen, "take") for seen in more], Random(0)) == 0
     whole.study(more, 0, "take")
     assert learner.judgements == kept
+
+
+def test_a_later_chooser_decides_only_among_the_candidates_the_earlier_one_holds_level() -> None:
+    class Held:
+        def __init__(self, against: dict[str, tuple[float, ...]]) -> None:
+            self.held = against
+
+        def against(self, situation: str, action: Hashable) -> tuple[float, ...]:
+            return self.held[situation]
+
+    first = Held({"a": (0, 1), "b": (0, 1), "c": (1, 0)})
+    second = Held({"a": (2.5,), "b": (0.5,), "c": (0.0,)})
+    both = InTurn(first, second)
+    assert both.against("b", "take") == (0, 1, 0.5)
+    assert all(both.choose([(name, "take") for name in "abc"], Random(seed)) == 1 for seed in range(5))
+    assert all(InTurn(second, first).choose([(name, "take") for name in "abc"], Random(seed)) == 2 for seed in range(5))

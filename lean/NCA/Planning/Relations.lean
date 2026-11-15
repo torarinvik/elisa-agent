@@ -338,4 +338,16 @@ theorem what_turns_on_the_last_is_kept_by_the_right_alone {Value Reading : Type}
     intro same
     exact differs (turns pair held (same.trans (keeps pair held).symm))
 
+/-- **Proposition 60.5 (the later chooser decides only where the earlier is level).** If the first chooser holds no
+candidate ahead of the right one, and the second holds the right one ahead of every other candidate the first holds
+level with it, the two in turn hold the right one ahead of every other. -/
+theorem later_chooser_decides_only_where_earlier_is_level {Candidate : Type} (first second : Candidate → ℤ)
+    (right : Candidate) (none_ahead : ∀ other, first right ≤ first other)
+    (decided : ∀ other, other ≠ right → first other = first right → second right < second other)
+    (other : Candidate) (differs : other ≠ right) :
+    first right < first other ∨ (first right = first other ∧ second right < second other) := by
+  rcases lt_or_eq_of_le (none_ahead other) with ahead | level
+  · exact Or.inl ahead
+  · exact Or.inr ⟨level, decided other differs level.symm⟩
+
 end NCA
