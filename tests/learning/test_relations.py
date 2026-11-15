@@ -243,6 +243,9 @@ def test_the_last_line_is_completed_by_what_the_whole_lines_agree_on_with_nothin
     scores = {last: kept({**summed, (2, 2): last}, lines) for last in range(10)}
     assert max(scores, key=scores.__getitem__) == 0 and (scores[0], scores[7]) == ((1, 0, 0), (0, 0, 2))
     assert max(scores, key=lambda last: sum(scores[last])) != 0
+    down = [((0, column), (1, column), (2, column)) for column in range(3)]
+    assert kept({**summed, (2, 0): 4, (2, 1): 1}, lines[:2])[0] == 1
+    assert kept({**summed, (2, 0): 4, (2, 1): 1}, down[:2])[0] == 0
     filled = {(0, 0): frozenset({0}), (0, 1): frozenset({2}), (0, 2): frozenset({0, 2}),
               (1, 0): frozenset({1, 3}), (1, 1): frozenset({0}), (1, 2): frozenset({0, 1, 3}),
               (2, 0): frozenset({2}), (2, 1): frozenset({2, 3})}

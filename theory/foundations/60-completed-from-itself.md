@@ -8,7 +8,8 @@ rule in every row but the last. This chapter reads the rule off the situation in
 
 A situation holds **lines** of slots that stand alike, each line the same number of slots. All lines but the
 last are **whole**; the last lacks its last slot, and each candidate fills it. That the lines are these, and
-that what governs the situation runs along them, is given by whoever names the slots.
+that what governs the situation runs along them, is given by whoever names the slots. Which of two ways
+the lines run can be found (60.6).
 
 A **rule** is a set of lines, those that follow it. A situation follows a rule when all its lines do once the
 right candidate is in place. Nothing says which rule a situation follows, and the rules are not listed.
@@ -92,7 +93,26 @@ candidate ahead, or holds one level and the second prefers it.
 So the learner is asked only what 60.3 says no situation can tell: which of the completions its rows leave
 level the makers of the kind keep. It need not learn the rules the rows already show.
 
+## 60.6 Which way the lines run
+
+That the rule runs along the rows was given in 60.1. It can be found from situations of the kind with no
+answer. Read of each only the lines that are whole whichever way the lines run. Along the way the rule runs,
+those lines agree on every reading the rule keeps (60.1). Across it they need not.
+
+**Proposition 60.6 (across the rule the lines need not agree).** In the rows `(1, 2, 3)`, `(2, 3, 5)`,
+`(4, 1, ·)` the last of a row is the sum of the first two, and the two whole rows agree on it. The two whole
+columns `(1, 2, 4)` and `(2, 3, 1)` agree on none of the four readings of 60.3 that are one to one in the
+last slot.
+
+So for each attribute of each part it is counted, each way, whether the whole lines agree on some reading
+that fixes a line's last slot, and the way is taken along which more do. How many readings agree is not
+counted: a rule that keeps a row's slots alike makes the columns the same line, and lines that are the same
+agree on every reading, more than the rows themselves do. Nor does a rule across the lines always go unseen:
+rows that are alike, rows that step alike and rows that hold the same values each give columns that agree.
+What tells the ways apart is the rules that do not, of which a sum is one; a kind of situation with no such
+rule is completed alike either way.
+
 In Lean 60.1 is `NCA.right_candidate_keeps_what_the_rule_keeps`, 60.2
 `NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open`, 60.4
-`NCA.what_turns_on_the_last_is_kept_by_the_right_alone` and 60.5
-`NCA.later_chooser_decides_only_where_earlier_is_level`.
+`NCA.what_turns_on_the_last_is_kept_by_the_right_alone`, 60.5
+`NCA.later_chooser_decides_only_where_earlier_is_level` and 60.6 `NCA.across_the_rule_lines_need_not_agree`.

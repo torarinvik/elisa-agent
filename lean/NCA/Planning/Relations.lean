@@ -350,4 +350,13 @@ theorem later_chooser_decides_only_where_earlier_is_level {Candidate : Type} (fi
   · exact Or.inl ahead
   · exact Or.inr ⟨level, decided other differs level.symm⟩
 
+/-- **Proposition 60.6 (across the rule the lines need not agree).** In the rows `(1, 2, 3)`, `(2, 3, 5)` the last
+is the sum of the first two; the columns `(1, 2, 4)` and `(2, 3, 1)` they give with a third row `(4, 1, ·)` agree
+neither on the step to the last, nor on the step between the steps, nor on what the step between the ends holds
+beyond the one between, either way. -/
+theorem across_the_rule_lines_need_not_agree :
+    ((3 : ℤ) - 1 - 2 = 5 - 2 - 3) ∧ ((4 : ℤ) - 2 ≠ 1 - 3) ∧ ((4 : ℤ) - 2 - (2 - 1) ≠ 1 - 3 - (3 - 2)) ∧
+      ((4 : ℤ) - 1 - 2 ≠ 1 - 2 - 3) ∧ ((1 : ℤ) - 4 - 2 ≠ 2 - 1 - 3) := by
+  norm_num
+
 end NCA
