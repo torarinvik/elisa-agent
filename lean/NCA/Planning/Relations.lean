@@ -292,4 +292,50 @@ theorem moved_relation_reads_moved {S : Type*} (move : S → S) (held : S → �
       ((held ∘ move) q - (held ∘ move) p = (held ∘ move) s - (held ∘ move) r) :=
   Iff.rfl
 
+/-- **Proposition 60.1 (the right candidate keeps what the rule keeps).** A reading that is the same on every line
+following a rule is the same on the whole lines of a situation that follows it and on its last line with the right
+candidate in place. -/
+theorem right_candidate_keeps_what_the_rule_keeps {Line Reading : Type} (rule : Line → Prop) (reading : Line → Reading)
+    (kept : ∀ one other, rule one → rule other → reading one = reading other) (whole : List Line) (last : Line)
+    (follows : ∀ line ∈ last :: whole, rule line) :
+    (∀ one ∈ whole, ∀ other ∈ whole, reading one = reading other) ∧ ∀ line ∈ whole, reading last = reading line := by
+  refine ⟨fun one hone other hother => kept one other (follows one (List.mem_cons_of_mem _ hone))
+    (follows other (List.mem_cons_of_mem _ hother)), fun line hline => ?_⟩
+  exact kept last line (follows last List.mem_cons_self) (follows line (List.mem_cons_of_mem _ hline))
+
+/-- **Proposition 60.2 (a wrong candidate breaks what turns on the last slot).** If a reading is one to one in the
+last slot and the right candidate reads as the whole lines agree, a candidate that fills the slot otherwise does
+not. -/
+theorem wrong_candidate_breaks_what_turns_on_the_last {Value Reading : Type} (reading : Value → Reading)
+    (turns : Function.Injective reading) (agreed : Reading) (right wrong : Value) (keeps : reading right = agreed)
+    (differs : wrong ≠ right) : reading wrong ≠ agreed := by
+  intro same
+  exact differs (turns (same.trans keeps.symm))
+
+/-- **Proposition 60.3 (two lines can leave it open).** The lines `(5, 1, 3)` and `(4, 1, 2)` agree that the last is
+the first less the second less one and that it is the first plus the second less three; the line `(4, 2, ·)` is
+then completed by 1 and by 3. -/
+theorem two_lines_can_leave_it_open :
+    ((3 : ℤ) = 5 - 1 - 1 ∧ (2 : ℤ) = 4 - 1 - 1) ∧ ((3 : ℤ) = 5 + 1 - 3 ∧ (2 : ℤ) = 4 + 1 - 3) ∧
+      (4 : ℤ) - 2 - 1 = 1 ∧ (4 : ℤ) + 2 - 3 = 3 ∧ (1 : ℤ) ≠ 3 := by
+  norm_num
+
+/-- **Proposition 60.4 (what turns on the last slot is kept by the right candidate alone).** Of readings that are
+one to one in the last slot and that the right candidate keeps, the right candidate keeps every one and a candidate
+that fills the slot otherwise keeps none. -/
+theorem what_turns_on_the_last_is_kept_by_the_right_alone {Value Reading : Type} [DecidableEq Reading]
+    (told : List ((Value → Reading) × Reading)) (turns : ∀ pair ∈ told, Function.Injective pair.1)
+    (right wrong : Value) (keeps : ∀ pair ∈ told, pair.1 right = pair.2) (differs : wrong ≠ right) :
+    (told.filter fun pair => pair.1 right = pair.2).length = told.length ∧
+      (told.filter fun pair => pair.1 wrong = pair.2).length = 0 := by
+  constructor
+  · rw [List.filter_eq_self.mpr]
+    intro pair held
+    simpa using keeps pair held
+  · rw [List.length_eq_zero_iff, List.filter_eq_nil_iff]
+    intro pair held
+    simp only [decide_eq_true_eq]
+    intro same
+    exact differs (turns pair held (same.trans (keeps pair held).symm))
+
 end NCA

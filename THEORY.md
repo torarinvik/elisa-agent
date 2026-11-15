@@ -86,3 +86,4 @@ link for its definitions, arguments, and results.
 - [57. Wholes judged by their parts](theory/foundations/57-wholes.md)
 - [58. The same under a renaming](theory/foundations/58-the-same-under-a-renaming.md)
 - [59. Relations found, not given](theory/foundations/59-relations-found.md)
+- [60. A situation completed from itself](theory/foundations/60-completed-from-itself.md)

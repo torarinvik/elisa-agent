@@ -13,12 +13,15 @@ and a learner finds which probes matter.
 Values may be sets. ``melds`` reads whether the last set of a line holds just what a rule of two memberships
 takes from the first two, and ``turns`` whether two pairs of sets of places on a ring are turned alike (§55.19).
 
+``kept`` counts what the lines of a situation that are whole agree on and its last line keeps: a way of choosing
+how a situation is completed from the situation alone, with nothing taught (§60).
+
 ``found`` composes relations from values and steps and takes those the judgements pay for, in place of relations
 written beforehand, and ``moved`` offers a relation at every place that stands alike (§59).
 """
 
 from collections.abc import Collection, Hashable, Iterable, Mapping, Sequence
-from itertools import combinations, permutations
+from itertools import combinations, pairwise, permutations
 from math import log2
 from typing import Any
 
@@ -122,6 +125,74 @@ def share(first: Probe, second: Probe) -> Probe:
     return ("share", first, second)
 
 
+def count(held: Probe) -> Probe:
+    """How many a set read holds."""
+    return ("count", held)
+
+
+def bag(*held: Probe) -> Probe:
+    """What several readings hold between them, in whatever order."""
+    return ("bag", *held)
+
+
+def told(line: Sequence[Hashable], *, sets: bool = False, ring: int = 0) -> tuple[tuple[Probe, ...], ...]:
+    """What is read of one line of slots: readings a rule along the line could keep from line to line (§60).
+
+    Three groups, by how far a reading fixes the last slot (60.4): those that one value of it alone keeps, those
+    that fix how many it holds and not which, and those that do not turn on it. Of numbers, the first are the
+    step to the last, the step from the step before to that one and, in a line of three, what the step between
+    the ends holds beyond the one between, either way; the last are whether each two are the same, the earlier
+    steps and what the numbers hold between them. Of sets, the first are, in a line of three, whether the last
+    is made of the first two in each way, and whether the last two are turned as the two before them are on a
+    ring of ``ring`` places; the second are the first readings of how many each holds; the last are whether
+    each two are the same, what they hold between them, and the other readings of how many each holds.
+    """
+    held = [value(slot) for slot in line]
+
+    def numbers(read: Sequence[Probe]) -> tuple[tuple[Probe, ...], tuple[Probe, ...]]:
+        steps = [step(one, other) for one, other in pairwise(read)]
+        bends = [step(one, other) for one, other in pairwise(steps)]
+        beyond = ((step(read[1], step(read[0], read[2])), step(read[1], step(read[2], read[0])))
+                  if len(read) == 3 else ())
+        return ((steps[-1], *bends[-1:], *beyond),
+                (*(same(one, other) for one, other in combinations(read, 2)), *steps[:-1], *bends[:-1], bag(*read)))
+
+    if not sets:
+        fixing, loose = numbers(held)
+        return fixing, (), loose
+    turned = [turn(ring, one, other) for one, other in pairwise(held)] if ring else []
+    shared = [share(one, other) for one, other in pairwise(turned)]
+    many, loose = numbers([count(one) for one in held])
+    return ((*((same(meld(how, held[0], held[1]), held[2]) for how in MELDS) if len(held) == 3 else ()),
+             *shared[-1:]), many,
+            (*(same(one, other) for one, other in combinations(held, 2)), bag(*held), *shared[:-1], *loose))
+
+
+def kept(observation: Mapping[Hashable, Any], lines: Sequence[Sequence[Hashable]], *,
+         sets: bool = False, ring: int = 0) -> tuple[int, ...]:
+    """How many readings the lines before the last agree on and the last line keeps, group by group (§60).
+
+    The groups are those of ``told``: a completion that keeps more of an earlier group is ahead whatever it
+    keeps of the later ones (60.4). That the last is not made in some way, or not turned alike, does not turn on
+    it and is counted in the last group; what a line holds between its slots is counted as fixing the last one
+    where the last line's earlier slots hold all of it but one. A reading the earlier lines differ in, or that reads nothing of one
+    of them, says nothing of the last.
+    """
+    groups = list(zip(*(told(line, sets=sets, ring=ring) for line in lines), strict=True))
+    counts = [0] * len(groups)
+    for place, group in enumerate(groups):
+        for probes in zip(*group, strict=True):
+            held, *rest = (read(observation, probe) for probe in probes)
+            if held is None or any(other != held for other in rest):
+                continue
+            if probes[-1][0] == "bag":
+                before = read(observation, bag(*probes[-1][1:-1]))
+                if before is not None and before < held and len(held) - len(before) == 1:
+                    place = int(probes[-1][1][0] == "count")
+            counts[-1 if held is False else place] += 1
+    return tuple(counts)
+
+
 def melds(lines: Iterable[tuple[Hashable, Hashable, Hashable]]) -> tuple[Probe, ...]:
     """Whether the last set of a line of three slots is made of the first two, in each way of ``MELDS`` (§55.19)."""
     return tuple(same(meld(how, value(first), value(between)), value(last))
@@ -190,6 +261,11 @@ def read(observation: Mapping[Hashable, Any], probe: Probe) -> Hashable:
     """One probe's reading of an observation."""
     if probe[0] == "value":
         return observation.get(probe[1])
+    if probe[0] in ("count", "bag"):
+        held = [read(observation, part) for part in probe[1:]]
+        if any(one is None for one in held):
+            return None
+        return len(held[0]) if probe[0] == "count" else frozenset(held)
     first: Any = read(observation, probe[-2])
     second: Any = read(observation, probe[-1])
     if first is None or second is None:

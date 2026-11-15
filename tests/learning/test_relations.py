@@ -5,8 +5,11 @@ from nca.learning.inquiry import Inquiry
 from nca.learning.relations import (
     agreeing,
     analogies,
+    bag,
+    count,
     excesses,
     found,
+    kept,
     lifted,
     meld,
     melds,
@@ -18,6 +21,7 @@ from nca.learning.relations import (
     share,
     step,
     sums,
+    told,
     turn,
     turns,
     value,
@@ -224,3 +228,33 @@ def test_a_set_made_of_two_is_read_in_each_way_and_sets_of_places_turned_alike_s
     whole = frozenset(range(ring))
     assert read({"a": whole, "b": whole}, turn(ring, value("a"), value("b"))) == whole
     assert read({"a": first, "b": second}, turn(ring, value("a"), value("b"))) == frozenset()
+
+
+def test_the_last_line_is_completed_by_what_the_whole_lines_agree_on_with_nothing_taught() -> None:
+    lines = [((row, 0), (row, 1), (row, 2)) for row in range(3)]
+    shown = {(0, 0): 1, (0, 1): 3, (0, 2): 5, (1, 0): 4, (1, 1): 6, (1, 2): 8, (2, 0): 2, (2, 1): 4}
+    scores = {last: kept({**shown, (2, 2): last}, lines) for last in range(10)}
+    assert max(scores, key=scores.__getitem__) == 6 and sorted(scores.values())[-2] < scores[6]
+    dealt = {(0, 0): 7, (0, 1): 2, (0, 2): 5, (1, 0): 2, (1, 1): 5, (1, 2): 7, (2, 0): 5, (2, 1): 7}
+    scores = {last: kept({**dealt, (2, 2): last}, lines) for last in range(10)}
+    assert max(scores, key=scores.__getitem__) == 2 and scores[2][0] == 1 and scores[7][0] == 0
+    assert kept({**shown, (0, 1): None, (2, 2): 6}, lines) == (0, 0, 1)
+    summed = {(0, 0): 1, (0, 1): 2, (0, 2): 3, (1, 0): 2, (1, 1): 3, (1, 2): 5, (2, 0): 0, (2, 1): 0}
+    scores = {last: kept({**summed, (2, 2): last}, lines) for last in range(10)}
+    assert max(scores, key=scores.__getitem__) == 0 and (scores[0], scores[7]) == ((1, 0, 0), (0, 0, 2))
+    assert max(scores, key=lambda last: sum(scores[last])) != 0
+    filled = {(0, 0): frozenset({0}), (0, 1): frozenset({2}), (0, 2): frozenset({0, 2}),
+              (1, 0): frozenset({1, 3}), (1, 1): frozenset({0}), (1, 2): frozenset({0, 1, 3}),
+              (2, 0): frozenset({2}), (2, 1): frozenset({2, 3})}
+    offered = [frozenset({2, 3}), frozenset({2}), frozenset({0, 1, 3}), frozenset({1, 2, 3})]
+    scores = [kept({**filled, (2, 2): last}, lines, sets=True, ring=4) for last in offered]
+    assert scores.index(max(scores)) == 0 and scores[0][0] > scores[3][0] and scores[0][1] < scores[3][1]
+    assert read({"a": frozenset({4, 5})}, count(value("a"))) == 2
+    assert read({"a": 1, "b": 2, "c": 1}, bag(value("a"), value("b"), value("c"))) == frozenset({1, 2})
+    assert [len(group) for group in told(lines[0])] == [4, 0, 5]
+    assert [len(group) for group in told(lines[0], sets=True, ring=4)] == [6, 4, 9]
+    pairs = [((row, 0), (row, 1)) for row in range(2)]
+    assert [kept({(0, 0): 2, (0, 1): 5, (1, 0): 1, (1, 1): last}, pairs)[0] for last in (4, 1, 5)] == [1, 0, 0]
+    fours = [tuple((row, column) for column in range(4)) for row in range(3)]
+    rising = {(row, column): 2 * row + column for row in range(3) for column in range(4)}
+    assert max(range(12), key=lambda last: kept({**rising, (2, 3): last}, fours)) == 7

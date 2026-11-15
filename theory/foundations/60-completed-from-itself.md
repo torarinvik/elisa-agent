@@ -1,0 +1,82 @@
+# 60. A situation completed from itself
+
+Every learner of §52 to §59 is taught: it is shown which completion of a situation was right, many times, and
+finds what the right ones have in common. Some situations say how they are to be completed. A matrix shows its
+rule in every row but the last. This chapter reads the rule off the situation in hand, with nothing taught.
+
+## 60.1 Model
+
+A situation holds **lines** of slots that stand alike, each line the same number of slots. All lines but the
+last are **whole**; the last lacks its last slot, and each candidate fills it. That the lines are these, and
+that what governs the situation runs along them, is given by whoever names the slots.
+
+A **rule** is a set of lines, those that follow it. A situation follows a rule when all its lines do once the
+right candidate is in place. Nothing says which rule a situation follows, and the rules are not listed.
+
+A **reading** of a line is a function of its values (§55): whether two are the same, a step, the step between
+two steps, what a step holds beyond a value (55.15), what the line's values are between them whatever their
+order, and for sets how one is made of two or turned (55.19, 55.20). A rule **keeps** a reading when the
+reading is the same on every line that follows the rule.
+
+## 60.2 What the whole lines agree on
+
+Take the readings on which all the whole lines agree, and choose the candidate whose line keeps the most of
+them.
+
+**Proposition 60.1 (the right candidate keeps what the rule keeps).** If a situation follows a rule, every
+reading the rule keeps is agreed on by the whole lines and kept by the right candidate's line.
+
+**Proposition 60.2 (a wrong candidate breaks what turns on the last slot).** Let a reading be one to one in
+the last slot: for fixed earlier values, different last values read differently. If the right candidate keeps
+it, every candidate that fills the last slot otherwise breaks it. A step to the last slot, the step between the
+last two steps and the excess of 55.15 are such readings; whether two slots are the same is not.
+
+So where the rule keeps a reading that is one to one in the last slot, the right candidate is ahead of every
+other on that reading. It is not thereby ahead in all: the whole lines can agree, by the values they happen to
+hold, on a reading the rule does not keep, and a wrong candidate can keep that one.
+
+**Proposition 60.3 (two lines can leave it open).** The lines `(5, 1, 3)` and `(4, 1, 2)` agree that the last
+is the first less the second less one, and agree that it is the first plus the second less three. The line
+`(4, 2, ·)` is completed by 1 under the first and by 3 under the second. So no way of choosing from the
+situation alone is right on every situation: which of two readings the makers of a kind of situation keep is
+knowledge of that kind, and is what teaching gives.
+
+The fewer the whole lines, the more they agree on by chance: with one whole line every reading is agreed on.
+With two, a reading with `v` values equally likely is agreed on by chance once in `v`.
+
+## 60.3 What turns on the last slot is counted first
+
+Counting every agreed reading alike lets many that say little outvote one that says all. Whether two slots
+are the same is agreed on by most pairs of lines and kept by most candidates; the right candidate breaks it
+whenever the last line happens to repeat a value the lines above do not.
+
+The lines `(1, 2, 3)` and `(2, 3, 5)` agree that the last is the sum of the first two, that it is not the
+first and that it is not the second. The line `(0, 0, ·)` is completed by 0 under the sum. Counting alike, 0
+keeps one of the three and 7 keeps two.
+
+So the readings are grouped by how far they fix the last slot, and a candidate that keeps more of an earlier
+group is ahead whatever it keeps of the later ones: first the readings one to one in the last slot, then those
+one to one in something read of it, such as how many a set holds, then the others. A reading of yes or no
+that reads no is of the last group: that the last is not made of the first two in some way leaves it open.
+What a line holds between its slots is of the first group where the last line's earlier slots hold all of it
+but one, for then one value alone completes it, and of the last group otherwise.
+
+**Proposition 60.4 (what turns on the last slot is kept by the right candidate alone).** Let the whole lines
+agree on one or more readings that are one to one in the last slot, each kept by the rule. The right
+candidate keeps them all and every other candidate none. So counting them first chooses the right candidate
+whatever the lines agree on by chance among the other readings.
+
+What stays open is 60.3 within the first group: the whole lines can agree by chance on a reading that is one
+to one in the last slot, and a wrong candidate can keep that one.
+
+## 60.4 What this is and is not
+
+Choosing so needs no judgement of any earlier situation. It needs the lines, the readings, and whatever makes
+the values: the same reader of pictures as the taught learner, whose shapes and sizes are found from pictures
+with no answer shown (55.17, 55.18). It does not learn: what it cannot read off one situation it cannot read
+off a thousand. The taught learner of §54 and §57 does, and is not bound to lines. The two meet in 60.3: what
+a situation leaves open, experience of its kind closes.
+
+In Lean 60.1 is `NCA.right_candidate_keeps_what_the_rule_keeps`, 60.2
+`NCA.wrong_candidate_breaks_what_turns_on_the_last`, 60.3 `NCA.two_lines_can_leave_it_open` and 60.4
+`NCA.what_turns_on_the_last_is_kept_by_the_right_alone`.
