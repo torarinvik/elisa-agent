@@ -367,6 +367,17 @@ that parting is. Classes far apart part more clearly than the nearest two do, so
 with the shortest divide among those at least half as clear, in the logarithm, as the clearest. A thing that
 joins few is of the class it is tied to.
 
+Finding the two together so does not hold up where one class lies far from all the others: the gap below its
+link is then the widest and the clearest for most numbers, and the parting stops at that class against the
+rest, or does not, by which things happened to be seen. The objection to the product falls away once strays
+are removed by other means: a thing seen seldom is no evidence of a class, and a class of few things is none.
+What is left are links within classes, short or joining few, and links between classes, long and joining
+many; in the product the first lie far below the second, and a class far from the rest adds one link above
+links that part alike, which is seldom the widest gap. So the classes are parted where the weights of the
+links no lighter than the median have their widest gap, by ratio, with the strays left out beforehand by how
+often each thing was seen. A figure farther from every class than the class farthest from the others lies
+from its nearest is of no class.
+
 ## 55.18 A size among its own kind
 
 A size is read as how far a figure reaches (55.9). Figures of two shapes drawn at one size need not reach
