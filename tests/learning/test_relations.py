@@ -11,6 +11,7 @@ from nca.learning.relations import (
     cuts,
     agreeing,
     analogies,
+    between,
     bag,
     count,
     excesses,
@@ -310,3 +311,12 @@ def test_a_bare_set_of_slots_is_cut_into_lines_every_way_once() -> None:
     assert all(8 not in line and len(line) == 3 for lines, _ in found for line in lines)
     assert all(sorted([*spare, *(slot for line in lines for slot in line)]) == slots[:8] for lines, spare in found)
     assert sorted(cuts(slots[:4], 3, 2)) == sorted((((one, other),), (spare,)) for one, other, spare in permutations(range(3)))
+
+
+def test_the_word_between_two_names_passes_each_statement_the_way_it_is_met() -> None:
+    statements = [("above", "a", "b"), ("beside", "c", "b"), ("above", "c", "d"), ("above", "e", "f")]
+    assert between(statements, "a", "d") == (("above", False), ("beside", True), ("above", False))
+    assert between(statements, "d", "a") == (("above", True), ("beside", False), ("above", True))
+    assert between(statements, "a", "a") == ()
+    assert between(statements, "a", "f") is None
+    assert between([("far", "a", "c"), *statements, ("near", "a", "d")], "a", "d") == (("near", False),)

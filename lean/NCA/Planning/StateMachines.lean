@@ -172,4 +172,49 @@ theorem machines_agreeing_to_depth_agree {A Q₁ Q₂ O : Type} [Fintype Q₁] [
   rw [left, right] at joined
   exact joined
 
+/-- Theorem 62.1: two tables of moves that agree wherever a sequence takes the first leave that
+sequence in the same state. -/
+theorem moves_agreeing_where_visited_agree {A Q : Type} (step₁ step₂ : Q → A → Q) :
+    ∀ (w : List A) (start : Q),
+      (∀ (u : List A) (a : A) (v : List A), w = u ++ a :: v →
+        step₁ (u.foldl step₁ start) a = step₂ (u.foldl step₁ start) a) →
+      w.foldl step₁ start = w.foldl step₂ start := by
+  intro w
+  induction w with
+  | nil => intro _ _; rfl
+  | cons a w ih =>
+    intro start same
+    have first := same [] a w rfl
+    simp only [List.foldl_nil] at first
+    rw [List.foldl_cons, List.foldl_cons, ← first]
+    exact ih (step₁ start a) (fun u b v eq => by
+      have := same (a :: u) b v (by rw [eq]; rfl)
+      simpa using this)
+
+/-- Theorem 62.2: where sequences with one answer keep one answer when each is lengthened alike,
+the answers themselves are states: a table of moves between answers gives every answer. -/
+theorem answers_serve_as_states {A O : Type} (answer : List A → O)
+    (carried : ∀ (u v : List A) (a : A), answer u = answer v → answer (u ++ [a]) = answer (v ++ [a])) :
+    ∃ move : O → A → O, ∀ w : List A, answer w = w.foldl move (answer []) := by
+  classical
+  refine ⟨fun o a => if h : ∃ u, answer u = o then answer (h.choose ++ [a]) else o, ?_⟩
+  intro w
+  induction w using List.reverseRecOn with
+  | nil => rfl
+  | append_singleton w a ih =>
+    rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← ih]
+    have h : ∃ u, answer u = answer w := ⟨w, rfl⟩
+    simp only [dif_pos h]
+    exact carried w h.choose a h.choose_spec.symm
+
+/-- Theorem 62.3: which side of nought a sum lies on is not carried: one step back leaves one
+sum at nought and another above it. -/
+theorem side_of_a_sum_is_not_carried :
+    ¬ ∀ (u v : List ℤ) (a : ℤ), Int.sign u.sum = Int.sign v.sum →
+      Int.sign (u ++ [a]).sum = Int.sign (v ++ [a]).sum := by
+  intro h
+  have := h [1] [2] (-1) (by decide)
+  revert this
+  decide
+
 end NCA

@@ -251,6 +251,28 @@ def continued(line: Sequence[Any], ways: Sequence[Way] = (STEPS,), strides: int 
     return line[0] if bottom is None else bottom
 
 
+def between(statements: Iterable[tuple[Hashable, Hashable, Hashable]], first: Hashable,
+            last: Hashable) -> tuple[tuple[Hashable, bool], ...] | None:
+    """The word of the fewest statements that join one name to another, or nothing where none do (§62.1).
+
+    A statement is a label and two names. Each symbol of the word is a statement's label with whether it is
+    passed back, from its second name to its first. Of paths of one length the one through statements
+    given earlier is taken.
+    """
+    joins: dict[Hashable, list[tuple[Hashable, tuple[Hashable, bool]]]] = {}
+    for label, one, two in statements:
+        joins.setdefault(one, []).append((two, (label, False)))
+        joins.setdefault(two, []).append((one, (label, True)))
+    reached: dict[Hashable, tuple[tuple[Hashable, bool], ...]] = {first: ()}
+    waiting = [first]
+    for here in waiting:
+        for there, symbol in joins.get(here, ()):
+            if there not in reached:
+                reached[there] = (*reached[here], symbol)
+                waiting.append(there)
+    return reached.get(last)
+
+
 def cuts(slots: Sequence[Hashable], last: Hashable, long: int) -> Iterator[tuple[tuple[tuple[Hashable, ...], ...],
                                                                                tuple[Hashable, ...]]]:
     """Every way to cut ``slots`` into lines of ``long`` slots in order with ``last`` the last of its line (§60.9).

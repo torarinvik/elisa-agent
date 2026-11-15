@@ -48,6 +48,63 @@ class Machine:
         return self.outputs[self.state(word)]
 
 
+def composed(paid: Sequence[tuple[Word, Any]], refused: Sequence[tuple[Word, Any]] = (), *,
+             budget: int = 20000) -> Machine | None:
+    """A machine whose states are the answers themselves, right on every paid sequence (THEORY §62).
+
+    ``paid`` holds sequences with the answer each was paid for, and ``refused`` sequences with an answer each
+    was not paid for. The machine starts in a state of its own and each symbol moves it from the answer held
+    so far to another (``NCA.answers_serve_as_states``); the moves are searched in the order the shortest
+    sequences meet them, a move that keeps the answer tried first. A sequence that meets a move no paid
+    sequence met raises ``KeyError`` when run: nothing is known of it (``NCA.moves_agreeing_where_visited_agree``).
+    Returns nothing where no such machine fits, as for answers a longer sequence can take apart again
+    (``NCA.side_of_a_sum_is_not_carried``), or where ``budget`` tables are tried without one fitting.
+    """
+    answers = list(dict.fromkeys(answer for _, answer in paid))
+    state = {answer: index + 1 for index, answer in enumerate(answers)}
+    cases = sorted(((tuple(word), state[answer]) for word, answer in paid), key=lambda case: len(case[0]))
+    barred = [(tuple(word), state[answer]) for word, answer in refused if answer in state]
+    table: dict[tuple[int, Hashable], int] = {}
+    left = [budget]
+
+    def open_move() -> tuple[tuple[int, Hashable], list[int]] | bool:
+        for word, answer in cases:
+            current = 0
+            for place, symbol in enumerate(word):
+                if (current, symbol) not in table:
+                    last = place == len(word) - 1
+                    return (current, symbol), [answer] if last else sorted(state.values(), key=lambda s: s != current)
+                current = table[current, symbol]
+            if current != answer:
+                return False
+        for word, answer in barred:
+            current = 0
+            for symbol in word:
+                current = table.get((current, symbol), -1)
+                if current < 0:
+                    break
+            if current == answer:
+                return False
+        return True
+
+    def fits() -> bool:
+        left[0] -= 1
+        if left[0] < 0:
+            return False
+        met = open_move()
+        if isinstance(met, bool):
+            return met
+        key, moves = met
+        for move in moves:
+            table[key] = move
+            if fits():
+                return True
+            del table[key]
+        return False
+
+    return Machine(dict(table), (None, *answers)) if fits() else None
+
+
 class _Exhausted(Exception):
     """A query or state limit was reached, or the answers contradict each other."""
 

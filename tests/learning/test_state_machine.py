@@ -1,10 +1,11 @@
+from itertools import product
 from random import Random
 
 import pytest
 
 from nca.abi import Contract
 from nca.learning.state_machine import (DifferenceLearner, MachineExpert, MachineLearner, SummingExpert, Word,
-                                        learn_machine)
+                                        composed, learn_machine)
 
 SEQUENCE, ANSWER = "seq[sha256:" + "0" * 64 + "]", "sha256:" + "1" * 64
 CONTRACT = Contract((SEQUENCE,), ANSWER)
@@ -117,3 +118,48 @@ def test_a_count_with_no_answer_on_the_empty_sequence_is_declined_after_one_quer
     learner = DifferenceLearner(query, max_queries=100, max_states=10, undefined=undefined,
                                 add=lambda left, right: left + right, subtract=lambda left, right: left - right)
     assert learner(CONTRACT, keys, [count_twos(word) for word in keys]) is None and learner.paid == 1
+
+
+def _parity(word: tuple[str, ...]) -> str:
+    return "odd" if sum(symbol == "turn" for symbol in word) % 2 else "even"
+
+
+def test_answers_composed_along_short_sequences_hold_on_long_ones() -> None:
+    short = [word for length in (1, 2) for word in product(("keep", "turn"), repeat=length)]
+    machine = composed([(word, _parity(word)) for word in short])
+    assert machine is not None
+    assert all(machine.run(word) == _parity(word) for word in product(("keep", "turn"), repeat=9))
+
+
+def _ordered(word: tuple[str, ...]) -> str:
+    return word[0] if len(set(word)) == 1 else "open"
+
+
+def test_an_answer_that_absorbs_is_composed_and_an_unmet_move_is_not_guessed() -> None:
+    paid = [(("up",), "up"), (("down",), "down"), (("up", "up"), "up"), (("up", "down"), "open"),
+            (("down", "down"), "down"), (("up", "down", "up"), "open")]
+    machine = composed(paid)
+    assert machine is not None
+    assert machine.run(("up", "up", "up", "down", "up")) == "open"
+    with pytest.raises(KeyError):
+        machine.run(("down", "up"))
+    full = composed([*paid, (("down", "up"), "open"), (("up", "down", "down"), "open")])
+    assert full is not None
+    assert all(full.run(word) == _ordered(word) for length in range(1, 7) for word in product(("up", "down"), repeat=length))
+
+
+def test_a_refused_answer_is_not_composed() -> None:
+    paid = [(("a",), "x"), (("b",), "y"), (("a", "b", "a"), "x")]
+    free = composed(paid)
+    assert free is not None and free.run(("a", "b")) == "x"
+    held = composed(paid, refused=[(("a", "b"), "x")])
+    assert held is not None and held.run(("a", "b")) == "y" and held.run(("a", "b", "a")) == "x"
+
+
+def test_no_machine_is_composed_where_a_longer_sequence_takes_answers_apart() -> None:
+    def side(word: tuple[int, ...]) -> int:
+        return (sum(word) > 0) - (sum(word) < 0)
+
+    paid = [(word, side(word)) for length in (1, 2, 3) for word in product((1, -1), repeat=length)]
+    assert composed(paid) is None
+    assert composed([(("turn",), "odd"), (("keep",), "even"), (("turn", "turn"), "even")], budget=1) is None
