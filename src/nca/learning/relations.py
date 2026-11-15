@@ -251,26 +251,32 @@ def continued(line: Sequence[Any], ways: Sequence[Way] = (STEPS,), strides: int 
     return line[0] if bottom is None else bottom
 
 
-def between(statements: Iterable[tuple[Hashable, Hashable, Hashable]], first: Hashable,
-            last: Hashable) -> tuple[tuple[Hashable, bool], ...] | None:
-    """The word of the fewest statements that join one name to another, or nothing where none do (§62.1).
+def between(statements: Iterable[tuple[Hashable, Hashable, Hashable]], first: Hashable, last: Hashable, *,
+            most: int = 1, reach: int = 4096) -> list[tuple[tuple[Hashable, bool], ...]]:
+    """The words of the statements that join one name to another, the fewest statements first (§62.1).
 
-    A statement is a label and two names. Each symbol of the word is a statement's label with whether it is
-    passed back, from its second name to its first. Of paths of one length the one through statements
-    given earlier is taken.
+    A statement is a label and two names. Each symbol of a word is a statement's label with whether it is
+    passed back, from its second name to its first. A word passes no name twice. At most ``most`` words are
+    given; of words of one length, those through statements given earlier come first. No word is given
+    where no statements join the names, and the empty word where the names are one. At most ``reach`` ways
+    on from the first name are followed.
     """
     joins: dict[Hashable, list[tuple[Hashable, tuple[Hashable, bool]]]] = {}
     for label, one, two in statements:
         joins.setdefault(one, []).append((two, (label, False)))
         joins.setdefault(two, []).append((one, (label, True)))
-    reached: dict[Hashable, tuple[tuple[Hashable, bool], ...]] = {first: ()}
-    waiting = [first]
-    for here in waiting:
-        for there, symbol in joins.get(here, ()):
-            if there not in reached:
-                reached[there] = (*reached[here], symbol)
-                waiting.append(there)
-    return reached.get(last)
+    found: list[tuple[tuple[Hashable, bool], ...]] = []
+    waiting: list[tuple[tuple[Hashable, ...], tuple[tuple[Hashable, bool], ...]]] = [((first,), ())]
+    for passed, word in waiting:
+        if len(found) >= most:
+            break
+        if passed[-1] == last:
+            found.append(word)
+            continue
+        for there, symbol in joins.get(passed[-1], ()):
+            if there not in passed and len(waiting) < reach:
+                waiting.append(((*passed, there), (*word, symbol)))
+    return found
 
 
 def cuts(slots: Sequence[Hashable], last: Hashable, long: int) -> Iterator[tuple[tuple[tuple[Hashable, ...], ...],

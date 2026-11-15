@@ -313,10 +313,13 @@ def test_a_bare_set_of_slots_is_cut_into_lines_every_way_once() -> None:
     assert sorted(cuts(slots[:4], 3, 2)) == sorted((((one, other),), (spare,)) for one, other, spare in permutations(range(3)))
 
 
-def test_the_word_between_two_names_passes_each_statement_the_way_it_is_met() -> None:
+def test_the_words_between_two_names_pass_each_statement_the_way_it_is_met() -> None:
     statements = [("above", "a", "b"), ("beside", "c", "b"), ("above", "c", "d"), ("above", "e", "f")]
-    assert between(statements, "a", "d") == (("above", False), ("beside", True), ("above", False))
-    assert between(statements, "d", "a") == (("above", True), ("beside", False), ("above", True))
-    assert between(statements, "a", "a") == ()
-    assert between(statements, "a", "f") is None
-    assert between([("far", "a", "c"), *statements, ("near", "a", "d")], "a", "d") == (("near", False),)
+    assert between(statements, "a", "d") == [(("above", False), ("beside", True), ("above", False))]
+    assert between(statements, "d", "a") == [(("above", True), ("beside", False), ("above", True))]
+    assert between(statements, "a", "a") == [()]
+    assert between(statements, "a", "f") == []
+    ringed = [("far", "a", "c"), *statements, ("near", "a", "d")]
+    assert between(ringed, "a", "d") == [(("near", False),)]
+    assert between(ringed, "a", "d", most=9) == [
+        (("near", False),), (("far", False), ("above", False)), (("above", False), ("beside", True), ("above", False))]

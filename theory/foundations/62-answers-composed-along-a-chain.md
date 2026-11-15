@@ -55,9 +55,16 @@ an amount, and 51.5 applies to its differences where the sequences can be chosen
 
 That the names are told from the rest: here by being rare across situations where what a statement says
 recurs. That the asked statement is told from the others: here as the label of which each situation has
-one. And that one path is read. Where two paths join the asked names and the rule is composed, both give
-the answer only if the statements agree, which a situation dealt to have one answer ensures and one dealt
-with statements that need not have been read does not rule out.
+one.
+
+Where several words join the asked names, a rule that is composed gives each an answer, and the statements
+being true together, two words cannot give two answers that each settle something. One may still settle
+nothing where another settles the matter: in an order, a path that goes up and then down says nothing of
+its ends, and a path that only goes up does. An answer that settles nothing is known without being told, in
+two ways: it is the answer paid where no word joins the names at all, and it is an answer no move leads out
+of, since what is not settled is not settled by going on. So among the words between the asked names, an
+answer of neither kind is taken where any word gives it. The moves are learned from situations with one
+word only, where no such choice is made.
 
 In Lean 62.1 is `NCA.moves_agreeing_where_visited_agree`, 62.2 `NCA.answers_serve_as_states` and 62.3
 `NCA.side_of_a_sum_is_not_carried`.
