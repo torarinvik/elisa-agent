@@ -90,3 +90,4 @@ link for its definitions, arguments, and results.
 - [61. How many experts, and how large](theory/foundations/61-how-many-and-how-large.md)
 - [62. Answers composed along a chain](theory/foundations/62-answers-composed-along-a-chain.md)
 - [63. Places of ports and a rule read round a place](theory/foundations/63-places-of-ports-and-a-rule-read-round-a-place.md)
+- [64. Working memory: what looking back is served](theory/foundations/64-working-memory.md)

@@ -126,3 +126,44 @@ theorem protectedLookup_refused {Q A P : Type} (bindings : Q → Option A)
   rw [guardedPublish_refused original proposed retained current refused]
 
 end NCA
+
+/-! Working memory (chapter 64): a channel of capacity `c` holds, at step `n`, the entry written at step `i`. -/
+
+/-- A channel of capacity `c` holds at step `n` the entry written at step `i`. -/
+def held (c n i : Nat) : Prop := i ≤ n ∧ n < i + c
+
+/-- An entry is available when it is held or was kept. -/
+def available (c : Nat) (kept : Nat → Prop) (n i : Nat) : Prop := held c n i ∨ (kept i ∧ i ≤ n)
+
+/-- 64.1: an entry of age `n - i` is held exactly when its age is below the capacity. -/
+theorem held_iff_age {c n i : Nat} (written : i ≤ n) : held c n i ↔ n - i < c := by
+  unfold held
+  omega
+
+/-- 64.2: a larger holding serves all a smaller one does. -/
+theorem held_mono {c c' n i : Nat} (larger : c ≤ c') (was : held c n i) : held c' n i := by
+  unfold held at *
+  omega
+
+/-- 64.3: two channels read at one step are served as far back as the smaller capacity. -/
+theorem held_together {a b n i : Nat} : held a n i ∧ held b n i ↔ held (min a b) n i := by
+  unfold held
+  omega
+
+/-- 64.4: a decision made `d` steps after an entry was written can keep it exactly when `d < c`. -/
+theorem kept_in_time {c i d : Nat} : held c (i + d) i ↔ d < c := by
+  unfold held
+  omega
+
+/-- 64.5: an entry that is not kept is available at no step from `i + c` on. -/
+theorem gone_when_unkept {c n i : Nat} {kept : Nat → Prop} (unkept : ¬ kept i) (late : i + c ≤ n) :
+    ¬ available c kept n i := by
+  unfold available held
+  intro h
+  rcases h with h | h
+  · omega
+  · exact unkept h.1
+
+/-- 64.5: an entry that is kept is available at every step from its own on. -/
+theorem kept_is_available {c n i : Nat} {kept : Nat → Prop} (is_kept : kept i) (after : i ≤ n) :
+    available c kept n i := Or.inr ⟨is_kept, after⟩

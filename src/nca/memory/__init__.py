@@ -1,4 +1,4 @@
-"""Typed episodic storage interfaces and the default durable SQLite backend (§43).
+"""Typed episodic storage interfaces, the default durable SQLite backend (§43), and working memory (§64).
 
 Payload codecs and retrieval strategies belong to external experts. Capacity
 counts logical encoded bytes, not database pages/indexes or resident memory.
@@ -11,3 +11,5 @@ from nca.memory.records import (
 )
 from nca.memory.backend import MemoryBackend as MemoryBackend
 from nca.memory.sqlite import MemoryStore as MemoryStore
+from nca.memory.working import Entry as Entry
+from nca.memory.working import WorkingMemory as WorkingMemory
