@@ -51,6 +51,7 @@ import NCA.Reliability.Sampling
 import NCA.Planning.DepthPruning
 import NCA.Reliability.Alternatives
 import NCA.Reliability.Agreement
+import NCA.Reliability.Experiments
 import NCA.Reliability.Verification
 import NCA.Reliability.SampledGate
 import NCA.Reliability.BatchedTest
