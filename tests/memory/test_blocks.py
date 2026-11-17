@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from nca.memory.blocks import BlockLibrary, KeyIndex, PartStore, choose
+from nca.memory.blocks import BlockLibrary, KeyIndex, PartStore, admit, choose, shortlist
 
 
 class Scaled:
@@ -126,3 +126,25 @@ def test_a_part_that_changes_is_written_back_and_few_are_held(tmp_path: Path) ->
     assert isinstance(again, Scaled) and again.by == 11 and "5" in parts and "9" not in parts
     with pytest.raises(KeyError):
         parts.get("9")
+
+
+def test_a_new_expert_is_admitted_with_the_reading_of_least_loss(tmp_path: Path) -> None:
+    held = library(tmp_path / "blocks")
+    held.add("a", Scaled(2))
+    held.add("b", Scaled(3))
+    assert admit(held, "first", Scaled(5), {"own": ((), 0.4), "few": (("a",), 0.3)}, "own") == ("a", "first")
+    assert admit(held, "second", Scaled(7), {"own": ((), 0.2), "few": (("a", "b"), 0.2)}, "own") == ("second",)
+    assert held.read(held.reading("first"), 2) == [4, 10] and held.readers("a") == ("first",)
+    with pytest.raises(ValueError):
+        admit(held, "first", Scaled(1), {"own": ((), 0.1)}, "own")
+
+
+def test_the_blocks_tried_are_the_nearest_and_the_most_read_and_no_more(tmp_path: Path) -> None:
+    held, index = library(tmp_path / "blocks"), KeyIndex(tmp_path / "keys", 2)
+    for at in range(200):
+        held.add(str(at), Scaled(at))
+        index.add(str(at), np.array([at, 0.0]))
+    held.register("one", ["150"])
+    held.register("two", ["150", "3"])
+    assert shortlist(held, index, np.array([10.1, 0.0]), 3, 2) == ("10", "11", "9", "150", "3")
+    assert shortlist(held, index, np.array([149.9, 0.0]), 2, 1) == ("150", "149")

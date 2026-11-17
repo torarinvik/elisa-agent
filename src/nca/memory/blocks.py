@@ -153,6 +153,29 @@ def choose(losses: Mapping[str, float], own: str) -> str:
     return best
 
 
+def shortlist(library: BlockLibrary, index: KeyIndex, key: np.ndarray, near: int, read: int) -> tuple[str, ...]:
+    """The blocks worth trying for a key: those nearest it, then those most experts read, each once.
+
+    How many are tried is set by ``near`` and ``read`` and not by how many the library holds.
+    """
+    found = [name for name in index.nearest(key, near) if name in library]
+    return tuple(dict.fromkeys([*found, *library.most_read(read)]))
+
+
+def admit(library: BlockLibrary, expert: str, block: object, readings: Mapping[str, tuple[Sequence[str], float]],
+          own: str) -> tuple[str, ...]:
+    """Keep the reading of least held-back loss for a new expert, add its block and record what it reads (§66.4).
+
+    ``readings`` gives, for each reading tried, the earlier blocks it reads and its loss; ``own`` names the
+    reading of the new block alone. The block is added under the expert's name and read last.
+    """
+    kept = choose({name: loss for name, (_, loss) in readings.items()}, own)
+    reads = (*readings[kept][0], expert)
+    library.add(expert, block)
+    library.register(expert, reads)
+    return reads
+
+
 class KeyIndex:
     """A vector for each name, kept in a file that is read in place; the names nearest a query are given."""
 
