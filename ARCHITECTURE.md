@@ -5,6 +5,9 @@ interfaces. The proof-debt table distinguishes conditional mathematical models
 from verified implementation behavior. Mathematical arguments belong in the
 topic chapters; predictions and measurements belong in the research diary.
 
+The design the system is being built toward is pictured in
+[README.md](README.md); the parts of it not yet implemented are listed there.
+
 Build and check the proofs with `cd lean && lake exe cache get && lake build`;
 run the Python tests with `uv run pytest`.
 
