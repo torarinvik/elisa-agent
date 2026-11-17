@@ -92,3 +92,4 @@ link for its definitions, arguments, and results.
 - [63. Places of ports and a rule read round a place](theory/foundations/63-places-of-ports-and-a-rule-read-round-a-place.md)
 - [64. Working memory: what looking back is served](theory/foundations/64-working-memory.md)
 - [65. Experiments that tell rules apart](theory/foundations/65-experiments-that-tell-rules-apart.md)
+- [66. A trunk of blocks that are never taught twice](theory/foundations/66-a-trunk-of-blocks.md)

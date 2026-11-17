@@ -61,6 +61,7 @@ import NCA.Execution.State
 import NCA.Execution.Workspace
 import NCA.Execution.Effects
 import NCA.Execution.Memory
+import NCA.Execution.Blocks
 import NCA.Execution.DependencyWalk
 import NCA.Execution.Artifacts
 import NCA.Execution.Loaders
