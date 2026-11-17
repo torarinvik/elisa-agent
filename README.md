@@ -45,12 +45,15 @@ other expert.
 The diagram is the target, not a description of what is finished.
 
 - **Built:** the kernel with typed contracts, planning, lazy loading and
-  eviction; admission of new experts only on fresh evidence; a large body of
+  eviction; admission of new experts only on fresh evidence; a trunk kept as
+  a library of blocks that are added and never changed, so that every stored
+  expert gives what it gave, with a key index over them; a large body of
   mathematical results with machine-checked proofs.
-- **Under test:** a small learner taught only by reward from the screen, and
-  choosing between experts by their own record.
-- **Not built yet:** the versioned trunk, the key index over learned experts,
-  and regrouping experts by use.
+- **Under test:** a small learner taught only by reward from the screen,
+  choosing between experts by their own record, and how few judgements a
+  new task needs.
+- **Not built yet:** regrouping experts by use, and a search that reaches a
+  first reward where random presses do not.
 
 Measurements, including negative results, are in the dated research diary.
 
