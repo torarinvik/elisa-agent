@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
-from nca.memory.blocks import BlockLibrary, choose
+from nca.memory.blocks import BlockLibrary, KeyIndex, PartStore, choose
 
 
 class Scaled:
@@ -86,3 +87,42 @@ def test_the_chosen_reading_has_no_more_loss_than_the_experts_own() -> None:
     for losses in ({"own": 0.1, "few": 0.9}, {"own": 0.9, "few": 0.1}, {"own": 0.5}):
         picked = choose(losses, "own")
         assert losses[picked] <= losses["own"] and all(losses[picked] <= loss for loss in losses.values())
+
+
+def test_the_blocks_most_read_are_given_first(tmp_path: Path) -> None:
+    held = library(tmp_path)
+    for name in "abc":
+        held.add(name, Scaled(1))
+    held.register("first", ["a", "b"])
+    held.register("second", ["b"])
+    assert held.most_read(2) == ("b", "a") and held.most_read(5) == ("b", "a")
+    held.forget("second")
+    held.forget("first")
+    assert library(tmp_path).most_read(3) == ()
+
+
+def test_the_names_nearest_a_query_are_found_after_reopening(tmp_path: Path) -> None:
+    index = KeyIndex(tmp_path, 3)
+    assert index.nearest(np.zeros(3), 2) == ()
+    for at in range(50):
+        index.add(f"name {at}", np.array([at, 0.0, 1.0]))
+    again = KeyIndex(tmp_path, 3)
+    assert len(again) == 50
+    assert again.nearest(np.array([20.2, 0.0, 1.0]), 3) == ("name 20", "name 21", "name 19")
+    assert len(again.nearest(np.zeros(3), 80)) == 50
+    with pytest.raises(ValueError):
+        again.add("wide", np.zeros(4))
+
+
+def test_a_part_that_changes_is_written_back_and_few_are_held(tmp_path: Path) -> None:
+    parts = PartStore(tmp_path, save, load, resident=2)
+    for at in range(6):
+        parts.put(str(at), Scaled(at))
+        assert len(parts.held()) <= 2
+    part = parts.get("1")
+    assert isinstance(part, Scaled) and part.by == 1
+    parts.put("1", Scaled(11))
+    again = PartStore(tmp_path, save, load, resident=2).get("1")
+    assert isinstance(again, Scaled) and again.by == 11 and "5" in parts and "9" not in parts
+    with pytest.raises(KeyError):
+        parts.get("9")
