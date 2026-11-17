@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from nca.memory.blocks import BlockLibrary, KeyIndex, PartStore, admit, choose, shortlist
+from nca.memory.blocks import BlockLibrary, KeyIndex, PartStore, admit, choose, join, shortlist
 
 
 class Scaled:
@@ -148,3 +148,28 @@ def test_the_blocks_tried_are_the_nearest_and_the_most_read_and_no_more(tmp_path
     held.register("two", ["150", "3"])
     assert shortlist(held, index, np.array([10.1, 0.0]), 3, 2) == ("10", "11", "9", "150", "3")
     assert shortlist(held, index, np.array([149.9, 0.0]), 2, 1) == ("150", "149")
+
+
+def test_a_joined_expert_reads_the_best_blocks_offered_only_where_that_is_better(tmp_path: Path) -> None:
+    held = library(tmp_path)
+    for name, by in (("a", 2), ("b", 3), ("c", 5)):
+        held.add(name, Scaled(by))
+    held.register("earlier", ["a"])
+    before = held.read(held.reading("earlier"), 7)
+    asked: list[tuple[tuple[str, ...], bool]] = []
+
+    def teach(reads: tuple[str, ...], new: bool) -> tuple[object, float, object]:
+        asked.append((tuple(reads), new))
+        loss = {(): 0.5, ("a",): 0.9, ("b",): 0.2, ("c",): 0.4, ("b", "c"): 0.1}[tuple(reads)]
+        return (Scaled(11) if new else None), loss, f"over {','.join(reads) or 'nothing'}"
+
+    reads, rest, losses = join(held, "new", teach, offered=["a", "b", "c", "b", "missing"])
+    assert reads == ("b", "c", "new") and rest == "over b,c" and losses == {"own": 0.5, "beside": 0.1}
+    assert asked == [((), True), (("a",), False), (("b",), False), (("c",), False), (("b", "c"), True)]
+    assert held.read(held.reading("new"), 1) == [3, 5, 11] and held.read(held.reading("earlier"), 7) == before
+
+    def worse(reads: tuple[str, ...], new: bool) -> tuple[object, float, object]:
+        return (Scaled(13) if new else None), 0.3 if not reads else 0.3 + len(reads), None
+
+    assert join(held, "plain", worse, offered=["a"])[0] == ("plain",)
+    assert join(held, "alone", worse)[0] == ("alone",) and held.read(held.reading("earlier"), 7) == before

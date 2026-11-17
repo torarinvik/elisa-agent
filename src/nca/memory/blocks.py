@@ -5,7 +5,8 @@ looks inside one. Blocks live in a folder, written and read back by two function
 at most a stated number are held in memory at once. An expert is registered by the names of the blocks
 it reads, so that a block is taken away only when no expert reads it (§66.3). Since a block that has a
 name keeps it, every expert's reading is what it was when the expert was made, whatever is added after
-(§66.2). What the library records is appended to a log, so that adding to a large library costs what adding
+(§66.2). ``join`` makes a new expert from teaching the host supplies, trying a block of its own alone and
+beside the best of the blocks offered. What the library records is appended to a log, so that adding to a large library costs what adding
 to a small one does. ``KeyIndex`` holds a vector for each name in a file read in place and gives the names
 nearest a query; ``PartStore`` holds parts that do change, such as an expert with the state of its teaching,
 loaded when used and written back.
@@ -174,6 +175,28 @@ def admit(library: BlockLibrary, expert: str, block: object, readings: Mapping[s
     library.add(expert, block)
     library.register(expert, reads)
     return reads
+
+
+def join(library: BlockLibrary, expert: str, teach: Callable[[Sequence[str], bool], tuple[object, float, object]],
+         offered: Sequence[str] = (), read: int = 2) -> tuple[tuple[str, ...], object, dict[str, float]]:
+    """Make a new expert from the host's teaching, with the reading of least held-back loss (§66.4).
+
+    ``teach(reads, new)`` teaches whatever the host puts on top of the blocks named, beside a new block if
+    ``new``, and returns that block (nothing if none), the loss on what it held back, and the rest of what it
+    made. A block of the expert's own is taught first. Each block offered that the library holds is then
+    tried alone, without a new block; the ``read`` of them with least loss are read beside a second new
+    block, and of the two readings the one kept is admitted. What the expert reads, the rest of what the
+    host made for that reading, and each reading's loss are returned. No block already held is changed.
+    """
+    own, loss, rest = teach((), True)
+    tried: dict[str, tuple[tuple[str, ...], object, float, object]] = {"own": ((), own, loss, rest)}
+    alone = {name: teach((name,), False)[1] for name in dict.fromkeys(offered) if name in library}
+    if alone:
+        reads = tuple(sorted(alone, key=alone.__getitem__)[:read])
+        tried["beside"] = (reads, *teach(reads, True))
+    losses = {name: loss for name, (_, _, loss, _) in tried.items()}
+    _, block, _, rest = tried[choose(losses, "own")]
+    return admit(library, expert, block, {name: (reads, loss) for name, (reads, _, loss, _) in tried.items()}, "own"), rest, losses
 
 
 class KeyIndex:
