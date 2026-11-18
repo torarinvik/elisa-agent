@@ -129,6 +129,8 @@ end NCA
 
 /-! Working memory (chapter 64): a channel of capacity `c` holds, at step `n`, the entry written at step `i`. -/
 
+namespace NCA
+
 /-- A channel of capacity `c` holds at step `n` the entry written at step `i`. -/
 def held (c n i : Nat) : Prop := i ≤ n ∧ n < i + c
 
@@ -167,3 +169,20 @@ theorem gone_when_unkept {c n i : Nat} {kept : Nat → Prop} (unkept : ¬ kept i
 /-- 64.5: an entry that is kept is available at every step from its own on. -/
 theorem kept_is_available {c n i : Nat} {kept : Nat → Prop} (is_kept : kept i) (after : i ≤ n) :
     available c kept n i := Or.inr ⟨is_kept, after⟩
+
+/-- With `k` slots filled first in first out, the entry of keep number `q` is in a slot, when `m` keeps have
+been made in all, if it was made and fewer than `k` keeps came after it. -/
+def slotted (k m q : Nat) : Prop := q ≤ m ∧ m < q + k
+
+/-- 64.6: what is in a slot stays there until `k` more entries are kept, however many steps that takes:
+being in a slot turns on the keeps made and not on the step. -/
+theorem slotted_iff_few_since {k m q : Nat} (made : q ≤ m) : slotted k m q ↔ m - q < k := by
+  unfold slotted
+  omega
+
+/-- 64.6: more slots hold all that fewer do. -/
+theorem slotted_mono {k k' m q : Nat} (larger : k ≤ k') (was : slotted k m q) : slotted k' m q := by
+  unfold slotted at *
+  omega
+
+end NCA

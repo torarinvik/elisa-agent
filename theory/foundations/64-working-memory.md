@@ -57,5 +57,23 @@ capacity is fixed by a delay in steps, so the cost is brought down by what an en
 fewer of them: which form of an entry serves the experts that read it is a matter of measurement, not
 of this chapter.
 
+## 64.5 Slots
+
+A reader may keep a few entries by pinning them, in `k` **slots** filled first in first out: an entry
+kept when the slots are full takes the place of the one kept longest, which is released. Count the keeps
+as they are made; the entry of keep number `q` is in a slot, when `m` keeps have been made, if `q ≤ m`
+and fewer than `k` keeps came after it.
+
+**Proposition 64.6 (a slot is held by keeps, not by steps).** The entry of keep `q` is in a slot after
+`m ≥ q` keeps if and only if `m - q < k`; and with more slots, every entry that was in a slot still is.
+
+No step appears in the condition. By 64.5 an entry in a slot is available at every step while it is
+there, so a reader with `k` slots can look back at what it kept over any number of steps in which it
+keeps fewer than `k` more; and at every step it reads at most the entries its channels hold and `k`
+others, whatever their age. What the proposition does not give is which entries to keep: by 64.4 that
+must be decided while an entry is still held, and how it is decided is a matter of learning and of
+measurement, not of this chapter.
+
 In Lean 64.1 is `NCA.held_iff_age`, 64.2 `NCA.held_mono`, 64.3 `NCA.held_together`, 64.4
-`NCA.kept_in_time` and 64.5 `NCA.gone_when_unkept` with `NCA.kept_is_available`.
+`NCA.kept_in_time`, 64.5 `NCA.gone_when_unkept` with `NCA.kept_is_available`, and 64.6
+`NCA.slotted_iff_few_since` with `NCA.slotted_mono`.
