@@ -40,20 +40,33 @@ them when needed and evicts them when not. The kernel names no task: every
 task-specific part lives in a separate package and is installed like any
 other expert.
 
+![Current input passes through an agent and a chain of concepts to the output; the concepts consult and update a working memory of channels and a scratchpad, and a long-term memory](docs/Cognitive%20model.png)
+
+How the agent is meant to think:
+
+- **Working memory.** *Channels* hold what was recently seen, heard and
+  done: a frame buffer, an audio buffer and an event buffer. A *scratchpad*
+  holds what the agent writes for itself.
+- **Long-term memory.** The stored experts and the trunk they read.
+- **Concepts.** The input is worked on in steps, one concept after another,
+  each free to consult and update both memories before the output is given.
+
 ## Status
 
-The diagram is the target, not a description of what is finished.
+The diagrams are the target, not a description of what is finished.
 
 - **Built:** the kernel with typed contracts, planning, lazy loading and
   eviction; admission of new experts only on fresh evidence; a trunk kept as
   a library of blocks that are added and never changed, so that every stored
-  expert gives what it gave, with a key index over them; a large body of
-  mathematical results with machine-checked proofs.
+  expert gives what it gave, with a key index over them; a working memory
+  of channels for recent frames, sound, presses and payments; a large body
+  of mathematical results with machine-checked proofs.
 - **Under test:** a small learner taught only by reward from the screen,
   choosing between experts by their own record, and how few judgements a
-  new task needs.
-- **Not built yet:** regrouping experts by use, and a search that reaches a
-  first reward where random presses do not.
+  new task needs; a learner that looks back in the working memory.
+- **Not built yet:** the scratchpad and concepts applied in steps;
+  regrouping experts by use; and a search that reaches a first reward where
+  random presses do not.
 
 Measurements, including negative results, are in the dated research diary.
 
