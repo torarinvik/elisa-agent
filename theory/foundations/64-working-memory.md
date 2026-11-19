@@ -74,6 +74,29 @@ others, whatever their age. What the proposition does not give is which entries 
 must be decided while an entry is still held, and how it is decided is a matter of learning and of
 measurement, not of this chapter.
 
+## 64.6 Kept at random
+
+What a reader should keep it can only learn from entries it had when a choice of its was judged, and an
+entry further back than its channels hold is not among them unless it was kept. Before anything is
+learned of what to keep, then, the entries kept must be chosen without knowing which matter. Let `r` slots
+be given to this, and count the steps `1, 2, …` from a **mark**, an event after which what came before
+is taken to matter no longer (for a reader taught by judgements, the last judgement). The entry of step
+`n` is kept surely while `n ≤ r`, and otherwise with chance `r / n`, taking the place of one of the `r`
+entries held, each as likely as another.
+
+**Proposition 64.7 (no step is favoured).** After `n` steps since the mark, the entry of every one of
+them is in a slot with the same chance: surely if `n ≤ r`, and with chance `r / n` otherwise.
+
+For an entry held with chance `r / n` stays, at step `n + 1`, unless that step is kept and takes its
+place, which has chance `(r / (n + 1)) · (1 / r)`; so it is held with chance
+`(r / n) · (n / (n + 1)) = r / (n + 1)`, which is also the chance with which the new entry is kept. This
+is reservoir sampling (Vitter, 1985). So whichever entry since the mark a later judgement turns on, it
+is in a slot at that judgement with chance at least `r / n`, at a cost of `r` entries read whatever `n`
+is; a reader that keeps nothing until it knows what to keep never has it. The proposition takes `r` as
+fixed between marks and says nothing of entries from before the mark, nor of slots a reader fills by
+choice, which are those of 64.5.
+
 In Lean 64.1 is `NCA.held_iff_age`, 64.2 `NCA.held_mono`, 64.3 `NCA.held_together`, 64.4
 `NCA.kept_in_time`, 64.5 `NCA.gone_when_unkept` with `NCA.kept_is_available`, and 64.6
-`NCA.slotted_iff_few_since` with `NCA.slotted_mono`.
+`NCA.slotted_iff_few_since` with `NCA.slotted_mono`, and 64.7 `NCA.keptAtRandom_even`, over the
+chance `NCA.keptAtRandom` that follows the rule step by step.

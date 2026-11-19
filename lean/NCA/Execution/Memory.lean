@@ -1,4 +1,9 @@
 import Mathlib.Data.Option.Basic
+import Mathlib.Data.Rat.Defs
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
 
 /-! Immutable-key exact memory, abstracting away hashing and database machinery. -/
 namespace NCA
@@ -184,5 +189,44 @@ theorem slotted_iff_few_since {k m q : Nat} (made : q ≤ m) : slotted k m q ↔
 theorem slotted_mono {k k' m q : Nat} (larger : k ≤ k') (was : slotted k m q) : slotted k' m q := by
   unfold slotted at *
   omega
+
+/-- `r` slots are kept at random over the steps counted `1, 2, …` since a mark: step `n` is kept with chance
+`r / n`, or surely while the slots are not full, and takes the place of one of the `r` steps held, each as
+likely as another. This is the chance that step `t` is held `d` steps later. -/
+def keptAtRandom (r t : Nat) : Nat → ℚ
+  | 0 => min 1 ((r : ℚ) / t)
+  | d + 1 =>
+    if t + d + 1 ≤ r then keptAtRandom r t d
+    else keptAtRandom r t d * (1 - (r : ℚ) / (t + d + 1 : Nat) * (1 / r))
+
+/-- 64.7: after `n` steps since the mark every one of them is held with the same chance, `r / n`, or surely
+while `n ≤ r`: no step is favoured for being early or late. -/
+theorem keptAtRandom_even {r t : Nat} (slots : 0 < r) (counted : 0 < t) (d : Nat) :
+    keptAtRandom r t d = min 1 ((r : ℚ) / (t + d : Nat)) := by
+  induction d with
+  | zero => simp [keptAtRandom]
+  | succ d ih =>
+    have hr : (0 : ℚ) < r := by exact_mod_cast slots
+    have hn : (0 : ℚ) < ((t + d : Nat) : ℚ) := by exact_mod_cast Nat.add_pos_left counted d
+    have hn' : (0 : ℚ) < ((t + d + 1 : Nat) : ℚ) := by exact_mod_cast Nat.succ_pos (t + d)
+    have step : ((t + d + 1 : Nat) : ℚ) = ((t + d : Nat) : ℚ) + 1 := by push_cast; ring
+    unfold keptAtRandom
+    by_cases full : t + d + 1 ≤ r
+    · have h1 : (1 : ℚ) ≤ (r : ℚ) / ((t + d : Nat) : ℚ) := by
+        rw [le_div_iff₀ hn]; have : t + d ≤ r := by omega
+        simpa using (show ((t + d : Nat) : ℚ) ≤ r by exact_mod_cast this)
+      have h2 : (1 : ℚ) ≤ (r : ℚ) / ((t + d + 1 : Nat) : ℚ) := by
+        rw [le_div_iff₀ hn']
+        simpa using (show ((t + d + 1 : Nat) : ℚ) ≤ r by exact_mod_cast full)
+      rw [if_pos full, ih, min_eq_left h1, show t + (d + 1) = t + d + 1 by omega, min_eq_left h2]
+    · have over : r ≤ t + d := by omega
+      have h1 : (r : ℚ) / ((t + d : Nat) : ℚ) ≤ 1 := by
+        rw [div_le_iff₀ hn]
+        simpa using (show (r : ℚ) ≤ ((t + d : Nat) : ℚ) by exact_mod_cast over)
+      have h2 : (r : ℚ) / ((t + d + 1 : Nat) : ℚ) ≤ 1 := by
+        rw [div_le_iff₀ hn', step]; linarith [(div_le_iff₀ hn).mp h1]
+      rw [if_neg full, ih, min_eq_right h1, show t + (d + 1) = t + d + 1 by omega, min_eq_right h2, step]
+      field_simp
+      ring
 
 end NCA
