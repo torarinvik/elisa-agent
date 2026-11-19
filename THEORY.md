@@ -93,3 +93,4 @@ link for its definitions, arguments, and results.
 - [64. Working memory: what looking back is served](theory/foundations/64-working-memory.md)
 - [65. Experiments that tell rules apart](theory/foundations/65-experiments-that-tell-rules-apart.md)
 - [66. A trunk of blocks that are never taught twice](theory/foundations/66-a-trunk-of-blocks.md)
+- [67. Sub-goals counted from paid trials](theory/foundations/67-sub-goals-counted-from-paid-trials.md)
