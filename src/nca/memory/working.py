@@ -77,7 +77,8 @@ class WorkingMemory:
         """The entries a channel was written in the last ``steps`` steps, oldest first."""
         if not self.serves(channel, steps - 1):
             raise LookupError(f"channel {channel!r} does not serve {steps} steps")
-        return tuple(entry for step, entry in self._held[channel].items() if step > self.step - steps)
+        held = self._held[channel]
+        return tuple(held[step] for step in range(self.step - steps + 1, self.step + 1) if step in held)
 
     def pin(self, channel: str, step: int) -> None:
         """Keep a held entry in the holding until it is released (§64.4); ``KeyError`` where it is gone."""
