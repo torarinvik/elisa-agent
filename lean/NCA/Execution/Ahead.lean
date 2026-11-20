@@ -1,3 +1,4 @@
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import NCA.Execution.Levels
 
 /-! Looking ahead through states foretold (chapter 72). -/
@@ -103,5 +104,19 @@ theorem unseen_not_foretold (near : S → V) (after : S → W) (told : S → W)
     intro second
     exact differ (first.symm.trans ((sees s s' alike).trans second))
   · exact Or.inl first
+
+/-- 72.5: a search that stops at the first depth at which some reading says "paid" stops short in a trial
+where some reading below the distance is false. With each of the `readings` false in at most `e` trials, the
+trials in which any is false are at most as many as the readings times `e`. -/
+theorem false_stops_few {I Ω : Type} [DecidableEq Ω] (readings : Finset I) (falseAt : I → Finset Ω) (e : Nat)
+    (few : ∀ i ∈ readings, (falseAt i).card ≤ e) : (readings.biUnion falseAt).card ≤ readings.card * e :=
+  Finset.card_biUnion_le_card_mul readings falseAt e few
+
+/-- 72.5, the bound met: where no two readings are false in the same trial and each is false in exactly `e`,
+the trials in which some reading is false are the readings times `e`. -/
+theorem false_stops_all {I Ω : Type} [DecidableEq Ω] (readings : Finset I) (falseAt : I → Finset Ω) (e : Nat)
+    (apart : (readings : Set I).PairwiseDisjoint falseAt) (each : ∀ i ∈ readings, (falseAt i).card = e) :
+    (readings.biUnion falseAt).card = readings.card * e := by
+  rw [Finset.card_biUnion apart, Finset.sum_const_nat each]
 
 end NCA

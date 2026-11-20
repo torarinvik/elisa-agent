@@ -87,11 +87,12 @@ the states apart from what it is shown. For 72.1 to 72.3: that the foretold stat
 the world's for the presses looked ahead, which for a learned foretelling and a learned first
 reading is an assumption about both at the states met, to be measured.
 
-Left open, and matters of measurement recorded in the research diary. How the errors add: a way
-of `n` presses is judged through `n − 1` states foretold one on the other and one reading at the
-end, so it is misjudged only where one of those is wrong, and the errors add once for each press
-looked ahead; the lesson that taught them holds none of them, where by 70.5 the lesson of a
-level holds the errors of the levels below. How many presses a foretelling needs before its
+Left open, and matters of measurement recorded in the research diary. How the errors add along
+one way: a way of `n` presses is judged through `n − 1` states foretold one on the other and one
+reading at the end, so it is misjudged only where one of those is wrong, and the errors add once
+for each press looked ahead; the lesson that taught them holds none of them, where by 70.5 the
+lesson of a level holds the errors of the levels below. A search does not judge one way but every
+way, and how the errors add over them is 72.6. How many presses a foretelling needs before its
 states stand for the world's. That the first reading can say "none" at a foretold state it never
 met. Tasks in which chance decides where a press leads, and tasks whose state is not all in the
 picture, where a foretold picture cannot stand for what is hidden. And a search that need not
@@ -100,3 +101,30 @@ foretell every way.
 In Lean 72.1 is `NCA.foretold_way`, with `NCA.foretold_way_always` for a foretelling that stands
 for the world however long; 72.2 is `NCA.foretold_within` over `NCA.stands_fewer`; 72.3 is
 `NCA.foretold_begins_shortest` and `NCA.foretold_silent_below`; 72.4 is `NCA.unseen_not_foretold`.
+
+## 72.6 Errors over all the ways looked at
+
+A search that stops at the first depth at which some press is foretold paid stops short of the
+distance wherever one reading below the distance says "paid" falsely: one reading among all it
+makes, not one along a way.
+
+**Proposition 72.5 (false short ways).** Let a search make `N` readings below the distance, and
+let each be false in at most `e` of the trials. Then the trials in which the search stops short
+are at most `N · e`; and they are as many as that where no two readings are false in the same
+trial.
+
+With `b` presses and a distance `d`, `N = b + b² + … + b^(d−1)`: the allowance for one reading is
+the allowance for the search divided by a number that grows as the states foretold do, where
+along one way it is divided by `d`. A first reading that is right nine times in ten on the steps
+it was taught on is far from enough four presses out with four presses (`N = 84`).
+
+What mends it is in the search's own play. A false reading that is acted on leads to a press that
+is made and not paid, which is a lesson for the first reading at that very state (73.14, the
+first mismatch of a way held). The lesson has to reach the reading while states of its kind are
+still met; a reading taught only when the steps held have grown by some share is taught the more
+seldom the more it holds. How many such lessons are needed is not bounded here, and what the
+teaching between the reading's own teachings gains is a matter of measurement recorded in the
+research diary.
+
+In Lean 72.5 is `NCA.false_stops_few`, with `NCA.false_stops_all` where no two readings are false
+in the same trial.
