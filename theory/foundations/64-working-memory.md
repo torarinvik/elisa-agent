@@ -96,7 +96,32 @@ is; a reader that keeps nothing until it knows what to keep never has it. The pr
 fixed between marks and says nothing of entries from before the mark, nor of slots a reader fills by
 choice, which are those of 64.5.
 
+## 64.7 Kept by rank
+
+Once a reader gives each entry, as it comes, a value for how much it is worth keeping, first in first
+out is the wrong way to fill its slots: the most valued entry is let go for the `k` that come after it,
+whatever they are worth. Let the slots be filled **by rank** since a mark: while a slot is free an
+entry that comes is kept; when all `k` are full it takes the place of the least valued entry held if
+its own value is at least that, and is otherwise not kept.
+
+**Proposition 64.8 (the slots hold the highest).** At every time since the mark, every entry in a slot
+is valued at least as high as every entry that came since the mark and is not in one. So an entry is in
+a slot for as long as fewer than `k` other entries valued at least as high have come since the mark,
+however many steps or entries that is.
+
+For the first claim holds while nothing has been let go or refused, and both ways an entry can leave
+the slots keep it: one refused is valued below every entry held, and one let go was the least held and
+is valued no higher than the one that took its place. And an entry not in a slot was let go or refused
+when the slots were full, and they have stayed full; so the `k` entries held are others valued at least
+as high as it. Where 64.6 holds an entry by how few were kept after it, this holds it by how few were
+worth more, at the same cost of `k` entries read. What it does not give is that the values are right: a
+value is given once, as the entry comes, and an entry wrongly valued low is gone for good. So keeping at
+random (64.6) is not replaced by it; and the proposition says nothing of entries kept before the mark,
+which a reader lets go first.
+
 In Lean 64.1 is `NCA.held_iff_age`, 64.2 `NCA.held_mono`, 64.3 `NCA.held_together`, 64.4
 `NCA.kept_in_time`, 64.5 `NCA.gone_when_unkept` with `NCA.kept_is_available`, and 64.6
 `NCA.slotted_iff_few_since` with `NCA.slotted_mono`, and 64.7 `NCA.keptAtRandom_even`, over the
-chance `NCA.keptAtRandom` that follows the rule step by step.
+chance `NCA.keptAtRandom` that follows the rule step by step. 64.8 is `NCA.ranked_of_none_gone`,
+`NCA.ranked_refused` and `NCA.ranked_replaced` for the first claim and `NCA.ranked_gone_below` for the
+second, over lists of the values held and of those not.

@@ -229,4 +229,43 @@ theorem keptAtRandom_even {r t : Nat} (slots : 0 < r) (counted : 0 < t) (d : Nat
       field_simp
       ring
 
+/-- Slots kept by rank since a mark: every entry held is valued at least as high as every entry that came
+since the mark and is not held. -/
+def ranked {α : Type} [LE α] (held gone : List α) : Prop := ∀ a ∈ held, ∀ b ∈ gone, b ≤ a
+
+/-- 64.8: while nothing has been let go or refused the slots are kept by rank, whatever they hold. -/
+theorem ranked_of_none_gone {α : Type} [LE α] (held : List α) : ranked held [] := by
+  intro a _ b gone
+  simp at gone
+
+/-- 64.8: an entry valued below every entry held is refused, and the slots are still kept by rank. -/
+theorem ranked_refused {α : Type} [LE α] {held gone : List α} {v : α} (was : ranked held gone)
+    (least : ∀ a ∈ held, v ≤ a) : ranked held (v :: gone) := by
+  intro a held_a b gone_b
+  rcases List.mem_cons.mp gone_b with same | before
+  · exact same ▸ least a held_a
+  · exact was a held_a b before
+
+/-- 64.8: an entry valued at least as high as the least valued entry held takes its place, and the slots are
+still kept by rank. -/
+theorem ranked_replaced {α : Type} [Preorder α] [DecidableEq α] {held gone : List α} {m v : α}
+    (was : ranked held gone) (here : m ∈ held) (least : ∀ a ∈ held, m ≤ a) (over : m ≤ v) :
+    ranked (v :: held.erase m) (m :: gone) := by
+  intro a held_a b gone_b
+  rcases List.mem_cons.mp gone_b with same | before
+  · rcases List.mem_cons.mp held_a with new | old
+    · exact same ▸ new ▸ over
+    · exact same ▸ least a (List.mem_of_mem_erase old)
+  · rcases List.mem_cons.mp held_a with new | old
+    · exact new ▸ le_trans (was m here b before) over
+    · exact was a (List.mem_of_mem_erase old) b before
+
+/-- 64.8: an entry that is not held has every entry held valued at least as high: with `k` slots full, `k`
+such entries came since the mark. -/
+theorem ranked_gone_below {α : Type} [LE α] [DecidableRel (α := α) (· ≤ ·)] {held gone : List α} {b : α}
+    (was : ranked held gone) (is_gone : b ∈ gone) : held.countP (fun a => b ≤ a) = held.length := by
+  rw [List.countP_eq_length]
+  intro a held_a
+  simpa using was a held_a b is_gone
+
 end NCA
