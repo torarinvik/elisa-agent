@@ -543,6 +543,7 @@ correctness of interactions between mechanisms.
 | [65.1–65.3](theory/foundations/65-experiments-that-tell-rules-apart.md) | `narrowed_keeps_truth` (65.1), `one_left_is_truth` (65.2), `tests_needed` (65.3) | `Reliability/Experiments` |
 | [67.1–67.6](theory/foundations/67-sub-goals-counted-from-paid-trials.md) | `trial_gives_way`, `least_le_trial` (67.1), `reached_is_least` (67.2), `falls_iff_begins_shortest`, `marked_iff_begins_shortest` (67.3), `stays_iff_leaves_shortest` (67.4), `long_trial_holds_wasted` (67.5), `shares_halve` (67.6) | `Execution/Counted` |
 | [68.1–68.4](theory/foundations/68-payment-read-off-what-a-press-is-foretold-to-change.md) | `paid_once_over_places` (68.1), `paid_alike_over_contexts` (68.2), `window_two_iff` (68.3), `wide_map_misses_none`, `wide_map_wrong_only_at_named` (68.4) | `Execution/Foretold` |
+| [69.1–69.7](theory/foundations/69-looking-where-the-picture-is-unusual.md) | `most_is_usual`, `usual_is_most`, `agreeing_not_unusual`, `unusual_iff_off_ground` (69.1), `unusual_within` (69.2), `middle_between`, `window_holds`, `moved_window_holds` (69.3), `window_holds_box` (69.4), `window_points_le`, `cut_saves`, `cut_saves_unless_whole` (69.5), `still_point_missed` (69.6), `far_apart_not_both`, `long_stretch_cut` (69.7) | `Execution/Looked` |
 
 ### Additional theorem declarations
 
