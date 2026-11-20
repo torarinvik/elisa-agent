@@ -61,9 +61,9 @@ It says which errors of a foretold picture matter. Measured by how far it lies f
 that came, a picture can be nearly right and useless (a mover drawn faintly at several places it
 might stop is near every one of them), and far off in points that no reading uses without harm.
 A foretelling taught only to lie near the picture that came is taught a number that need not
-move with what its user gains (Lambert, Amos, Yadan and Calandra, 2020). So the lesson is the
-picture that came, and beside it that the first reading, held as it is, read the foretold
-picture as it reads that one.
+move with what its user gains (Lambert, Amos, Yadan and Calandra, 2020). Whether to teach a
+foretelling the reading as well as the picture that came is a matter of measurement, recorded in
+the research diary; 72.1 says only that the reading is what its states are to keep.
 
 ## 72.4 What is not seen cannot be foretold
 
