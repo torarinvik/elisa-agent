@@ -1,4 +1,7 @@
+import Mathlib.Data.Nat.Find
+import Mathlib.Data.Rat.Defs
 import Mathlib.Order.Basic
+import Mathlib.Tactic.Linarith
 
 /-! Sub-goals counted from paid trials (chapter 67). -/
 namespace NCA
@@ -64,5 +67,58 @@ theorem marked_iff_begins_shortest (step : S → A → S) (paid : S → Prop) (c
     count (step s a) + 1 = count s ↔ Way step paid n (step s a) := by
   rw [right, ← falls_iff_begins_shortest step paid n (count (step s a)) s a here there]
   omega
+
+/-- 67.4: where the least numbers are known at both states, a press leaves the shortest ways exactly when
+the number does not fall over it. -/
+theorem stays_iff_leaves_shortest (step : S → A → S) (paid : S → Prop) (n m : Nat) (s : S) (a : A)
+    (here : Least step paid (n + 1) s) (there : Least step paid m (step s a)) :
+    n + 1 ≤ m ↔ ¬ Way step paid n (step s a) := by
+  rw [← falls_iff_begins_shortest step paid n m s a here there]
+  have lower := here.2 (m + 1) ((way_succ step paid m s).2 ⟨a, there.1⟩)
+  omega
+
+/-- A press begins a shortest way from a state. -/
+def Shortest (step : S → A → S) (paid : S → Prop) (s : S) (a : A) : Prop :=
+  ∃ k, Least step paid (k + 1) s ∧ Way step paid k (step s a)
+
+/-- A state with a way has a least number of presses to payment. -/
+theorem least_exists (step : S → A → S) (paid : S → Prop) (k : Nat) (s : S) (way : Way step paid k s) :
+    ∃ n, Least step paid n s := by
+  classical
+  have some : ∃ n, Way step paid n s := ⟨k, way⟩
+  exact ⟨Nat.find some, Nat.find_spec some, fun _ shorter => Nat.find_min' some shorter⟩
+
+/-- 67.5: a paid trial of more presses than the least from where it began holds a press that did not begin a
+shortest way from where it was made. -/
+theorem long_trial_holds_wasted (step : S → A → S) (paid : S → Prop) (presses : List A) :
+    ∀ (s : S) (n : Nat), Least step paid n s → paid (led step s presses) → n < presses.length →
+      ∃ before a after, presses = before ++ a :: after ∧ ¬ Shortest step paid (led step s before) a := by
+  induction presses with
+  | nil =>
+    intro s n _ _ longer
+    simp at longer
+  | cons a rest ih =>
+    intro s n least ended longer
+    have way := trial_gives_way step paid rest (step s a) ended
+    obtain ⟨m, there⟩ := least_exists step paid rest.length (step s a) way
+    by_cases same : m + 1 = n
+    · have shorter : m < rest.length := by
+        simp at longer
+        omega
+      obtain ⟨before, b, after, split, wasted⟩ := ih (step s a) m there ended shorter
+      exact ⟨a :: before, b, after, by simp [split], wasted⟩
+    · refine ⟨[], a, rest, rfl, ?_⟩
+      rintro ⟨k, here, nearer⟩
+      have upper := least.2 _ here.1
+      have lower := here.2 _ least.1
+      have reached := there.2 k nearer
+      have through := least.2 (m + 1) ((way_succ step paid m s).2 ⟨a, there.1⟩)
+      omega
+
+/-- 67.6: of two presses, shares that sum to at most one give one at most a half. -/
+theorem shares_halve (p q : ℚ) (sum : p + q ≤ 1) : p ≤ 1 / 2 ∨ q ≤ 1 / 2 := by
+  rcases le_or_gt p (1 / 2) with low | high
+  · exact Or.inl low
+  · exact Or.inr (by linarith)
 
 end NCA
