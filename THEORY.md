@@ -94,3 +94,4 @@ link for its definitions, arguments, and results.
 - [65. Experiments that tell rules apart](theory/foundations/65-experiments-that-tell-rules-apart.md)
 - [66. A trunk of blocks that are never taught twice](theory/foundations/66-a-trunk-of-blocks.md)
 - [67. Sub-goals counted from paid trials](theory/foundations/67-sub-goals-counted-from-paid-trials.md)
+- [68. Payment read off what a press is foretold to change](theory/foundations/68-payment-read-off-what-a-press-is-foretold-to-change.md)

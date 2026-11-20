@@ -542,6 +542,7 @@ correctness of interactions between mechanisms.
 | [64.1–64.8](theory/foundations/64-working-memory.md) | `held_iff_age` (64.1), `held_mono` (64.2), `held_together` (64.3), `kept_in_time` (64.4), `gone_when_unkept`, `kept_is_available` (64.5), `slotted_iff_few_since`, `slotted_mono` (64.6), `keptAtRandom_even` (64.7), `ranked_of_none_gone`, `ranked_refused`, `ranked_replaced`, `ranked_gone_below` (64.8) | `Execution/Memory` |
 | [65.1–65.3](theory/foundations/65-experiments-that-tell-rules-apart.md) | `narrowed_keeps_truth` (65.1), `one_left_is_truth` (65.2), `tests_needed` (65.3) | `Reliability/Experiments` |
 | [67.1–67.6](theory/foundations/67-sub-goals-counted-from-paid-trials.md) | `trial_gives_way`, `least_le_trial` (67.1), `reached_is_least` (67.2), `falls_iff_begins_shortest`, `marked_iff_begins_shortest` (67.3), `stays_iff_leaves_shortest` (67.4), `long_trial_holds_wasted` (67.5), `shares_halve` (67.6) | `Execution/Counted` |
+| [68.1–68.4](theory/foundations/68-payment-read-off-what-a-press-is-foretold-to-change.md) | `paid_once_over_places` (68.1), `paid_alike_over_contexts` (68.2), `window_two_iff` (68.3), `wide_map_misses_none`, `wide_map_wrong_only_at_named` (68.4) | `Execution/Foretold` |
 
 ### Additional theorem declarations
 
