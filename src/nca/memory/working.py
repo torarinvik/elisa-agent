@@ -35,6 +35,17 @@ class WorkingMemory:
         self._held: dict[str, OrderedDict[int, Entry]] = {name: OrderedDict() for name in capacities}
         self._pinned: dict[str, dict[int, Entry]] = {name: {} for name in capacities}
 
+    def open(self, channel: str, capacity: int) -> None:
+        """Add a channel at this step, for whoever is to write it. It holds from now on what a channel of that
+        capacity there from the first step would hold of what is written to it, and no other channel is
+        touched (§64.1)."""
+        if channel in self.capacities:
+            raise ValueError(f"channel {channel!r} is already there")
+        if type(capacity) is not int or capacity < 1:
+            raise ValueError("a channel's capacity must be a positive number of steps")
+        self.capacities[channel] = capacity
+        self._held[channel], self._pinned[channel] = OrderedDict(), {}
+
     def advance(self) -> int:
         """Go to the next step, letting go of every entry no channel holds any longer (§64.1)."""
         self.step += 1

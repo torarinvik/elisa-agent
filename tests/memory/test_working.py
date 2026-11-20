@@ -61,6 +61,31 @@ def test_channels_read_together_are_served_as_far_back_as_the_smaller() -> None:
     assert both == [step for step in range(alone.step + 1) if available(alone, "least", step)]
 
 
+def test_a_channel_opened_later_holds_as_one_there_from_the_first_and_leaves_the_others_as_they_were() -> None:
+    """64.1: what a channel holds is given by its own capacity and entries."""
+    for capacity in range(1, 4):
+        memory, alone, first = filled(3, 4), filled(3, 4), WorkingMemory({"own": capacity})
+        for _ in range(4):
+            first.advance()
+        memory.open("own", capacity)
+        for _ in range(BOUND):
+            for each in (memory, alone):
+                each.advance()
+                each.write("seen", each.step)
+            first.advance()
+            for each in (memory, first):
+                each.write("own", ("mine", each.step))
+            for step in range(memory.step + 1):
+                assert available(memory, "seen", step) == available(alone, "seen", step)
+                assert available(memory, "own", step) == available(first, "own", step)
+        assert memory.back("own", 0) == ("mine", memory.step) and memory.together(("seen", "own")) == min(3, capacity)
+    memory = WorkingMemory({"seen": 2})
+    with pytest.raises(ValueError):
+        memory.open("seen", 3)
+    with pytest.raises(ValueError):
+        memory.open("own", 0)
+
+
 def test_what_is_read_back_is_what_was_written() -> None:
     memory = filled(4, 6)
     assert memory.back("seen", 0) == 6

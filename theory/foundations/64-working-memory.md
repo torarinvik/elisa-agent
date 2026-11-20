@@ -15,6 +15,12 @@ is `n - i`.
 Apart from what a channel holds, an entry may be **kept**: pinned in the holding, or written to the
 durable store of chapter 43. An entry is **available** at a step when it is held or kept.
 
+What a channel holds is given by its own capacity and its own entries and by no other channel. So a
+channel may be **opened** at any step, by whoever writes it: from then on it holds what a channel of
+that capacity there from the first step, and written nothing before, would hold, and every other
+channel holds what it held. An expert that is to hold something of its own for a while (what it means
+to do next, as in 73.12) opens a channel for it and reads it back as it reads what it was shown.
+
 ## 64.2 How far back
 
 **Proposition 64.1 (served by age).** An entry of age `d` is held if and only if `d < c`.
