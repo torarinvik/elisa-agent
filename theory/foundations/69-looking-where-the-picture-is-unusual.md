@@ -113,3 +113,121 @@ and `NCA.unusual_iff_off_ground`; 69.2 is `NCA.unusual_within`; 69.3 `NCA.middle
 over `NCA.middle`, `NCA.middle_mem`, `NCA.rows` and `NCA.cols`; 69.5 `NCA.window_points_le`,
 `NCA.cut_saves` and `NCA.cut_saves_unless_whole`; 69.6 `NCA.agreeing_not_unusual` and
 `NCA.still_point_missed`; 69.7 `NCA.far_apart_not_both` and `NCA.long_stretch_cut`.
+
+## 69.7 A window laid where presses are foretold to differ
+
+The window of 69.1 is drawn to whatever varies, of the learner's doing or not, and by 69.6 it is
+laid without regard to what the learner's presses do. Let the learner instead hold a **map**: for
+every point and every port a number from nought to one, saying how surely pressing that port
+changes the point. How the map is learned is not treated here. The frame gives points, ports and
+the map no meaning.
+
+The **weight** of a point is how much those numbers differ between the ports there: the mean, over
+the ports, of the square of what each port's number lies from the mean of them. A point **carries
+weight** when its weight is not nought. The **weighted mean** of the rows is the sum, over the
+points, of weight times row, divided by the sum of the weights, and so for the columns. The
+**weighted middle** has the whole numbers nearest those two means, and the window is laid about
+it.
+
+## 69.8 The weight of a point
+
+**Proposition 69.8 (alike has no weight).** A weight is never negative. A point that every port is
+foretold to change alike has no weight, and no other point has none.
+
+So a point that changes whatever is pressed, and a point that no press changes, weigh the same:
+nothing. Of what 69.6 found the first window drawn to, a mark that counts the presses or a
+flicker, the map takes no notice where it foretells it rightly; and it finds a thing that only
+some ports move, though the thing lies still in most pictures and is, by 69.1, usual where it
+lies.
+
+**Proposition 69.9 (little difference, little weight).** Where what the ports are foretold at a
+point lies within a stretch of length `ε`, the weight of the point is at most `ε²`. So no weight
+is more than one.
+
+Two measures of difference were at hand: this one, and the largest of the ports' numbers less
+the least. Both are nought exactly where the ports are alike, and the propositions on the middle
+below use of the weights only that none is negative, so they hold for either. The square is taken
+for 69.9. A learned map is nowhere exactly alike; at a point where its numbers lie within `ε`
+of each other the square weighs at most `ε²` where the other measure may weigh `ε`, and by 69.13
+many such points draw the middle by their share of all the weight.
+
+## 69.9 The weighted middle
+
+**Proposition 69.10 (a weighted mean lies among what carries weight).** Let some numbers have
+weights, none negative and not all nought. Then their weighted mean lies in every stretch that
+holds the numbers that carry weight; so it lies between two of those, the least and the greatest.
+
+**Proposition 69.11 (rounding keeps between).** The whole number nearest a number that lies
+between two whole numbers lies between them.
+
+So the weighted middle's row lies between the rows of two points that carry weight, and its
+column between the columns of two. That is all proposition 69.3 uses of a middle, with the points
+that carry weight in place of the unusual ones.
+
+**Proposition 69.12 (the window holds what carries weight).** Let some point carry weight, and let
+the points that carry weight lie in a box whose rows span at most `h` and whose columns span at
+most `h`. Then the window of half-width `h` about the weighted middle holds the whole box. So
+where the ports are foretold alike at every point outside such a box, and not alike at some
+point, the window laid by the map holds the box.
+
+So the bound of 69.4 carries over unchanged, and what must keep to the box is no longer all that
+varies but only what the ports are foretold to change differently. The learner need not be told
+where the box is, nor which port moves what.
+
+## 69.10 Where it fails
+
+**Proposition 69.13 (stray weight moves the middle by its share).** Let weights be as in
+proposition 69.10, let a thing's coordinates lie between `a` and `b`, and let every other
+coordinate that carries weight lie within `D` of that stretch. Then the weighted mean lies between
+`a − sD` and `b + sD`, where `s` is the share of all the weight that is not on the thing.
+
+So a map that is a little wrong at many points draws the middle off the thing by no more than the
+share of the weight those points carry, times how far off they stand; by 69.9 that share is small
+where the errors are small. By propositions 69.11 and 69.3 the window still holds the thing where
+its stretch, widened on either side by `sD` and then out to whole numbers, is no longer than `h`.
+
+**Proposition 69.14 (much weight far off loses the thing).** With weight `W` at a coordinate `a`
+and weight `v` at `a + d`, the weighted mean is `a + d·v / (W + v)`. The window of half-width `h`
+about the whole number nearest it leaves `a` out as soon as `(h + 1)(W + v) ≤ d·v`, that is, as
+soon as `v` is the share `(h + 1) / d` of all the weight.
+
+So a map that is wrong far from the thing loses it with little weight: the further off the wrong
+weight stands, the smaller the share that suffices. Here the two middles part. The middle of 69.1
+moves off a thing only when half of the unusual points stand elsewhere; the weighted middle moves
+with every weight, in measure.
+
+**Proposition 69.15 (two groups, and neither held).** With weights `W` at `a` and `v` at `a + d`,
+each at least the share `(h + 1) / d` of all the weight, the window about the weighted middle
+holds neither coordinate. Two equal weights `2h + 2` or more apart are such.
+
+So where what the ports change differently stands in two groups further apart than the window is
+wide, 69.7 already says no window holds both; the weighted middle may fall between them and hold
+neither, where on one line the middle of 69.1, being itself an unusual coordinate, always holds
+one.
+
+## 69.11 What is assumed and what is left open, for 69.7 to 69.10
+
+Assumed: for 69.12 that some point carries weight and that the points that carry weight keep to a
+box of the stated size. Nothing is assumed of how the map was learned, and that its numbers lie
+from nought to one is used only for the last sentence of 69.9.
+
+Left open, and matters of the literature or of measurement recorded in the research diary. That a
+learned map is right: that the points at which it foretells the ports to differ are those of the
+thing the presses move, and that it says so at pictures the learner has not met. Learning which
+points a learner's own presses change, apart from what changes of itself, is studied as
+contingency (Bellemare, Veness and Bowling, 2012; Choi and others, 2019), for those learners and
+tasks. Taking one place from a map as the weighted mean of its places is the reading of Levine,
+Finn, Darrell and Abbeel (2016), there with weights that sum to one over the picture. Also open:
+what to lay while no point carries weight, as before the map is taught; what replaces one window
+where 69.14 or 69.15 bite; that the middle of 69.1 stays on a thing that has more than half of the
+unusual points, which is said in 69.10 and not proved; and 69.6 as it stands, since what decides
+payment and is changed by no press has no weight either, and is held only where it stands near
+what the ports move.
+
+In Lean the weight is `NCA.differing` over `NCA.portMean`, the weighted mean `NCA.weightedMean`
+and the nearest whole number `NCA.nearestWhole`; 69.8 is `NCA.differing_nonneg`,
+`NCA.alike_no_weight` and `NCA.no_weight_iff_alike`; 69.9 `NCA.differing_le_sq` with
+`NCA.portMean_between`; 69.10 `NCA.weighted_mean_between` and `NCA.weighted_mean_between_two`;
+69.11 `NCA.round_between` and `NCA.nearestWhole_between`; 69.12 `NCA.weighted_window_holds`, by
+`NCA.window_holds`, and `NCA.differing_window_holds`; 69.13 `NCA.stray_moves_little`; 69.14
+`NCA.mean_of_two` and `NCA.stray_weight_misses`; 69.15 `NCA.two_groups_miss_both`.
