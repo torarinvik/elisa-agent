@@ -96,3 +96,4 @@ link for its definitions, arguments, and results.
 - [67. Sub-goals counted from paid trials](theory/foundations/67-sub-goals-counted-from-paid-trials.md)
 - [68. Payment read off what a press is foretold to change](theory/foundations/68-payment-read-off-what-a-press-is-foretold-to-change.md)
 - [69. Looking where the picture is unusual](theory/foundations/69-looking-where-the-picture-is-unusual.md)
+- [70. Payment within so many presses](theory/foundations/70-payment-within-so-many-presses.md)
