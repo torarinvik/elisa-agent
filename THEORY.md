@@ -98,3 +98,4 @@ link for its definitions, arguments, and results.
 - [69. Looking where the picture is unusual](theory/foundations/69-looking-where-the-picture-is-unusual.md)
 - [70. Payment within so many presses](theory/foundations/70-payment-within-so-many-presses.md)
 - [71. Choosing between readings by the payments they foretold](theory/foundations/71-choosing-between-readings-by-the-payments-they-foretold.md)
+- [72. Looking ahead through states foretold](theory/foundations/72-looking-ahead-through-states-foretold.md)
