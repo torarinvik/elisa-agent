@@ -80,7 +80,7 @@ few states where no press pays, and what it then answers at such states is not t
 many levels to keep, and what to press where no level answers. And tasks in which chance decides
 where a press leads, where a state after is not one state.
 
-In Lean being within is `NCA.Within`, with `NCA.within_zero` and `NCA.within_mono`; 70.1 is
+In Lean being within is `NCA.WithinPresses`, with `NCA.within_zero` and `NCA.within_mono`; 70.1 is
 `NCA.within_succ`, 70.2 `NCA.within_iff_least`, 70.3 `NCA.lowest_level_begins_shortest` and
 `NCA.lower_levels_silent` with `NCA.within_gives_way`, 70.4 `NCA.followed_is_paid` over
-`NCA.run`, 70.5 `NCA.mended_is_paid` and 70.6 `NCA.nearest_after_begins_shortest`.
+`NCA.followedTo`, 70.5 `NCA.mended_is_paid` and 70.6 `NCA.nearest_after_begins_shortest`.
