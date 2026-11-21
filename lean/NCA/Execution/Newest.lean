@@ -146,6 +146,31 @@ theorem mean_wears (own rest near : ℝ) (others : ℕ) (pos : 0 < own) (close :
   rw [div_le_div_iff₀ whole below]
   nlinarith [heavy]
 
+/-- What two runs leave, one after the other, is what each leaves, multiplied. -/
+theorem left_append (newer older : List ℝ) : leftBy (newer ++ older) = leftBy newer * leftBy older := by
+  induction newer with
+  | nil => simp [leftBy]
+  | cons m rest ih =>
+    simp only [List.cons_append, leftBy, ih]
+    ring
+
+/-- 75.6: a read stopped once the items read leave at most `little` is within `little` times the bound of a
+value of the read of all the items, however many were left unread. -/
+theorem stopped_read_within (read unread : List (ℝ × ℝ)) (bound little : ℝ) (nonneg : 0 ≤ bound)
+    (unitRead : ∀ item ∈ read, 0 ≤ item.1 ∧ item.1 ≤ 1)
+    (unitUnread : ∀ item ∈ unread, 0 ≤ item.1 ∧ item.1 ≤ 1) (bounded : ∀ item ∈ unread, |item.2| ≤ bound)
+    (stopped : leftBy (read.map Prod.fst) ≤ little) :
+    |readBy (read ++ unread) - readBy read| ≤ little * bound :=
+  (more_held_moves_little read unread bound nonneg unitRead unitUnread bounded).trans
+    (mul_le_mul_of_nonneg_right stopped nonneg)
+
+/-- 75.6: reading on leaves no more, so a read taken a run at a time and stopped at the end of a run keeps
+the bound of one stopped at the first item that left so little. -/
+theorem reading_on_leaves_less (newer older : List ℝ) (unitNewer : ∀ m ∈ newer, 0 ≤ m ∧ m ≤ 1)
+    (unitOlder : ∀ m ∈ older, 0 ≤ m ∧ m ≤ 1) : leftBy (newer ++ older) ≤ leftBy newer := by
+  rw [left_append]
+  exact mul_le_of_le_one_right (left_between newer unitNewer).1 (left_between older unitOlder).2
+
 end Newest
 
 end NCA

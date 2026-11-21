@@ -78,6 +78,16 @@ where so little is left: their number does not turn on how many older items are 
 nothing matches, every item is read, and the cost is in proportion to the holding; bounding that
 needs keys put to an index (73.7), which is not treated here.
 
+**Proposition 75.6 (a read stopped where little is left).** Where the items read leave at most
+`τ`, the read of them is within `τ B` of the read of them and any number of older items. Reading
+on leaves no more: what a run and an older run leave together is the product of what each
+leaves. So the items may be taken a run of a fixed length at a time and the stop looked for only
+at the end of each run; the read stops no more than one run past the first item that left so
+little, and the bound is kept.
+
+Reading further back only where nothing nearer matched is a way of thinking on (76.5): the cost
+is paid at the steps that need it.
+
 A chance and a value are made from what an item holds, and by 73.17 a form of the entry serves
 where it keeps apart the entries the choice tells apart. Where the form is made by a reading
 held fixed (73.11), it is made once, when the item is written, and a teaching reads forms and
@@ -101,4 +111,5 @@ In Lean what a run leaves is `NCA.leftBy`, the weights summed `NCA.takenBy` and 
 `NCA.readBy`. 75.1 is `NCA.taken_add_left`; 75.2 is `NCA.left_le_of_match`, over
 `NCA.left_between`; 75.3 is `NCA.read_append`, `NCA.more_held_moves_little` and
 `NCA.sure_match_fixes_read`, over `NCA.read_within`; 75.4 is `NCA.newer_leave_most`; 75.5 is
-`NCA.mean_wears`.
+`NCA.mean_wears`; 75.6 is `NCA.stopped_read_within` and `NCA.reading_on_leaves_less`, over
+`NCA.left_append`.
