@@ -109,8 +109,42 @@ Left open. Thresholds that follow what was paid, and what they should follow. A 
 on that counts what thinking itself costs in time. A concept that knows no later one could
 change the step, and how it may know. Steps paid in amounts and not by a chance.
 
+## 76.8 A chance of its own for each hypothesis
+
+The rule of 76.1 asks of a hypothesis only the chance that taking it now is right. Let the
+chances instead be shares of one whole: amounts a_i > 0, the share of i being a_i over their
+sum S, with going on counted among the hypotheses. A lesson is given only on the hypothesis that
+was taken. Lower one amount by d, 0 < d < S, and leave the others: every other share goes from
+a_j / S to a_j / (S - d), which is larger, and all of them by the one factor S / (S - d). So
+what a hypothesis loses by a lesson is given to the others as they stand, to one that was never
+judged as much as to one that was. Where going on is seldom or never judged, its share is then
+made by what the ports were paid and says nothing of what going on is worth; where every port
+taken has been unpaid, it holds nearly the whole, the rule puts nothing out, and no further
+lesson comes.
+
+Hence each hypothesis is given a chance of its own, taught on that hypothesis alone, and going
+on is not a hypothesis among them: its worth is the risk of going on, read and taught apart
+(76.1, 76.3). Chances of their own need not sum to one, and 76.1 to 76.5 ask nowhere that they
+do.
+
+## 76.9 What the risk of going on is taught by
+
+By 76.3 going on at a step is worth the best chance of the steps left. A learner has those
+chances only as readings. Let each trial give two readings x and y of later steps. Over any
+trials the sum of the larger of the two is at least the larger of the two sums,
+
+    max(Σ x, Σ y) ≤ Σ max(x, y),
+
+with equality only where one reading is the larger in every trial. So where the later steps of
+a trial are readings of one and the same chance, as in a world that stands still, the largest
+of them overrates it, the more so the more steps are read, and a learner taught so holds going
+on above its best hypothesis and waits. The reading at one named step does not: the step at
+which the rule itself next put out. Where the rule put nothing out again, what going on came to
+is how the trial ended, which is no reading at all.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
 75; 76.4 is `NCA.never_out_unpaid` and `NCA.out_more_pays`; 76.5 is `NCA.cost_le_all`, over
-`NCA.costBy`.
+`NCA.costBy`; 76.8 is `NCA.share_rises` and `NCA.shares_rise_alike`; 76.9 is
+`NCA.largest_overrates`.

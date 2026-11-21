@@ -143,6 +143,31 @@ theorem cost_le_all (concepts : List (ℝ × ℝ)) (unit : ∀ c ∈ concepts, 0
     simp only [costBy, List.map_cons, List.sum_cons]
     nlinarith [mul_le_mul_of_nonneg_right here.2 cost]
 
+/-- 76.8: in a contest of shares, lowering one amount raises the share of any other: what one hypothesis
+loses is given to the others, one that was never judged among them. -/
+theorem share_rises (amount whole less : ℝ) (pos : 0 < amount) (some : 0 < less) (left : less < whole) :
+    amount / whole < amount / (whole - less) := by
+  have small : 1 / whole < 1 / (whole - less) := one_div_lt_one_div_of_lt (by linarith) (by linarith)
+  calc amount / whole = amount * (1 / whole) := by ring
+    _ < amount * (1 / (whole - less)) := mul_lt_mul_of_pos_left small pos
+    _ = amount / (whole - less) := by ring
+
+/-- 76.8: and every other share is raised by one and the same factor, so the loss is given to the others
+as they stand, whatever was learned of them. -/
+theorem shares_rise_alike (first second whole less : ℝ) (one : first ≠ 0) (other : second ≠ 0) :
+    first / (whole - less) / (first / whole) = second / (whole - less) / (second / whole) := by
+  have each : ∀ x : ℝ, x ≠ 0 → x / (whole - less) / (x / whole) = whole / (whole - less) := by
+    intro x nonzero
+    rw [div_div_div_comm, div_self nonzero, one_div_div]
+  rw [each first one, each second other]
+
+/-- 76.9: over any trials, the larger of two readings sums to at least the larger of the two sums: the
+largest reading of a trial overrates what either reading is worth on the whole. -/
+theorem largest_overrates (reads : List (ℝ × ℝ)) :
+    max (reads.map Prod.fst).sum (reads.map Prod.snd).sum ≤ (reads.map fun read => max read.1 read.2).sum :=
+  max_le (List.sum_le_sum fun read _ => le_max_left read.1 read.2)
+    (List.sum_le_sum fun read _ => le_max_right read.1 read.2)
+
 end Thinking
 
 end NCA
