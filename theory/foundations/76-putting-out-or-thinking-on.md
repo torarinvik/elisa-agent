@@ -21,6 +21,12 @@ threshold `τ_r` times the risk of putting out now, and otherwise goes on.
 risks the smaller of the two risks, and putting out with any chance at the step risks at least
 that.
 
+One number says where the risk lies: the share of the two risks that is in putting out now,
+nought where all the risk is in going on and one where all of it is in putting out. The rule
+puts out exactly where that share is at most `1 / (1 + τ_r)`, a half for `τ_r = 1`. The share
+decides; it is not what is learned, since nothing that happens has it as its chance, while each
+risk is the chance of something that does.
+
 ## 76.2 Risks that are misread, and other thresholds
 
 **Proposition 76.2 (what misreading costs).** If each risk is read within `e` of what it is,
@@ -103,7 +109,7 @@ Left open. Thresholds that follow what was paid, and what they should follow. A 
 on that counts what thinking itself costs in time. A concept that knows no later one could
 change the step, and how it may know. Steps paid in amounts and not by a chance.
 
-In Lean, 76.1 is `NCA.rule_risks_least` and `NCA.least_risk_le`; 76.2 is
+In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
 75; 76.4 is `NCA.never_out_unpaid` and `NCA.out_more_pays`; 76.5 is `NCA.cost_le_all`, over

@@ -55,6 +55,13 @@ theorem threshold_costs_little (act wait threshold : ℝ) (nonneg : 0 ≤ act) (
     · rw [min_eq_left le]; nlinarith
     · rw [min_eq_right ge]; linarith
 
+/-- 76.1: one number says where the risk lies, the share of the two risks that is in putting out now; the rule
+with a threshold on the quotient puts out exactly where that share is at most one in one and the threshold. -/
+theorem share_le_iff (act wait threshold : ℝ) (nonneg : 0 ≤ threshold) (some : 0 < act + wait) :
+    act / (act + wait) ≤ 1 / (1 + threshold) ↔ threshold * act ≤ wait := by
+  rw [div_le_div_iff₀ some (by linarith)]
+  constructor <;> intro h <;> nlinarith
+
 /-- The best a trial can be paid from here on: the largest chance of a step left, nought where none is. -/
 def bestBy : List ℝ → ℝ
   | [] => 0

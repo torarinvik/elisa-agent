@@ -82,6 +82,15 @@ class Thought:
         """The risk of going on over the risk of putting out now; infinite where putting out risks nothing."""
         return self.wait / self.act if self.act > 0 else math.inf
 
+    @property
+    def tilt(self) -> float:
+        """Where the risk lies, as one number: the share of the two risks that is in putting out now. Nought
+        where all the risk is in going on, one where all is in putting out, a half where there is none. With
+        a threshold ``ratio`` on the quotient, a hypothesis is taken where this is at most ``1 / (1 + ratio)``
+        (§76.1)."""
+        whole = self.wait + self.act
+        return self.act / whole if whole > 0 else 0.5
+
 
 @dataclass(frozen=True)
 class Answer:

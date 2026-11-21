@@ -40,6 +40,16 @@ def test_the_rule_takes_the_smaller_risk() -> None:
             assert min(act, wait) <= out * act + (1 - out) * wait + 1e-12
 
 
+def test_one_number_says_where_the_risk_lies() -> None:
+    """share_le_iff (76.1): the share of the risk in putting out now decides as the quotient does."""
+    for act, wait, ratio in itertools.product(GRID, GRID, [0.5, 1.0, 2.0]):
+        thought = Thought(None, 0, 1.0 - act, wait, act, 1, 1.0)
+        if act + wait > 0 and abs(ratio * act - wait) > 1e-9:
+            assert (thought.tilt <= 1 / (1 + ratio)) == decides(1.0, wait, act, Thresholds(ratio=ratio))
+    assert Thought(None, 0, 1.0, 0.0, 0.0, 1, 1.0).tilt == 0.5
+    assert Thought(None, 0, 0.0, 0.0, 1.0, 1, 1.0).tilt == 1.0 and Thought(None, 0, 1.0, 1.0, 0.0, 1, 1.0).tilt == 0.0
+
+
 def test_misread_risks_cost_at_most_twice_what_they_are_off() -> None:
     """read_risks_cost_little (76.2), over a grid of true risks and of misreadings within a bound."""
     for act, wait, off in itertools.product(GRID, GRID, [0.0, 0.05, 0.2]):
