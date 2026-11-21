@@ -184,10 +184,36 @@ So the charge decides the ties and is paid only where waiting would have gained 
 charge. Where waiting gains much, as before a question is asked, (1 - δ)ⁿ v stays far above the
 chance of putting out now and the rule goes on as it did.
 
+## 76.12 Going on held to what the last concept says
+
+The chance of going on is read by the first concept, before the dearer ones are asked, and by
+76.3 it is taught what the rule's next putting out was held to be worth. Read so, it is what
+going on is worth over the steps that look alike to the first concept, and a dearer concept
+tells those steps apart: where it gives its best hypothesis less than they are worth on the
+whole, the rule of 76.1 waits. Where going on shows nothing new the dearer concept will say
+at the next step what it says now, and the wait gains nothing; it is made again at every such
+step until the time since the last judgement moves the reading.
+
+Let the last concept asked give its best hypothesis the chance c, and let going on show at
+every later step what is shown now. Then by 76.11 going on for n ≥ 1 steps is worth
+(1 - δ)ⁿ c.
+
+**Proposition 76.12 (held to the last word, the rule puts out and gives up nothing).** Where
+going on shows what is shown now, what it is worth is at most (1 - δ) c, so holding the chance
+read of going on to the smaller of itself and (1 - δ) c takes from it nothing that going on is
+worth. And with it so held, for c > 0 and δ > 0, the risk of going on is above the risk of
+putting out, whatever was read: the rule puts out.
+
+What this presumes is that going on shows the same again. It is false where the world moves
+of itself, and there a concept asked last and held to in this way puts out where waiting was
+right; whether a world stands still is not read here but taken, and where it is taken wrongly
+the cost is that of 76.11 with the later worth in place of c.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
 75; 76.4 is `NCA.never_out_unpaid` and `NCA.out_more_pays`; 76.5 is `NCA.cost_le_all`, over
 `NCA.costBy`; 76.8 is `NCA.share_rises` and `NCA.shares_rise_alike`; 76.9 is
 `NCA.largest_overrates`; 76.10 is `NCA.unsure_costs_less`, `NCA.sure_costs_little` and
-`NCA.settled_costs_little`; 76.11 is `NCA.charged_tie_puts_out` and `NCA.charge_costs_little`.
+`NCA.settled_costs_little`; 76.11 is `NCA.charged_tie_puts_out` and `NCA.charge_costs_little`; 76.12 is
+`NCA.still_worth_within` and `NCA.held_to_last_puts_out`.

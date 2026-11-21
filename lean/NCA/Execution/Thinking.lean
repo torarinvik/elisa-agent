@@ -212,6 +212,23 @@ theorem charge_costs_little (chance later lost : ℝ) (steps : ℕ) (worth : 0 �
     linarith
   linarith
 
+/-- 76.12: where going on shows what is shown now, what it is worth after any number of steps is at most what
+the last concept gives its best hypothesis, less the share once. -/
+theorem still_worth_within (chance lost : ℝ) (steps : ℕ) (worth : 0 ≤ chance) (low : 0 ≤ lost) (share : lost ≤ 1)
+    (later : 1 ≤ steps) : (1 - lost) ^ steps * chance ≤ (1 - lost) * chance := by
+  have below : (1 - lost) ^ steps ≤ (1 - lost) ^ 1 :=
+    pow_le_pow_of_le_one (by linarith) (by linarith) later
+  rw [pow_one] at below
+  exact mul_le_mul_of_nonneg_right below worth
+
+/-- 76.12: with the chance of going on held to the smaller of what was read and what the last concept gives
+its best hypothesis less the share, the risk of going on is above the risk of putting out, whatever was read. -/
+theorem held_to_last_puts_out (read chance lost : ℝ) (some : 0 < chance) (charged : 0 < lost) :
+    1 - chance < 1 - min read ((1 - lost) * chance) := by
+  have held : min read ((1 - lost) * chance) ≤ (1 - lost) * chance := min_le_right _ _
+  have less : (1 - lost) * chance < chance := by nlinarith [mul_pos charged some]
+  linarith
+
 end Thinking
 
 end NCA
