@@ -100,3 +100,4 @@ link for its definitions, arguments, and results.
 - [71. Choosing between readings by the payments they foretold](theory/foundations/71-choosing-between-readings-by-the-payments-they-foretold.md)
 - [72. Looking ahead through states foretold](theory/foundations/72-looking-ahead-through-states-foretold.md)
 - [73. What a memory has to hold, find and follow](theory/foundations/73-what-a-memory-has-to-hold-find-and-follow.md)
+- [74. Lessons from what follows a judged press](theory/foundations/74-lessons-from-what-follows-a-judged-press.md)
