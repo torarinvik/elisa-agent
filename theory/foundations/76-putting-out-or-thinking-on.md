@@ -165,10 +165,29 @@ the best chance of the steps left; its lesson is that worth, read as 76.9 says: 
 step at which the rule itself put out, by whichever concept was had there, or how the trial
 ended where there was none.
 
+## 76.11 A step of going on charged a share
+
+By 76.3 and 76.9 going on at a step is taught to be worth the chance at the step where the rule
+next puts out. Where going on shows nothing new, that chance is the chance of putting out now,
+and the rule of 76.1 is left to a tie between two readings of one thing: which way it falls is
+their noise, and a learner whose readings are honest waits about as often as not, for nothing.
+Going on is not free: the world may change and time runs out. Let a step of going on be taken
+to lose a share δ of what is to be had, with 0 < δ ≤ 1, so that going on for n steps to a step
+worth v is worth (1 - δ)ⁿ v.
+
+**Proposition 76.11 (a tie puts out, and the charge costs little).** Where the later step is
+worth what now is worth, c > 0, going on for any n ≥ 1 steps is worth less than c, so the rule
+puts out. And where the rule puts out now with chance c because (1 - δ)ⁿ v ≤ c, it gives up at
+most v - c ≤ n δ v: a share δ of the later worth for each step it did not wait.
+
+So the charge decides the ties and is paid only where waiting would have gained less than the
+charge. Where waiting gains much, as before a question is asked, (1 - δ)ⁿ v stays far above the
+chance of putting out now and the rule goes on as it did.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
 75; 76.4 is `NCA.never_out_unpaid` and `NCA.out_more_pays`; 76.5 is `NCA.cost_le_all`, over
 `NCA.costBy`; 76.8 is `NCA.share_rises` and `NCA.shares_rise_alike`; 76.9 is
 `NCA.largest_overrates`; 76.10 is `NCA.unsure_costs_less`, `NCA.sure_costs_little` and
-`NCA.settled_costs_little`.
+`NCA.settled_costs_little`; 76.11 is `NCA.charged_tie_puts_out` and `NCA.charge_costs_little`.

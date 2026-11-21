@@ -192,6 +192,26 @@ theorem unsure_costs_less (cheap dear share : ℝ) (costly : 0 ≤ dear) (part :
     cheap + share * dear ≤ cheap + dear := by
   nlinarith
 
+/-- 76.11: where going on shows nothing new, what it is worth less a share for each step is below what
+putting out now is worth, however small the share, so the rule puts out. -/
+theorem charged_tie_puts_out (chance lost : ℝ) (steps : ℕ) (some : 0 < chance) (charged : 0 < lost)
+    (share : lost ≤ 1) (later : 1 ≤ steps) : (1 - lost) ^ steps * chance < chance := by
+  have below : (1 - lost) ^ steps ≤ (1 - lost) ^ 1 :=
+    pow_le_pow_of_le_one (by linarith) (by linarith) later
+  nlinarith [pow_one (1 - lost)]
+
+/-- 76.11: where the rule puts out now because what a later step is worth, less a share for each step to
+it, does not pass what now is worth, it gives up at most that share of the later worth for each step. -/
+theorem charge_costs_little (chance later lost : ℝ) (steps : ℕ) (worth : 0 ≤ later) (share : lost ≤ 1)
+    (put : (1 - lost) ^ steps * later ≤ chance) : later - chance ≤ steps * lost * later := by
+  have bernoulli := one_add_mul_le_pow (a := -lost) (by linarith) steps
+  have kept : (1 - steps * lost) * later ≤ (1 - lost) ^ steps * later := by
+    apply mul_le_mul_of_nonneg_right _ worth
+    have same : (1 : ℝ) + -lost = 1 - lost := by ring
+    rw [same] at bernoulli
+    linarith
+  linarith
+
 end Thinking
 
 end NCA
