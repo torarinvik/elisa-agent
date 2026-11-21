@@ -69,6 +69,19 @@ theorem fade_in_lessons (factor growth : ℝ) (power k : ℕ) (low : 0 ≤ facto
   rw [same]
   exact pow_le_one₀ (mul_nonneg low (pow_nonneg grows _)) enough
 
+/-- 77.4: a reading through layers that are each even, every layer's weights multiplied by a factor not below
+nought, gives the factor once for each layer times what it gave. The layers lie last first. -/
+theorem factor_on_every_layer {V : Type*} [AddCommMonoid V] [Module ℝ V] (layers : List (V → V)) (factor : ℝ)
+    (low : 0 ≤ factor) (even : ∀ layer ∈ layers, ∀ c : ℝ, 0 ≤ c → ∀ x, layer (c • x) = c • layer x) (x : V) :
+    (layers.map fun layer given => factor • layer given).foldr (fun layer rest => layer ∘ rest) id x
+      = factor ^ layers.length • layers.foldr (fun layer rest => layer ∘ rest) id x := by
+  induction layers with
+  | nil => simp
+  | cons layer rest ih =>
+    have before := ih fun other among => even other (List.mem_cons_of_mem _ among)
+    simp only [List.map_cons, List.foldr_cons, Function.comp_apply, List.length_cons]
+    rw [before, even layer (List.mem_cons_self ..) _ (pow_nonneg low _), smul_smul, pow_succ']
+
 end TaughtOn
 
 end NCA

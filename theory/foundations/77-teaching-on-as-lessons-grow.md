@@ -49,9 +49,30 @@ fitting reads like one taught from nothing is not shown here; it is measured, wi
 one, four fifths and a half, against teaching from nothing at the same counts of lessons.
 
 Left open. What the factor costs just after it is applied, before the teaching has made up for
-it, and so how few steps a teaching may have. A factor that differs by layer. When a learner
-should be taught from nothing instead.
+it, and so how few steps a teaching may have; 77.5 says how large that cost is in a reader of
+several layers, not how many steps make up for it. When a learner should be taught from nothing
+instead.
+
+## 77.5 A factor on every layer
+
+The account above is of one weight. A reading is made by layers, one after another, and the
+factor is put on the weights of each.
+
+A layer is **even** where multiplying what it is given by a number that is not below nought
+multiplies what it gives by the same number. A layer that multiplies by its weights and then
+keeps what is above nought is even; one that adds a weight of its own to every place is even
+only as far as what it adds is small beside the rest.
+
+**Proposition 77.4 (the factor compounds).** A reading through `L` even layers, each with its
+weights multiplied by a factor `s` that is not below nought, gives `s^L` times what it gave.
+
+So a half on each of three layers leaves an eighth of a reading, and on each of five a
+thirty-second: the same factor is a far harder start for a deeper reader, and a teaching of the
+same length makes up for less of it. For the whole reading to be multiplied by `s` the factor
+on each layer is the `L`-th root of `s`. The account of 77.2 and 77.3 stands, of the weights;
+what the proposition adds is that how much of a reading a factor leaves turns on the depth,
+which the law of 77.3 does not see.
 
 In Lean the weights after the teachings are `NCA.weightsAfter`. 77.1 is `NCA.weights_append`;
 77.2 is `NCA.old_teachings_fade`, over `NCA.weights_within`, and `NCA.warm_keeps_all`; 77.3 is
-`NCA.fade_in_lessons`.
+`NCA.fade_in_lessons`; 77.4 is `NCA.factor_on_every_layer`.
