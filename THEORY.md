@@ -102,3 +102,5 @@ link for its definitions, arguments, and results.
 - [73. What a memory has to hold, find and follow](theory/foundations/73-what-a-memory-has-to-hold-find-and-follow.md)
 - [74. Lessons from what follows a judged press](theory/foundations/74-lessons-from-what-follows-a-judged-press.md)
 - [75. A read by the newest match](theory/foundations/75-a-read-by-the-newest-match.md)
+- [76. Putting out or thinking on](theory/foundations/76-putting-out-or-thinking-on.md)
+- [77. Teaching on as lessons grow](theory/foundations/77-teaching-on-as-lessons-grow.md)

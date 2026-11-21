@@ -12,4 +12,5 @@ from nca.memory.records import (
 from nca.memory.backend import MemoryBackend as MemoryBackend
 from nca.memory.sqlite import MemoryStore as MemoryStore
 from nca.memory.working import Entry as Entry
+from nca.memory.working import Scratchpad as Scratchpad
 from nca.memory.working import WorkingMemory as WorkingMemory

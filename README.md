@@ -49,7 +49,13 @@ How the agent is meant to think:
   holds what the agent writes for itself.
 - **Long-term memory.** The stored experts and the trunk they read.
 - **Concepts.** The input is worked on in steps, one concept after another,
-  each free to consult and update both memories before the output is given.
+  each free to consult and update both memories. A concept holds hypotheses,
+  each something that could be done now with the chance that it is right:
+  an output, an asking of the kernel, or waiting.
+- **Putting out or thinking on.** After each concept the step is summed up
+  as the best hypothesis, the risk of going on and the risk of putting out
+  now. The hypothesis is taken where going on is the greater risk;
+  otherwise the next concept is asked, or the next step awaited.
 
 ## Status
 
@@ -59,13 +65,15 @@ The diagrams are the target, not a description of what is finished.
   eviction; admission of new experts only on fresh evidence; a trunk kept as
   a library of blocks that are added and never changed, so that every stored
   expert gives what it gave, with a key index over them; a working memory
-  of channels for recent frames, sound, presses and payments; a large body
-  of mathematical results with machine-checked proofs.
+  of channels for recent frames, sound, presses and payments, with a
+  scratchpad of notes; a thinking loop that asks concepts in turn, weighs
+  the two risks and serves an asking of the kernel within the step; a large
+  body of mathematical results with machine-checked proofs.
 - **Under test:** a small learner taught only by reward from the screen,
   choosing between experts by their own record, and how few judgements a
   new task needs; a learner that looks back in the working memory.
-- **Not built yet:** the scratchpad and concepts applied in steps;
-  regrouping experts by use; and a search that reaches a first reward where
+- **Not built yet:** thresholds that follow what was paid; concepts that
+  look ahead and hold a plan; regrouping experts by use; and a search that reaches a first reward where
   random presses do not.
 
 Measurements, including negative results, are in the dated research diary.

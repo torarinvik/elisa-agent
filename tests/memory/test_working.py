@@ -144,3 +144,42 @@ def test_an_entry_kept_in_a_store_is_recalled_after_its_channel_let_it_go(tmp_pa
         with pytest.raises(KeyError):
             memory.keep("seen", 0, store, lambda entry: MemoryRecord("observation", entry.item, "host@1", 0.0))
     store.close()
+
+
+def test_a_note_is_held_until_written_again_dropped_or_as_old_as_its_life() -> None:
+    """A note of life ``l`` written at step ``i`` is read at step ``n`` exactly when ``i <= n < i + l`` (76.6)."""
+    for life in range(1, BOUND):
+        memory = WorkingMemory({"seen": 1})
+        memory.scratch.note("thought", "first", life)
+        for age in range(BOUND):
+            assert ("thought" in memory.scratch) == (age < life)
+            if age < life:
+                assert memory.scratch.read("thought") == "first" and memory.scratch.age("thought") == age
+            memory.advance()
+    memory = WorkingMemory({"seen": 1})
+    memory.scratch.note("plan", 1)
+    for _ in range(BOUND):
+        memory.advance()
+    assert memory.scratch.read("plan") == 1 and memory.scratch.age("plan") == BOUND
+    memory.scratch.note("plan", 2)
+    assert memory.scratch.read("plan") == 2 and memory.scratch.age("plan") == 0
+    memory.scratch.drop("plan")
+    assert "plan" not in memory.scratch
+    with pytest.raises(KeyError):
+        memory.scratch.read("plan")
+
+
+def test_a_scratchpad_holds_no_more_notes_than_its_capacity() -> None:
+    memory = WorkingMemory({"seen": 1}, notes=2)
+    memory.scratch.note("a", 1)
+    memory.scratch.note("b", 2, life=1)
+    with pytest.raises(MemoryError):
+        memory.scratch.note("c", 3)
+    memory.scratch.note("a", 4)
+    memory.advance()
+    memory.scratch.note("c", 3)
+    assert memory.scratch.read("a") == 4 and memory.scratch.read("c") == 3 and "b" not in memory.scratch
+    with pytest.raises(ValueError):
+        memory.scratch.note("d", 0, life=0)
+    with pytest.raises(ValueError):
+        WorkingMemory({"seen": 1}, notes=0)

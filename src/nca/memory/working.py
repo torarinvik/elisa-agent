@@ -4,6 +4,10 @@ A channel has a name the host gives it and a capacity in steps; the frame gives 
 entry is whatever the host writes, held as it is and never read here. What is held is exactly what §64.1
 says: at step ``n`` the entry written at step ``i`` with ``i <= n < i + capacity``. An entry may be pinned,
 which keeps it in the holding, or kept in a durable store by a record the caller makes of it (§64.4).
+
+Beside the channels the memory has a scratchpad (§76.6): notes that whoever thinks leaves for the same step
+and for later ones, each under a name and held until it is written again, dropped, or as old as the life it
+was given.
 """
 from __future__ import annotations
 
@@ -24,14 +28,61 @@ class Entry:
     item: object
 
 
-class WorkingMemory:
-    """Channels of fixed capacity over one count of steps."""
+class Scratchpad:
+    """Named notes over the working memory's count of steps, at most ``capacity`` of them at once (§76.6).
 
-    def __init__(self, capacities: Mapping[str, int]) -> None:
+    A note is whatever its writer leaves, held as it is and never read here. Written under a name already
+    there it takes the place of the note before it, so a thought may be refined within a step.
+    """
+
+    def __init__(self, capacity: int = 64) -> None:
+        if type(capacity) is not int or capacity < 1:
+            raise ValueError("a scratchpad's capacity must be a positive number of notes")
+        self.capacity = capacity
+        self.step = 0
+        self._notes: dict[str, tuple[object, int, int | None]] = {}
+
+    def note(self, name: str, item: object, life: int | None = None) -> None:
+        """Leave a note at this step. With a ``life`` it is held at this step and the ``life - 1`` after it;
+        with none, until it is written again or dropped. ``MemoryError`` where the pad is full."""
+        if life is not None and (type(life) is not int or life < 1):
+            raise ValueError("a note's life must be a positive number of steps")
+        if name not in self._notes and len(self._notes) >= self.capacity:
+            raise MemoryError(f"the scratchpad holds its {self.capacity} notes")
+        self._notes[name] = (item, self.step, life)
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._notes
+
+    def read(self, name: str) -> object:
+        """What is noted under a name; ``KeyError`` where nothing is."""
+        return self._notes[name][0]
+
+    def age(self, name: str) -> int:
+        """How many steps ago the note under a name was written; ``KeyError`` where nothing is."""
+        return self.step - self._notes[name][1]
+
+    def drop(self, name: str) -> None:
+        """Let go of the note under a name, if there is one."""
+        self._notes.pop(name, None)
+
+    def advance(self, step: int) -> None:
+        """Go to a step, letting go of every note as old as its life."""
+        self.step = step
+        gone = [name for name, (_, written, life) in self._notes.items() if life is not None and written + life <= step]
+        for name in gone:
+            del self._notes[name]
+
+
+class WorkingMemory:
+    """Channels of fixed capacity over one count of steps, and a scratchpad of ``notes`` notes."""
+
+    def __init__(self, capacities: Mapping[str, int], notes: int = 64) -> None:
         if any(type(capacity) is not int or capacity < 1 for capacity in capacities.values()):
             raise ValueError("a channel's capacity must be a positive number of steps")
         self.capacities = dict(capacities)
         self.step = 0
+        self.scratch = Scratchpad(notes)
         self._held: dict[str, OrderedDict[int, Entry]] = {name: OrderedDict() for name in capacities}
         self._pinned: dict[str, dict[int, Entry]] = {name: {} for name in capacities}
 
@@ -47,8 +98,10 @@ class WorkingMemory:
         self._held[channel], self._pinned[channel] = OrderedDict(), {}
 
     def advance(self) -> int:
-        """Go to the next step, letting go of every entry no channel holds any longer (§64.1)."""
+        """Go to the next step, letting go of every entry no channel holds any longer (§64.1) and of every
+        note as old as its life (§76.6)."""
         self.step += 1
+        self.scratch.advance(self.step)
         for name, held in self._held.items():
             while held and next(iter(held)) + self.capacities[name] <= self.step:
                 held.popitem(last=False)
