@@ -168,6 +168,30 @@ theorem largest_overrates (reads : List (ℝ × ℝ)) :
   max_le (List.sum_le_sum fun read _ => le_max_left read.1 read.2)
     (List.sum_le_sum fun read _ => le_max_right read.1 read.2)
 
+/-- 76.10: where a concept gives its best hypothesis at least `sure`, no further concept can raise what
+taking a hypothesis is paid by more than what `sure` lacks of one. -/
+theorem sure_costs_little (chance better sure : ℝ) (held : sure ≤ chance) (most : better ≤ 1) :
+    better - chance ≤ 1 - sure := by
+  linarith
+
+/-- 76.10: where a concept gives every hypothesis at most `low`, the chances of all of them together, which
+bound the chance that any one of them is paid, come to at most `low` for each. -/
+theorem settled_costs_little (chances : List ℝ) (low : ℝ) (each : ∀ chance ∈ chances, chance ≤ low) :
+    chances.sum ≤ chances.length * low := by
+  induction chances with
+  | nil => simp
+  | cons chance rest ih =>
+    have here := each chance (List.mem_cons_self ..)
+    have later := ih (fun x hx => each x (List.mem_cons_of_mem _ hx))
+    simp only [List.sum_cons, List.length_cons, Nat.cast_add, Nat.cast_one]
+    linarith
+
+/-- 76.10: a dearer concept asked at a share of the steps costs, with the cheaper one asked at all of them,
+no more than both asked at every step. -/
+theorem unsure_costs_less (cheap dear share : ℝ) (costly : 0 ≤ dear) (part : share ≤ 1) :
+    cheap + share * dear ≤ cheap + dear := by
+  nlinarith
+
 end Thinking
 
 end NCA

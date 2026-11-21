@@ -142,9 +142,33 @@ on above its best hypothesis and waits. The reading at one named step does not: 
 which the rule itself next put out. Where the rule put nothing out again, what going on came to
 is how the trial ended, which is no reading at all.
 
+## 76.10 A dearer concept, asked where the cheaper is unsure
+
+Let two concepts be asked in turn, the cheaper at cost k and the dearer at cost K ≥ 0, and let
+the cheaper give its best hypothesis the chance c. Two thresholds, b ≤ a, say where the cheaper
+is taken at its word: at c ≥ a its best hypothesis is held to the rule of 76.1 with no more
+asked, at c ≤ b the step is settled and nothing is put out, and between them the dearer concept
+is asked. If that happens at a share q of the steps, a step costs k + qK, which is at most k + K
+(76.5).
+
+What the saving can lose is bounded on both sides. Where c ≥ a, no concept can give a
+hypothesis a chance above one, so not asking loses at most 1 - a. Where every one of m
+hypotheses has at most b, the chance that any of them is paid is at most the sum of their
+chances, hence at most mb; that is all a concept that saw everything could have had there. Both
+bounds take the cheaper concept's chances to be true chances given what it reads (76.2 says what
+a reading that is off costs). So thresholds near one and nought lose little and save the dearer
+concept wherever the cheaper is sure either way; a task in which the cheaper is sure at every
+step never pays for the dearer one.
+
+A hypothesis that is taken and judged not at once but by what it leads to is worth, by 76.3,
+the best chance of the steps left; its lesson is that worth, read as 76.9 says: at the next
+step at which the rule itself put out, by whichever concept was had there, or how the trial
+ended where there was none.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
 75; 76.4 is `NCA.never_out_unpaid` and `NCA.out_more_pays`; 76.5 is `NCA.cost_le_all`, over
 `NCA.costBy`; 76.8 is `NCA.share_rises` and `NCA.shares_rise_alike`; 76.9 is
-`NCA.largest_overrates`.
+`NCA.largest_overrates`; 76.10 is `NCA.unsure_costs_less`, `NCA.sure_costs_little` and
+`NCA.settled_costs_little`.
