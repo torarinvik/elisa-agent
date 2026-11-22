@@ -55,7 +55,11 @@ How the agent is meant to think:
 - **Putting out or thinking on.** After each concept the step is summed up
   as the best hypothesis, the risk of going on and the risk of putting out
   now. The hypothesis is taken where going on is the greater risk;
-  otherwise the next concept is asked, or the next step awaited.
+  otherwise the next concept is asked, or the next step awaited. This is
+  the minimum risk-ratio rule of §76.2. The diagram’s decision box uses
+  an upper bound on the same ratio. Set `Thresholds(ratio_bound="maximum")`
+  to select that rule. A host can set `think(..., passes=n)` to refine the
+  same input over at most `n` traversals, sharing one cost budget.
 
 ## Status
 
@@ -71,9 +75,21 @@ The diagrams are the target, not a description of what is finished.
   body of mathematical results with machine-checked proofs.
 - **Under test:** a small learner taught only by reward from the screen,
   choosing between experts by their own record, and how few judgements a
-  new task needs; a learner that looks back in the working memory.
-- **Not built yet:** thresholds that follow what was paid; concepts that
-  look ahead and hold a plan; regrouping experts by use; and a search that reaches a first reward where
+  new task needs; a learner that looks back in the working memory. External
+  learners can score the next two presses with a learned successor model,
+  request an episodic memory read within a step budget, and use immediate
+  reward to relearn which physical control issues a proposed action.
+  A frozen learner can also calibrate each visual reader’s early-output
+  confidence and risk-ratio bounds from signed rewards and the cost of closer looks.
+  An inference-only load can run that policy with a bounded feature window
+  and load its decision weights independently of its training history.
+  A concept can discover a request from a newly installed manifest, bind it
+  to working-memory observations, and ask the kernel to interpret an unfamiliar
+  result through a compatible expert. Paired outcomes can rank providers that
+  share a contract and estimate when consultation improves a decision.
+  With a deterministic transition model and faithful state keys, a concept
+  can keep a plan in working memory and revise it when observations diverge.
+- **Not built yet:** efficient plan validation from uncertain visual observations; regrouping experts by use; and a search that reaches a first reward where
   random presses do not.
 
 Measurements, including negative results, are in the dated research diary.

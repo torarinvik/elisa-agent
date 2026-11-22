@@ -506,6 +506,7 @@ def plan_stable_indexed(
     available: Sequence[TypeId],
     goal: TypeId,
     fuel: int = 8,
+    required: frozenset[int] = frozenset(),
 ) -> Plan | None:
     """``plan_stable`` by binary search over the prefix length.
 
@@ -515,20 +516,20 @@ def plan_stable_indexed(
     A route found earlier on the same index is returned as it is: installing
     modules never changes a route (``NCA.planShallowStable_append``).
     """
-    key = (tuple(available), goal, fuel)
+    key = (tuple(available), goal, fuel, required)
     found = index.routes.get(key)
     if found is not None and (found[1] is not None or found[0] == index.size):
         return found[1]
     route = None
-    if _plan(index, index.size, available, goal, fuel) is not None:
+    if _plan(index, index.size, available, goal, fuel, required=required) is not None:
         low, high = 0, index.size
         while low < high:
             middle = (low + high) // 2
-            if _plan(index, middle, available, goal, fuel) is None:
+            if _plan(index, middle, available, goal, fuel, required=required) is None:
                 low = middle + 1
             else:
                 high = middle
-        route = _shallow(index, low, available, goal, fuel)
+        route = _shallow(index, low, available, goal, fuel, required)
         index.routes[key] = (low, route)
     else:
         index.routes[key] = (index.size, None)

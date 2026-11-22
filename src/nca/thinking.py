@@ -7,7 +7,7 @@ is anything that could be done now; the frame reads none, except that one kind i
 kernel (``nca.abi.Request``). The concepts are asked in the order the host gives them, the cheaper first,
 each free to read what those before it left on the memory's scratchpad. After each the step is summed up
 (§76.1): the best hypothesis and its chance, and the two risks. The hypothesis is taken where its chance
-reaches a threshold and going on risks at least a threshold times what putting out does (§76.2). Otherwise
+reaches its threshold and the risk ratio meets its bound (by default the lower bound of §76.2). Otherwise
 the next concept is asked; when none is left, the budget is spent or a concept says the step is settled,
 nothing is put out, and thinking goes on with what the next step brings (§76.5).
 
@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 from nca.abi import Message, Request
 from nca.memory.working import WorkingMemory
@@ -55,11 +55,24 @@ class Concept(Protocol):
 
 @dataclass(frozen=True)
 class Thresholds:
-    """The least chance the best hypothesis must have, and the least quotient of the risk of going on over the
-    risk of putting out now, for it to be taken (§76.2)."""
+    """Minimum confidence and a bound on waiting risk divided by acting risk.
+
+    The minimum ratio follows §76.2. A maximum ratio expresses the upper-bound
+    decision rule printed in the cognitive-model diagram. At zero acting risk
+    the reported ratio is infinite, including when both risks are zero.
+    """
 
     prob: float = 0.0
     ratio: float = 1.0
+    ratio_bound: Literal["minimum", "maximum"] = "minimum"
+
+    def __post_init__(self) -> None:
+        if not 0. <= self.prob <= 1.:
+            raise ValueError("confidence threshold must be between zero and one")
+        if not math.isfinite(self.ratio) or self.ratio < 0:
+            raise ValueError("risk ratio threshold must be finite and nonnegative")
+        if self.ratio_bound not in ("minimum", "maximum"):
+            raise ValueError("risk ratio bound must be minimum or maximum")
 
 
 @dataclass(frozen=True)
@@ -86,7 +99,7 @@ class Thought:
     def tilt(self) -> float:
         """Where the risk lies, as one number: the share of the two risks that is in putting out now. Nought
         where all the risk is in going on, one where all is in putting out, a half where there is none. With
-        a threshold ``ratio`` on the quotient, a hypothesis is taken where this is at most ``1 / (1 + ratio)``
+        positive total risk, a lower bound ``ratio`` on the quotient holds where this is at most ``1 / (1 + ratio)``
         (§76.1)."""
         whole = self.wait + self.act
         return self.act / whole if whole > 0 else 0.5
@@ -107,30 +120,54 @@ Asking = Callable[[Request], Answer]
 """A way to ask the kernel."""
 
 
-def through(kernel: Resolver, workspace: Workspace, *, budget: int, cost_budget: float | None = None) -> Asking:
-    """Askings served by a kernel: it plans a route to the type asked for from the inputs given and runs it
-    under the budgets of each asking. No route, or a budget that does not reach, gives no value; a refusal is
-    never a wrong answer (§20)."""
+@dataclass(frozen=True)
+class KernelAsking:
+    """A callable kernel adapter that can also admit a request against a remaining step budget."""
 
-    def ask(request: Request) -> Answer:
-        before = workspace.spent
-        route = kernel.resolve(request, ())
+    kernel: Resolver
+    workspace: Workspace
+    budget: int
+    cost_budget: float | None
+
+    def __call__(self, request: Request) -> Answer:
+        return self._serve(request, self.cost_budget)
+
+    def ask_with_budget(self, request: Request, remaining: float) -> Answer:
+        limit = remaining if self.cost_budget is None else min(self.cost_budget, remaining)
+        return self._serve(request, limit)
+
+    def _serve(self, request: Request, limit: float | None) -> Answer:
+        before = self.workspace.spent
+        route = self.kernel.resolve(request, ())
         if route is None:
             return Answer(None)
         inputs = [Message(type_id, value, "input") for type_id, value in request.inputs]
         try:
-            result = attempt(route, inputs, workspace, budget, kernel, cost_budget)
+            result = attempt(route, inputs, self.workspace, self.budget, self.kernel, limit)
         except UnresolvedRequest:
             result = None
-        return Answer(None if result is None else result.payload, workspace.spent - before)
+        return Answer(None if result is None else result.payload, self.workspace.spent - before)
 
-    return ask
+
+def through(kernel: Resolver, workspace: Workspace, *, budget: int, cost_budget: float | None = None) -> KernelAsking:
+    """Serve a request under its invocation and cost caps, further limited by a finite thinking budget."""
+    if cost_budget is not None and (not math.isfinite(cost_budget) or cost_budget < 0):
+        raise ValueError("cost_budget must be finite and nonnegative")
+    return KernelAsking(kernel, workspace, budget, cost_budget)
 
 
 def decides(chance: float, wait: float, act: float, thresholds: Thresholds) -> bool:
-    """Whether to take the best hypothesis: it is likely enough, and going on risks at least ``ratio`` times
-    what putting out now does. With the thresholds nought and one this takes the smaller risk (§76.1)."""
-    return chance >= thresholds.prob and wait >= thresholds.ratio * act
+    """Apply the confidence and risk bounds to one candidate."""
+    return _meets(_risk(chance, "a hypothesis's chance"), _risk(wait, "the risk of going on"),
+                  _risk(act, "the risk of putting out now"), thresholds)
+
+
+def _meets(chance: float, wait: float, act: float, thresholds: Thresholds) -> bool:
+    if chance < thresholds.prob:
+        return False
+    if thresholds.ratio_bound == "maximum":
+        return act > 0 and wait <= thresholds.ratio * act
+    return wait >= thresholds.ratio * act
 
 
 def _risk(value: float, name: str) -> float:
@@ -140,7 +177,8 @@ def _risk(value: float, name: str) -> float:
 
 
 def think(concepts: Sequence[Concept], memory: WorkingMemory, thresholds: Thresholds | Adapting = Thresholds(), *,
-          wait: float = 1.0, budget: float = math.inf, ask: Asking | None = None, rounds: int = 4) -> Thought:
+          wait: float = 1.0, budget: float = math.inf, ask: Asking | None = None, rounds: int = 4,
+          passes: int = 1) -> Thought:
     """Ask the concepts in turn until a hypothesis is put out, the step is settled, or the budget would be passed.
 
     ``wait`` is the risk of going on where no concept reads it; with the default nothing is gained by going on,
@@ -149,44 +187,74 @@ def think(concepts: Sequence[Concept], memory: WorkingMemory, thresholds: Thresh
     nor any after it. With ``ask``, a hypothesis taken that is an asking of the kernel is served, its answer
     noted for this step under the type asked for, and the concepts asked again from the first; after ``rounds``
     askings in a step a further one is not served and nothing is put out.
+    ``passes`` permits additional traversals of the concepts on the same input. A completed
+    traversal carries its latest opinion and scratchpad into the next. Settlement, output and
+    the cost budget stop refinement immediately. Kernel answers restart the opinion independently
+    under ``rounds`` and share the same budget and remaining extra traversals.
+    A service exposing ``ask_with_budget(request, remaining)``, including ``through``, receives the
+    remaining finite budget before execution. A one-argument callback reports its cost after execution.
     """
+    if type(rounds) is not int or rounds < 0:
+        raise ValueError("rounds must be a nonnegative integer")
+    if type(passes) is not int or passes < 1:
+        raise ValueError("passes must be a positive integer")
+    if math.isnan(budget) or budget < 0:
+        raise ValueError("thinking budget must be nonnegative")
     risk, asked, spent, asks = _risk(wait, "the risk of going on"), 0, 0.0, 0
     best: int | None = None
     chance, acting = 0.0, 1.0
+    hypotheses: Sequence[object] | None = None
+    given = taken = None
     while True:
-        best, chance, acting, given, taken = None, 0.0, 1.0, None, None
-        hypotheses: Sequence[object] | None = None
         for concept in concepts:
-            if concept.cost < 0 or math.isnan(concept.cost):
+            cost = concept.cost
+            if cost < 0 or math.isnan(cost):
                 raise ValueError("a concept's cost must not be below nought")
-            if spent + concept.cost > budget:
+            if spent + cost > budget:
                 break
             opinion = concept.think(memory)
-            asked, spent = asked + 1, spent + concept.cost
+            asked, spent = asked + 1, spent + cost
             if opinion.wait is not None:
                 risk = _risk(opinion.wait, "the risk of going on")
             if opinion.act is not None:
                 given = _risk(opinion.act, "the risk of putting out now")
+            if opinion.hypotheses is not None and opinion.chances is None:
+                raise ValueError("replacement hypotheses need corresponding chances")
             if opinion.chances is not None:
                 if len(opinion.chances) == 0 or (opinion.hypotheses is not None and len(opinion.hypotheses) != len(opinion.chances)):
                     raise ValueError("an opinion needs one chance for each of at least one hypothesis")
                 hypotheses = opinion.hypotheses
-                best = max(range(len(opinion.chances)), key=opinion.chances.__getitem__)
-                chance = _risk(opinion.chances[best], "a hypothesis's chance")
+                chance = -1.0
+                for index, value in enumerate(opinion.chances):
+                    if not 0.0 <= value <= 1.0:
+                        raise ValueError("a hypothesis's chance must lie between nought and one")
+                    if value > chance:
+                        best, chance = index, float(value)
             if best is not None:
                 acting = 1.0 - chance if given is None else given
-                so_far = Thought(None, best, chance, risk, acting, asked, spent, asks)
-                if decides(chance, risk, acting, thresholds(so_far) if callable(thresholds) else thresholds):
+                bounds = thresholds
+                if callable(bounds):
+                    bounds = bounds(Thought(None, best, chance, risk, acting, asked, spent, asks))
+                if _meets(chance, risk, acting, bounds):
                     taken = best if hypotheses is None else hypotheses[best]
                     break
             if opinion.settled:
                 break
+        else:
+            if passes > 1 and concepts:
+                passes -= 1
+                continue
         if given is not None:
             acting = given
         if not isinstance(taken, Request) or ask is None:
             return Thought(taken, best, chance, risk, acting, asked, spent, asks)
         if asks == rounds:
             return Thought(None, best, chance, risk, acting, asked, spent, asks)
-        answer = ask(taken)
+        budgeted = getattr(ask, "ask_with_budget", None) if math.isfinite(budget) else None
+        answer = ask(taken) if budgeted is None else budgeted(taken, budget - spent)
+        if not math.isfinite(answer.cost) or answer.cost < 0:
+            raise ValueError("request cost must be finite and nonnegative")
         memory.scratch.note(taken.type_id, answer.value, life=1)
         spent, asks = spent + answer.cost, asks + 1
+        best, chance, acting, given, taken = None, 0.0, 1.0, None, None
+        hypotheses = None

@@ -128,3 +128,25 @@ research diary.
 
 In Lean 72.5 is `NCA.false_stops_few`, with `NCA.false_stops_all` where no two readings are false
 in the same trial.
+
+## 72.7 Payment on a branch that continues
+
+Fix the evidence at a decision and the first action. The trial can end
+paid with probability `p`, end unpaid, or continue with probability
+`c`. These three events partition the outcomes. Let `v` be the
+conditional chance of payment on the next action under the continuation
+policy. The chance of payment within the two actions is `p + cv`, by
+disjointness and conditional probability. At `c = 0` any choice of `v`
+gives the same value. For an observed random successor and a policy
+choosing its best action, `v` is the conditional expectation of the
+best next-action probability. Evaluating a single predicted successor
+approximates that expectation and can introduce error.
+
+**Proposition 72.6 (continuation bounds the value of looking ahead).**
+For `p,c ≥ 0`, `p+c ≤ 1`, and `v ∈ [0,1]`, the value is between
+`p` and `p+c ≤ 1`. In particular, an action with upper bound `p+c`
+below the immediate payment probability of a competitor cannot improve
+on that competitor within this horizon. Multiplying the bounds on
+`v` by `c` and adding `p` proves the bounds. Learned probabilities
+inherit the algebraic bounds when they form a distribution. Their
+accuracy as estimates requires separate evidence.

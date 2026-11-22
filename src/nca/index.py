@@ -60,7 +60,7 @@ class ProducerIndex:
         self._total_cache: dict[tuple[tuple[TypeId, ...], int], bool] = {}
         self._depth_cache: dict[tuple[tuple[TypeId, ...], int], dict[TypeId, int] | None] = {}
         self._in_progress: set[tuple[tuple[TypeId, ...], int]] = set()
-        self.routes: dict[tuple[tuple[TypeId, ...], TypeId, int], tuple[int, Plan | None]] = {}
+        self.routes: dict[tuple[tuple[TypeId, ...], TypeId, int, frozenset[int]], tuple[int, Plan | None]] = {}
         """Stable routes found so far, each with the length of the shortest
         prefix it is planned with, or ``None`` with the library size at which
         there was none."""

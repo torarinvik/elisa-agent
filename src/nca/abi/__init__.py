@@ -193,10 +193,21 @@ class Request:
     provisional: Any = None
     """The requester's own best answer, used if the request turns out irrelevant."""
 
+    provider: str | None = None
+    """Optional installed manifest reference for an explicitly bound invocation.
+    Its inputs are positional; ordinary requests use stable type-based planning."""
+
+    required: frozenset[int] = frozenset()
+    """Positions a result route must consume, including when a constant also matches."""
+
     def __post_init__(self) -> None:
         pairs = tuple(self.inputs.items() if isinstance(self.inputs, Mapping) else self.inputs)
         if any(not isinstance(pair, tuple) or len(pair) != 2 for pair in pairs):
             raise ValueError("request inputs must be (type, value) pairs")
+        required = frozenset(self.required)
+        if any(type(i) is not int or not 0 <= i < len(pairs) for i in required):
+            raise ValueError("required position outside request inputs")
+        object.__setattr__(self, "required", required)
         object.__setattr__(self, "inputs", pairs)
 
     @property

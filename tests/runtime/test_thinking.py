@@ -203,3 +203,126 @@ def test_an_asking_the_kernel_cannot_serve_gives_no_value_and_askings_are_bounde
 def test_without_a_way_to_ask_an_asking_is_put_out_like_any_hypothesis() -> None:
     thought = think([Asks()], memory())
     assert thought.out == Request(DOUBLE, {COUNT: 21}) and thought.asks == 0
+
+
+def test_kernel_checks_both_remaining_thinking_cost_and_per_request_limit() -> None:
+    for budget, request_limit, expected, cost in (
+        (2., None, ("answer", None), 2.), (5., None, ("answer", 42), 5.),
+        (5., 1., ("answer", None), 2.), (4., None, None, 4.),
+    ):
+        workspace = Workspace()
+        ask = through(Kernel([Doubler()]), workspace, budget=4, cost_budget=request_limit)
+        result = think([Asks()], memory(), budget=budget, ask=ask)
+        assert (result.out, result.cost) == (expected, cost)
+        assert workspace.spent == (3. if cost >= 4 else 0.)
+    workspace = Workspace()
+    repeat = think([Asks(always=True)], memory(), budget=6., rounds=10,
+                   ask=through(Kernel([Doubler()]), workspace, budget=4))
+    assert repeat.cost == 6. and workspace.spent == 3.
+
+
+def test_malformed_thinking_limits_and_charges_are_rejected_before_publication() -> None:
+    for rounds in (-1, 1.5):
+        with pytest.raises(ValueError, match="rounds"):
+            think([], memory(), rounds=rounds)
+    with pytest.raises(ValueError, match="budget"):
+        think([], memory(), budget=math.nan)
+    for charge in (-1., math.nan, math.inf):
+        held = memory()
+        with pytest.raises(ValueError, match="request cost"):
+            think([Asks()], held, ask=lambda _: Answer(42, charge))
+        assert DOUBLE not in held.scratch
+
+
+def test_partial_kernel_route_is_charged_even_when_the_result_is_refused() -> None:
+    class First(Doubler):
+        manifest = Manifest("example.first", "1", Contract((COUNT,), "example.intermediate"), cost=2.)
+
+    class Last(Doubler):
+        manifest = Manifest("example.last", "1", Contract(("example.intermediate",), DOUBLE), cost=4.)
+
+    workspace, held = Workspace(), memory()
+    result = think([Asks()], held, budget=5., ask=through(Kernel([First(), Last()]), workspace, budget=4))
+    assert (result.out, result.cost, workspace.spent) == (("answer", None), 4., 2.)
+    assert held.scratch.read(DOUBLE) is None
+
+
+def test_every_reported_chance_is_validated_before_selection() -> None:
+    for invalid in (math.nan, math.inf, -0.01, 1.01):
+        for chances in ((invalid, .8), (.8, invalid)):
+            with pytest.raises(ValueError, match="chance"):
+                think([Fixed(Opinion(chances=chances))], memory())
+    with pytest.raises(ValueError, match="corresponding chances"):
+        think([Fixed(Opinion(hypotheses=("candidate",)))], memory())
+    assert think([Fixed(Opinion(chances=(.7, .7)))], memory()).out == 0
+
+
+def test_confidence_and_both_directions_of_the_displayed_risk_ratio() -> None:
+    lower = Thresholds(prob=.55, ratio=1.)
+    upper = Thresholds(prob=.55, ratio=1., ratio_bound="maximum")
+    for chance, wait, act in ((.68, .85, .15), (.56, .25, .75), (.91, .8, .2), (.4, .25, .75),
+                              (.7, .25, .25), (1., .8, 0.), (1., 0., 0.)):
+        for bounds in (lower, upper):
+            t = think([Fixed(Opinion(chances=(chance,), wait=wait, act=act))], memory(), bounds)
+            meets = t.ratio >= bounds.ratio if bounds == lower else t.ratio <= bounds.ratio
+            assert (t.out is not None) == (chance >= bounds.prob and meets)
+    for prob in (-.1, 1.1, math.nan):
+        with pytest.raises(ValueError, match="confidence"):
+            Thresholds(prob=prob)
+    for ratio in (-1., math.inf, math.nan):
+        with pytest.raises(ValueError, match="ratio"):
+            Thresholds(ratio=ratio)
+
+
+def test_direct_decision_rejects_invalid_evidence() -> None:
+    with pytest.raises(ValueError, match="chance"):
+        decides(math.nan, .2, .8, Thresholds())
+    with pytest.raises(ValueError, match="risk"):
+        decides(.7, -1., .3, Thresholds())
+
+
+def test_additional_pass_refines_a_carried_hypothesis_on_the_same_input() -> None:
+    class Reconsider:
+        cost = 1.0
+
+        def think(self, memory: WorkingMemory) -> Opinion:
+            if "visited" in memory.scratch:
+                return Opinion(wait=.8)
+            memory.scratch.note("visited", True, life=1)
+            return Opinion(chances=[.7], hypotheses=["candidate"], wait=.1)
+
+    concept = Reconsider()
+    assert think([concept], memory()).out is None
+    decision = think([concept], memory(), passes=10)
+    assert (decision.out, decision.asked, decision.cost) == ("candidate", 2, 2.)
+    limited = think([concept], memory(), passes=10, budget=1.)
+    assert (limited.out, limited.asked, limited.wait) == (None, 1, .1)
+
+
+def test_refinement_stops_at_settlement_or_the_pass_limit_even_for_free_concepts() -> None:
+    for settled, visits in ((True, 1), (False, 4)):
+        concept = Fixed(Opinion(chances=[.5], wait=0., settled=settled), cost=0.)
+        decision = think([concept], memory(), passes=4)
+        assert decision.out is None and decision.asked == concept.asked == visits
+    assert think([], memory(), passes=10**9).asked == 0
+    for invalid in (0, -1, True, 1.5):
+        with pytest.raises(ValueError, match="passes"):
+            think([], memory(), passes=invalid)
+
+
+def test_an_answer_restarts_the_opinion_and_shares_the_remaining_refinements() -> None:
+    class Gather:
+        cost = 1.
+
+        def think(self, memory: WorkingMemory) -> Opinion:
+            if DOUBLE in memory.scratch:
+                return Opinion(wait=1.)
+            if "visited" in memory.scratch:
+                return Opinion(chances=[1.], hypotheses=[Request(DOUBLE, {COUNT: 21})])
+            memory.scratch.note("visited", True, life=1)
+            return Opinion(chances=[.1], wait=0.)
+
+    held = memory()
+    decision = think([Gather()], held, ask=lambda request: Answer(42, 2.), passes=2)
+    assert held.scratch.read(DOUBLE) == 42
+    assert decision == Thought(None, None, 0., 1., 1., 3, 5., 1)

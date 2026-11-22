@@ -1,4 +1,5 @@
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Data.Real.Basic
 import NCA.Execution.Levels
 
 /-! Looking ahead through states foretold (chapter 72). -/
@@ -118,5 +119,21 @@ theorem false_stops_all {I Ω : Type} [DecidableEq Ω] (readings : Finset I) (fa
     (apart : (readings : Set I).PairwiseDisjoint falseAt) (each : ∀ i ∈ readings, (falseAt i).card = e) :
     (readings.biUnion falseAt).card = readings.card * e := by
   rw [Finset.card_biUnion apart, Finset.sum_const_nat each]
+
+/-- 72.6: the possible gain over immediate payment is bounded by the
+chance of continuation, even if the second action is always paid. -/
+theorem continuation_value_bounds {p c v : ℝ} (hc : 0 ≤ c) (hv : 0 ≤ v)
+    (hv1 : v ≤ 1) (mass : p + c ≤ 1) :
+    p ≤ p + c * v ∧ p + c * v ≤ p + c ∧ p + c ≤ 1 := by
+  exact ⟨le_add_of_nonneg_right (mul_nonneg hc hv),
+    add_le_add_right (mul_le_of_le_one_right hc hv1) p, mass⟩
+
+/-- A branch whose entire remaining mass falls below a competing immediate
+payment cannot win a two-step decision. Strictness preserves ties. -/
+theorem continuation_pruned {p c v q d w : ℝ} (hc : 0 ≤ c) (hv : v ≤ 1)
+    (hd : 0 ≤ d) (hw : 0 ≤ w) (below : p + c < q) :
+    p + c * v < q + d * w := by
+  exact lt_of_le_of_lt (add_le_add_right (mul_le_of_le_one_right hc hv) p)
+    (lt_of_lt_of_le below (le_add_of_nonneg_right (mul_nonneg hd hw)))
 
 end NCA

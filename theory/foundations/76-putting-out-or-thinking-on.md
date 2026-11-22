@@ -17,6 +17,11 @@ that the trial ends badly if nothing is put out at this step. The **rule** takes
 hypothesis where its chance reaches a threshold `τ_p` and the risk of going on is at least a
 threshold `τ_r` times the risk of putting out now, and otherwise goes on.
 
+The architecture diagram also prints a selectable upper bound on the quotient of waiting risk
+and acting risk. For positive acting risk this alternative takes the best hypothesis when its
+chance reaches `τ_p` and waiting risk is at most `τ_r` times acting risk. The runtime treats the
+quotient as infinite when acting risk is zero. The propositions below concern the lower bound.
+
 **Proposition 76.1 (the rule takes the smaller risk).** With `τ_p = 0` and `τ_r = 1` the rule
 risks the smaller of the two risks, and putting out with any chance at the step risks at least
 that.
