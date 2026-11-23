@@ -41,6 +41,17 @@ The chooser's checkpoint separately retains estimates of subsequent demand
 and realized returns. The two SQLite symbols in the diagram refer to the same
 store before and after the delay.
 
+The shared next-action model exposes the complete scored menu with
+`InquiryPolicy.predictions(state, prices)`. The structural package's
+`priced_actions` builds that menu from primitives and bound kernel requests.
+Each request identifies the provider, result type and working-memory operand
+slots. A host can publish short-term scratch and durable memory reads and writes
+with `keyed_memory_providers`; other installed operations enter through their
+own manifests. A new result can bind the next operation after the menu is
+rebuilt. The manifest index proposes ground calls and the kernel checks their
+execution requirements. Hosts can bound search work and the number of requests.
+Scores express estimated action values and can be inspected before execution.
+
 In changing-service deployments, the external structural package's
 `DelayedBelief` updates a two-condition model using purchased readings and
 delayed outcomes of executed actions. A bounded suffix lets a delayed
