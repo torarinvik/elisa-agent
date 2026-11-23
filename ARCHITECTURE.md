@@ -30,12 +30,16 @@ follow the existing stable planner. The external structural
 package supplies the learned request-value concept and durable provider evidence.
 
 The [selective inquiry diagram](docs/selective-inquiry-architecture.png) shows
-the observation and action loop. In the external chooser, delayed rewards update
-action-value estimates that accumulate across episodes and survive checkpoint
-restore. Working memory supplies the readings available at the current decision.
-The core also provides a [durable episodic store](src/nca/memory/sqlite.py).
-Retrieving a past episode from that store is outside the action menu evaluated
-in the Pong and record-resolution deployments.
+the two decisions in the deferred-cue deployments. The structural expert
+package exposes save and exact-key lookup through separate manifests, backed
+by a host-provisioned [durable episodic store](src/nca/memory/sqlite.py).
+Saving admits a typed observation before working memory expires. At a later
+query the chooser can act, recall the admitted value, or consult a fresh expert.
+A lookup returns a typed result, including an explicit miss. A returned reading
+can change the next decision. The store holds records under a byte budget.
+The chooser's checkpoint separately retains estimates of subsequent demand
+and realized returns. The two SQLite symbols in the diagram refer to the same
+store before and after the delay.
 
 ## Map
 
