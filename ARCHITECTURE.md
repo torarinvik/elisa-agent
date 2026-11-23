@@ -41,6 +41,16 @@ The chooser's checkpoint separately retains estimates of subsequent demand
 and realized returns. The two SQLite symbols in the diagram refer to the same
 store before and after the delay.
 
+In changing-service deployments, the external structural package's
+`DelayedBelief` updates a two-condition model using purchased readings and
+delayed outcomes of executed actions. A bounded suffix lets a delayed
+observation update the decision at which it originated. `checking_values`
+scores each legal option by current expected utility, quoted cost and the
+estimated value of its evidence over the remaining service horizon. Setting
+the information horizon to zero gives the myopic comparison. The host supplies
+the learned likelihoods and service values. The continuation estimate
+approximates the benefit before other observations arrive.
+
 ## Map
 
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
