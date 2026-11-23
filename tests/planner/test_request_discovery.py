@@ -129,3 +129,12 @@ def test_slotless_bound_requests_defer_the_library_planning_index() -> None:
     assert not kernel._indexes
     assert kernel.plan(Request("box[sample]", args)).module is module
     assert kernel._indexes
+
+
+def test_bound_request_with_a_slot_still_uses_the_chain_filtered_index() -> None:
+    member = SimpleNamespace(manifest=Manifest("member", "1", Contract(("a",), "b")))
+    owner = SimpleNamespace(manifest=Manifest("owner", "1", Contract((), "result", ((("a",), "b"),))))
+    kernel = Kernel([owner, member])
+    request = Request("result", (), provider=owner.manifest.ref)
+    assert kernel.plan(request).slots[0].module is member
+    assert kernel.plan(request, ("member",)) is None
