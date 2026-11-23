@@ -29,6 +29,14 @@ earlier constant cannot mask a compatible interpreter. Unqualified requests
 follow the existing stable planner. The external structural
 package supplies the learned request-value concept and durable provider evidence.
 
+The [selective inquiry diagram](docs/selective-inquiry-architecture.png) shows
+the observation and action loop. In the external chooser, delayed rewards update
+action-value estimates that accumulate across episodes and survive checkpoint
+restore. Working memory supplies the readings available at the current decision.
+The core also provides a [durable episodic store](src/nca/memory/sqlite.py).
+Retrieving a past episode from that store is outside the action menu evaluated
+in the Pong and record-resolution deployments.
+
 ## Map
 
 | THEORY.md | Lean (`lean/NCA/`) | Python (`src/nca/`) |
