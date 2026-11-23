@@ -52,6 +52,28 @@ rebuilt. The manifest index proposes ground calls and the kernel checks their
 execution requirements. Hosts can bound search work and the number of requests.
 Scores express estimated action values and can be inspected before execution.
 
+A host can record executed operations as structural `Event` values with a
+decision tick and observable input and output identities. The optional
+structural expert library's `ProcedureEvidence` mines triples whose later
+operation feeds its successor across a delay from the first operation.
+It ranks candidates by realized episode return and counts each candidate once
+per episode. The experimental host tests incremental value on fresh placements
+before installing a `ProcedureExpert`. Its manifest binds a current item and
+returns a serializable `Pending` cursor. The chooser keeps acting while the
+cursor waits. When a compatible binding reappears, `Pending.continuations`
+can propose the later operation, a successor bound from the paid reply, or an
+affordable manifest-compatible conversion. The host scores concrete proposals,
+executes their constituent calls, and owns the checkpoint and accounting.
+
+The same library's `ObservedTransition` represents public inventory and
+legal-menu differences, including newly enabled choices. `EffectEstimates`
+estimates their frequencies from executed operations. For a compatible
+signature, `ranked_product` retrieves a bounded prefix from separately ranked
+provider and operand lists. Its ranking assumes additive axis scores. Building
+those lists, obtaining provider examples and maintaining the working-memory
+index have separate costs. The Concentration and record-resolution packages
+own their environments and payload semantics.
+
 In changing-service deployments, the external structural package's
 `DelayedBelief` updates a two-condition model using purchased readings and
 delayed outcomes of executed actions. A bounded suffix lets a delayed
