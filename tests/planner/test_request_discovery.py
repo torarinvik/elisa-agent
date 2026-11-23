@@ -118,3 +118,14 @@ def test_bound_request_cannot_load_weights_after_budget_refusal() -> None:
     assert store.stats.loads == 0
     assert through(kernel, Workspace(), budget=4, cost_budget=5.)(request).value == 7
     assert store.stats.loads == 1
+
+
+def test_slotless_bound_requests_defer_the_library_planning_index() -> None:
+    module = SimpleNamespace(manifest=Manifest("direct", "1", Contract(("?a",), "box[?a]")))
+    kernel = Kernel([module])
+    args = (("sample", 4),)
+    assert kernel.plan(Request("box[sample]", args, provider=module.manifest.ref)).module is module
+    assert kernel.plan(Request("box[sample]", args, provider=module.manifest.ref), ("direct",)) is None
+    assert not kernel._indexes
+    assert kernel.plan(Request("box[sample]", args)).module is module
+    assert kernel._indexes

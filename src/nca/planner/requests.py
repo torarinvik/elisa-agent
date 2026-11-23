@@ -131,7 +131,7 @@ def _bindings(contract: Contract, messages: Sequence[Message], terms: Sequence[T
     yield from visit(0, {})
 
 
-def bound_route(module: Module, inputs: tuple[str, ...], output: str, index: ProducerIndex,
+def bound_route(module: Module, inputs: tuple[str, ...], output: str, index: ProducerIndex | None,
                 fuel: int) -> Apply | None:
     """Type-check a provider call on its explicitly bound operands and plan its slots."""
     contract = module.manifest.contract
@@ -150,6 +150,8 @@ def bound_route(module: Module, inputs: tuple[str, ...], output: str, index: Pro
     instance = contract.instance(parameters)
     slots = []
     for available, goal in instance.slots:
+        if index is None:
+            raise ValueError("planning a bound module slot requires a producer index")
         route = plan_stable_indexed(index, available, goal, fuel - 1)
         if route is None:
             return None

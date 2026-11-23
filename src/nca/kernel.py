@@ -94,9 +94,7 @@ class Kernel:
             ref = module.manifest.ref
             self._providers[ref] = None if ref in self._providers else module
 
-    def plan(self, request: Request, chain: tuple[str, ...] = ()) -> Plan | None:
-        """Plan with installed manifests, without acquiring or running an expert."""
-        excluded = frozenset() if self.recursive else frozenset(chain)
+    def _planning_index(self, excluded: frozenset[str]) -> ProducerIndex:
         if excluded not in self._indexes:
             full = self._indexes.get(frozenset())
             if full is None:
@@ -104,14 +102,20 @@ class Kernel:
             if excluded:
                 self._indexes[excluded] = full.without(
                     [p for p, m in enumerate(self.modules) if m.manifest.module_id in excluded])
+        return self._indexes[excluded]
+
+    def plan(self, request: Request, chain: tuple[str, ...] = ()) -> Plan | None:
+        """Plan with installed manifests, without acquiring or running an expert."""
+        excluded = frozenset() if self.recursive else frozenset(chain)
         if request.provider is not None:
             if self._providers is None:
                 self._index_providers(self.modules)
             selected = self._providers.get(request.provider)
             if selected is None or selected.manifest.module_id in excluded:
                 return None
-            return bound_route(selected, request.types, request.type_id, self._indexes[excluded], self.fuel)
-        return plan_stable_indexed(self._indexes[excluded], request.types, request.type_id, self.fuel,
+            index = self._planning_index(excluded) if selected.manifest.contract.slots else None
+            return bound_route(selected, request.types, request.type_id, index, self.fuel)
+        return plan_stable_indexed(self._planning_index(excluded), request.types, request.type_id, self.fuel,
                                    request.required)
 
     def resolve(self, request: Request, chain: tuple[str, ...]) -> Plan | None:
