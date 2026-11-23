@@ -74,6 +74,34 @@ those lists, obtaining provider examples and maintaining the working-memory
 index have separate costs. The Concentration and record-resolution packages
 own their environments and payload semantics.
 
+For concurrent work, the external structural library's `substitutions`
+groups live choices by an observable binding and recursively replaces
+supported adjacent pairs. Each `Composition` can contain earlier compositions.
+`select_projection` compares candidate bindings using the contents of
+subsequent paid lookups. `ConditionalSuccessors` counts which choices followed
+a public result class. In the host these proposals compete with the primitive
+and memory menus. An `Activations` frame holds a stack and an instance binding.
+The host can suspend one instance while others advance, then resume or abandon
+the selected instance. It can expand several levels within a traversal budget,
+or use `pending` and `enter` to offer and price each child independently.
+
+`BoundedChoices` interleaves the operand lists of compatible ground signatures
+and refreshes its index on kernel installation. Mixed or higher-order libraries
+use the kernel template matcher. The kernel type-checks a request naming a
+particular provider and its operands. It builds the general producer index
+when it needs to plan an unbound request or fill a module slot. This keeps
+the cold cost of explicitly bound slotless calls independent of constructing
+the general planning index.
+
+`OpportunityModel` estimates both realized remaining return and the outcomes
+of an action followed by a bounded search over observed successor menus.
+The host supplies public context, quoted costs, outcomes and feasible actions.
+`ServiceDirectory` retains bounded outcome evidence and residency separately.
+A host can amortize a cold load across expected uses, update evidence from a
+paid example or terminal result, and release a chosen resident while retaining
+its past outcomes. Experimental deployments supply the change process,
+publication formats, deadlines and domain experts.
+
 In changing-service deployments, the external structural package's
 `DelayedBelief` updates a two-condition model using purchased readings and
 delayed outcomes of executed actions. A bounded suffix lets a delayed
