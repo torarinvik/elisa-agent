@@ -40,3 +40,21 @@ def test_a_rule_never_met_leaves_none_or_is_not_told() -> None:
     assert fitting(RULES, odd) == []
     assert splitting(RULES[:1], TESTS) is None
     assert splitting(RULES, []) is None
+
+
+def test_expected_gain_prices_the_test_once_and_ignores_impossible_observations():
+    from nca.evidence.experiments import expected_test_gain
+
+    prior = (.25, .25, .5)
+    outcomes = ((1., 0., 0.), (1., 0., 0.), (0., 1., 0.))
+    assert expected_test_gain(prior, outcomes, max, 4, .25) == .75
+    assert expected_test_gain(prior, ((1.,),) * 3, max, 4, .25) == -.25
+    assert expected_test_gain(prior, outcomes, max, 0, .25) == -.25
+
+
+def test_expected_gain_rejects_mismatched_observation_spaces():
+    import pytest
+    from nca.evidence.experiments import expected_test_gain
+
+    with pytest.raises(ValueError):
+        expected_test_gain((.5, .5), ((.5, .5), (1.,)), max, 1, 0.)

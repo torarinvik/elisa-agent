@@ -10,7 +10,8 @@ outcome are; an empty list from ``fitting`` says the rules supplied are short of
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
+from math import fsum, isclose, isfinite
 from typing import TypeVar
 
 Test = TypeVar("Test", bound=Hashable)
@@ -33,3 +34,43 @@ def splitting(rules: Sequence[Rule[Test, Outcome]], tests: Iterable[Test]) -> Te
         if largest < least:
             best, least = test, largest
     return best
+
+
+def expected_test_gain(
+    prior: Sequence[float],
+    likelihoods: Sequence[Sequence[float]],
+    continuation: Callable[[tuple[float, ...]], float],
+    opportunities: int,
+    price: float,
+) -> float:
+    """Net expected value of one observation over repeated future opportunities.
+
+    Each hypothesis has a prior probability and a distribution over the same
+    possible observations. The caller values its best continuation at each
+    posterior, in reward per remaining opportunity. Price is paid once.
+    Observations of zero predictive probability never reach the callback.
+    """
+    belief = tuple(prior)
+    models = tuple(tuple(row) for row in likelihoods)
+
+    def distribution(values: tuple[float, ...]) -> bool:
+        return all(isfinite(p) and p >= 0 for p in values) and isclose(fsum(values), 1.0)
+
+    if not distribution(belief) or len(models) != len(belief):
+        raise ValueError("expected one observation distribution per prior hypothesis")
+    if any(len(row) != len(models[0]) or not distribution(row) for row in models):
+        raise ValueError("expected probability distributions over a common observation space")
+    if opportunities < 0 or not isfinite(price) or price < 0:
+        raise ValueError("expected nonnegative opportunities and a finite nonnegative price")
+    if not opportunities:
+        return -price
+
+    gains = []
+    before = continuation(belief)
+    for likelihood in zip(*models, strict=True):
+        joint = tuple(p * q for p, q in zip(belief, likelihood, strict=True))
+        chance = fsum(joint)
+        if chance:
+            posterior = tuple(p / chance for p in joint)
+            gains.append(chance * (continuation(posterior) - before))
+    return opportunities * fsum(gains) - price
