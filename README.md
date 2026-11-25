@@ -83,6 +83,10 @@ The diagrams are the target, not a description of what is finished.
   confidence and risk-ratio bounds from signed rewards and the cost of closer looks.
   An inference-only load can run that policy with a bounded feature window
   and load its decision weights independently of its training history.
+  One such frozen learner, taught on a reflex task and a two-press planning
+  task, presses at the first frame on the first with almost no closer looks.
+  On the second it looks closer at most steps and searches ahead where
+  pressing now and continuing compete.
   A concept can discover a request from a newly installed manifest, bind it
   to working-memory observations, and ask the kernel to interpret an unfamiliar
   result through a compatible expert. Paired outcomes can rank providers that
