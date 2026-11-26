@@ -260,10 +260,10 @@ def test_askings_served_by_different_experts_at_different_charges_are_weighed_in
         learning = Learning(Askings(bands=20), charge, tries=10, every=25)
         for trial in both(1000, seed=4):
             asked_of_both(learning, trial)
-        worth = learning.askings.worth(charge)
-        got = [asked_of_both(worth, trial) for trial in fresh]
-        for alone in ("again", "closely"):
-            assert paid(charge, got) >= paid(charge, [asked_of_both(worth, trial, (alone,)) for trial in fresh]) - 0.01
+        got = [asked_of_both(learning.askings.worth(charge), trial) for trial in fresh]
+        for alone in ("again", "closely"):  # an asker over one asking knows the record of that asking only
+            part = Askings(20, {key: table for key, table in learning.askings.counts.items() if key[1] == alone}).worth(charge)
+            assert paid(charge, got) >= paid(charge, [asked_of_both(part, trial, (alone,)) for trial in fresh]) - 0.01
         made = {name: sum(asked[name] for _, asked in got) for name in ("again", "closely")}
         if before is not None:
             assert made["closely"] <= before["closely"] and made["again"] >= before["again"]
