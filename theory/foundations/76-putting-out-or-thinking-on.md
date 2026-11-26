@@ -4,8 +4,8 @@ A learner that acts in time has two things to settle at each step: what to do, a
 it now. Chapter 16 treats an answer withheld where a reading is unsure. This chapter treats the
 second question as a weighing of two risks, states what the plain rule earns at one step and
 over a trial, what misread risks cost, why a learner under the rule cannot rest in doing
-nothing, and what it costs to ask several readings in turn. It gives hypotheses, chances and
-risks no meaning.
+nothing, and what it costs to ask several readings in turn, and what an asking of the kernel is worth. It
+gives hypotheses, chances and risks no meaning.
 
 ## 76.1 Model
 
@@ -214,6 +214,54 @@ of itself, and there a concept asked last and held to in this way puts out where
 right; whether a world stands still is not read here but taken, and where it is taken wrongly
 the cost is that of 76.11 with the later worth in place of c.
 
+## 76.13 What an asking is worth
+
+By 76.6 a hypothesis may be an asking of the kernel, and by 76.8 it needs a chance of its own.
+Nothing so far says what that chance is. Let a **place** be what has been asked so far in a
+trial. An asking leads from a place to a later one and no run of askings leads back, so every
+run of askings ends. At a place the answers have chances, the best of them c. An asking is right
+where what is put out after it is right (76.9), and it is not free: let it be charged the share
+δ of 76.11, 0 ≤ δ ≤ 1, the cost of an asking as a share of what a right answer is worth. Let
+H(p, c) be **what is had** at place p with best chance c. Where nothing may be asked,
+H(p, c) = c. Elsewhere the asking a, which leads to the place p_a, is worth
+
+    w_a(p, c) = (1 - δ) E[H(p_a, c′) | p, c, a],        H(p, c) = max(c, max_a w_a(p, c)),
+
+the mean being over what the best chance c′ is found to be once the asking is answered. Give
+each answer its chance and each open asking the chance w_a. The rule of 76.1 with no risk read
+then takes the hypothesis of greatest chance, an answer where they tie: it answers where
+c ≥ max_a w_a and otherwise makes the asking worth most.
+
+**Proposition 76.13 (taking the larger is best, and a dearer asking asks less).**
+(i) Whatever chance of answering a way of deciding gives a place, what it has there is at most
+max(c, max_a w_a). So no way of answering and asking has more than H, askings charged, and the
+rule has H.
+(ii) Let δ ≤ δ′. At every place and chance an asking is worth no more under δ′ than under δ,
+and no more is had. So wherever the rule answers under δ it answers under δ′.
+(iii) Where the rule answers with chance c in place of an asking that leads to worth v, it
+gives up at most v - c ≤ δ v.
+
+*Proof.* (i) For 0 ≤ q ≤ 1, q c + (1 - q) g ≤ max(c, g), at each place from the last places
+backwards. (ii) At a last place the same is had under both charges. If no more is had under δ′
+at every later place, the mean over them is no more, the weights being non-negative, and
+(1 - δ′) times the less is at most (1 - δ) times the more; the larger of c and it is then no
+more either. An answer under δ has c ≥ max_a w_a, which is at least the same under δ′.
+(iii) is 76.11 with one step. ∎
+
+The mean is not known. It is **read from recorded askings**: the chances are divided into
+bands, and a record counts, for a place, a band of c and an asking, how often it led to which
+later place and which band of c′. The mean is taken over the counts with a band's chance at its
+middle. An asking never recorded at a place with c in a band has no worth there and is not made,
+which is not the same as being worth nothing.
+
+What this presumes. That the chances are calibrated, H being made of them. That the trials
+recorded are like the trials met: a record of every asking at every place, from trials in which
+all was asked, says what each is worth everywhere; a record of what one rule asked says it only
+where that rule went. That what follows an asking turns on the place and the band of c and on
+nothing else the concept could have read. And that a band is narrow: taking a band's chance at
+its middle moves what is had by at most half a band's width at every place, since a mean of
+values each off by at most that much, charged, is off by no more.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -221,4 +269,6 @@ In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_i
 `NCA.costBy`; 76.8 is `NCA.share_rises` and `NCA.shares_rise_alike`; 76.9 is
 `NCA.largest_overrates`; 76.10 is `NCA.unsure_costs_less`, `NCA.sure_costs_little` and
 `NCA.settled_costs_little`; 76.11 is `NCA.charged_tie_puts_out` and `NCA.charge_costs_little`; 76.12 is
-`NCA.still_worth_within` and `NCA.held_to_last_puts_out`.
+`NCA.still_worth_within` and `NCA.held_to_last_puts_out`; 76.13 is `NCA.taking_the_larger_is_best`,
+`NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
+`NCA.dearer_puts_out`.

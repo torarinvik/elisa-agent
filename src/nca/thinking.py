@@ -13,16 +13,27 @@ nothing is put out, and thinking goes on with what the next step brings (§76.5)
 
 A hypothesis taken is put out, unless it is an asking of the kernel and the host gave a way to ask: then the
 kernel serves it within the step, its answer is left on the scratchpad under the type asked for, and the
-concepts are asked again, at most a stated number of times a step (§76.6).
+concepts are asked again, at most a stated number of times a step (§76.6). An expert the kernel is itself
+running has no kernel to ask; ``thinking`` is ``think`` for it, handing each asking to whoever runs the expert.
 
-Nothing here says what a hypothesis is, how a chance is come by, or what a risk is the risk of.
+Asking while unsure (§76.13). What an asking is worth is read from recorded askings: where it was asked, how
+sure the best answer was there, where it led and how sure the best answer was then (``Askings``). Under a
+charge for an asking, a share of what a right answer is worth, the worth of each asking at each place follows
+from the last places backwards (``Worth``). ``Unsure`` is the concept that holds an inquiry's answers and,
+beside them, the open asking worth most with that worth as its chance, so the frame's own rule decides between
+answering and asking, and which to ask.
+
+Nothing here says what a hypothesis is, how a chance is come by, what a risk is the risk of, what a place or
+an asking stands for, or what is asked about.
 """
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Generator, Hashable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol
+
+import numpy as np
 
 from nca.abi import Message, Request
 from nca.memory.working import WorkingMemory
@@ -258,3 +269,182 @@ def think(concepts: Sequence[Concept], memory: WorkingMemory, thresholds: Thresh
         spent, asks = spent + answer.cost, asks + 1
         best, chance, acting, given, taken = None, 0.0, 1.0, None, None
         hypotheses = None
+
+
+def thinking(concepts: Sequence[Concept], memory: WorkingMemory, thresholds: Thresholds | Adapting = Thresholds(), *,
+             wait: float = 1.0, budget: float = math.inf, rounds: int = 4,
+             passes: int = 1) -> Generator[Request, object, Thought]:
+    """``think`` for an expert the kernel is itself running, which has no kernel to ask (§76.6).
+
+    An asking taken is yielded to whoever runs the expert; what is sent back is noted for this step under the
+    type asked for and the concepts are asked again from the first, as ``think`` does with a way to ask. After
+    ``rounds`` askings a further one is not yielded and nothing is put out. The thought returned counts every
+    time a concept was asked, what the concepts cost and how many askings were yielded; what serving them cost
+    is the runner's to count. Each asking of the concepts has its own ``passes``.
+    """
+    if type(rounds) is not int or rounds < 0:
+        raise ValueError("rounds must be a nonnegative integer")
+    asked, spent, asks = 0, 0.0, 0
+    while True:
+        thought = think(concepts, memory, thresholds, wait=wait, budget=budget - spent, passes=passes)
+        asked, spent = asked + thought.asked, spent + thought.cost
+        out = thought.out
+        if not isinstance(out, Request) or asks == rounds:
+            return replace(thought, out=None if isinstance(out, Request) else out, asked=asked, cost=spent, asks=asks)
+        memory.scratch.note(out.type_id, (yield out), life=1)
+        asks += 1
+
+
+@dataclass(frozen=True)
+class Standing:
+    """How an inquiry stands (§76.13): the chance of each of its answers, and what they are (left ``None``, an
+    answer is its place among the chances); the place it has come to, which is whatever says what has been asked
+    so far; and for each asking still open there, under whatever names it, the request that makes it."""
+
+    chances: Sequence[float]
+    place: Hashable
+    open: Mapping[Hashable, Request] = field(default_factory=dict)
+    hypotheses: Sequence[object] | None = None
+
+
+class Inquiry(Protocol):
+    """Whatever is being found out: it says how it stands, and takes what an asking gave (``None`` where the
+    kernel could give nothing), after which it stands at a later place."""
+
+    def standing(self) -> Standing: ...
+
+    def take(self, asking: Hashable, answer: object) -> None: ...
+
+
+class Askings:
+    """Recorded askings (§76.13): how often, at a place with the best chance in one band, an asking led to a
+    later place with the best chance in another band. ``bands`` equal bands divide the chances from nought to
+    one. ``counts`` holds, for each place, asking and later place, a table with a row for each band before and
+    a column for each band after; it may be given whole, as a record made elsewhere."""
+
+    def __init__(self, bands: int = 50,
+                 counts: Mapping[tuple[Hashable, Hashable, Hashable], np.ndarray] | None = None) -> None:
+        if type(bands) is not int or bands < 1:
+            raise ValueError("the chances must be divided into a positive number of bands")
+        self.bands = bands
+        self.counts: dict[tuple[Hashable, Hashable, Hashable], np.ndarray] = {}
+        for key, table in (counts or {}).items():
+            table = np.array(table, dtype=np.float64)
+            if len(key) != 3 or table.shape != (bands, bands) or not np.isfinite(table).all() or (table < 0).any():
+                raise ValueError("a record of askings needs a square table of counts for a place, an asking and a later place")
+            self.counts[key] = table
+
+    def band(self, chance: float | np.ndarray) -> np.ndarray:
+        """The band a chance falls in; of several chances, each one's."""
+        chance = np.asarray(chance, dtype=np.float64)
+        if not ((chance >= 0.0) & (chance <= 1.0)).all():
+            raise ValueError("a chance must lie between nought and one")
+        return np.minimum((chance * self.bands).astype(np.int64), self.bands - 1)
+
+    def note(self, place: Hashable, chance: float | np.ndarray, asking: Hashable, then: Hashable,
+             after: float | np.ndarray) -> None:
+        """Record that at ``place``, with the best chance ``chance``, ``asking`` was asked and led to the place
+        ``then`` with the best chance ``after``; or as many such askings as there are chances given."""
+        before, later = np.atleast_1d(self.band(chance)), np.atleast_1d(self.band(after))
+        if before.shape != later.shape or before.ndim != 1:
+            raise ValueError("each asking recorded needs one chance before and one after")
+        table = self.counts.setdefault((place, asking, then), np.zeros((self.bands, self.bands)))
+        np.add.at(table, (before, later), 1.0)
+
+    def worth(self, charge: float) -> Worth:
+        """What the askings recorded so far are worth where each is charged the share ``charge``."""
+        return Worth(self, charge)
+
+
+class Worth:
+    """What each recorded asking is worth at each place, under one charge (§76.13).
+
+    An asking is charged the share ``charge`` of what is to be had (§76.11) and is worth, less that, what is had
+    at the place it leads to: there the larger of the best answer's chance and what the best asking is worth.
+    A band's chance is taken at its middle. An asking never recorded at a place with the chance in a band has
+    no worth there, which is not the same as being worth nothing. Recorded askings that lead back to a place
+    they came from have no last place to start from and are refused."""
+
+    def __init__(self, askings: Askings, charge: float) -> None:
+        if not 0.0 <= charge <= 1.0:
+            raise ValueError("the charge for an asking must be a share between nought and one")
+        self.bands, self.charge = askings.bands, float(charge)
+        middle = (np.arange(self.bands) + 0.5) / self.bands
+        ways: dict[Hashable, dict[Hashable, list[tuple[Hashable, np.ndarray]]]] = {}
+        for (place, asking, then), table in askings.counts.items():
+            ways.setdefault(place, {}).setdefault(asking, []).append((then, table))
+        self._had: dict[Hashable, np.ndarray] = {}
+        self._rows: dict[Hashable, dict[Hashable, np.ndarray]] = {}
+        for start in ways:
+            if start in self._had:
+                continue
+            path, onward = [start], {start}
+            while path:
+                place = path[-1]
+                ahead = [then for later in ways.get(place, {}).values() for then, _ in later if then not in self._had]
+                if any(then in onward for then in ahead):
+                    raise ValueError("recorded askings lead back to a place they came from")
+                if ahead:
+                    path.append(ahead[0])
+                    onward.add(ahead[0])
+                    continue
+                rows, had = {}, middle.copy()
+                for asking, later in ways.get(place, {}).items():
+                    seen = sum(table.sum(1) for _, table in later)
+                    whole = sum(table @ self._had[then] for then, table in later)
+                    rows[asking] = np.where(seen > 0, (1.0 - self.charge) * whole / np.maximum(seen, 1.0), np.nan)
+                    had = np.fmax(had, rows[asking])
+                self._rows[place], self._had[place] = rows, had
+                onward.discard(path.pop())
+
+    def _band(self, chance: float) -> int:
+        if not 0.0 <= chance <= 1.0:
+            raise ValueError("a chance must lie between nought and one")
+        return min(int(chance * self.bands), self.bands - 1)
+
+    def of(self, place: Hashable, chance: float, asking: Hashable) -> float | None:
+        """What ``asking`` is worth at ``place`` where the best answer has the chance ``chance``; ``None`` where
+        it was never recorded there with such a chance."""
+        row = self._rows.get(place, {}).get(asking)
+        worth = math.nan if row is None else float(row[self._band(chance)])
+        return None if math.isnan(worth) else worth
+
+    def had(self, place: Hashable, chance: float) -> float:
+        """What is had at ``place`` with the best answer at ``chance``: the larger of that chance and what the
+        best asking recorded there is worth."""
+        best = [worth for asking in self._rows.get(place, {}) if (worth := self.of(place, chance, asking)) is not None]
+        return max([float(chance), *best])
+
+
+class Unsure:
+    """Asking while unsure, as a concept (§76.13).
+
+    Asked, it gives the inquiry's answers with their chances and, beside them, the open asking worth most where
+    the best answer stands, as one more hypothesis with that worth as its chance. The frame's rule then takes
+    an answer or the asking, whichever has the greater chance, and an answer where they tie. Where the asking
+    was taken and served, its answer is on the scratchpad under the type asked for when the concept is next
+    asked: the concept hands it to the inquiry and lets go of the note."""
+
+    def __init__(self, inquiry: Inquiry, worth: Worth, cost: float = 0.0) -> None:
+        self.inquiry, self.worth, self.cost = inquiry, worth, cost
+        self._asked: tuple[Hashable, Request] | None = None
+
+    def think(self, memory: WorkingMemory) -> Opinion:
+        if self._asked is not None and self._asked[1].type_id in memory.scratch:
+            asking, request = self._asked
+            self.inquiry.take(asking, memory.scratch.read(request.type_id))
+            memory.scratch.drop(request.type_id)
+        self._asked = None
+        standing = self.inquiry.standing()
+        chances = [float(chance) for chance in standing.chances]
+        hypotheses = list(range(len(chances)) if standing.hypotheses is None else standing.hypotheses)
+        if not chances or len(hypotheses) != len(chances):
+            raise ValueError("a standing needs one chance for each of at least one answer")
+        best = max(chances)
+        offers = [(worth, asking) for asking in standing.open if (worth := self.worth.of(standing.place, best, asking)) is not None]
+        if offers:
+            worth, asking = max(offers, key=lambda offer: offer[0])
+            self._asked = (asking, standing.open[asking])
+            chances.append(worth)
+            hypotheses.append(standing.open[asking])
+        return Opinion(chances, hypotheses)

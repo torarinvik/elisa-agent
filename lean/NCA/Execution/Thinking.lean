@@ -229,6 +229,39 @@ theorem held_to_last_puts_out (read chance lost : ℝ) (some : 0 < chance) (char
   have less : (1 - lost) * chance < chance := by nlinarith [mul_pos charged some]
   linarith
 
+/-- 76.13: whatever chance of answering a way of deciding gives a place, it has there at most the larger of
+the answer's chance and what the asking is worth. -/
+theorem taking_the_larger_is_best (out chance asking : ℝ) (low : 0 ≤ out) (high : out ≤ 1) :
+    out * chance + (1 - out) * asking ≤ max chance asking := by
+  have answered := mul_le_mul_of_nonneg_left (le_max_left chance asking) low
+  have asked := mul_le_mul_of_nonneg_left (le_max_right chance asking) (by linarith : (0 : ℝ) ≤ 1 - out)
+  linarith
+
+/-- 76.13: an asking charged the larger share, leading to where no more is had, is worth no more. -/
+theorem dearer_worth_no_more (had less lost more : ℝ) (worth : 0 ≤ less) (fewer : less ≤ had) (low : lost ≤ more)
+    (share : more ≤ 1) : (1 - more) * less ≤ (1 - lost) * had := by
+  have charged : (1 - more) * less ≤ (1 - lost) * less := mul_le_mul_of_nonneg_right (by linarith) worth
+  have later : (1 - lost) * less ≤ (1 - lost) * had := mul_le_mul_of_nonneg_left fewer (by linarith)
+  linarith
+
+/-- 76.13: where no more is had at each later place, the mean over them, by weights that are not negative,
+is no more. -/
+theorem mean_had_no_more {ι : Type*} (s : Finset ι) (weight less had : ι → ℝ) (some : ∀ i ∈ s, 0 ≤ weight i)
+    (fewer : ∀ i ∈ s, less i ≤ had i) : ∑ i ∈ s, weight i * less i ≤ ∑ i ∈ s, weight i * had i :=
+  Finset.sum_le_sum fun i here => mul_le_mul_of_nonneg_left (fewer i here) (some i here)
+
+/-- 76.13: so no more is had at a place under the dearer charge: the larger of the answer's chance and the
+asking's worth is no larger. -/
+theorem dearer_has_no_more (chance had less lost more : ℝ) (worth : 0 ≤ less) (fewer : less ≤ had)
+    (low : lost ≤ more) (share : more ≤ 1) : max chance ((1 - more) * less) ≤ max chance ((1 - lost) * had) :=
+  max_le_max le_rfl (dearer_worth_no_more had less lost more worth fewer low share)
+
+/-- 76.13: where the rule answers under one charge, the asking being worth no more than the answer's chance,
+it answers under every dearer charge. -/
+theorem dearer_puts_out (chance had less lost more : ℝ) (worth : 0 ≤ less) (fewer : less ≤ had) (low : lost ≤ more)
+    (share : more ≤ 1) (put : (1 - lost) * had ≤ chance) : (1 - more) * less ≤ chance :=
+  le_trans (dearer_worth_no_more had less lost more worth fewer low share) put
+
 end Thinking
 
 end NCA
