@@ -301,6 +301,43 @@ is never mended; by 76.2 it costs at most twice what it is off. And (ii) fails
 where the presumption does: a rule that reads more than place and band, or chances that are
 not calibrated, make the record of one's own askings a record of the askings one chose.
 
+## 76.15 Askings at different charges, served by whoever serves them
+
+Nothing in 76.13 needs the askings open at a place to be of one kind or of one cost. One may
+be a further look by the expert that gave the first, another a second opinion from a dearer
+expert, a third a question put to a person. Let each asking a have its own charge δ_a, the
+share of what a right answer is worth that making it costs. Then, as in 76.13,
+
+    w_a(p, c) = (1 - δ_a) E[H(p_a, c′) | p, c, a],    H(p, c) = max(c, max_a w_a(p, c)).
+
+Who serves an asking is no part of this: the record holds for a place, a band and an asking
+where it led, and the charge is a number the host states. So the inquiry is held by whoever
+holds the answers, outside every expert, and the kernel serves each asking by whichever
+installed expert gives the type asked for.
+
+**Proposition 76.15 (one rule over all askings).**
+(i) Taking the hypothesis of greatest chance, among the answers and every open asking with its
+worth as its chance, has at every place the most that any way of answering and asking has.
+(ii) With more askings open, no less is had at any place: the rule over all askings is paid at
+least as the rule over any part of them, each at its own charge.
+(iii) One asking made dearer, the others as they were, leaves no more to be had at any place,
+and is taken nowhere it was not taken before; where it was taken, another asking or the answer
+is taken as soon as that is worth more.
+(iv) A try of an asking (76.14) gives up at most that asking's own charge.
+
+*Proof.* (i) is 76.13 (ii) read with max_a over askings of unlike charges; its proof used no
+equality of charges. (ii) The largest over more worths is at least the largest over fewer, at
+the last places and so, by induction backwards, at every place. (iii) By induction backwards
+as in 76.13 (iii): the dearer asking is worth no more by `dearer_worth_no_more`, the others'
+worths rest on later places where no more is had, and a largest of terms none of which grew
+did not grow; an asking worth no more than before against rivals is taken no more. (iv) is
+76.14 (i) with δ_a for δ. ∎
+
+What is not said: that a dear asking is worth its tries. Trying an asking m times in each of
+its cells costs up to m K δ_a, which for a question to a person is the dearest learning there
+is; a host that knows what a dear asking gives can hand the record those askings instead of
+having them tried.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -310,4 +347,6 @@ In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_i
 `NCA.settled_costs_little`; 76.11 is `NCA.charged_tie_puts_out` and `NCA.charge_costs_little`; 76.12 is
 `NCA.still_worth_within` and `NCA.held_to_last_puts_out`; 76.13 is `NCA.taking_the_larger_is_best`,
 `NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
-`NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`.
+`NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`; 76.15 is
+`NCA.more_askings_have_no_less` and `NCA.one_dearer_has_no_more`, with `NCA.dearer_puts_out` read
+against any rival, an answer or another asking.

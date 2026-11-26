@@ -21,7 +21,8 @@ sure the best answer was there, where it led and how sure the best answer was th
 charge for an asking, a share of what a right answer is worth, the worth of each asking at each place follows
 from the last places backwards (``Worth``). ``Unsure`` is the concept that holds an inquiry's answers and,
 beside them, the open asking worth most with that worth as its chance, so the frame's own rule decides between
-answering and asking, and which to ask. The record need not be given: ``Learning`` begins with whatever
+answering and asking, and which to ask. Each asking may be charged its own share, so askings that different
+experts serve at different costs are weighed in the one rule (§76.15). The record need not be given: ``Learning`` begins with whatever
 record it is handed, an empty one too, and ``Unsure`` keeps it by the askings the frame itself makes, each
 asking tried a stated number of times where it stands (§76.14).
 
@@ -360,24 +361,29 @@ class Askings:
         band = int(self.band(chance))
         return float(sum(table[band].sum() for (at, asked, _), table in self.counts.items() if at == place and asked == asking))
 
-    def worth(self, charge: float) -> Worth:
-        """What the askings recorded so far are worth where each is charged the share ``charge``."""
+    def worth(self, charge: float | Mapping[Hashable, float]) -> Worth:
+        """What the askings recorded so far are worth where each is charged the share ``charge``, or each its
+        own share where ``charge`` gives one for each asking."""
         return Worth(self, charge)
 
 
 class Worth:
-    """What each recorded asking is worth at each place, under one charge (§76.13).
+    """What each recorded asking is worth at each place, under a charge for each asking (§76.13, §76.15).
 
-    An asking is charged the share ``charge`` of what is to be had (§76.11) and is worth, less that, what is had
-    at the place it leads to: there the larger of the best answer's chance and what the best asking is worth.
+    An asking is charged a share of what is to be had (§76.11) and is worth, less that, what is had at the place
+    it leads to: there the larger of the best answer's chance and what the best asking is worth. ``charge`` is
+    one share for every asking, or gives each recorded asking its own, whoever serves it.
     A band's chance is taken at its middle. An asking never recorded at a place with the chance in a band has
     no worth there, which is not the same as being worth nothing. Recorded askings that lead back to a place
     they came from have no last place to start from and are refused."""
 
-    def __init__(self, askings: Askings, charge: float) -> None:
-        if not 0.0 <= charge <= 1.0:
+    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float]) -> None:
+        own = dict(charge) if isinstance(charge, Mapping) else None
+        if not all(0.0 <= share <= 1.0 for share in ([charge] if own is None else own.values())):
             raise ValueError("the charge for an asking must be a share between nought and one")
-        self.bands, self.charge = askings.bands, float(charge)
+        if own is not None and any(asking not in own for _, asking, _ in askings.counts):
+            raise ValueError("each recorded asking needs its charge")
+        self.bands, self.charge = askings.bands, float(charge) if own is None else own
         middle = (np.arange(self.bands) + 0.5) / self.bands
         ways: dict[Hashable, dict[Hashable, list[tuple[Hashable, np.ndarray]]]] = {}
         for (place, asking, then), table in askings.counts.items():
@@ -401,10 +407,14 @@ class Worth:
                 for asking, later in ways.get(place, {}).items():
                     seen = sum(table.sum(1) for _, table in later)
                     whole = sum(table @ self._had[then] for then, table in later)
-                    rows[asking] = np.where(seen > 0, (1.0 - self.charge) * whole / np.maximum(seen, 1.0), np.nan)
+                    rows[asking] = np.where(seen > 0, (1.0 - self.charged(asking)) * whole / np.maximum(seen, 1.0), np.nan)
                     had = np.fmax(had, rows[asking])
                 self._rows[place], self._had[place] = rows, had
                 onward.discard(path.pop())
+
+    def charged(self, asking: Hashable) -> float:
+        """The share ``asking`` is charged."""
+        return self.charge[asking] if isinstance(self.charge, dict) else self.charge
 
     def _band(self, chance: float) -> int:
         if not 0.0 <= chance <= 1.0:
@@ -432,7 +442,7 @@ class Learning:
     have been recorded. An asking recorded fewer than ``tries`` times at a place with the best chance in a
     band is tried: made whatever the answers' chances, which by 76.14 gives up at most the charge."""
 
-    def __init__(self, askings: Askings, charge: float, tries: int, every: int = 1) -> None:
+    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float], tries: int, every: int = 1) -> None:
         if type(tries) is not int or tries < 0:
             raise ValueError("tries must be a nonnegative number of askings")
         if type(every) is not int or every < 1:

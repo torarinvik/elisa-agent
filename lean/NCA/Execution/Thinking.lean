@@ -275,6 +275,19 @@ theorem tries_cost_at_most {ι : Type*} (tries : Finset ι) (given : ι → ℝ)
   have summed := Finset.sum_le_card_nsmul tries given lost each
   simpa [nsmul_eq_mul] using summed
 
+/-- 76.15: with more askings open, each worth what it is worth, no less is had at a place. -/
+theorem more_askings_have_no_less {ι : Type*} (fewer more : Finset ι) (worth : ι → ℝ) (chance : ℝ)
+    (within : fewer ⊆ more) (some : fewer.Nonempty) :
+    max chance (fewer.sup' some worth) ≤ max chance (more.sup' (some.mono within) worth) :=
+  max_le_max le_rfl (Finset.sup'_mono worth within some)
+
+/-- 76.15: one asking made dearer, the best of the others as it was or no better, leaves no more to be
+had. -/
+theorem one_dearer_has_no_more (chance other rest had less lost more : ℝ) (worth : 0 ≤ less) (fewer : less ≤ had)
+    (low : lost ≤ more) (share : more ≤ 1) (others : other ≤ rest) :
+    max chance (max other ((1 - more) * less)) ≤ max chance (max rest ((1 - lost) * had)) :=
+  max_le_max le_rfl (max_le_max others (dearer_worth_no_more had less lost more worth fewer low share))
+
 end Thinking
 
 end NCA
