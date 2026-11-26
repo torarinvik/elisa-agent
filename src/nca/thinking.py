@@ -447,19 +447,21 @@ class Sureness:
     """How sure to be, learned from one's own askings with no word on what was right (§76.16).
 
     It keeps, for each asking served, the stated chance of the answer held before and the stated chance of
-    that same answer after. A chance that is right does not drift. The power is the t nearest one under which
-    chances read as σ(logit(c) / t) stop drifting in the mean, sought between a half and two, and it is one
-    until ``least`` askings are kept or where no such t is found. ``shrink`` takes the power to that exponent
-    before it is used, for a host that found the root to lie too far out."""
+    that same answer after. A chance that is right does not drift. Read as σ(logit(c) / t), the chances drift
+    by some mean with some standard error under each power t. The power used is the one nearest one, between
+    a half and two, under which that mean is within ``errors`` standard errors of nought: one while the
+    askings do not contradict the chances as stated, then only as far out as they force, and the root itself
+    as the askings grow. ``shrink`` takes that power to an exponent, for a host that found even the root to
+    lie too far out."""
 
-    GRID = np.geomspace(0.5, 2.0, 81)
+    GRID = np.geomspace(1.0, 2.0, 41)
 
-    def __init__(self, shrink: float = 1.0, least: int = 200) -> None:
+    def __init__(self, shrink: float = 1.0, errors: float = 2.0) -> None:
         if not 0.0 <= shrink <= 1.0:
             raise ValueError("the shrink must lie between nought and one")
-        if type(least) is not int or least < 1:
-            raise ValueError("a power needs a positive number of askings")
-        self.shrink, self.least = float(shrink), least
+        if not errors >= 0.0:
+            raise ValueError("a drift is held against a number of standard errors that is not negative")
+        self.shrink, self.errors = float(shrink), float(errors)
         self.before: list[float] = []
         self.after: list[float] = []
 
@@ -475,24 +477,33 @@ class Sureness:
         odds = np.log(np.clip(chance, 1e-9, 1.0 - 1e-9) / np.clip(1.0 - chance, 1e-9, 1.0))
         return 1.0 / (1.0 + np.exp(-odds / power))
 
-    def root(self) -> float:
-        """The power nearest one under which the kept chances do not drift; one where too few are kept or none
-        is found."""
-        if len(self.before) < self.least:
+    def drift(self, power: float = 1.0) -> tuple[float, float]:
+        """The mean change of the kept chances over an asking, read through ``power``, and its standard error."""
+        change = self._read(np.array(self.after), power) - self._read(np.array(self.before), power)
+        return float(change.mean()), float(change.std() / math.sqrt(len(change)))
+
+    def power(self) -> float:
+        """The power nearest one that the askings kept do not contradict; one where fewer than two are kept."""
+        if len(self.before) < 2:
             return 1.0
-        before, after = np.array(self.before), np.array(self.after)
-        drift = np.array([float(np.mean(self._read(after, power) - self._read(before, power))) for power in self.GRID])
-        cross = [k for k in range(len(drift) - 1) if drift[k] == 0.0 or drift[k] * drift[k + 1] < 0.0]
-        if not cross:
+        first, error = self.drift()
+        if abs(first) <= self.errors * error:
             return 1.0
-        roots = [float(self.GRID[k] - drift[k] * (self.GRID[k + 1] - self.GRID[k]) / (drift[k + 1] - drift[k])) if drift[k] != 0.0
-                 else float(self.GRID[k]) for k in cross]
-        return min(roots, key=lambda power: abs(math.log(power)))
+        last, power = first, 1.0
+        for step in self.GRID[1:]:  # a rising chance is too modest: the power lies below one
+            before, power = power, float(1.0 / step if first > 0.0 else step)
+            mean, error = self.drift(power)
+            if mean * first <= 0.0:  # past the root: the root itself, and no further
+                return float(before * (power / before) ** (last / (last - mean)))
+            if abs(mean) <= self.errors * error:
+                return power
+            last = mean
+        return power
 
     def reading(self) -> Callable[[np.ndarray], np.ndarray]:
         """The reading of stated chances as things stand: each chance read, as that of one answer against the
         rest, through the shrunk power."""
-        power = self.root() ** self.shrink
+        power = self.power() ** self.shrink
         return lambda chance: self._read(np.asarray(chance, dtype=np.float64), power)
 
 

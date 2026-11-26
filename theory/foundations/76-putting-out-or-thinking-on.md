@@ -366,6 +366,14 @@ power t̂ under which g_t(c) = σ(logit(c) / t) stops drifting estimates t from 
 system makes for its own ends. Whether an asking was made may turn on the place and on c
 without harm, since (i) holds given both.
 
+How much to believe a root. Over n askings the drift under a power has a mean and a standard
+error, and a root of a drift that chance alone would give is no finding: over a few hundred
+askings the spread of a chance's change is larger than a drift of a few tenths of a point, and
+the root follows the spread. So the power used is the one nearest one under which the mean
+drift is within a stated number of its standard errors of nought. It is one while the askings
+do not contradict the chances as stated, moves out only as far as they force, and comes to the
+root as n grows; nothing is claimed that the askings do not carry.
+
 What is not said. That one power serves every place: where the chances after an asking are
 less off than those before it, the root lies further from one than the power that would mend
 the chance before, so a host may shrink it (use t̂^λ with λ below one), and λ is then a number

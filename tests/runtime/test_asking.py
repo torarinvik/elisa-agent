@@ -194,10 +194,11 @@ def test_a_record_is_not_kept_of_what_was_not_served_and_malformed_learning_is_r
 def test_ones_own_askings_say_how_sure_to_be_with_no_word_on_what_was_right() -> None:
     """§76.16. An inquiry that takes its readings to be right 0.8 of the time when they are right 0.7 of the
     time states odds to the power log 4 / log (7/3) of the true ones. From the askings made for its own ends
-    the power is found, and read through it the chances stated for the final answers stand near the share
-    right; an inquiry whose chances are right is left as it is."""
+    a power is found that lies between one and that power and near it, and read through it the chances stated
+    for the final answers are less than half as far from the share right; an inquiry whose chances are right
+    is left as it is."""
     for stated, power in ((0.8, math.log(4.0) / math.log(7.0 / 3.0)), (0.7, 1.0), (0.62, math.log(0.62 / 0.38) / math.log(7.0 / 3.0))):
-        sure = Sureness(least=200)
+        sure = Sureness()
         learning = Learning(Askings(bands=20), 0.02, tries=10, every=25, sure=sure)
         gaps = {}
         for name, worth in (("as stated", Learning(Askings(bands=20), 0.02, tries=10, every=25)), ("read", learning)):
@@ -208,13 +209,23 @@ def test_ones_own_askings_say_how_sure_to_be_with_no_word_on_what_was_right() ->
                 got.append((thought.out == truth, thought.chance))
             late = got[800:]
             gaps[name] = sum(chance for _, chance in late) / len(late) - sum(right for right, _ in late) / len(late)
-        assert sure.root() == pytest.approx(power, rel=0.12)
-        assert abs(gaps["read"]) <= 0.02 and (stated == 0.7 or abs(gaps["as stated"]) >= 0.04)
+        found = sure.power()
+        assert min(1.0, power) - 0.02 <= found <= max(1.0, power) + 0.02 and abs(math.log(found / power)) <= 0.2
+        assert abs(gaps["read"]) <= max(0.01, 0.5 * abs(gaps["as stated"])) and (stated == 0.7 or abs(gaps["as stated"]) >= 0.04)
+    few = Sureness()
+    for before, after in ((0.6, 0.9), (0.7, 0.95), (0.6, 0.4)):  # three askings contradict nothing
+        few.note(before, after)
+    assert few.power() == 1.0 and Sureness().power() == 1.0
+    bare = Sureness(errors=0.0)  # held against no error at all, the power is the root itself
+    for before, after in ((0.665, 0.863), (0.665, 0.863), (0.665, 0.404)) * 2:  # a true 0.75 that becomes 0.95 or 0.35, odds to the power 0.625
+        bare.note(before, after)
+    assert bare.power() == pytest.approx(0.625, abs=0.02)
     with pytest.raises(ValueError, match="shrink"):
         Sureness(shrink=1.5)
+    with pytest.raises(ValueError, match="standard errors"):
+        Sureness(errors=-1.0)
     with pytest.raises(ValueError, match="between nought and one"):
         Sureness().note(0.4, 1.2)
-    assert Sureness(least=5).root() == 1.0  # nothing kept, nothing claimed
 
 
 class Second:
