@@ -9,8 +9,8 @@ import pytest
 from nca.abi import Contract, Manifest, Request
 from nca.kernel import Kernel
 from nca.memory import WorkingMemory
-from nca.thinking import (Answer, Askings, Opinion, Standing, Thought, Thresholds, Unsure, Worth, decides, think, thinking,
-                          through)
+from nca.thinking import (Answer, Askings, Learning, Opinion, Standing, Thought, Thresholds, Unsure, Worth, decides, think,
+                          thinking, through)
 from nca.workspace import Workspace
 
 COUNT, DOUBLE = "count.hypothetical", "double.hypothetical"
@@ -430,7 +430,7 @@ def test_a_dearer_asking_is_worth_no_more_and_answers_wherever_a_cheaper_one_did
     assert all(worths[-1].of(place, chance, "again") in (None, 0.0) for place in range(1, 5) for chance in chances)
 
 
-def asked_while_unsure(worth: Worth, truth: int, readings: list[int]) -> tuple[bool, int]:
+def asked_while_unsure(worth: Worth | Learning, truth: int, readings: list[int]) -> tuple[bool, int]:
     later = iter(readings[1:])
     thought = think([Unsure(Hidden(readings[0]), worth)], memory(), ask=lambda request: Answer(next(later)), rounds=len(readings))
     assert thought.out in (0, 1)
@@ -464,6 +464,43 @@ def test_an_asking_never_recorded_is_not_made_and_an_asking_unserved_is_taken_as
 
     thought = think([Unsure(Deaf(1), recorded(400).worth(0.0))], memory(), ask=through(Kernel([]), Workspace(), budget=4))
     assert (thought.out, thought.asks) == (1, 1)
+
+
+def test_a_record_of_ones_own_askings_comes_to_pay_what_the_full_record_pays() -> None:
+    """76.14: begun empty and kept only by the askings made from it, with each asking tried a stated number of
+    times where it stands, the record comes to pay on fresh trials what the record of every asking pays; the
+    tries are at most as many as the cells allow, and each gave up at most the charge."""
+    charge, tries = 0.02, 12
+    learning = Learning(Askings(bands=40), charge, tries, every=25)
+    stream, fresh = trials(3000, seed=3), trials(3000, seed=1)
+    got = [asked_while_unsure(learning, truth, readings) for truth, readings in stream]
+    cells = {(place, band) for (place, _, _), table in learning.askings.counts.items() for band in table.sum(1).nonzero()[0]}
+    assert learning.askings.noted == sum(asks for _, asks in got) and len(cells) <= 12
+
+    def paid(worth: Worth) -> float:
+        return sum((1.0 - charge) ** asks for right, asks in (asked_while_unsure(worth, *trial) for trial in fresh) if right) / len(fresh)
+
+    full, own = paid(recorded().worth(charge)), paid(learning.askings.worth(charge))
+    assert own >= full - 0.01
+    late = sum((1.0 - charge) ** asks for right, asks in got[1000:] if right) / 2000  # learning still, yet paid alike
+    assert late >= full - 0.02
+    first = asked_while_unsure(Learning(Askings(bands=40), charge, tries=1), 1, [1, 1, 1, 1, 1])
+    assert first == (True, 4)  # every asking untried is made, however sure the answer
+
+
+def test_a_record_is_not_kept_of_what_was_not_served_and_malformed_learning_is_refused() -> None:
+    class Deaf(Hidden):
+        def take(self, asking: Hashable, answer: object) -> None:
+            assert answer is None
+            self.most = len(self.readings)
+
+    learning = Learning(Askings(bands=40), 0.02, tries=3)
+    thought = think([Unsure(Deaf(1), learning)], memory(), ask=through(Kernel([]), Workspace(), budget=4))
+    assert (thought.out, thought.asks, learning.askings.noted) == (1, 1, 0)
+    assert Learning(Askings(), 0.02, tries=0).untried("anywhere", 0.6, "again") is False
+    for tries, every in ((-1, 1), (1.5, 1), (2, 0)):
+        with pytest.raises(ValueError, match="number of askings"):
+            Learning(Askings(), 0.02, tries, every)
 
 
 class Decides:

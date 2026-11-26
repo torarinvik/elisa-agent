@@ -262,6 +262,19 @@ theorem dearer_puts_out (chance had less lost more : ℝ) (worth : 0 ≤ less) (
     (share : more ≤ 1) (put : (1 - lost) * had ≤ chance) : (1 - more) * less ≤ chance :=
   le_trans (dearer_worth_no_more had less lost more worth fewer low share) put
 
+/-- 76.14: an asking tried where the best chance does not fall in the mean gives up at most the charge
+against answering at once. -/
+theorem try_costs_charge (before after lost : ℝ) (rises : before ≤ after) (most : after ≤ 1) (low : 0 ≤ lost) :
+    before - (1 - lost) * after ≤ lost := by
+  nlinarith [mul_le_mul_of_nonneg_left most low]
+
+/-- 76.14: so tries that each give up at most the charge give up, all together, at most the charge for
+each. -/
+theorem tries_cost_at_most {ι : Type*} (tries : Finset ι) (given : ι → ℝ) (lost : ℝ)
+    (each : ∀ i ∈ tries, given i ≤ lost) : ∑ i ∈ tries, given i ≤ tries.card * lost := by
+  have summed := Finset.sum_le_card_nsmul tries given lost each
+  simpa [nsmul_eq_mul] using summed
+
 end Thinking
 
 end NCA

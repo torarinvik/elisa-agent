@@ -21,7 +21,9 @@ sure the best answer was there, where it led and how sure the best answer was th
 charge for an asking, a share of what a right answer is worth, the worth of each asking at each place follows
 from the last places backwards (``Worth``). ``Unsure`` is the concept that holds an inquiry's answers and,
 beside them, the open asking worth most with that worth as its chance, so the frame's own rule decides between
-answering and asking, and which to ask.
+answering and asking, and which to ask. The record need not be given: ``Learning`` begins with whatever
+record it is handed, an empty one too, and ``Unsure`` keeps it by the askings the frame itself makes, each
+asking tried a stated number of times where it stands (§76.14).
 
 Nothing here says what a hypothesis is, how a chance is come by, what a risk is the risk of, what a place or
 an asking stands for, or what is asked about.
@@ -333,6 +335,7 @@ class Askings:
             if len(key) != 3 or table.shape != (bands, bands) or not np.isfinite(table).all() or (table < 0).any():
                 raise ValueError("a record of askings needs a square table of counts for a place, an asking and a later place")
             self.counts[key] = table
+        self.noted = 0
 
     def band(self, chance: float | np.ndarray) -> np.ndarray:
         """The band a chance falls in; of several chances, each one's."""
@@ -350,6 +353,12 @@ class Askings:
             raise ValueError("each asking recorded needs one chance before and one after")
         table = self.counts.setdefault((place, asking, then), np.zeros((self.bands, self.bands)))
         np.add.at(table, (before, later), 1.0)
+        self.noted += len(before)
+
+    def seen(self, place: Hashable, chance: float, asking: Hashable) -> float:
+        """How many times ``asking`` was recorded at ``place`` with the best chance in the band of ``chance``."""
+        band = int(self.band(chance))
+        return float(sum(table[band].sum() for (at, asked, _), table in self.counts.items() if at == place and asked == asking))
 
     def worth(self, charge: float) -> Worth:
         """What the askings recorded so far are worth where each is charged the share ``charge``."""
@@ -416,6 +425,32 @@ class Worth:
         return max([float(chance), *best])
 
 
+class Learning:
+    """A record that grows by the askings made from it (§76.14).
+
+    The worth it gives is that of the record as it stands, worked out again once ``every`` further askings
+    have been recorded. An asking recorded fewer than ``tries`` times at a place with the best chance in a
+    band is tried: made whatever the answers' chances, which by 76.14 gives up at most the charge."""
+
+    def __init__(self, askings: Askings, charge: float, tries: int, every: int = 1) -> None:
+        if type(tries) is not int or tries < 0:
+            raise ValueError("tries must be a nonnegative number of askings")
+        if type(every) is not int or every < 1:
+            raise ValueError("the worth is worked out again after a positive number of askings")
+        self.askings, self.charge, self.tries, self.every = askings, charge, tries, every
+        self._worth, self._at = Worth(askings, charge), askings.noted
+
+    @property
+    def worth(self) -> Worth:
+        if self.askings.noted - self._at >= self.every:
+            self._worth, self._at = Worth(self.askings, self.charge), self.askings.noted
+        return self._worth
+
+    def untried(self, place: Hashable, chance: float, asking: Hashable) -> bool:
+        """Whether ``asking`` is still to be tried at ``place`` with the best chance at ``chance``."""
+        return self.askings.seen(place, chance, asking) < self.tries
+
+
 class Unsure:
     """Asking while unsure, as a concept (§76.13).
 
@@ -423,17 +458,25 @@ class Unsure:
     the best answer stands, as one more hypothesis with that worth as its chance. The frame's rule then takes
     an answer or the asking, whichever has the greater chance, and an answer where they tie. Where the asking
     was taken and served, its answer is on the scratchpad under the type asked for when the concept is next
-    asked: the concept hands it to the inquiry and lets go of the note."""
+    asked: the concept hands it to the inquiry and lets go of the note.
 
-    def __init__(self, inquiry: Inquiry, worth: Worth, cost: float = 0.0) -> None:
+    Given a ``Learning`` in place of a worth, the concept also keeps the record (§76.14): each asking served
+    is recorded with how the inquiry stood before it and after, unless the kernel gave nothing; and an open
+    asking still to be tried is offered with the chance one, so that it is made."""
+
+    def __init__(self, inquiry: Inquiry, worth: Worth | Learning, cost: float = 0.0) -> None:
         self.inquiry, self.worth, self.cost = inquiry, worth, cost
-        self._asked: tuple[Hashable, Request] | None = None
+        self._asked: tuple[Hashable, Request, Hashable, float] | None = None
 
     def think(self, memory: WorkingMemory) -> Opinion:
+        learning = self.worth if isinstance(self.worth, Learning) else None
+        answered = None
         if self._asked is not None and self._asked[1].type_id in memory.scratch:
-            asking, request = self._asked
-            self.inquiry.take(asking, memory.scratch.read(request.type_id))
+            asking, request, place, before = self._asked
+            answer = memory.scratch.read(request.type_id)
+            self.inquiry.take(asking, answer)
             memory.scratch.drop(request.type_id)
+            answered = (place, before, asking) if answer is not None else None
         self._asked = None
         standing = self.inquiry.standing()
         chances = [float(chance) for chance in standing.chances]
@@ -441,10 +484,19 @@ class Unsure:
         if not chances or len(hypotheses) != len(chances):
             raise ValueError("a standing needs one chance for each of at least one answer")
         best = max(chances)
-        offers = [(worth, asking) for asking in standing.open if (worth := self.worth.of(standing.place, best, asking)) is not None]
+        if learning is not None and answered is not None:
+            place, before, asking = answered
+            learning.askings.note(place, before, asking, standing.place, best)
+        worth = self.worth if learning is None else learning.worth
+        offers = [(value, asking) for asking in standing.open if (value := worth.of(standing.place, best, asking)) is not None]
+        if learning is not None:
+            untried = [asking for asking in standing.open if learning.untried(standing.place, best, asking)]
+            if untried:  # the one recorded least there is tried first
+                asking = min(untried, key=lambda one: learning.askings.seen(standing.place, best, one))
+                offers = [(1.0, asking)]
         if offers:
-            worth, asking = max(offers, key=lambda offer: offer[0])
-            self._asked = (asking, standing.open[asking])
-            chances.append(worth)
+            value, asking = max(offers, key=lambda offer: offer[0])
+            self._asked = (asking, standing.open[asking], standing.place, best)
+            chances.append(value)
             hypotheses.append(standing.open[asking])
         return Opinion(chances, hypotheses)

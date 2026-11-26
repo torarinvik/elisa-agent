@@ -262,6 +262,45 @@ nothing else the concept could have read. And that a band is narrow: taking a ba
 its middle moves what is had by at most half a band's width at every place, since a mean of
 values each off by at most that much, charged, is off by no more.
 
+## 76.14 A record of one's own askings
+
+The record of 76.13 may be given: made from trials in which everything was asked. A learner
+has no such trials. It has the askings its own rule made, and with an empty record the rule of
+76.13 makes none: an asking with no worth is not made, so nothing is recorded and the record
+stays empty. As in 76.4, a rule that does only what it knows to be worth doing cannot learn
+what anything else is worth.
+
+Let an asking recorded fewer than m times at a place with c in a band be **tried**: made
+whatever the answers' chances. Presume, as 76.13 does, that the chances are calibrated, and
+that after an asking an answer may still be given. Each answer's chance after the asking is
+then in the mean its chance before, and the best of them after is in the mean at least the
+best before (the mean of the largest is at least the largest of the means, 76.9). Call the
+best chance before c and the mean of the best after c′ ≥ c.
+
+**Proposition 76.14 (a try costs at most the charge, and one's own askings say what all
+askings would).**
+(i) A try followed by answering has in the mean (1 - δ) c′, so it gives up at most
+c - (1 - δ) c′ ≤ δ c′ ≤ δ against answering at once, and nothing where asking was the better.
+A record with K cells of place, band and asking is then tried at most m K times over any
+number of trials, at a cost of at most m K δ in all.
+(ii) Let what follows an asking turn on the place and the band of c alone, as 76.13 presumes.
+A rule that reads only place and band in deciding to ask makes, at each cell it visits, askings
+drawn from the same law as all askings there. So the record of its own askings has the means
+of the full record at those cells, and a cell it never visits is never asked from.
+
+*Proof.* (i) c ≤ c′ gives c - (1 - δ) c′ ≤ δ c′, and c′ ≤ 1. Each cell is tried while it holds
+fewer than m records and every try adds one. (ii) Whether the asking is made is settled by
+place and band, and given those what follows does not turn on anything else, so the asking's
+outcome is independent of its having been made. ∎
+
+What is not said. How large m must be: a cell's mean worth read from m records is off by about
+σ/√m, a misread worth costs at most twice what it is off (76.2), and narrower bands give more
+cells, so K m grows as the bands narrow and the record is best begun coarse. A cell whose m
+records read an asking as worth less than answering is not asked from again, so that reading
+is never mended; by 76.2 it costs at most twice what it is off. And (ii) fails
+where the presumption does: a rule that reads more than place and band, or chances that are
+not calibrated, make the record of one's own askings a record of the askings one chose.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -271,4 +310,4 @@ In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_i
 `NCA.settled_costs_little`; 76.11 is `NCA.charged_tie_puts_out` and `NCA.charge_costs_little`; 76.12 is
 `NCA.still_worth_within` and `NCA.held_to_last_puts_out`; 76.13 is `NCA.taking_the_larger_is_best`,
 `NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
-`NCA.dearer_puts_out`.
+`NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`.
