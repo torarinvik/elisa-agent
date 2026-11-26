@@ -338,6 +338,41 @@ its cells costs up to m K δ_a, which for a question to a person is the dearest 
 is; a host that knows what a dear asking gives can hand the record those askings instead of
 having them tried.
 
+## 76.16 What one's own askings say of one's chances
+
+76.13 to 76.15 presume calibrated chances, and a chance calibrated where names were to be had
+need not hold where the system is used. Names are not needed to see that it does not. Let p
+be the true chance of the answer held and p′ its true chance once an asking has been
+answered; whatever the asking, p is the mean of p′ over what it may give.
+
+**Proposition 76.16 (a chance that is right does not drift).**
+(i) A calibrated stated chance of the answer held is in the mean the same after an asking as
+before.
+(ii) Let the stated chance be c = f(p). Where f is concave over the chances met, c falls in
+the mean over an asking, and where f is convex it rises.
+(iii) Let the true chance be p = g(c) for some g. Then g of the stated chance of the answer
+held does not drift, so g is to be sought among the readings under which the mean of
+g(c′) - g(c) over one's own askings is nought.
+
+*Proof.* (i) is the law of total chance: Σ_j w_j p′_j = p with weights w_j summing to one, so
+Σ_j w_j (p′_j - p) = 0. (ii) is Jensen's inequality for f over the same weights. (iii) is (i)
+for g(c) = p. ∎
+
+Being too sure is a concave reading above a half. Take the stated odds to be the true odds to
+a power t: c = p^t / (p^t + (1 - p)^t). For t above one this is concave on [1/2, 1] and for t
+below one convex there, so by (ii) the chance of the answer held, where it stays the likelier,
+falls over an asking if the system is too sure and rises if it is too modest; and by (iii) the
+power t̂ under which g_t(c) = σ(logit(c) / t) stops drifting estimates t from the askings the
+system makes for its own ends. Whether an asking was made may turn on the place and on c
+without harm, since (i) holds given both.
+
+What is not said. That one power serves every place: where the chances after an asking are
+less off than those before it, the root lies further from one than the power that would mend
+the chance before, so a host may shrink it (use t̂^λ with λ below one), and λ is then a number
+to be chosen where names are to be had. That a drift of nought means a right chance: a chance
+off by the same amount in a way no asking moves is not seen. And (iii) needs the inquiry to
+say the chance of each of its answers, so that the one held before can be followed.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -349,4 +384,6 @@ In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_i
 `NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
 `NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`; 76.15 is
 `NCA.more_askings_have_no_less` and `NCA.one_dearer_has_no_more`, with `NCA.dearer_puts_out` read
-against any rival, an answer or another asking.
+against any rival, an answer or another asking; 76.16 is `NCA.right_chance_does_not_drift`,
+`NCA.too_sure_falls` and `NCA.too_modest_rises` (that the power reading is concave above a half
+for t above one is used and not proved there).

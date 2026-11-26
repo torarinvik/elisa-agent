@@ -288,6 +288,27 @@ theorem one_dearer_has_no_more (chance other rest had less lost more : ℝ) (wor
     max chance (max other ((1 - more) * less)) ≤ max chance (max rest ((1 - lost) * had)) :=
   max_le_max le_rfl (max_le_max others (dearer_worth_no_more had less lost more worth fewer low share))
 
+/-- 76.16: a chance that is the mean of what it becomes does not drift: over what an asking may give, the
+changes weighted by their chances sum to nought. -/
+theorem right_chance_does_not_drift {ι : Type*} (s : Finset ι) (weight after : ι → ℝ) (before : ℝ)
+    (whole : ∑ i ∈ s, weight i = 1) (mean : ∑ i ∈ s, weight i * after i = before) :
+    ∑ i ∈ s, weight i * (after i - before) = 0 := by
+  simp only [mul_sub, Finset.sum_sub_distrib, ← Finset.sum_mul, whole, mean, one_mul, sub_self]
+
+/-- 76.16: a stated chance that is a concave reading of the true one falls in the mean over an asking. -/
+theorem too_sure_falls {ι : Type*} (s : Finset ι) (weight after : ι → ℝ) (met : Set ℝ) (read : ℝ → ℝ)
+    (concave : ConcaveOn ℝ met read) (some : ∀ i ∈ s, 0 ≤ weight i) (whole : ∑ i ∈ s, weight i = 1)
+    (within : ∀ i ∈ s, after i ∈ met) :
+    ∑ i ∈ s, weight i * read (after i) ≤ read (∑ i ∈ s, weight i * after i) := by
+  simpa [smul_eq_mul] using concave.le_map_sum some whole within
+
+/-- 76.16: and one that is a convex reading rises. -/
+theorem too_modest_rises {ι : Type*} (s : Finset ι) (weight after : ι → ℝ) (met : Set ℝ) (read : ℝ → ℝ)
+    (convex : ConvexOn ℝ met read) (some : ∀ i ∈ s, 0 ≤ weight i) (whole : ∑ i ∈ s, weight i = 1)
+    (within : ∀ i ∈ s, after i ∈ met) :
+    read (∑ i ∈ s, weight i * after i) ≤ ∑ i ∈ s, weight i * read (after i) := by
+  simpa [smul_eq_mul] using convex.map_sum_le some whole within
+
 end Thinking
 
 end NCA

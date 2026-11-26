@@ -9,7 +9,7 @@ import pytest
 from nca.abi import Contract, Manifest, Request
 from nca.kernel import Kernel
 from nca.memory import WorkingMemory
-from nca.thinking import Answer, Askings, Learning, Standing, Thought, Unsure, Worth, think, thinking, through
+from nca.thinking import Answer, Askings, Learning, Standing, Sureness, Thought, Unsure, Worth, think, thinking, through
 from nca.workspace import Workspace
 
 SOURCE, READING, VERDICT = "source.hypothetical", "reading.hypothetical", "verdict.hypothetical"
@@ -189,6 +189,32 @@ def test_a_record_is_not_kept_of_what_was_not_served_and_malformed_learning_is_r
     for tries, every in ((-1, 1), (1.5, 1), (2, 0)):
         with pytest.raises(ValueError, match="number of askings"):
             Learning(Askings(), 0.02, tries, every)
+
+
+def test_ones_own_askings_say_how_sure_to_be_with_no_word_on_what_was_right() -> None:
+    """§76.16. An inquiry that takes its readings to be right 0.8 of the time when they are right 0.7 of the
+    time states odds to the power log 4 / log (7/3) of the true ones. From the askings made for its own ends
+    the power is found, and read through it the chances stated for the final answers stand near the share
+    right; an inquiry whose chances are right is left as it is."""
+    for stated, power in ((0.8, math.log(4.0) / math.log(7.0 / 3.0)), (0.7, 1.0), (0.62, math.log(0.62 / 0.38) / math.log(7.0 / 3.0))):
+        sure = Sureness(least=200)
+        learning = Learning(Askings(bands=20), 0.02, tries=10, every=25, sure=sure)
+        gaps = {}
+        for name, worth in (("as stated", Learning(Askings(bands=20), 0.02, tries=10, every=25)), ("read", learning)):
+            got = []
+            for truth, readings in trials(1800, seed=6):
+                later = iter(readings[1:])
+                thought = think([Unsure(Hidden(readings[0], right=stated), worth)], memory(), ask=lambda request, later=later: Answer(next(later)), rounds=5)
+                got.append((thought.out == truth, thought.chance))
+            late = got[800:]
+            gaps[name] = sum(chance for _, chance in late) / len(late) - sum(right for right, _ in late) / len(late)
+        assert sure.root() == pytest.approx(power, rel=0.12)
+        assert abs(gaps["read"]) <= 0.02 and (stated == 0.7 or abs(gaps["as stated"]) >= 0.04)
+    with pytest.raises(ValueError, match="shrink"):
+        Sureness(shrink=1.5)
+    with pytest.raises(ValueError, match="between nought and one"):
+        Sureness().note(0.4, 1.2)
+    assert Sureness(least=5).root() == 1.0  # nothing kept, nothing claimed
 
 
 class Second:

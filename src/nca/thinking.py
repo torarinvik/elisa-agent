@@ -24,7 +24,9 @@ beside them, the open asking worth most with that worth as its chance, so the fr
 answering and asking, and which to ask. Each asking may be charged its own share, so askings that different
 experts serve at different costs are weighed in the one rule (§76.15). The record need not be given: ``Learning`` begins with whatever
 record it is handed, an empty one too, and ``Unsure`` keeps it by the askings the frame itself makes, each
-asking tried a stated number of times where it stands (§76.14).
+asking tried a stated number of times where it stands (§76.14). The same askings say whether the stated
+chances are right, since a right chance of the answer held does not drift when more is learned: ``Sureness``
+reads from them, with no word on what was right, how far too sure or too modest the chances are (§76.16).
 
 Nothing here says what a hypothesis is, how a chance is come by, what a risk is the risk of, what a place or
 an asking stands for, or what is asked about.
@@ -372,12 +374,15 @@ class Worth:
 
     An asking is charged a share of what is to be had (§76.11) and is worth, less that, what is had at the place
     it leads to: there the larger of the best answer's chance and what the best asking is worth. ``charge`` is
-    one share for every asking, or gives each recorded asking its own, whoever serves it.
+    one share for every asking, or gives each recorded asking its own, whoever serves it. Where the stated
+    chances are known to be off, ``read`` gives for a stated chance the chance it stands for, and the record,
+    kept by stated chances, is valued by those.
     A band's chance is taken at its middle. An asking never recorded at a place with the chance in a band has
     no worth there, which is not the same as being worth nothing. Recorded askings that lead back to a place
     they came from have no last place to start from and are refused."""
 
-    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float]) -> None:
+    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float],
+                 read: Callable[[np.ndarray], np.ndarray] | None = None) -> None:
         own = dict(charge) if isinstance(charge, Mapping) else None
         if not all(0.0 <= share <= 1.0 for share in ([charge] if own is None else own.values())):
             raise ValueError("the charge for an asking must be a share between nought and one")
@@ -385,6 +390,9 @@ class Worth:
             raise ValueError("each recorded asking needs its charge")
         self.bands, self.charge = askings.bands, float(charge) if own is None else own
         middle = (np.arange(self.bands) + 0.5) / self.bands
+        if read is not None:  # the stated chance of a band read as the chance it stands for (§76.16)
+            middle = np.asarray(read(middle), dtype=np.float64)
+        self._answer = middle
         ways: dict[Hashable, dict[Hashable, list[tuple[Hashable, np.ndarray]]]] = {}
         for (place, asking, then), table in askings.counts.items():
             ways.setdefault(place, {}).setdefault(asking, []).append((then, table))
@@ -435,25 +443,85 @@ class Worth:
         return max([float(chance), *best])
 
 
+class Sureness:
+    """How sure to be, learned from one's own askings with no word on what was right (§76.16).
+
+    It keeps, for each asking served, the stated chance of the answer held before and the stated chance of
+    that same answer after. A chance that is right does not drift. The power is the t nearest one under which
+    chances read as σ(logit(c) / t) stop drifting in the mean, sought between a half and two, and it is one
+    until ``least`` askings are kept or where no such t is found. ``shrink`` takes the power to that exponent
+    before it is used, for a host that found the root to lie too far out."""
+
+    GRID = np.geomspace(0.5, 2.0, 81)
+
+    def __init__(self, shrink: float = 1.0, least: int = 200) -> None:
+        if not 0.0 <= shrink <= 1.0:
+            raise ValueError("the shrink must lie between nought and one")
+        if type(least) is not int or least < 1:
+            raise ValueError("a power needs a positive number of askings")
+        self.shrink, self.least = float(shrink), least
+        self.before: list[float] = []
+        self.after: list[float] = []
+
+    def note(self, before: float, after: float) -> None:
+        """Keep that the answer held at the chance ``before`` stood at ``after`` once an asking was answered."""
+        if not (0.0 <= before <= 1.0 and 0.0 <= after <= 1.0):
+            raise ValueError("a chance must lie between nought and one")
+        self.before.append(before)
+        self.after.append(after)
+
+    @staticmethod
+    def _read(chance: np.ndarray, power: float) -> np.ndarray:
+        odds = np.log(np.clip(chance, 1e-9, 1.0 - 1e-9) / np.clip(1.0 - chance, 1e-9, 1.0))
+        return 1.0 / (1.0 + np.exp(-odds / power))
+
+    def root(self) -> float:
+        """The power nearest one under which the kept chances do not drift; one where too few are kept or none
+        is found."""
+        if len(self.before) < self.least:
+            return 1.0
+        before, after = np.array(self.before), np.array(self.after)
+        drift = np.array([float(np.mean(self._read(after, power) - self._read(before, power))) for power in self.GRID])
+        cross = [k for k in range(len(drift) - 1) if drift[k] == 0.0 or drift[k] * drift[k + 1] < 0.0]
+        if not cross:
+            return 1.0
+        roots = [float(self.GRID[k] - drift[k] * (self.GRID[k + 1] - self.GRID[k]) / (drift[k + 1] - drift[k])) if drift[k] != 0.0
+                 else float(self.GRID[k]) for k in cross]
+        return min(roots, key=lambda power: abs(math.log(power)))
+
+    def reading(self) -> Callable[[np.ndarray], np.ndarray]:
+        """The reading of stated chances as things stand: each chance read, as that of one answer against the
+        rest, through the shrunk power."""
+        power = self.root() ** self.shrink
+        return lambda chance: self._read(np.asarray(chance, dtype=np.float64), power)
+
+
 class Learning:
     """A record that grows by the askings made from it (§76.14).
 
     The worth it gives is that of the record as it stands, worked out again once ``every`` further askings
     have been recorded. An asking recorded fewer than ``tries`` times at a place with the best chance in a
-    band is tried: made whatever the answers' chances, which by 76.14 gives up at most the charge."""
+    band is tried: made whatever the answers' chances, which by 76.14 gives up at most the charge. Given a
+    ``Sureness``, the askings also teach how sure to be (§76.16), and the worth is of the chances so read."""
 
-    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float], tries: int, every: int = 1) -> None:
+    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float], tries: int, every: int = 1,
+                 sure: Sureness | None = None) -> None:
         if type(tries) is not int or tries < 0:
             raise ValueError("tries must be a nonnegative number of askings")
         if type(every) is not int or every < 1:
             raise ValueError("the worth is worked out again after a positive number of askings")
-        self.askings, self.charge, self.tries, self.every = askings, charge, tries, every
-        self._worth, self._at = Worth(askings, charge), askings.noted
+        self.askings, self.charge, self.tries, self.every, self.sure = askings, charge, tries, every, sure
+        self.read: Callable[[np.ndarray], np.ndarray] | None = None
+        self._worth, self._at = self._worked(), askings.noted
+
+    def _worked(self) -> Worth:
+        self.read = None if self.sure is None else self.sure.reading()  # one reading for the worth and the answers
+        return Worth(self.askings, self.charge, self.read)
 
     @property
     def worth(self) -> Worth:
         if self.askings.noted - self._at >= self.every:
-            self._worth, self._at = Worth(self.askings, self.charge), self.askings.noted
+            self._worth, self._at = self._worked(), self.askings.noted
         return self._worth
 
     def untried(self, place: Hashable, chance: float, asking: Hashable) -> bool:
@@ -472,21 +540,24 @@ class Unsure:
 
     Given a ``Learning`` in place of a worth, the concept also keeps the record (§76.14): each asking served
     is recorded with how the inquiry stood before it and after, unless the kernel gave nothing; and an open
-    asking still to be tried is offered with the chance one, so that it is made."""
+    asking still to be tried is offered with the chance one, so that it is made. Where the learning holds a
+    ``Sureness`` and the inquiry says the chance of each of at least two answers, the chance of the answer held
+    is followed over each asking, and the answers are given at the chances so read (§76.16); the record is kept
+    by the chances as stated."""
 
     def __init__(self, inquiry: Inquiry, worth: Worth | Learning, cost: float = 0.0) -> None:
         self.inquiry, self.worth, self.cost = inquiry, worth, cost
-        self._asked: tuple[Hashable, Request, Hashable, float] | None = None
+        self._asked: tuple[Hashable, Request, Hashable, float, int, int] | None = None
 
     def think(self, memory: WorkingMemory) -> Opinion:
         learning = self.worth if isinstance(self.worth, Learning) else None
         answered = None
         if self._asked is not None and self._asked[1].type_id in memory.scratch:
-            asking, request, place, before = self._asked
+            asking, request, place, before, held, among = self._asked
             answer = memory.scratch.read(request.type_id)
             self.inquiry.take(asking, answer)
             memory.scratch.drop(request.type_id)
-            answered = (place, before, asking) if answer is not None else None
+            answered = (place, before, asking, held, among) if answer is not None else None
         self._asked = None
         standing = self.inquiry.standing()
         chances = [float(chance) for chance in standing.chances]
@@ -495,8 +566,10 @@ class Unsure:
             raise ValueError("a standing needs one chance for each of at least one answer")
         best = max(chances)
         if learning is not None and answered is not None:
-            place, before, asking = answered
+            place, before, asking, held, among = answered
             learning.askings.note(place, before, asking, standing.place, best)
+            if learning.sure is not None and among == len(chances) > 1:
+                learning.sure.note(before, chances[held])
         worth = self.worth if learning is None else learning.worth
         offers = [(value, asking) for asking in standing.open if (value := worth.of(standing.place, best, asking)) is not None]
         if learning is not None:
@@ -506,7 +579,10 @@ class Unsure:
                 offers = [(1.0, asking)]
         if offers:
             value, asking = max(offers, key=lambda offer: offer[0])
-            self._asked = (asking, standing.open[asking], standing.place, best)
+            self._asked = (asking, standing.open[asking], standing.place, best, chances.index(best), len(chances))
+        if learning is not None and learning.read is not None:
+            chances = [float(chance) for chance in learning.read(np.array(chances))]
+        if offers:
             chances.append(value)
             hypotheses.append(standing.open[asking])
         return Opinion(chances, hypotheses)
