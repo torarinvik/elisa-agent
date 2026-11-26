@@ -9,7 +9,8 @@ import pytest
 from nca.abi import Contract, Manifest, Request
 from nca.kernel import Kernel
 from nca.memory import WorkingMemory
-from nca.thinking import Answer, Askings, Learning, Standing, Sureness, Thought, Unsure, Worth, think, thinking, through
+from nca.asking import Askings, Learning, Standing, Sureness, Unsure, Worth
+from nca.thinking import Answer, Thought, think, thinking, through
 from nca.workspace import Workspace
 
 SOURCE, READING, VERDICT = "source.hypothetical", "reading.hypothetical", "verdict.hypothetical"
