@@ -411,6 +411,26 @@ theorem tries_to_the_root_are_a_falling_share (k n : ℝ) (some : 0 < k) (root :
   rw [div_le_div_iff₀ visits some]
   linarith
 
+/-- 76.24: tried by turns, an asking and the plainer option counted `m` times each are told apart by `z`
+standard errors once `m` is twice the square of `z s / d`: the squared standard error of their difference,
+`s² / m` twice over, times `z²` is then at most `d²`. -/
+theorem told_apart_by_turns (z s d m : ℝ) (some : 0 < m) (enough : 2 * (z * s) ^ 2 ≤ m * d ^ 2) :
+    (z * s) ^ 2 * (1 / m + 1 / m) ≤ d ^ 2 := by
+  have twice : (z * s) ^ 2 * (1 / m + 1 / m) = 2 * (z * s) ^ 2 / m := by ring
+  rw [twice, div_le_iff₀ some]
+  linarith [mul_comm m (d ^ 2)]
+
+/-- 76.24: turns need fewer visits than tries at the square root wherever the square of `z s / d`, `k`, is
+over four: four times `k` visits against `k` squared. -/
+theorem turns_need_fewer_than_the_root (k : ℝ) (many : 4 ≤ k) : 4 * k ≤ k * k := by
+  nlinarith
+
+/-- 76.24: a gain counted at most `z` standard errors above nought is told to be under `δ` once two times `z`
+standard errors are within `δ`. -/
+theorem left_once_the_error_is_small (gain error z δ : ℝ) (fair : gain ≤ z * error)
+    (small : 2 * (z * error) ≤ δ) : gain + z * error ≤ δ := by
+  linarith
+
 end Thinking
 
 end NCA

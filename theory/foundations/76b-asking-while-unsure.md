@@ -419,6 +419,50 @@ left out, so a deep record is told apart sooner than it should be. That what is 
 sweep of 76.22 takes the larger everywhere, so the worth of an asking counts on dearer askings further on that
 R_z may decline.
 
+## 76.24 Trying by turns
+
+76.23 (iii) left the pace of tries open and took the square root of the visits. The pace is what a dearer asking
+that is worth more costs before it is found, and the square root is a slow one.
+
+Let an asking be worth d more than the plainer option at a standing, d of either sign, and let what an inquiry
+comes to scatter with variance at most s² under either. Counted m times and n times, their difference has
+standard error s √(1/m + 1/n), and R_z of 76.23 tells them apart once d is z of those. Write k = (z s / d)².
+
+**Proposition 76.24 (the pace of telling apart).**
+(i) Tried on to the square root of N visits the asking has √N counts against N, the squared standard error is
+over s² / √N, and it is told apart only after N ≥ k² visits.
+(ii) Tried by turns, one inquiry in two, each has m counts after 2 m visits and they are told apart once m ≥ 2 k:
+after 4 k visits, fewer than k² wherever k is over four.
+(iii) Let the turns end where the asking is told apart, or where its gain is told to be under a smallest gain
+looked for, δ: the gain counted and z standard errors together under δ. An asking worth no more than the plainer
+(d ≤ 0) is so left, with chance at least 1 - 1 / (1 + z²) at each reading, once two times z standard errors are
+within δ, that is once m ≥ 8 z² s² / δ². The makings spent on it are bounded, where tries at the square root
+have no end.
+
+*Proof.* (i) 1/m + 1/n > 1/m = 1/√N, so z² s² / √N < d² is needed, which is √N > k. (ii) With m = n the squared
+standard error is 2 s² / m, and z² · 2 s² / m ≤ d² is m ≥ 2 k; and 4 k ≤ k² for k ≥ 4. (iii) By Cantelli, as in
+76.23, the gain counted is at most z standard errors over d ≤ 0 with that chance; then the gain and z standard
+errors together are at most 2 z standard errors, within δ; and 2 z s √(2 / m) ≤ δ is m ≥ 8 z² s² / δ². ∎
+
+For a gain of a tenth with s = 0.45 and z = 2, k is 81: some 320 visits by turns against 6,500 at the square
+root.
+
+Two things a trial by turns needs, which are not in the proposition.
+The turns are of whole inquiries. If an inquiry that took the plainer option at a standing stands there again a
+step later and then takes the asking, both arms have made it, and what is counted is the gain of making it now
+over a step on. An inquiry whose turn is the plainer option's makes no asking that is on trial, and only such
+inquiries are counted as plain.
+A count read at every making is not a count read once. A line of z standard errors that a count read once
+crosses by chance about Φ(-z) of the time is crossed at some reading far more often, and with certainty if the
+readings never end (the law of the iterated logarithm); over readings from 10 to 600 counts the chance is about
+a sixth for z = 2 and one in forty for z = 3. A trial whose "gains" is acted on needs the stiffer line, or
+readings at few set counts.
+
+What is not said. That a half is the best share of turns, or that the arms need equal counts. That three is
+the right stiffer line: a line that rises with the count so as to hold at every reading at once is known and
+is not used. That the gain stays what it was while it is counted: where the readers are still being taught, the
+early counts are of another learner, and nothing here forgets them. That δ is given by anything.
+
 In Lean, 76.13 is `NCA.taking_the_larger_is_best`,
 `NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
 `NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`; 76.15 is
@@ -434,4 +478,6 @@ the score equations is the calculus of the likelihood and is not proved there); 
 answer taken; 76.21 is `NCA.ended_share_is_a_charge` and `NCA.thought_pays_where_gain_exceeds_hazard`;
 76.22 is `NCA.asking_once_more_has_no_less` and `NCA.back_to_where_it_stood_ties`;
 76.23 is `NCA.holding_to_the_plainer_loses_the_gap` and `NCA.tries_to_the_root_are_a_falling_share` (Cantelli's
-inequality is used and not proved there).
+inequality is used and not proved there);
+76.24 is `NCA.told_apart_by_turns`, `NCA.turns_need_fewer_than_the_root` and
+`NCA.left_once_the_error_is_small` (the chance of crossing a line read many times is quoted and not proved).
