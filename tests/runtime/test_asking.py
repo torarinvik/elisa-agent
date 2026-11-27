@@ -1,4 +1,5 @@
-"""Asking while unsure: what an asking is worth, a record of one's own askings, and askings at different charges (§76.13 to §76.15)."""
+"""Asking while unsure: what an asking is worth, a record of one's own askings, askings at different charges, how
+sure to be, whom to trust, an asking made only so often and what an inquiry is promised (§76.13 to §76.19)."""
 import itertools
 import math
 import random
@@ -9,7 +10,7 @@ import pytest
 from nca.abi import Contract, Manifest, Request
 from nca.kernel import Kernel
 from nca.memory import WorkingMemory
-from nca.asking import Askings, Learning, Standing, Sureness, Trust, Unsure, Worth
+from nca.asking import Askings, Learning, Promise, Standing, Sureness, Trust, Unsure, Worth
 from nca.thinking import Answer, Thought, think, thinking, through
 from nca.workspace import Workspace
 
@@ -398,6 +399,71 @@ def test_what_cannot_be_a_trust_or_a_word_is_refused() -> None:
             Trust("namer", **bad)
     with pytest.raises(ValueError, match="one number for each of the same answers"):
         Trust("namer", 0.9).chances({"one": (0.1, 0.2), "other": (0.1, 0.2, 0.3)})
+
+
+def test_an_asking_kept_to_a_limit_is_weighed_at_its_price_and_promised_at_its_charge() -> None:
+    """76.18. By hand: an asking that leads from a chance of 0.6 to one of 0.875 is weighed at charge and price
+    and promised at the charge alone, and is not made where the price takes it under the answer. Then, learned:
+    a close reading asked for in every inquiry is, given a limit of one inquiry in five, asked for in about
+    that share, by a price that rose from nought; each asking's own number of tries leaves the one unnamed
+    untried."""
+    led = Askings(bands=4)
+    led.note("first", 0.6, "dear", "last", 0.9)
+    priced = Worth(led, {"dear": 0.1}, price={"dear": 0.1})
+    assert priced.of("first", 0.6, "dear") == pytest.approx(0.8 * 0.875)
+    assert priced.had("first", 0.6) == pytest.approx(0.9 * 0.875) == Worth(led, {"dear": 0.1}).had("first", 0.6)
+    assert Worth(led, {"dear": 0.1}, price={"dear": 0.3}).had("first", 0.6) == 0.6
+    halved = Worth(Askings(bands=4), 0.1, read=lambda chance: 0.5 * chance)  # a reading goes with the worth it valued
+    assert halved.had("nowhere", 0.8) == pytest.approx(0.4)
+    assert think([Unsure(Hidden(1, most=1), halved)], memory()).chance == pytest.approx(0.35)
+
+    charge, late = {"again": 0.02, "closely": 0.03}, {}
+    for limit in (None, {"closely": 0.2}):
+        learning = Learning(Askings(bands=20), charge, tries=10, every=25, limit=limit)
+        got = [asked_of_both(learning, trial) for trial in both(2400, seed=4)][1200:]
+        late[limit is None] = sum(made["closely"] for _, made in got) / len(got)
+    assert late[True] > 0.9 and 0.15 <= late[False] <= 0.25 and learning.price["closely"] > 0.1
+    own = Learning(Askings(bands=20), charge, tries={"again": 3})
+    assert own.untried("anywhere", 0.6, "again") and not own.untried("anywhere", 0.6, "closely")
+
+    for bad in ({"limit": {"closely": -0.1}}, {"limit": {"elsewhere": 0.1}}, {"step": 0.0}, {"tries": {"again": -1}}):
+        with pytest.raises(ValueError, match="limit|step|number of askings"):
+            Learning(Askings(), charge, **({"tries": 1} | bad))
+    with pytest.raises(ValueError, match="limit"):
+        Learning(Askings(), 0.02, tries=1, limit={"closely": 0.1})
+    with pytest.raises(ValueError, match="price"):
+        Worth(led, {"dear": 0.1}, price={"dear": -0.1})
+
+
+def test_a_promise_given_less_its_own_drift_is_what_the_inquiries_come_to_hold() -> None:
+    """76.19. Records counted from thirty and from sixty trials promise, at the first place, a point and more
+    above and below what fresh inquiries are paid. The promise less what the last place then held, kept with no
+    word on what was right, is that miss: given less its mean, the promise is within a fifth of a point of what
+    is paid, the inquiry's chances being right. An inquiry in which an asking was tried is left out."""
+    fresh, charge = trials(3000, seed=1), 0.02
+    for count in (30, 60):
+        worth, promise, promised, paid = recorded(count, seed=7).worth(charge), Promise(), 0.0, 0.0
+        for truth, readings in fresh:
+            later, inquiry = iter(readings[1:]), Hidden(readings[0])
+            promised += worth.had(1, max(inquiry.standing().chances)) / len(fresh)
+            thought = think([Unsure(inquiry, worth, promise=promise)], memory(), ask=lambda request: Answer(next(later)), rounds=5)
+            paid += (thought.out == truth) * (1.0 - charge) ** thought.asks / len(fresh)
+        assert promise.inquiries == len(fresh) - 1  # the last is counted when another begins
+        assert abs(promised - paid) > 0.01 and abs(promise.of(promised) - paid) < 0.002
+
+    kept = Promise()
+    kept.begun(0.9)
+    kept.holds(0.8)
+    kept.begun(0.7)
+    kept.void()
+    kept.holds(0.1)
+    kept.begun(0.6)
+    assert (kept.inquiries, kept.over) == (1, pytest.approx(0.1)) and kept.of(0.9) == pytest.approx(0.8)
+    learning, tried = Learning(Askings(bands=40), charge, tries=2), Promise()
+    for _, readings in fresh[:40]:
+        later = iter(readings[1:])
+        think([Unsure(Hidden(readings[0]), learning, promise=tried)], memory(), ask=lambda request: Answer(next(later)), rounds=5)
+    assert 0 < tried.inquiries < 39
 
 
 class Decides:

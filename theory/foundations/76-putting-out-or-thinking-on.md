@@ -433,6 +433,78 @@ wrong more often than stated teaches wrongly to that extent. That a record of as
 while the weights were still moving is the record of the chances now stated: it is not, until
 the weights have settled.
 
+## 76.18 An asking that may be made only so often
+
+A host may say that an asking is to be made in no more than a stated share of inquiries, whatever
+it is charged: the dear source of 76.17 has only so many answers to give. The rule of 76.13 has
+one way of asking less, a dearer charge. So the asking is given a price λ ≥ 0, added to its
+charge where the rule weighs it and nowhere else.
+
+For a way of asking, let P be what it is paid at the charges, and R what passes through the
+limited asking: the mean, over inquiries, of what is had after it wherever it is made. Take the
+asking as made at most once in an inquiry.
+
+**Proposition 76.18 (a price keeps a limit, and is not paid).**
+(i) Weighed at the charge c and the price λ, the asking is worth (1 - c - λ) h where h is had
+after it, which is what it is paid, (1 - c) h, less λ h. So the rule of 76.13 run at the charge
+c + λ is the way that is best for P - λ R.
+(ii) Let a way be best for P - λ R and put R through the asking, and let b be a limit with
+λ (b - R) = 0: the price is nought, or the limit is met. Then no way that puts at most b through
+the asking is paid more.
+(iii) What that way is paid is P, not P - λ R. What is had at a place, reckoned at the charges
+alone along the askings the priced rule takes, is its promise; reckoned with the price it
+promises λ R too little.
+
+*Proof.* (i) is arithmetic. (ii) For a way paid P' that puts R' ≤ b through,
+P' ≤ P - λ R + λ R' ≤ P - λ R + λ b = P + λ (b - R) = P. (iii) By (i), summed along the way. ∎
+
+So the price is moved after each inquiry by a step times the askings made in it less the limit,
+and never below nought: it rests only where the limit is met, or at nought where the asking is
+made less often than the limit, which are the two cases of (ii). By 76.13 a dearer charge asks
+no more, so the movement is toward the limit from either side.
+
+What is not said. That the price comes to rest: that is the convergence of a small step along a
+scattered slope, and is not proved here. That the count is what (ii) bounds: the limit is put on
+how often the asking is made, and R is what is had after it there, at most that count, so (ii)
+holds among ways that put no more through the asking, which is a little less than among ways
+that make it no more often. That a price kept still keeps the limit: it does so only for the
+inquiries it settled on, and a record or a trust that goes on changing moves how often the
+asking is worth making.
+
+## 76.19 A promise that is right does not drift
+
+What is had at an inquiry's first place (76.13) is a promise: what following the rule from there
+is paid. A record counted from few askings, or in another setting than the one at hand, promises
+wrongly, and 76.16's argument, put to the promise in place of the chance, says by how much
+without a word on what was right.
+
+**Proposition 76.19 (the promise against what the last place holds).**
+(i) Let the record's shares be those with which each asking does lead on. Then what is had does
+not drift over an asking the rule takes: the mean of what is had after it, less the charge, less
+what was had before, is nought. Along the rule's way, what is promised at the first place is in
+the mean what the last place holds, the chance of the answer given there, times what the
+charges paid on the way have left.
+(ii) A record that takes at each place the best of several counted worths is too hopeful: the
+best of the sums is at most the sum of the bests, so the mean of the largest counted worth is at
+least the largest of their means.
+(iii) Both ends of (i) are the asker's own figures. The mean, over the inquiries the rule has
+made, of the promise less what the last place held with the charges off is how far the record
+promises too much; a promise given less that mean agrees in the mean with the asker's own last
+places.
+
+*Proof.* (i) With shares w summing to one, had before h = (1 - c) Σ w_i h_i, so
+Σ w_i ((1 - c) h_i - h) = 0; over several askings the differences add, each weighted by what the
+earlier charges left. (ii) max(a + b, c + d) ≤ max(a, c) + max(b, d), and so for any number of
+counts and askings. (iii) is (i) read as a measurement. ∎
+
+What is not said. That the promise then is what is paid: it is what the last places hold, and
+what separates that from pay is how far the chances stated there are from the share right, which
+is 76.16's and 76.17's matter and needs askings or names, not this. That one number serves every
+first place: it is the mean over those met. That every inquiry counts: one in which an asking
+was tried (76.14) or named by a coin (76.17) did not follow the rule the promise is of, and is
+left out. That the mean keeps up with a record still growing: a thin record's hope shrinks as it
+is counted, and a mean over all inquiries so far lags behind it.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -448,4 +520,6 @@ against any rival, an answer or another asking; 76.16 is `NCA.right_chance_does_
 `NCA.too_sure_falls` and `NCA.too_modest_rises` (that the power reading is concave above a half
 for t above one is used and not proved there); 76.17 is `NCA.asked_from_the_standing_names_fairly`,
 `NCA.counted_where_asked_is_a_half` and `NCA.named_change_is_the_gap` (that the fitted weights solve
-the score equations is the calculus of the likelihood and is not proved there).
+the score equations is the calculus of the likelihood and is not proved there); 76.18 is
+`NCA.price_takes_its_share` and `NCA.kept_by_a_price_is_best_within`; 76.19 is
+`NCA.right_promise_does_not_drift` and `NCA.best_of_counts_flatters`.

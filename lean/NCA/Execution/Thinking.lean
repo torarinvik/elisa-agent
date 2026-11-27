@@ -330,6 +330,36 @@ theorem named_change_is_the_gap (right stated : ℝ) :
     right * (1 - stated) + (1 - right) * (0 - stated) = right - stated := by
   ring
 
+/-- 76.18: an asking weighed at its charge and a price is weighed at what it is paid less the price's
+share of what is had after it. -/
+theorem price_takes_its_share (charge price had : ℝ) :
+    (1 - charge - price) * had = (1 - charge) * had - price * had := by
+  ring
+
+/-- 76.18: a way that is best once a price is put on what passes through an asking, with the price nought
+unless the limit is met, is paid no less than any way that keeps the limit. -/
+theorem kept_by_a_price_is_best_within (paid through other otherThrough limit price : ℝ)
+    (best : other - price * otherThrough ≤ paid - price * through) (within : otherThrough ≤ limit)
+    (worth : 0 ≤ price) (slack : price * (limit - through) = 0) : other ≤ paid := by
+  nlinarith [mul_le_mul_of_nonneg_left within worth]
+
+/-- 76.19: where what is had at a place is what its asking leads on to, less the charge, in the shares
+with which it does lead on, what is had does not drift over the asking. -/
+theorem right_promise_does_not_drift {ι : Type*} (s : Finset ι) (weight after : ι → ℝ) (had left : ℝ)
+    (whole : ∑ i ∈ s, weight i = 1) (right : had = left * ∑ i ∈ s, weight i * after i) :
+    ∑ i ∈ s, weight i * (left * after i - had) = 0 := by
+  have apart : ∑ i ∈ s, weight i * (left * after i - had)
+      = left * ∑ i ∈ s, weight i * after i - (∑ i ∈ s, weight i) * had := by
+    rw [Finset.mul_sum, Finset.sum_mul, ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl fun i _ => by ring
+  rw [apart, whole, ← right]
+  ring
+
+/-- 76.19: the best of two askings as counted on each of two halves is, summed, no less than the best of
+their sums: a record that takes the best of scattered counts promises at least what the best is worth. -/
+theorem best_of_counts_flatters (a b c d : ℝ) : max (a + b) (c + d) ≤ max a c + max b d :=
+  max_le (add_le_add (le_max_left a c) (le_max_left b d)) (add_le_add (le_max_right a c) (le_max_right b d))
+
 end Thinking
 
 end NCA

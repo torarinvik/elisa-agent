@@ -1,4 +1,5 @@
-"""Asking while unsure: what an asking is worth, a record of one's own askings, how sure to be and whom to trust (§76.13 to §76.17).
+"""Asking while unsure: what an asking is worth, a record of one's own askings, how sure to be, whom to trust, an
+asking made only so often and what an inquiry is promised (§76.13 to §76.19).
 
 What an asking is worth is read from recorded askings: where it was asked, how sure the best answer was there,
 where it led and how sure the best answer was then (``Askings``). Under a charge for an asking, a share of what a
@@ -12,7 +13,9 @@ where it stands (§76.14). The same askings say whether the stated chances are r
 answer held does not drift when more is learned: ``Sureness`` reads from them, with no word on what was right, how
 far too sure or too modest the chances are (§76.16). Where an inquiry says what each of its sources said, and one
 source is taken as naming what was right, ``Trust`` makes the chances from those words and learns from the names
-how far each source is to be believed (§76.17).
+how far each source is to be believed (§76.17). An asking that may be made only so often is kept to its limit by
+a price added to its charge where the rule weighs it (§76.18). ``Promise`` keeps what inquiries were promised
+against what they came to hold, which says how far a record promises too much (§76.19).
 
 The frame these are concepts of is ``nca.thinking``. Nothing here says what a place or an asking stands for, who
 serves an asking, or what is being found out.
@@ -111,19 +114,24 @@ class Worth:
     it leads to: there the larger of the best answer's chance and what the best asking is worth. ``charge`` is
     one share for every asking, or gives each recorded asking its own, whoever serves it. Where the stated
     chances are known to be off, ``read`` gives for a stated chance the chance it stands for, and the record,
-    kept by stated chances, is valued by those.
+    kept by stated chances, is valued by those. ``price`` gives, for an asking kept to a limit, what is added
+    to its charge where the rule weighs it (§76.18): ``of`` is the worth so weighed, and ``had`` is what
+    following that rule is paid at the charges alone.
     A band's chance is taken at its middle. An asking never recorded at a place with the chance in a band has
     no worth there, which is not the same as being worth nothing. Recorded askings that lead back to a place
     they came from have no last place to start from and are refused."""
 
     def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float],
-                 read: Callable[[np.ndarray], np.ndarray] | None = None) -> None:
+                 read: Callable[[np.ndarray], np.ndarray] | None = None, price: Mapping[Hashable, float] | None = None) -> None:
         own = dict(charge) if isinstance(charge, Mapping) else None
         if not all(0.0 <= share <= 1.0 for share in ([charge] if own is None else own.values())):
             raise ValueError("the charge for an asking must be a share between nought and one")
         if own is not None and any(asking not in own for _, asking, _ in askings.counts):
             raise ValueError("each recorded asking needs its charge")
-        self.bands, self.charge = askings.bands, float(charge) if own is None else own
+        if not all(cost >= 0.0 for cost in (price or {}).values()):
+            raise ValueError("the price of an asking is not negative")
+        self.bands, self.charge, self.price = askings.bands, float(charge) if own is None else own, dict(price or {})
+        self.read = read
         middle = (np.arange(self.bands) + 0.5) / self.bands
         if read is not None:  # the stated chance of a band read as the chance it stands for (§76.16)
             middle = np.asarray(read(middle), dtype=np.float64)
@@ -131,8 +139,10 @@ class Worth:
         ways: dict[Hashable, dict[Hashable, list[tuple[Hashable, np.ndarray]]]] = {}
         for (place, asking, then), table in askings.counts.items():
             ways.setdefault(place, {}).setdefault(asking, []).append((then, table))
-        self._had: dict[Hashable, np.ndarray] = {}
+        self._had: dict[Hashable, np.ndarray] = {}  # what is paid at the charges, following the rule
+        self._weighed: dict[Hashable, np.ndarray] = {}  # what the rule weighs: the same with the prices charged too
         self._rows: dict[Hashable, dict[Hashable, np.ndarray]] = {}
+        self._paid: dict[Hashable, dict[Hashable, np.ndarray]] = {}
         for start in ways:
             if start in self._had:
                 continue
@@ -146,13 +156,17 @@ class Worth:
                     path.append(ahead[0])
                     onward.add(ahead[0])
                     continue
-                rows, had = {}, middle.copy()
+                rows, costs, weighed, had = {}, {}, middle.copy(), middle.copy()
                 for asking, later in ways.get(place, {}).items():
                     seen = sum(table.sum(1) for _, table in later)
-                    whole = sum(table @ self._had[then] for then, table in later)
-                    rows[asking] = np.where(seen > 0, (1.0 - self.charged(asking)) * whole / np.maximum(seen, 1.0), np.nan)
-                    had = np.fmax(had, rows[asking])
-                self._rows[place], self._had[place] = rows, had
+                    share, dearer = 1.0 - self.charged(asking), max(0.0, 1.0 - self.charged(asking) - self.price.get(asking, 0.0))
+                    whole = sum(table @ self._weighed[then] for then, table in later)
+                    paid = sum(table @ self._had[then] for then, table in later)
+                    rows[asking] = np.where(seen > 0, dearer * whole / np.maximum(seen, 1.0), np.nan)
+                    costs[asking] = share * paid / np.maximum(seen, 1.0)
+                    had = np.where(rows[asking] > weighed, costs[asking], had)
+                    weighed = np.fmax(weighed, rows[asking])
+                self._rows[place], self._paid[place], self._had[place], self._weighed[place] = rows, costs, had, weighed
                 onward.discard(path.pop())
 
     def charged(self, asking: Hashable) -> float:
@@ -172,10 +186,13 @@ class Worth:
         return None if math.isnan(worth) else worth
 
     def had(self, place: Hashable, chance: float) -> float:
-        """What is had at ``place`` with the best answer at ``chance``: the larger of that chance and what the
-        best asking recorded there is worth."""
-        best = [worth for asking in self._rows.get(place, {}) if (worth := self.of(place, chance, asking)) is not None]
-        return max([float(chance), *best])
+        """What is had at ``place`` with the best answer at ``chance``: the larger of that chance, as read, and
+        what the best asking recorded there is worth; where askings have a price, what is paid at the charges
+        by taking whichever of them the rule, weighing the prices too, takes."""
+        best = [(worth, asking) for asking in self._rows.get(place, {}) if (worth := self.of(place, chance, asking)) is not None]
+        worth, asking = max(best, key=lambda one: one[0], default=(0.0, None))
+        answer = float(chance) if self.read is None else float(self.read(np.array(chance)))
+        return answer if worth <= answer else float(self._paid[place][asking][self._band(chance)])
 
 
 class Sureness:
@@ -337,22 +354,50 @@ class Learning:
 
     The worth it gives is that of the record as it stands, worked out again once ``every`` further askings
     have been recorded. An asking recorded fewer than ``tries`` times at a place with the best chance in a
-    band is tried: made whatever the answers' chances, which by 76.14 gives up at most the charge. Given a
-    ``Sureness``, the askings also teach how sure to be (§76.16), and the worth is of the chances so read."""
+    band is tried: made whatever the answers' chances, which by 76.14 gives up at most the charge; ``tries``
+    is one number for every asking or gives each asking its own, an asking left out being tried never. Given
+    a ``Sureness``, the askings also teach how sure to be (§76.16), and the worth is of the chances so read.
 
-    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float], tries: int, every: int = 1,
-                 sure: Sureness | None = None) -> None:
-        if type(tries) is not int or tries < 0:
+    ``limit`` gives, for an asking that may be made only so often, how many times an inquiry in the mean
+    (§76.18). Such an asking has a price, nought to begin with, added to its charge where the record is
+    valued; after each inquiry the price moves by ``step`` times the askings made in it less the limit, never
+    below nought. With a limit each asking needs its own charge."""
+
+    def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float], tries: int | Mapping[Hashable, int],
+                 every: int = 1, sure: Sureness | None = None, limit: Mapping[Hashable, float] | None = None,
+                 step: float = 0.02) -> None:
+        if any(type(count) is not int or count < 0 for count in (tries.values() if isinstance(tries, Mapping) else [tries])):
             raise ValueError("tries must be a nonnegative number of askings")
         if type(every) is not int or every < 1:
             raise ValueError("the worth is worked out again after a positive number of askings")
+        if limit and (not isinstance(charge, Mapping) or any(not rate >= 0.0 or asking not in charge for asking, rate in limit.items())):
+            raise ValueError("a limited asking needs its own charge and a limit that is not negative")
+        if not step > 0.0:
+            raise ValueError("the price moves by a positive step")
         self.askings, self.charge, self.tries, self.every, self.sure = askings, charge, tries, every, sure
+        self.limit, self.step = dict(limit or {}), float(step)
+        self.price: dict[Hashable, float] = dict.fromkeys(self.limit, 0.0)
+        self._made: dict[Hashable, int] = dict.fromkeys(self.limit, 0)
+        self._open = False
         self.read: Callable[[np.ndarray], np.ndarray] | None = None
         self._worth, self._at = self._worked(), askings.noted
 
     def _worked(self) -> Worth:
         self.read = None if self.sure is None else self.sure.reading()  # one reading for the worth and the answers
-        return Worth(self.askings, self.charge, self.read)
+        return Worth(self.askings, self.charge, self.read, self.price)
+
+    def begun(self) -> None:
+        """An inquiry begins: the prices move by what the last one made of each limited asking."""
+        if self._open:
+            for asking, rate in self.limit.items():
+                self.price[asking] = max(0.0, self.price[asking] + self.step * (self._made[asking] - rate))
+                self._made[asking] = 0
+        self._open = True
+
+    def made(self, asking: Hashable) -> None:
+        """An asking was made and served in the inquiry in hand."""
+        if asking in self._made:
+            self._made[asking] += 1
 
     @property
     def worth(self) -> Worth:
@@ -362,7 +407,46 @@ class Learning:
 
     def untried(self, place: Hashable, chance: float, asking: Hashable) -> bool:
         """Whether ``asking`` is still to be tried at ``place`` with the best chance at ``chance``."""
-        return self.askings.seen(place, chance, asking) < self.tries
+        tries = self.tries.get(asking, 0) if isinstance(self.tries, Mapping) else self.tries
+        return tries > 0 and self.askings.seen(place, chance, asking) < tries
+
+
+class Promise:
+    """What inquiries were promised against what they came to hold (§76.19).
+
+    At its first place an inquiry is promised what following the rule from there is paid. A promise that is
+    right does not drift: in the mean it is what the last place holds, the chance of the answer given there,
+    less the charges paid on the way. Both are the asker's own figures, so the mean difference over the
+    inquiries made says, with no word on what was right, how far the record promises too much. An inquiry in
+    which an asking was made otherwise than by the rule is left out."""
+
+    def __init__(self) -> None:
+        self.inquiries, self._over = 0, 0.0
+        self._open: tuple[float, float] | None = None
+
+    def begun(self, promised: float) -> None:
+        """An inquiry begins, promised ``promised``; the one before it is counted as it last stood."""
+        if self._open is not None:
+            self.inquiries, self._over = self.inquiries + 1, self._over + self._open[0] - self._open[1]
+        self._open = (promised, promised)
+
+    def holds(self, held: float) -> None:
+        """The inquiry in hand now holds ``held``: the chance of its best answer less the charges paid so far."""
+        if self._open is not None:
+            self._open = (self._open[0], held)
+
+    def void(self) -> None:
+        """The inquiry in hand is left out."""
+        self._open = None
+
+    @property
+    def over(self) -> float:
+        """By how much, in the mean of the inquiries counted, the promise stood above what was then held."""
+        return self._over / self.inquiries if self.inquiries else 0.0
+
+    def of(self, promised: float) -> float:
+        """``promised`` less what promises have so far stood too high."""
+        return promised - self.over
 
 
 class Unsure:
@@ -384,13 +468,21 @@ class Unsure:
     Given a ``Trust`` and an inquiry that says what its sources said, the chances are the trust's (§76.17).
     Where the namer was asked and served, its answer is kept as a name for the standing it was asked at, or
     for every standing passed where the trust's coin chose this inquiry; and an inquiry the coin chose is not
-    answered before the namer, while open, has been asked."""
+    answered before the namer, while open, has been asked.
 
-    def __init__(self, inquiry: Inquiry, worth: Worth | Learning, cost: float = 0.0, trust: Trust | None = None) -> None:
-        self.inquiry, self.worth, self.cost, self.trust = inquiry, worth, cost, trust
+    Given a ``Promise``, what the worth promises at the inquiry's first place is kept against what each later
+    place holds with the charges of the askings served taken off (§76.19); an inquiry in which an asking was
+    tried, or which the coin chose, is left out."""
+
+    def __init__(self, inquiry: Inquiry, worth: Worth | Learning, cost: float = 0.0, trust: Trust | None = None,
+                 promise: Promise | None = None) -> None:
+        self.inquiry, self.worth, self.cost, self.trust, self.promise = inquiry, worth, cost, trust, promise
+        self._left: float | None = None  # the share left after the charges of the askings served so far
         self._asked: tuple[Hashable, Request, Hashable, float, int, int] | None = None
         self._tossed = trust is not None and trust.tossed()
         self._passed: list[Mapping[Hashable, Sequence[float]]] = []
+        if isinstance(worth, Learning):
+            worth.begun()
 
     def think(self, memory: WorkingMemory) -> Opinion:
         learning = self.worth if isinstance(self.worth, Learning) else None
@@ -418,18 +510,29 @@ class Unsure:
         if learning is not None and answered is not None:
             place, before, asking, held, among = answered
             learning.askings.note(place, before, asking, standing.place, best)
+            learning.made(asking)
             if learning.sure is not None and among == len(chances) > 1:
                 learning.sure.note(before, chances[held])
         worth = self.worth if learning is None else learning.worth
         offers = [(value, asking) for asking in standing.open if (value := worth.of(standing.place, best, asking)) is not None]
+        forced = self._tossed
         if learning is not None:
             untried = [asking for asking in standing.open if learning.untried(standing.place, best, asking)]
             if untried:  # the one recorded least there is tried first
                 asking = min(untried, key=lambda one: learning.askings.seen(standing.place, best, one))
-                offers = [(1.0, asking)]
-        shown = chances if learning is None or learning.read is None else [float(chance) for chance in learning.read(np.array(chances))]
+                offers, forced = [(1.0, asking)], True
+        shown = chances if worth.read is None else [float(chance) for chance in worth.read(np.array(chances))]
         if self._tossed and self.trust.namer in standing.open and all(value <= max(shown) for value, _ in offers):
             offers = [(1.0, self.trust.namer)]  # an inquiry the coin chose is named before it is answered
+        if self.promise is not None:
+            if self._left is None:
+                self._left = 1.0
+                self.promise.begun(worth.had(standing.place, best))
+            elif answered is not None:
+                self._left *= 1.0 - worth.charged(answered[2])
+            if forced:
+                self.promise.void()
+            self.promise.holds(max(shown) * self._left)
         if offers:
             value, asking = max(offers, key=lambda offer: offer[0])
             self._asked = (asking, standing.open[asking], standing.place, best, chances.index(best), len(chances))
