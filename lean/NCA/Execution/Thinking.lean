@@ -360,6 +360,31 @@ their sums: a record that takes the best of scattered counts promises at least w
 theorem best_of_counts_flatters (a b c d : ℝ) : max (a + b) (c + d) ≤ max a c + max b d :=
   max_le (add_le_add (le_max_left a c) (le_max_left b d)) (add_le_add (le_max_right a c) (le_max_right b d))
 
+/-- 76.20: a share right among the answers judged, pulled toward the chance stated with the weight of
+some answers, lies between the two. -/
+theorem pulled_share_lies_between (right judged weight stated : ℝ) (some : 0 < judged) (pull : 0 < weight) :
+    min (right / judged) stated ≤ (right + weight * stated) / (judged + weight) ∧
+      (right + weight * stated) / (judged + weight) ≤ max (right / judged) stated := by
+  have whole : 0 < judged + weight := add_pos some pull
+  have share : right = judged * (right / judged) := by field_simp
+  constructor
+  · rw [le_div_iff₀ whole]
+    nlinarith [min_le_left (right / judged) stated, min_le_right (right / judged) stated]
+  · rw [div_le_iff₀ whole]
+    nlinarith [le_max_left (right / judged) stated, le_max_right (right / judged) stated]
+
+/-- 76.21: an asking after which, with the chance `ended`, nothing is had is worth what is had where the
+inquiry goes on, less that share of it. -/
+theorem ended_share_is_a_charge (ended had : ℝ) : ended * 0 + (1 - ended) * had = (1 - ended) * had := by
+  ring
+
+/-- 76.21: such an asking is worth more than answering now exactly where the share of times it comes too
+late is under the share of what it adds. -/
+theorem thought_pays_where_gain_exceeds_hazard (ended now after : ℝ) (some : 0 < after) :
+    now < (1 - ended) * after ↔ ended < (after - now) / after := by
+  rw [lt_div_iff₀ some]
+  constructor <;> intro h <;> nlinarith
+
 end Thinking
 
 end NCA

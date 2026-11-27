@@ -505,6 +505,62 @@ was tried (76.14) or named by a coin (76.17) did not follow the rule the promise
 left out. That the mean keeps up with a record still growing: a thin record's hope shrinks as it
 is counted, and a mean over all inquiries so far lags behind it.
 
+## 76.20 A judgement of the answer taken
+
+In acting nobody names the right answer. What comes back is whether the answer taken was paid: a
+name for that answer where it was, and where it was not, only that some other was right.
+
+**Proposition 76.20 (what a one-sided name teaches, and what it cannot).**
+(i) The rule answers from the standing alone, so by 76.17 (i) the share paid among the answers
+given at a place with the best chance in a band is the share that would be paid for all
+standings like them.
+(ii) That share is what answering there is had: it is the last-place value of 76.13 itself, read
+from pay and not from the chance stated. A record that keeps it values every asking by where its
+answers were paid, so an asking whose answers flatter is found out by the same count, with no
+word on which answer was right.
+(iii) It cannot say which of the answers not taken was right. Two worlds alike in every standing
+and in whether each answer taken is paid give the same judgements, whatever is right among the
+others; so nothing learned from the judgements tells them apart, and an answer never taken
+somewhere is never corrected there. Only taking it does that, which costs what a wrong answer
+costs: a try of an answer is not bounded by a charge as a try of an asking is (76.14).
+
+*Proof.* (i) is 76.17 (i) with the answer in place of the dear asking. (ii) What answering is
+paid is one where right and nought where not, so its mean is the share right. (iii) The
+judgements are a function of what the two worlds share. ∎
+
+With few answers judged at a place and band the share is pulled toward the chance stated, with
+the weight of a stated number of answers; the pulled value is the mean of the two in the
+proportion of the answers judged to that weight, so it lies between them. Where pay comes only
+when a run of answers ends, each is judged by what the run came to: that is still what
+answering there is had.
+
+## 76.21 An asking that takes time
+
+Until here an asking cost a stated share (76.11) and the world stood still. In acting the world
+moves while an asking is served, and the clock is the task's own: a chance to press passes, or a
+bank of time runs dry.
+
+**Proposition 76.21 (what waiting costs is in the record).**
+(i) Let an asking be followed, with chance h, by the inquiry being over with nothing had, and
+otherwise by a standing where v is had in the mean. It is worth (1 - h) v: the share of
+askings after which nothing was left is a charge of exactly the form of 76.11, and it is
+counted, not stated.
+(ii) So with v had by answering now and v' > 0 had after the asking where the inquiry goes on,
+the asking is worth more than answering exactly where h < (v' - v) / v': thought pays where
+the share of what it adds exceeds the share of times it comes too late.
+(iii) The record of 76.13 holds this as it stands, if an inquiry that ended during an asking is
+recorded as led to a last place where nothing is had: the worth worked backwards is then
+(i) at every place, and the charge differs from place to place and from task to task as the
+counts do.
+
+*Proof.* (i) h · 0 + (1 - h) v. (ii) (1 - h) v' > v iff h v' < v' - v. (iii) is 76.13 with one
+more place. ∎
+
+What is not said. That a place tells how much time is left: it tells what the host puts in it,
+and a host that leaves out how long the inquiry has run gives one charge for early and late
+alike. That the standing after an asking is of the same world: the answer is of the frame it was
+served on, and what is counted is where the inquiry stood then, whatever moved it.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -522,4 +578,6 @@ for t above one is used and not proved there); 76.17 is `NCA.asked_from_the_stan
 `NCA.counted_where_asked_is_a_half` and `NCA.named_change_is_the_gap` (that the fitted weights solve
 the score equations is the calculus of the likelihood and is not proved there); 76.18 is
 `NCA.price_takes_its_share` and `NCA.kept_by_a_price_is_best_within`; 76.19 is
-`NCA.right_promise_does_not_drift` and `NCA.best_of_counts_flatters`.
+`NCA.right_promise_does_not_drift` and `NCA.best_of_counts_flatters`; 76.20 is
+`NCA.pulled_share_lies_between`, with `NCA.asked_from_the_standing_names_fairly` read for the
+answer taken; 76.21 is `NCA.ended_share_is_a_charge` and `NCA.thought_pays_where_gain_exceeds_hazard`.
