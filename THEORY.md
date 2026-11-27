@@ -103,6 +103,7 @@ link for its definitions, arguments, and results.
 - [74. Lessons from what follows a judged press](theory/foundations/74-lessons-from-what-follows-a-judged-press.md)
 - [75. A read by the newest match](theory/foundations/75-a-read-by-the-newest-match.md)
 - [76. Putting out or thinking on](theory/foundations/76-putting-out-or-thinking-on.md)
+- [76 (continued). Asking while unsure](theory/foundations/76b-asking-while-unsure.md)
 - [77. Teaching on as lessons grow](theory/foundations/77-teaching-on-as-lessons-grow.md)
 - [78. A reading repeated](theory/foundations/78-a-reading-repeated.md)
 - [79. Readers given whole plays](theory/foundations/79-readers-given-whole-plays.md)

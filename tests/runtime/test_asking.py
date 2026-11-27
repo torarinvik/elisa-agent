@@ -87,11 +87,6 @@ def test_an_asking_is_worth_what_is_had_after_it_less_the_charge() -> None:
 
 
 def test_what_cannot_be_a_record_of_askings_is_refused() -> None:
-    back = Askings(bands=4)
-    back.note("one", 0.6, "again", "two", 0.7)
-    back.note("two", 0.7, "again", "one", 0.8)
-    with pytest.raises(ValueError, match="lead back"):
-        back.worth(0.1)
     for charge in (-0.1, 1.1, math.nan):
         with pytest.raises(ValueError, match="charge"):
             Askings().worth(charge)

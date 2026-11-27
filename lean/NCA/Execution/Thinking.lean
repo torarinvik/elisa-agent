@@ -385,6 +385,17 @@ theorem thought_pays_where_gain_exceeds_hazard (ended now after : ℝ) (some : 0
   rw [lt_div_iff₀ some]
   constructor <;> intro h <;> nlinarith
 
+/-- 76.22: a step that keeps the order, begun where one step does not lower, does not lower at the next
+step either: what is had by asking at most once more is no less. -/
+theorem asking_once_more_has_no_less {α : Type*} [Preorder α] (step : α → α) (keeps : Monotone step) (had : α)
+    (rises : had ≤ step had) : step had ≤ step (step had) :=
+  keeps rises
+
+/-- 76.22: an asking that leads back to where the inquiry stood, uncharged, is worth what is had there; where
+that is the answer's value the larger of the two is the answer's value, a tie. -/
+theorem back_to_where_it_stood_ties (answer : ℝ) : max answer (1 * answer) = answer := by
+  rw [one_mul, max_self]
+
 end Thinking
 
 end NCA

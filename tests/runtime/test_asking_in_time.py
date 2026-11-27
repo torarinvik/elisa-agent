@@ -127,3 +127,34 @@ def test_one_asker_answers_at_once_where_waiting_ends_the_inquiry_and_thinks_on_
     for kind in late:
         assert paid[kind] > max(fixed[kind, 0], fixed[kind, 4]) - 0.03
     assert OVER in learning.askings.answers and repr(OVER) == "OVER"
+
+
+def test_askings_that_lead_back_are_worth_the_least_that_solves_them() -> None:
+    """asking_once_more_has_no_less and back_to_where_it_stood_ties (76.22)."""
+    still = Askings(bands=10)
+    still.note("here", [0.52] * 6, "wait", "here", [0.52] * 6)  # an asking that shows nothing new
+    worth = still.worth(0.0)
+    assert worth.of("here", 0.55, "wait") == pytest.approx(0.55) and worth.had("here", 0.55) == pytest.approx(0.55)
+    for chance in (0.5, 0.52, 0.55, 0.59):  # it never beats the answer, wherever in the band the chance lies
+        assert worth.of("here", chance, "wait") <= worth.answer("here", chance)
+    turning = Askings(bands=10)  # one time in four the wait shows the answer; the other three it leads back
+    turning.note("here", [0.25] * 8, "wait", "here", [0.25] * 6 + [0.95] * 2)
+    for charge in (0.0, 0.1):
+        share = 1.0 - charge  # what is had solves h = share (3 h + 0.95) / 4 where that is above answering
+        solved = max(0.25, share * 0.95 / (4.0 - 3.0 * share))
+        assert turning.worth(charge).had("here", 0.25) == pytest.approx(solved, abs=1e-6)
+    for sweeps, most in ((1, 1), (2, 2), (5, 5)):  # so many sweeps are what asking at most so many times has
+        had = 0.25
+        for _ in range(most):
+            had = max(0.25, (3.0 * had + 0.95) / 4.0)
+        assert Worth(turning, 0.0, sweeps=sweeps).had("here", 0.25) == pytest.approx(had)
+    rising = [Worth(turning, 0.0, sweeps=sweeps).had("here", 0.25) for sweeps in range(1, 30)]
+    assert all(later >= earlier for earlier, later in zip(rising, rising[1:], strict=False))
+    two = Askings(bands=4)  # two places that lead to each other and nowhere else are worth the better answer
+    two.note("one", 0.625, "again", "two", 0.875)
+    two.note("two", 0.875, "again", "one", 0.625)
+    assert two.worth(0.0).had("one", 0.625) == pytest.approx(0.875) and two.worth(0.0).had("two", 0.875) == pytest.approx(0.875)
+    assert two.worth(0.0).of("two", 0.875, "again") == pytest.approx(0.875)  # a tie, which the rule gives to the answer
+    assert two.worth(0.1).had("one", 0.625) == pytest.approx(0.9 * 0.875)
+    with pytest.raises(ValueError, match="swept"):
+        Worth(two, 0.0, sweeps=0)
