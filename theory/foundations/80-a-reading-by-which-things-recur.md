@@ -42,7 +42,9 @@ its form. A task that arranges its things anew each time shows each arrangement 
 ## 80.4 A part added to a reader
 
 Let a reader give each port an amount, and let a part reading how new and how alone things are
-give each port an amount of its own, added to the reader's times a **factor**.
+give each port an amount of its own, added to the reader's times a **factor**. What follows asks
+nothing of what the part reads, and holds as well of a part that reads anything else the reader
+is not given.
 
 With the factor nought the reader is as it was. So the factor is fitted, with a penalty of half
 its square, on lessons the part was not taught on, and by 79.2 the loss on those lessons is
