@@ -76,6 +76,7 @@ import NCA.Execution.Thinking
 import NCA.Execution.TaughtOn
 import NCA.Execution.Repeated
 import NCA.Execution.Several
+import NCA.Execution.Recurring
 import NCA.Execution.DependencyWalk
 import NCA.Execution.Artifacts
 import NCA.Execution.Loaders

@@ -107,3 +107,4 @@ link for its definitions, arguments, and results.
 - [77. Teaching on as lessons grow](theory/foundations/77-teaching-on-as-lessons-grow.md)
 - [78. A reading repeated](theory/foundations/78-a-reading-repeated.md)
 - [79. Readers given whole plays](theory/foundations/79-readers-given-whole-plays.md)
+- [80. A reading by which things recur](theory/foundations/80-a-reading-by-which-things-recur.md)

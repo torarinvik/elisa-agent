@@ -656,6 +656,7 @@ correctness of interactions between mechanisms.
 | [77.1–77.4](theory/foundations/77-teaching-on-as-lessons-grow.md) | `weights_append` (77.1), `old_teachings_fade`, `weights_within`, `warm_keeps_all` (77.2), `fade_in_lessons` (77.3), `factor_on_every_layer` (77.4) | `Execution/TaughtOn` |
 | [78.1–78.2](theory/foundations/78-a-reading-repeated.md) | `repeats_reach` (78.1), `stood_still_stays` (78.2) | `Execution/Repeated` |
 | [79.1–79.3](theory/foundations/79-readers-given-whole-plays.md) | `untaught_keeps_reading` (79.1), `rescaled_nests_rates` (79.2), `counts_grow`, `shared_count_starves` (79.3) | `Execution/Several` |
+| [80.2–80.3](theory/foundations/80-a-reading-by-which-things-recur.md) | `newness_unmoved`, `seen_before_is_not_new` (80.2), `same_place_moves` (80.3) | `Execution/Recurring` |
 
 ### Additional theorem declarations
 
@@ -876,3 +877,4 @@ with the commands above.
 | §77 teaching on as lessons grow | `NCA.weights_append`, `NCA.old_teachings_fade`, `NCA.warm_keeps_all`, `NCA.fade_in_lessons`, `NCA.factor_on_every_layer` | None in the core: a learner taught on as its lessons grow is an expert package's |
 | §78 a reading repeated | `NCA.repeats_reach`, `NCA.stood_still_stays` | None in the core: a reader that repeats a reading over places is an expert package's |
 | §79 readers given whole plays | `NCA.untaught_keeps_reading`, `NCA.rescaled_nests_rates`, `NCA.counts_grow`, `NCA.shared_count_starves` | None in the core: a learner of several readers and a gate is an expert package's |
+| §80 a reading by which things recur | `NCA.newness_unmoved`, `NCA.seen_before_is_not_new`, `NCA.same_place_moves` | None in the core: cutting a frame into things, their likeness and the part that reads them are an expert package's; 80.4 rests on `NCA.rescaled_nests_rates` |
