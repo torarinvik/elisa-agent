@@ -431,6 +431,18 @@ theorem left_once_the_error_is_small (gain error z δ : ℝ) (fair : gain ≤ z 
     (small : 2 * (z * error) ≤ δ) : gain + z * error ≤ δ := by
   linarith
 
+/-- 76.25: steps of two kinds, a share `w` at which an asking gains `a` and the rest at which it gains `b`,
+counted as one place have the mean gain where it is positive; sorted apart, each kind has its own. Sorting has
+no less, whatever the signs. -/
+theorem sorted_apart_has_no_less (w a b : ℝ) (share : 0 ≤ w) (whole : w ≤ 1) :
+    max (w * a + (1 - w) * b) 0 ≤ w * max a 0 + (1 - w) * max b 0 := by
+  have rest : 0 ≤ 1 - w := by linarith
+  have first := mul_le_mul_of_nonneg_left (le_max_left a 0) share
+  have second := mul_le_mul_of_nonneg_left (le_max_left b 0) rest
+  have one := mul_nonneg share (le_max_right a 0)
+  have other := mul_nonneg rest (le_max_right b 0)
+  exact max_le (by linarith) (by linarith)
+
 end Thinking
 
 end NCA

@@ -463,6 +463,46 @@ the right stiffer line: a line that rises with the count so as to hold at every 
 is not used. That the gain stays what it was while it is counted: where the readers are still being taught, the
 early counts are of another learner, and nothing here forgets them. That δ is given by anything.
 
+## 76.25 Sorting the steps of a place by a reading
+
+A place holds every standing a host files under it, and 76.23 and 76.24 learn one number there: the mean of
+what an asking gains over the plainer option. Let the standings of a place be of kinds i, with shares w_i and
+gains d_i, and write D = Σ w_i d_i.
+
+**Proposition 76.25 (sorted apart).**
+(i) Counted as one place the asking is taken at every kind or at none, and what is had over the plainer option
+is max(D, 0) at the most. Counted apart it is Σ w_i max(d_i, 0), which is no less, and more wherever the gains
+differ in sign: for two kinds in equal shares gaining a and -a, the one place has nothing of the a / 2 there is.
+(ii) Let each standing be put in a class by any reading of it made before what the inquiry comes to is known,
+and let each class be a place with its own count. Then 76.23 and 76.24 hold in every class whatever the
+reading is worth, what is had is Σ_c v_c max(D_c, 0) for classes of shares v_c and mean gains D_c, and that is
+no less than max(D, 0). A reading that tells the kinds apart has all of (i); one that tells nothing has what
+the one place had.
+(iii) A class of share v has that share of the makings: telling its gain apart takes 1 / v times the visits
+the whole place would need for the same gain.
+
+*Proof.* (i) and (ii): max(·, 0) is convex, so the larger of a mean and nought is at most the mean of the
+larger of each and nought; D is the mean of the d_i and of the D_c alike. A class fixed before the outcome is
+a place like any other, and the counts in it are of its own standings. (iii) is counting. ∎
+
+Three things a reading taught on the askings themselves needs, which are not in the proposition.
+A class is read alone, on its own counts, and they are few at first: a class left on two makings must be open
+to being found wrong. The tries of 76.23 (iii) for what the count does not take are what does that, and a
+trial by turns (76.24) does not replace them.
+What follows the plainer option can be read only from where it was taken. Once an asking is taken at every
+standing of a class, standings of a new kind that fall in that class meet the asking alone, and a reading of
+its gain there has one of its two sides from elsewhere. The plainer option's tries (76.23 iii) must go on in
+what is new: counted by the stretch of one world in hand, not by all the place has ever seen.
+The trial that teaches the reading must not be ended by the count the reading is to replace. Before the
+reading has lessons the standings are still one place; if that place is found to gain under the smallest gain
+looked for and left, no more makings come and the reading is never taught. Until it is, the one place may be
+found to gain but is not left.
+
+What is not said. That the reading sorts well, or how many classes there should be: three, cut at the smallest
+gain looked for either side of nought, is chosen. That a standing put in the wrong class is found: it is
+counted with its class. That what an asking costs in time is seen: the gains are of what inquiries come to,
+and an asking that changes nothing there but takes a step is worth nought here, not less.
+
 In Lean, 76.13 is `NCA.taking_the_larger_is_best`,
 `NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
 `NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`; 76.15 is
@@ -480,4 +520,5 @@ answer taken; 76.21 is `NCA.ended_share_is_a_charge` and `NCA.thought_pays_where
 76.23 is `NCA.holding_to_the_plainer_loses_the_gap` and `NCA.tries_to_the_root_are_a_falling_share` (Cantelli's
 inequality is used and not proved there);
 76.24 is `NCA.told_apart_by_turns`, `NCA.turns_need_fewer_than_the_root` and
-`NCA.left_once_the_error_is_small` (the chance of crossing a line read many times is quoted and not proved).
+`NCA.left_once_the_error_is_small` (the chance of crossing a line read many times is quoted and not proved);
+76.25 is `NCA.sorted_apart_has_no_less`, for two kinds.
