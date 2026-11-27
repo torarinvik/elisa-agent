@@ -383,6 +383,42 @@ least is what some rule is paid. That the counts of a recurring place are of one
 the place is what the host puts in it, and a host that leaves out how long the inquiry has run
 has one worth for early and late.
 
+## 76.23 The plainer of two the record cannot tell apart
+
+The rule of 76.13 takes the larger of what the record counts. Let the options at a standing be ordered by what
+they take: the answer, which takes nothing more, then each asking, the plainer before the dearer to serve. Two
+options worth the same are counted apart by chance, and the larger of the two counts is a coin: a dearer asking
+that shows nothing is made half the time, at no loss the record can see and at the kernel's cost.
+
+Let a counted worth v be a mean over n recorded times of what was had where the asking led, with scatter s² among
+them, so its standard error is e = s / √n; for an answer, of the n answers judged there and what they were paid.
+The rule R_z walks the options in order and leaves the one it holds for a dearer only where the dearer's counted
+worth is above the held one's by more than z √(e² + e'²).
+
+**Proposition 76.23 (told apart).**
+(i) Where a dearer option is worth what the held one is, R_z takes it with chance at most 1 / (1 + z²) whatever
+the scatter's shape (Cantelli), and about Φ(-z) where the counts are many: for z = 2, one time in five at most
+and about one in forty-four.
+(ii) Where the dearer is worth more by d, holding to the plainer loses d a time and no more; and R_z holds to it
+with chance at most 1 / (1 + (d / √(e² + e'²) - z)²) once that difference is positive, which goes to nought as
+the counts grow.
+(iii) The counts of an option R_z does not take grow only by tries. With each asking tried until its count at
+a standing is the square root of the visits there, the tries are a share 1 / √N of N visits, which goes to
+nought, and the count grows without bound: by (ii) a dearer asking that is worth more is found, and by (i) one
+that is not is made about Φ(-z) of the time and in its tries.
+
+*Proof.* (i) The difference of the two counts has mean nought and standard error √(e² + e'²); Cantelli's
+inequality bounds the chance of a mean-nought amount exceeding z of its standard errors by 1 / (1 + z²). (ii) The
+difference has mean d; it falls under z standard errors only by lying d / √(e² + e'²) - z of them under its mean;
+Cantelli again. (iii) k tries among N visits with k² ≤ N are a share at most 1 / k. ∎
+
+What is not said. That z is given by anything: two is the line this work draws everywhere and is chosen. That
+the square root is the best pace of tries: any pace that grows without bound and slower than the visits serves
+(iii). That the standard error is right: what is had where an asking led is itself counted, and its own error is
+left out, so a deep record is told apart sooner than it should be. That what is had upstream follows R_z: the
+sweep of 76.22 takes the larger everywhere, so the worth of an asking counts on dearer askings further on that
+R_z may decline.
+
 In Lean, 76.13 is `NCA.taking_the_larger_is_best`,
 `NCA.dearer_worth_no_more`, `NCA.mean_had_no_more`, `NCA.dearer_has_no_more` and
 `NCA.dearer_puts_out`; 76.14 is `NCA.try_costs_charge` and `NCA.tries_cost_at_most`; 76.15 is
@@ -396,4 +432,6 @@ the score equations is the calculus of the likelihood and is not proved there); 
 `NCA.right_promise_does_not_drift` and `NCA.best_of_counts_flatters`; 76.20 is
 `NCA.pulled_share_lies_between`, with `NCA.asked_from_the_standing_names_fairly` read for the
 answer taken; 76.21 is `NCA.ended_share_is_a_charge` and `NCA.thought_pays_where_gain_exceeds_hazard`;
-76.22 is `NCA.asking_once_more_has_no_less` and `NCA.back_to_where_it_stood_ties`.
+76.22 is `NCA.asking_once_more_has_no_less` and `NCA.back_to_where_it_stood_ties`;
+76.23 is `NCA.holding_to_the_plainer_loses_the_gap` and `NCA.tries_to_the_root_are_a_falling_share` (Cantelli's
+inequality is used and not proved there).

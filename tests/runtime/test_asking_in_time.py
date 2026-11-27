@@ -158,3 +158,40 @@ def test_askings_that_lead_back_are_worth_the_least_that_solves_them() -> None:
     assert two.worth(0.1).had("one", 0.625) == pytest.approx(0.9 * 0.875)
     with pytest.raises(ValueError, match="swept"):
         Worth(two, 0.0, sweeps=0)
+
+
+def counted(seed: int, times: int, dearer: tuple[float, float]) -> Askings:
+    """A record of two askings from one standing, where 52 of 80 answers given were paid: the plain one led to
+    a best chance of 0.75 or 0.95 as a coin fell, and the dear one to one of ``dearer``."""
+    coin, askings = random.Random(seed), Askings(bands=10)
+    for given in range(80):
+        askings.judged("start", 0.65, float(given < 52))
+    for name, shown in (("plain", (0.75, 0.95)), ("dear", dearer)):
+        askings.note("start", [0.65] * times, name, "after " + name, [coin.choice(shown) for _ in range(times)])
+    return askings
+
+
+def test_a_dearer_asking_is_taken_only_where_the_record_tells_it_apart() -> None:
+    """holding_to_the_plainer_loses_the_gap and tries_to_the_root_are_a_falling_share (76.23)."""
+    order, seeds = ("plain", "dear"), range(200)
+    alike = [counted(seed, 40, (0.75, 0.95)) for seed in seeds]  # the two askings are worth the same
+    larger = [Worth(askings, 0.0).offer("start", 0.65, order) for askings in alike]
+    apart = [Worth(askings, 0.0, told=2.0).offer("start", 0.65, order) for askings in alike]
+    assert 60 <= sum(offer[1] == "dear" for offer in larger) <= 140  # the larger of two counts is a coin
+    assert sum(offer is not None and offer[1] == "dear" for offer in apart) <= 10  # told apart about one time in forty-four
+    assert sum(offer is not None and offer[1] == "plain" for offer in apart) >= 180  # and the plain one from answering at 0.65
+    for askings, offer in zip(alike, apart, strict=True):
+        worth = Worth(askings, 0.0, told=2.0)
+        assert worth.had("start", 0.65) == (worth.answer("start", 0.65) if offer is None else pytest.approx(offer[0]))
+    for times, least in ((40, 150), (160, 199)):  # worth a tenth more, it is found as the counts grow
+        found = [Worth(counted(seed, times, (0.95, 0.95)), 0.0, told=2.0).offer("start", 0.65, order) for seed in seeds]
+        assert sum(offer is not None and offer[1] == "dear" for offer in found) >= least
+    assert not Worth(Askings(10, alike[0].counts), 0.0, told=2.0).offer("start", 0.65, order)  # no answer judged: nothing told apart
+    learning = Learning(counted(0, 5, (0.75, 0.95)), 0.0, tries=3, told=2.0)  # ninety visits: tried to nine
+    assert learning.askings.visits("start", 0.65) == 90 and learning.untried("start", 0.65, "dear")
+    learning.askings.note("start", [0.65] * 10, "plain", "after plain", [0.95] * 10)  # a hundred: the plain one has its ten
+    assert learning.untried("start", 0.65, "dear") and not learning.untried("start", 0.65, "plain")
+    assert not Learning(learning.askings, 0.0, tries=3).untried("start", 0.65, "dear")
+    assert not Learning(learning.askings, 0.0, tries=0, told=2.0).untried("start", 0.65, "dear")  # an asking tried never stays so
+    with pytest.raises(ValueError, match="told apart"):
+        Worth(Askings(), 0.0, told=-1.0)

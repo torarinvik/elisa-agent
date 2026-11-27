@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -97,6 +97,13 @@ class Askings:
         band = int(self.band(chance))
         return float(sum(table[band].sum() for (at, asked, _), table in self.counts.items() if at == place and asked == asking))
 
+    def visits(self, place: Hashable, chance: float) -> float:
+        """How many times an inquiry stood at ``place`` with the best chance in the band of ``chance`` and
+        asked or gave an answer that was judged."""
+        band = int(self.band(chance))
+        given = float(self.answers[place][band, 0]) if place in self.answers else 0.0
+        return given + float(sum(table[band].sum() for (at, _, _), table in self.counts.items() if at == place))
+
     def worth(self, charge: float | Mapping[Hashable, float]) -> Worth:
         """What the askings recorded so far are worth where each is charged the share ``charge``, or each its
         own share where ``charge`` gives one for each asking."""
@@ -121,11 +128,16 @@ class Worth:
     swept, at most ``sweeps`` times, until nothing moves by more than ``WITHIN``, which gives what is had by
     asking any finite number of times. An asking the record values no higher than answering in its band is
     never worth more than the answer at the chance in hand, so one that leads back to where the inquiry
-    stood and shows nothing new is not taken."""
+    stood and shows nothing new is not taken.
+
+    Given ``told``, an option that takes more must be told apart to be taken (§76.23): ``offer`` walks the
+    answer and then the open askings in the order given, the plainer first, and leaves the one it holds for
+    the next only where that is worth more by over ``told`` standard errors of the difference, each counted
+    from the scatter of what was had where the asking led, or of what the answers judged were paid."""
 
     def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float],
                  read: Callable[[np.ndarray], np.ndarray] | None = None, price: Mapping[Hashable, float] | None = None,
-                 pull: float = 8.0, sweeps: int = 1000) -> None:
+                 pull: float = 8.0, sweeps: int = 1000, told: float | None = None) -> None:
         own = dict(charge) if isinstance(charge, Mapping) else None
         if not all(0.0 <= share <= 1.0 for share in ([charge] if own is None else own.values())):
             raise ValueError("the charge for an asking must be a share between nought and one")
@@ -137,6 +149,9 @@ class Worth:
             raise ValueError("judged answers are pulled toward the chance with a positive weight")
         if type(sweeps) is not int or sweeps < 1:
             raise ValueError("the record is swept a positive number of times")
+        if told is not None and not told >= 0.0:
+            raise ValueError("options are told apart by a number of standard errors that is not negative")
+        self.told = told
         self.bands, self.charge, self.price = askings.bands, float(charge) if own is None else own, dict(price or {})
         self.read, self.pull, self._judged = read, float(pull), askings.answers
         middle = (np.arange(self.bands) + 0.5) / self.bands
@@ -150,7 +165,7 @@ class Worth:
         for asked in ways.values():  # the counts of each asking as the shares of where it led
             for asking, (seen, later) in asked.items():
                 seen += sum(table.sum(1) for _, table in later)
-                asked[asking] = (seen > 0, [(then, table / np.maximum(seen, 1.0)[:, None]) for then, table in later])
+                asked[asking] = (seen, [(then, table / np.maximum(seen, 1.0)[:, None]) for then, table in later])
         order, met = [], set()  # each place after the places its askings lead to, as far as none leads back
         for start in ways:
             path = [] if start in met else [(start, iter([then for _, later in ways[start].values() for then, _ in later]))]
@@ -180,7 +195,7 @@ class Worth:
                 for place in order:
                     for asking, (seen, later) in ways[place].items():
                         whole = share[asking] * sum(table @ held.get(then, self._leaf(then)) for then, table in later)
-                        rows[place][asking] = np.where(seen, whole, unseen)
+                        rows[place][asking] = np.where(seen > 0, whole, unseen)
                     new = one(place)
                     moved = max(moved, float(np.abs(new - held.get(place, new + 1.0)).max()))
                     held[place] = new
@@ -203,6 +218,14 @@ class Worth:
 
         swept(self._weighed, self._rows, dearer, math.nan, largest)
         swept(self._had, self._paid, shares, 0.0, following)
+        self._wide: dict[Hashable, dict[Hashable, np.ndarray]] = {place: {} for place in order}
+        for place in order if told is not None else ():  # the squared standard error of each asking's worth
+            for asking, (seen, later) in ways[place].items():
+                mean = np.nan_to_num(self._rows[place][asking])
+                square = dearer[asking] ** 2 * sum(table @ self._weighed.get(then, self._leaf(then)) ** 2 for then, table in later)
+                among = np.clip(mean, 0.0, 1.0)  # with few counts the scatter is pulled toward the widest there is
+                scatter = (seen * np.maximum(square - mean ** 2, 0.0) + pull * among * (1.0 - among)) / (seen + pull)
+                self._wide[place][asking] = scatter / np.maximum(seen, 1.0)
 
     def _leaf(self, place: Hashable) -> np.ndarray:
         return self._leaves.get(place, self._middle)
@@ -236,7 +259,21 @@ class Worth:
         """What is had at ``place`` with the best answer at ``chance``: the larger of that chance, as read, and
         what the best asking recorded there is worth; where askings have a price, what is paid at the charges
         by taking whichever of them the rule, weighing the prices too, takes."""
-        best = [(worth, asking) for asking in self._rows.get(place, {}) if (worth := self.of(place, chance, asking)) is not None]
-        worth, asking = max(best, key=lambda one: one[0], default=(0.0, None))
-        answer = self.answer(place, chance)
-        return answer if worth <= answer else float(self._paid[place][asking][self._band(chance)])
+        offer, answer = self.offer(place, chance, self._rows.get(place, ())), self.answer(place, chance)
+        return answer if offer is None or offer[0] <= answer else float(self._paid[place][offer[1]][self._band(chance)])
+
+    def offer(self, place: Hashable, chance: float, open: Iterable[Hashable]) -> tuple[float, Hashable] | None:  # noqa: A002
+        """The asking among ``open`` to set beside the answers at ``place`` with the best answer at ``chance``,
+        with its worth: the one worth most, the first of equals; or, where options must be told apart, the
+        last in the order given that was told apart from the one held before it, the answer first. ``None``
+        where no asking open was recorded there or none was told apart."""
+        known = [(worth, asking) for asking in open if (worth := self.of(place, chance, asking)) is not None]
+        if self.told is None or not known:
+            return max(known, key=lambda one: one[0], default=None)
+        band, held = self._band(chance), self.answer(place, chance)
+        given = float(self._judged[place][band, 0]) if place in self._judged else 0.0
+        wide, taken = held * (1.0 - held) / (given + self.pull), None
+        for worth, asking in known:
+            if worth - held > self.told * math.sqrt(wide + self._wide[place][asking][band]):
+                held, wide, taken = worth, float(self._wide[place][asking][band]), asking
+        return None if taken is None else (held, taken)

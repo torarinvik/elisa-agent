@@ -1,6 +1,7 @@
 """Asking while unsure as a concept of the thinking frame, and the record that grows by it (§76.13, §76.14)."""
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Hashable, Mapping, Sequence
 
 import numpy as np
@@ -24,11 +25,15 @@ class Learning:
     ``limit`` gives, for an asking that may be made only so often, how many times an inquiry in the mean
     (§76.18). Such an asking has a price, nought to begin with, added to its charge where the record is
     valued; after each inquiry the price moves by ``step`` times the askings made in it less the limit, never
-    below nought. With a limit each asking needs its own charge."""
+    below nought. With a limit each asking needs its own charge.
+
+    Given ``told``, an asking is taken over a plainer option only where the record tells it apart by that
+    many standard errors, and each asking is tried on, past ``tries``, until its count at a standing is the
+    square root of the visits there (§76.23)."""
 
     def __init__(self, askings: Askings, charge: float | Mapping[Hashable, float], tries: int | Mapping[Hashable, int],
                  every: int = 1, sure: Sureness | None = None, limit: Mapping[Hashable, float] | None = None,
-                 step: float = 0.02) -> None:
+                 step: float = 0.02, told: float | None = None) -> None:
         if any(type(count) is not int or count < 0 for count in (tries.values() if isinstance(tries, Mapping) else [tries])):
             raise ValueError("tries must be a nonnegative number of askings")
         if type(every) is not int or every < 1:
@@ -38,7 +43,7 @@ class Learning:
         if not step > 0.0:
             raise ValueError("the price moves by a positive step")
         self.askings, self.charge, self.tries, self.every, self.sure = askings, charge, tries, every, sure
-        self.limit, self.step = dict(limit or {}), float(step)
+        self.limit, self.step, self.told = dict(limit or {}), float(step), told
         self.price: dict[Hashable, float] = dict.fromkeys(self.limit, 0.0)
         self._made: dict[Hashable, int] = dict.fromkeys(self.limit, 0)
         self._open = False
@@ -47,7 +52,7 @@ class Learning:
 
     def _worked(self) -> Worth:
         self.read = None if self.sure is None else self.sure.reading()  # one reading for the worth and the answers
-        return Worth(self.askings, self.charge, self.read, self.price)
+        return Worth(self.askings, self.charge, self.read, self.price, told=self.told)
 
     def begun(self) -> None:
         """An inquiry begins: the prices move by what the last one made of each limited asking."""
@@ -71,6 +76,8 @@ class Learning:
     def untried(self, place: Hashable, chance: float, asking: Hashable) -> bool:
         """Whether ``asking`` is still to be tried at ``place`` with the best chance at ``chance``."""
         tries = self.tries.get(asking, 0) if isinstance(self.tries, Mapping) else self.tries
+        if tries > 0 and self.told is not None:
+            tries = max(tries, math.isqrt(int(self.askings.visits(place, chance))))
         return tries > 0 and self.askings.seen(place, chance, asking) < tries
 
 
@@ -157,7 +164,8 @@ class Unsure:
             if learning.sure is not None and among == len(chances) > 1:
                 learning.sure.note(before, chances[held])
         worth = self.worth if learning is None else learning.worth
-        offers = [(value, asking) for asking in standing.open if (value := worth.of(standing.place, best, asking)) is not None]
+        offer = worth.offer(standing.place, best, standing.open)
+        offers = [] if offer is None else [offer]
         forced = self._tossed
         if learning is not None:
             untried = [asking for asking in standing.open if learning.untried(standing.place, best, asking)]

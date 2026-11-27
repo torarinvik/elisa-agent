@@ -396,6 +396,21 @@ that is the answer's value the larger of the two is the answer's value, a tie. -
 theorem back_to_where_it_stood_ties (answer : ℝ) : max answer (1 * answer) = answer := by
   rw [one_mul, max_self]
 
+/-- 76.23: holding to the plainer of two options is paid less than the better of them by at most the gap
+by which the dearer is worth more, and by nothing where it is worth no more. -/
+theorem holding_to_the_plainer_loses_the_gap (plainer dearer : ℝ) :
+    max plainer dearer - plainer = max 0 (dearer - plainer) := by
+  rcases le_total plainer dearer with h | h
+  · rw [max_eq_right h, max_eq_right (sub_nonneg.mpr h)]
+  · rw [max_eq_left h, max_eq_left (sub_nonpos.mpr h), sub_self]
+
+/-- 76.23: tries kept to the square root of the visits are a share of them that falls: `k` tries among `n`
+visits with `k * k ≤ n` are at most one in `k`. -/
+theorem tries_to_the_root_are_a_falling_share (k n : ℝ) (some : 0 < k) (root : k * k ≤ n) : k / n ≤ 1 / k := by
+  have visits : 0 < n := lt_of_lt_of_le (mul_pos some some) root
+  rw [div_le_div_iff₀ visits some]
+  linarith
+
 end Thinking
 
 end NCA
