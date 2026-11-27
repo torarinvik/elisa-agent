@@ -309,6 +309,27 @@ theorem too_modest_rises {ι : Type*} (s : Finset ι) (weight after : ι → ℝ
     read (∑ i ∈ s, weight i * after i) ≤ ∑ i ∈ s, weight i * read (after i) := by
   simpa [smul_eq_mul] using convex.map_sum_le some whole within
 
+/-- 76.17: where asking the dear source is independent of which answer is right, the share right among
+the standings asked at is the share right among all. -/
+theorem asked_from_the_standing_names_fairly (right asked both : ℝ) (apart : both = right * asked)
+    (some : 0 < asked) : both / asked = right := by
+  rw [apart, mul_div_assoc, div_self (ne_of_gt some), mul_one]
+
+/-- 76.17: two sources each right with the same chance, the dear source asked where they disagree: among
+those trials each is right half the time, whatever that chance. -/
+theorem counted_where_asked_is_a_half (p : ℝ) (low : 0 < p) (high : p < 1) :
+    p * (1 - p) / (p * (1 - p) + (1 - p) * p) = 1 / 2 := by
+  have within : p * (1 - p) ≠ 0 := ne_of_gt (mul_pos low (sub_pos.mpr high))
+  have twice : p * (1 - p) + (1 - p) * p = 2 * (p * (1 - p)) := by ring
+  rw [twice, div_eq_iff (mul_ne_zero two_ne_zero within)]
+  ring
+
+/-- 76.17: over the dear asking a chance goes to one where its answer was right and to nought where not,
+so its mean change is the share right less the chance stated. -/
+theorem named_change_is_the_gap (right stated : ℝ) :
+    right * (1 - stated) + (1 - right) * (0 - stated) = right - stated := by
+  ring
+
 end Thinking
 
 end NCA

@@ -1,4 +1,4 @@
-"""Asking while unsure: what an asking is worth, a record of one's own askings, and how sure to be (§76.13 to §76.16).
+"""Asking while unsure: what an asking is worth, a record of one's own askings, how sure to be and whom to trust (§76.13 to §76.17).
 
 What an asking is worth is read from recorded askings: where it was asked, how sure the best answer was there,
 where it led and how sure the best answer was then (``Askings``). Under a charge for an asking, a share of what a
@@ -10,7 +10,9 @@ rule (§76.15). The record need not be given: ``Learning`` begins with whatever 
 too, and ``Unsure`` keeps it by the askings the frame itself makes, each asking tried a stated number of times
 where it stands (§76.14). The same askings say whether the stated chances are right, since a right chance of the
 answer held does not drift when more is learned: ``Sureness`` reads from them, with no word on what was right, how
-far too sure or too modest the chances are (§76.16).
+far too sure or too modest the chances are (§76.16). Where an inquiry says what each of its sources said, and one
+source is taken as naming what was right, ``Trust`` makes the chances from those words and learns from the names
+how far each source is to be believed (§76.17).
 
 The frame these are concepts of is ``nca.thinking``. Nothing here says what a place or an asking stands for, who
 serves an asking, or what is being found out.
@@ -18,6 +20,7 @@ serves an asking, or what is being found out.
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -33,12 +36,15 @@ from nca.thinking import Opinion
 class Standing:
     """How an inquiry stands (§76.13): the chance of each of its answers, and what they are (left ``None``, an
     answer is its place among the chances); the place it has come to, which is whatever says what has been asked
-    so far; and for each asking still open there, under whatever names it, the request that makes it."""
+    so far; and for each asking still open there, under whatever names it, the request that makes it. ``said``
+    is what each source has said so far, a number for every answer, larger for an answer it speaks for: given
+    to an asker that holds a ``Trust``, the chances are made from it and ``chances`` is not read (§76.17)."""
 
     chances: Sequence[float]
     place: Hashable
     open: Mapping[Hashable, Request] = field(default_factory=dict)
     hypotheses: Sequence[object] | None = None
+    said: Mapping[Hashable, Sequence[float]] | None = None
 
 
 class Inquiry(Protocol):
@@ -236,6 +242,96 @@ class Sureness:
         return lambda chance: self._read(np.asarray(chance, dtype=np.float64), power)
 
 
+class Trust:
+    """How far each source's word is believed, learned from one source taken as naming what was right (§76.17).
+
+    The chance of an answer is the pool of what the sources said of it, each at its weight: proportional to
+    the exponential of the weighted sum. A source begins at the weight ``start``; at nought nobody is trusted
+    and every answer is as likely as every other. ``namer`` is the asking, and the source, whose answer names
+    what was right; its word is believed to the stated share ``believed`` and its weight is not learned. Each
+    name is kept with what the other sources had said at a standing, and the weights are fitted to the names
+    by likelihood, pulled toward ``start`` with the strength of ``pull`` names, again after ``every`` further
+    names. ``coin`` is the share of inquiries named whatever their chances, tossed apart from everything, so
+    that every standing they passed is a fair draw."""
+
+    def __init__(self, namer: Hashable, believed: float, start: float = 0.0, pull: float = 1.0, coin: float = 0.0,
+                 every: int = 1, seed: int = 0) -> None:
+        if not 0.0 < believed < 1.0:
+            raise ValueError("the namer's word is believed to a share strictly between nought and one")
+        if not pull > 0.0:
+            raise ValueError("the pull toward the starting weight must be positive")
+        if not 0.0 <= coin <= 1.0:
+            raise ValueError("the coin names a share of inquiries between nought and one")
+        if type(every) is not int or every < 1:
+            raise ValueError("the weights are fitted again after a positive number of names")
+        self.namer, self.believed, self.start, self.pull = namer, float(believed), float(start), float(pull)
+        self.coin, self.every, self.learns = float(coin), every, True
+        self.weights: dict[Hashable, float] = {}
+        self.said: list[dict[Hashable, tuple[float, ...]]] = []
+        self.named: list[int] = []
+        self._fitted, self._tosses = 0, random.Random(seed)
+
+    def tossed(self) -> bool:
+        """Whether the inquiry now beginning is one the coin names."""
+        return self.learns and self._tosses.random() < self.coin
+
+    def chances(self, said: Mapping[Hashable, Sequence[float]]) -> list[float]:
+        """The chance of each answer, from what each source said."""
+        words = [np.asarray(word, dtype=np.float64) for word in said.values()]
+        if not words or any(word.shape != words[0].shape or word.ndim != 1 or not len(word) for word in words):
+            raise ValueError("each source says one number for each of the same answers")
+        score = np.zeros(len(words[0]))
+        for source, word in zip(said, words):
+            if source == self.namer:
+                score += math.log(self.believed * max(1, len(word) - 1) / (1.0 - self.believed)) * word
+            else:
+                score += self.weights.get(source, self.start) * word
+        score = np.exp(score - score.max())
+        return [float(chance) for chance in score / score.sum()]
+
+    def note(self, said: Mapping[Hashable, Sequence[float]], named: int) -> None:
+        """Keep that where the sources had said ``said``, the answer ``named`` was named as right."""
+        if not self.learns:
+            return
+        self.said.append({source: tuple(float(x) for x in word) for source, word in said.items() if source != self.namer})
+        self.named.append(named)
+        if len(self.named) - self._fitted >= self.every:
+            self.fit()
+
+    def fit(self) -> None:
+        """Fit the weights to the names kept."""
+        self._fitted = len(self.named)
+        sources = sorted({source for said in self.said for source in said}, key=repr)
+        if not sources:
+            return
+        answers = len(next(word for said in self.said for word in said.values()))
+        words = np.zeros((len(self.said), len(sources), answers))
+        for i, said in enumerate(self.said):
+            for s, source in enumerate(sources):
+                if source in said:
+                    words[i, s] = said[source]
+        named = np.array(self.named)
+        weights = np.array([self.weights.get(source, self.start) for source in sources])
+        for _ in range(25):  # Newton's steps on a likelihood with one summit
+            score = np.einsum("s,isk->ik", weights, words)
+            chance = np.exp(score - score.max(1, keepdims=True))
+            chance /= chance.sum(1, keepdims=True)
+            mean = np.einsum("ik,isk->is", chance, words)
+            slope = (words[np.arange(len(named)), :, named] - mean).sum(0) - self.pull * (weights - self.start)
+            spread = np.einsum("ik,isk,itk->st", chance, words, words) - mean.T @ mean
+            step = np.linalg.solve(spread + self.pull * np.eye(len(sources)), slope)
+            weights = weights + step
+            if np.abs(step).max() < 1e-6:
+                break
+        self.weights = dict(zip(sources, (float(weight) for weight in weights)))
+
+    def fixed(self) -> Trust:
+        """The trust as it stands, as one that keeps no further names and tosses no coin."""
+        kept = Trust(self.namer, self.believed, self.start, self.pull)
+        kept.weights, kept.learns = dict(self.weights), False
+        return kept
+
+
 class Learning:
     """A record that grows by the askings made from it (§76.14).
 
@@ -283,11 +379,18 @@ class Unsure:
     asking still to be tried is offered with the chance one, so that it is made. Where the learning holds a
     ``Sureness`` and the inquiry says the chance of each of at least two answers, the chance of the answer held
     is followed over each asking, and the answers are given at the chances so read (§76.16); the record is kept
-    by the chances as stated."""
+    by the chances as stated.
 
-    def __init__(self, inquiry: Inquiry, worth: Worth | Learning, cost: float = 0.0) -> None:
-        self.inquiry, self.worth, self.cost = inquiry, worth, cost
+    Given a ``Trust`` and an inquiry that says what its sources said, the chances are the trust's (§76.17).
+    Where the namer was asked and served, its answer is kept as a name for the standing it was asked at, or
+    for every standing passed where the trust's coin chose this inquiry; and an inquiry the coin chose is not
+    answered before the namer, while open, has been asked."""
+
+    def __init__(self, inquiry: Inquiry, worth: Worth | Learning, cost: float = 0.0, trust: Trust | None = None) -> None:
+        self.inquiry, self.worth, self.cost, self.trust = inquiry, worth, cost, trust
         self._asked: tuple[Hashable, Request, Hashable, float, int, int] | None = None
+        self._tossed = trust is not None and trust.tossed()
+        self._passed: list[Mapping[Hashable, Sequence[float]]] = []
 
     def think(self, memory: WorkingMemory) -> Opinion:
         learning = self.worth if isinstance(self.worth, Learning) else None
@@ -301,6 +404,13 @@ class Unsure:
         self._asked = None
         standing = self.inquiry.standing()
         chances = [float(chance) for chance in standing.chances]
+        if self.trust is not None and standing.said is not None:
+            if answered is not None and answered[2] == self.trust.namer and self.trust.namer in standing.said:
+                named = int(np.argmax(standing.said[self.trust.namer]))
+                for said in (self._passed if self._tossed else self._passed[-1:]):
+                    self.trust.note(said, named)
+            self._passed.append(standing.said)
+            chances = self.trust.chances(standing.said)
         hypotheses = list(range(len(chances)) if standing.hypotheses is None else standing.hypotheses)
         if not chances or len(hypotheses) != len(chances):
             raise ValueError("a standing needs one chance for each of at least one answer")
@@ -317,11 +427,13 @@ class Unsure:
             if untried:  # the one recorded least there is tried first
                 asking = min(untried, key=lambda one: learning.askings.seen(standing.place, best, one))
                 offers = [(1.0, asking)]
+        shown = chances if learning is None or learning.read is None else [float(chance) for chance in learning.read(np.array(chances))]
+        if self._tossed and self.trust.namer in standing.open and all(value <= max(shown) for value, _ in offers):
+            offers = [(1.0, self.trust.namer)]  # an inquiry the coin chose is named before it is answered
         if offers:
             value, asking = max(offers, key=lambda offer: offer[0])
             self._asked = (asking, standing.open[asking], standing.place, best, chances.index(best), len(chances))
-        if learning is not None and learning.read is not None:
-            chances = [float(chance) for chance in learning.read(np.array(chances))]
+        chances = list(shown)
         if offers:
             chances.append(value)
             hypotheses.append(standing.open[asking])

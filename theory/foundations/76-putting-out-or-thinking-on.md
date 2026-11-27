@@ -381,6 +381,58 @@ to be chosen where names are to be had. That a drift of nought means a right cha
 off by the same amount in a way no asking moves is not seen. And (iii) needs the inquiry to
 say the chance of each of its answers, so that the one held before can be followed.
 
+## 76.17 Whom to trust, from the few dear answers
+
+76.13 to 76.16 take the chances as the inquiry states them, and an inquiry over several sources
+has so far been told how far each is to be believed by counting on trials whose answers were
+named. Let one source, the dearest, be taken at its word: what it answers is a name for what was
+right, believed to a stated share. The rest can then be learned from the askings the rule
+itself makes of it.
+
+Let the inquiry say, at a standing, what each source s has said as a number o(s, k) for each
+answer k, and let the chance of answer k be the pool of those words, each at a weight:
+proportional to exp(Σ_s w(s) · o(s, k)). Weight nought is trusting nobody: every answer is as
+likely as every other whatever was said.
+
+**Proposition 76.17 (which names are fair, and what they fit).**
+(i) The rule asks from the standing alone. So given the standing, whether the dear source is
+asked is independent of which answer is right, and the share right among the standings it was
+asked at is the share right among all standings like them. A try (76.14) is the same case.
+(ii) Counting how often a source agreed with the dear answers is not fair to it. Two sources,
+each right with chance p and independently, the dear source asked where they disagree: among
+those trials each is right exactly half the time, whatever p.
+(iii) A trial named by a coin tossed apart from everything is a fair draw at every standing it
+passed, and by 76.14 the coin gives up at most the charge each time it falls.
+(iv) Over the dear asking the chance of an answer goes to one where it was right and to nought
+where it was not, so its mean change at a standing is the share right there less the chance
+stated. The dear answers therefore do not move the chances in the mean exactly where the
+chances are right.
+
+*Proof.* (i) With a the event that the dear source is asked and r that an answer is right,
+P(r and a) = P(r) P(a) given the standing, so P(r | a) = P(r). (ii) They disagree where exactly
+one is right, with chance 2 p (1 - p), and the first is the right one in p (1 - p) of it.
+(iii) The coin is independent of the trial, so the trials it names are drawn as all trials are;
+the cost is `NCA.try_costs_charge`. (iv) p (1 - c) + (1 - p) (0 - c) = p - c. ∎
+
+So the weights are fitted by likelihood to the names: on the standing asked at for every dear
+answer the rule or a try brought, by (i), and on every standing passed for a trial the coin
+named, by (iii); never on the earlier standings of a trial the rule later chose to name, which
+are selected on what followed, and never by counting, by (ii). At the fitted weights the names
+less the chances, weighed by each source's words, sum to nought: that is (iv) asked source by
+source, and it is 76.16's condition put to the one asking after which nothing drifts. A pull
+toward the starting weights, of the strength of a stated number of names, keeps a few names
+from carrying far. The dear source is asked while that is worth more than answering, as any
+asking is (76.15), so its use falls away by itself as the cheaper sources come to be believed.
+
+What is not said. That the pool is the true chance: it is where the sources' words are
+independent given the answer, and where a trial is hard for all of them at once the weights
+fitted at the unsure standings, which are the hard trials, are too low for the easy ones; a
+coin's names widen the fit to every standing, and a source's weight may be kept apart for
+places the inquiry tells apart. That the dear source is right: its share is stated, and a name
+wrong more often than stated teaches wrongly to that extent. That a record of askings kept
+while the weights were still moving is the record of the chances now stated: it is not, until
+the weights have settled.
+
 In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_iff`; 76.2 is
 `NCA.read_risks_cost_little` and `NCA.threshold_costs_little`; 76.3 is `NCA.paid_le_best` and
 `NCA.out_where_best_paid`, over `NCA.bestBy`, `NCA.outWhereBest` and the `NCA.readBy` of chapter
@@ -394,4 +446,6 @@ In Lean, 76.1 is `NCA.rule_risks_least`, `NCA.least_risk_le` and `NCA.share_le_i
 `NCA.more_askings_have_no_less` and `NCA.one_dearer_has_no_more`, with `NCA.dearer_puts_out` read
 against any rival, an answer or another asking; 76.16 is `NCA.right_chance_does_not_drift`,
 `NCA.too_sure_falls` and `NCA.too_modest_rises` (that the power reading is concave above a half
-for t above one is used and not proved there).
+for t above one is used and not proved there); 76.17 is `NCA.asked_from_the_standing_names_fairly`,
+`NCA.counted_where_asked_is_a_half` and `NCA.named_change_is_the_gap` (that the fitted weights solve
+the score equations is the calculus of the likelihood and is not proved there).

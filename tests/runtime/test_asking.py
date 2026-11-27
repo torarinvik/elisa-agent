@@ -9,7 +9,7 @@ import pytest
 from nca.abi import Contract, Manifest, Request
 from nca.kernel import Kernel
 from nca.memory import WorkingMemory
-from nca.asking import Askings, Learning, Standing, Sureness, Unsure, Worth
+from nca.asking import Askings, Learning, Standing, Sureness, Trust, Unsure, Worth
 from nca.thinking import Answer, Thought, think, thinking, through
 from nca.workspace import Workspace
 
@@ -324,6 +324,80 @@ def test_each_asking_is_worth_what_follows_less_its_own_charge_and_needs_one() -
         askings.worth({"again": 0.1})
     with pytest.raises(ValueError, match="between nought and one"):
         askings.worth({"again": 0.1, "closely": 1.3})
+
+
+class Told(Both):
+    """The same inquiry saying what each source said in place of the chances that follow from it."""
+
+    def standing(self) -> Standing:
+        whole = super().standing()
+        lean = (2 * sum(self.readings) - len(self.readings)) / 2.0
+        said = {"again": (-lean, lean)} | ({"closely": (1.0 - self.closely[0], float(self.closely[0]))} if self.closely else {})
+        return Standing((), whole.place, whole.open, None, said)
+
+
+def told(worth: Worth | Learning, trial: tuple[int, list[int], list[int]], trust: Trust) -> tuple[bool, dict[str, int]]:
+    """One trial of an asker that makes its chances from what the sources said, by the trust it holds."""
+    truth, readings, closely = trial
+    inquiry = Told(readings[0])
+    ask = through(Kernel([Reader(readings[1:]), Second(closely)]), Workspace(), budget=8)
+    thought = think([Unsure(inquiry, worth, trust=trust)], memory(), ask=ask, rounds=8)
+    return thought.out == truth, {"again": len(inquiry.readings) - 1, "closely": len(inquiry.closely)}
+
+
+def test_trust_begun_at_nothing_is_learned_from_the_dear_answers_the_rule_itself_asks_for() -> None:
+    """§76.17. With no trial named beforehand, the weight of the further readings begins at nought and the only
+    word on what was right is the close reading on the trials where the rule or a try asked for it. The asker
+    comes to believe a reading about as far as its true odds say and is paid on fresh trials what an asker told
+    the true chances is paid, for names on a part of the trials only."""
+    charge = {"again": 0.02, "closely": 0.3}
+
+    def paid(got: list[tuple[bool, dict[str, int]]]) -> float:
+        return sum((1.0 - charge["again"]) ** made["again"] * (1.0 - charge["closely"]) ** made["closely"]
+                   for right, made in got if right) / len(got)
+
+    stream, fresh = both(1500, seed=4), both(1500, seed=5)
+    trust, learning = Trust("closely", 0.95), Learning(Askings(bands=20), charge, tries=10, every=25)
+    assert trust.chances({"again": (-1.5, 1.5)}) == [0.5, 0.5]  # nobody is trusted yet
+    made = [told(learning, trial, trust)[1] for trial in stream]
+    assert len(trust.named) == sum(asked["closely"] for asked in made) < len(stream) / 2
+    assert abs(trust.weights["again"] - math.log(0.7 / 0.3)) < 0.25
+    known = Learning(Askings(bands=20), charge, tries=10, every=25)
+    for trial in stream:
+        asked_of_both(known, trial)
+    own = paid([told(learning.askings.worth(charge), trial, trust.fixed()) for trial in fresh])
+    assert own >= paid([asked_of_both(known.askings.worth(charge), trial) for trial in fresh]) - 0.015
+
+
+def test_a_coin_names_an_inquiry_at_every_standing_it_passed_and_a_fixed_trust_keeps_nothing() -> None:
+    """§76.17 (iii). An inquiry the coin chose is not answered before the namer has been asked, and every
+    standing it passed is kept with the name; without the coin and with nothing recorded, nothing is asked and
+    nothing kept; a trust taken as fixed keeps no names and tosses no coin."""
+    trials, nothing = both(40, seed=6), Askings(bands=20).worth({"again": 0.02, "closely": 0.12})
+    always = Trust("closely", 0.95, coin=1.0)
+    got = [told(nothing, trial, always) for trial in trials]
+    assert all(made == {"again": 0, "closely": 1} for _, made in got) and len(always.named) == len(trials)
+    assert [right for right, _ in got] == [trial[2][0] == trial[0] for trial in trials]  # the namer's word is taken
+    learning = Learning(Askings(bands=20), {"again": 0.02, "closely": 0.12}, tries=1)
+    passed = Trust("closely", 0.95, coin=1.0)
+    _, made = told(learning, trials[0], passed)
+    assert made["closely"] == 1 and len(passed.named) == made["again"] + 1  # each standing before the name
+    never = Trust("closely", 0.95)
+    assert all(made == {"again": 0, "closely": 0} for _, made in (told(nothing, trial, never) for trial in trials)) and not never.named
+    kept = always.fixed()
+    assert not kept.tossed() and kept.weights == always.weights
+    kept.note({"again": (0.5, -0.5)}, 0)
+    assert not kept.named
+
+
+def test_what_cannot_be_a_trust_or_a_word_is_refused() -> None:
+    assert Trust("namer", 0.9).chances({"namer": (0.0, 1.0)}) == pytest.approx([0.1, 0.9])
+    assert Trust("namer", 0.9, start=1.0).chances({"one": (0.0, math.log(3.0))}) == pytest.approx([0.25, 0.75])
+    for bad in ({"believed": 1.0}, {"believed": 0.9, "pull": 0.0}, {"believed": 0.9, "coin": 1.5}, {"believed": 0.9, "every": 0}):
+        with pytest.raises(ValueError):
+            Trust("namer", **bad)
+    with pytest.raises(ValueError, match="one number for each of the same answers"):
+        Trust("namer", 0.9).chances({"one": (0.1, 0.2), "other": (0.1, 0.2, 0.3)})
 
 
 class Decides:
