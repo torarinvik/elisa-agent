@@ -195,8 +195,11 @@ setup using developer-selected variables, not prescribed checkout paths.
 The entry-point boundary is sufficient for discovery. `nca.agents` and its
 `elisa-agent` command lock the discovered packages as a named agent in the
 per-user agent home, check a lock against the environment, and spawn
-instances with separate state over one shared object store. Fetching the
-packages a lock names is future work.
+instances with separate state over one shared object store. `nca.catalog`
+installs a package from an index of immutable records: code at an exact
+commit, and each blob verified against its recorded size and SHA-256 before
+it is admitted. The index copy only fast-forwards and is not yet signed.
+Fetching the packages a lock names is future work.
 `benchmarks/check_packages.py --packages <directory>` installs the core and every
 checkout in that directory into a throwaway environment and runs all their tests.
 

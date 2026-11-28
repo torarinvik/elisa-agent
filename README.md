@@ -117,6 +117,7 @@ Measurements, including negative results, are in the dated research diary.
 
 Named agents are kept under `~/.elisapkg/agent` and managed with `elisa-agent`:
 
+    uv run elisa-agent add nca-example       # install a package from the index
     uv run elisa-agent packages              # expert packages installed here
     uv run elisa-agent create demo           # lock them as the agent "demo"
     uv run elisa-agent export demo           # print the lock to share
@@ -124,7 +125,10 @@ Named agents are kept under `~/.elisapkg/agent` and managed with `elisa-agent`:
     uv run elisa-agent spawn demo -- python host.py
     uv run elisa-agent resume demo 1 -- python host.py
 
-An agent is a lock of package versions and object references. `install` and
+`add` installs a package's code at the commit its index record names and
+downloads its required weights and data, refusing bytes whose size or SHA-256
+differ from the record. An agent is a lock of package versions and object
+references. `install` and
 `spawn` refuse a lock the environment does not match. `spawn` runs a host
 program with a fresh state directory named by `ELISA_AGENT_STATE`.
 Host programs can call `nca.agents.instance_kernel()` to load the experts

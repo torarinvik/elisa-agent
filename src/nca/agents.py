@@ -19,8 +19,8 @@ asks ``blob`` for the file when it loads.
 
 A lock is checked against the running environment before an agent is
 installed from it or spawned: each package must be contributed at the locked
-version and give the locked reference. Nothing is fetched here; installing
-the packages a lock names is the environment's job.
+version and give the locked reference. ``nca.catalog`` installs packages
+from the index; a lock itself fetches nothing.
 """
 
 from __future__ import annotations
@@ -271,6 +271,10 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("packages", help="list the expert packages this environment contributes")
     commands.add_parser("list", help="list the agents in the agent home")
+    adding = commands.add_parser("add", help="install an expert package from the index")
+    adding.add_argument("package", metavar="NAME[@VERSION]")
+    adding.add_argument("--with", dest="wanted", action="append", default=[], metavar="BLOB",
+                        help="also fetch this optional blob (repeatable)")
     creating = commands.add_parser("create", help="make an agent from the installed packages")
     creating.add_argument("name")
     exporting = commands.add_parser("export", help="print an agent's lock")
@@ -296,6 +300,13 @@ def _run(arguments: argparse.Namespace, root: Path) -> int:
         agents = root / "agents"
         for lock_path in sorted(agents.glob("*/agent.lock")) if agents.is_dir() else []:
             print(f"{lock_path.parent.name}  {len(Lock.read(lock_path).packages)} packages")
+    elif arguments.command == "add":
+        from nca import catalog
+        name, _, version = arguments.package.partition("@")
+        record = catalog.add(root, name, version or None, arguments.wanted)
+        print(f"added {record['name']} {record['version']} at {record['code']['commit'][:12]}")
+        for line in catalog.notices(record):
+            print(f"  {line}")
     elif arguments.command == "create":
         lock = create(root, arguments.name)
         print(f"created agent {arguments.name} with {len(lock.packages)} packages")
