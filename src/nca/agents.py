@@ -26,6 +26,7 @@ the packages a lock names is the environment's job.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -39,8 +40,9 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from nca.objects import Store
-from nca.packages import GROUP, discover
+from nca.kernel import Kernel
+from nca.objects import Composite, Store
+from nca.packages import GROUP, discover, install as install_modules
 
 LOCK_VERSION = 1
 CORE = "nca"
@@ -219,26 +221,49 @@ def install(root: Path, lock_path: Path, name: str) -> Lock:
     return lock
 
 
-def spawn(root: Path, name: str, command: Sequence[str]) -> int:
-    """Run ``command`` as a new instance of agent ``name``.
+def instance_kernel() -> Kernel:
+    """Load the kernel for a host launched by the named-agent launcher."""
+    lock_file = os.environ.get("ELISA_AGENT_LOCK")
+    store_directory = os.environ.get("ELISA_AGENT_STORE")
+    if not lock_file or not store_directory:
+        raise RuntimeError("launch the host with elisa-agent spawn")
+    lock = Lock.read(Path(lock_file))
+    store = Store.open(Path(store_directory))
+    root = store.put(Composite("agent", lock.core, tuple(package.ref for package in lock.packages)))
+    return Kernel(install_modules(store, root))
 
-    The instance gets a fresh state directory. The command is the host
-    program; it finds its agent through ``ELISA_AGENT_NAME``,
-    ``ELISA_AGENT_LOCK``, ``ELISA_AGENT_STORE`` and ``ELISA_AGENT_STATE``.
-    """
+
+def spawn(root: Path, name: str, command: Sequence[str], *, resume: int | None = None) -> int:
+    """Launch a host with fresh state or reopen an existing numbered instance."""
     directory = _agent(root, name)
     lock_path = directory / "agent.lock"
     if not lock_path.exists():
         raise ValueError(f"agent {name} does not exist")
     _check(Lock.read(lock_path), root)
     instances = _private(directory / "instances")
-    number = 1 + max((int(path.name) for path in instances.iterdir() if path.name.isdigit()),
-                     default=0)
-    state = instances / str(number)
-    state.mkdir(mode=0o700)
+    if resume is None:
+        number = 1 + max((int(path.name) for path in instances.iterdir()
+                          if path.name.isascii() and path.name.isdecimal()), default=0)
+        while True:
+            state = instances / str(number)
+            try:
+                state.mkdir(mode=0o700)
+                break
+            except FileExistsError:
+                number += 1
+    else:
+        state = instances / str(resume)
+        if resume < 1 or not state.is_dir():
+            raise ValueError(f"agent {name} has no instance {resume}")
     environment = dict(os.environ, ELISA_AGENT_NAME=name, ELISA_AGENT_LOCK=str(lock_path),
                        ELISA_AGENT_STORE=str(root / "store"), ELISA_AGENT_STATE=str(state))
-    return subprocess.run(list(command), env=environment, check=False).returncode
+    with (state / ".host.lock").open("ab") as lease:
+        try:
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError(f"agent {name} instance {state.name} already has a running host") from error
+        return subprocess.run(list(command), env=environment, check=False,
+                              pass_fds=(lease.fileno(),)).returncode
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -256,6 +281,10 @@ def _parser() -> argparse.ArgumentParser:
     spawning = commands.add_parser("spawn", help="run a host program as a new instance")
     spawning.add_argument("name")
     spawning.add_argument("host", nargs=argparse.REMAINDER, metavar="-- COMMAND ...")
+    resuming = commands.add_parser("resume", help="run a host with an existing instance’s state")
+    resuming.add_argument("name")
+    resuming.add_argument("instance", type=int)
+    resuming.add_argument("host", nargs=argparse.REMAINDER, metavar="-- COMMAND ...")
     return parser
 
 
@@ -278,8 +307,8 @@ def _run(arguments: argparse.Namespace, root: Path) -> int:
     else:
         host = arguments.host[1:] if arguments.host[:1] == ["--"] else arguments.host
         if not host:
-            raise ValueError("spawn needs a host program: elisa-agent spawn NAME -- COMMAND ...")
-        return spawn(root, arguments.name, host)
+            raise ValueError(f"{arguments.command} needs a host program after --")
+        return spawn(root, arguments.name, host, resume=getattr(arguments, "instance", None))
     return 0
 
 

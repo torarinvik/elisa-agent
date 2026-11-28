@@ -122,10 +122,14 @@ Named agents are kept under `~/.elisapkg/agent` and managed with `elisa-agent`:
     uv run elisa-agent export demo           # print the lock to share
     uv run elisa-agent install a.lock --name copy
     uv run elisa-agent spawn demo -- python host.py
+    uv run elisa-agent resume demo 1 -- python host.py
 
 An agent is a lock of package versions and object references. `install` and
 `spawn` refuse a lock the environment does not match. `spawn` runs a host
 program with a fresh state directory named by `ELISA_AGENT_STATE`.
+Host programs can call `nca.agents.instance_kernel()` to load the experts
+selected by the instance’s lock. `resume` runs the host with the existing
+numbered state directory, so the host can recover its checkpoint.
 
 The proofs build with `cd lean && lake exe cache get && lake build`. Expert
 packages are separate repositories that register themselves through the

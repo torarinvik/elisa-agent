@@ -1,5 +1,6 @@
 """Named agents: locks, the shared store and spawned instances."""
 
+import fcntl
 import hashlib
 import json
 import sys
@@ -94,6 +95,37 @@ def test_spawn_gives_each_instance_its_own_state(root: Path, tmp_path: Path) -> 
     assert agents.main(["spawn", "worker", "--", sys.executable, "-c", "raise SystemExit(3)"]) == 3
     assert agents.main(["spawn", "missing", "--", sys.executable]) == 1
     assert agents.main(["spawn", "worker"]) == 1
+
+
+def test_resume_reopens_state_and_rejects_a_second_host(root: Path) -> None:
+    assert agents.main(["create", "worker"]) == 0
+    command = [sys.executable, "-c", """
+import os
+from pathlib import Path
+
+checkpoint = Path(os.environ["ELISA_AGENT_STATE"]) / "checkpoint"
+checkpoint.write_text(checkpoint.read_text() + "1" if checkpoint.exists() else "1")
+"""]
+    assert agents.main(["spawn", "worker", "--", *command]) == 0
+    resume = ["resume", "worker", "1", "--", *command]
+    assert agents.main(resume) == 0
+    state = root / "agents" / "worker" / "instances" / "1"
+
+    with (state / ".host.lock").open("ab") as lease:
+        fcntl.flock(lease, fcntl.LOCK_EX)
+        assert agents.main(resume) == 1
+    assert (state / "checkpoint").read_text() == "11"
+    assert agents.main(["resume", "worker", "2", "--", *command]) == 1
+
+
+def test_instance_kernel_loads_only_locked_packages(root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    contributions(monkeypatch, "reader")
+    assert agents.main(["create", "worker"]) == 0
+    contributions(monkeypatch, "counter")
+    assert agents.main(["create", "other"]) == 0
+    monkeypatch.setenv("ELISA_AGENT_LOCK", str(root / "agents" / "worker" / "agent.lock"))
+    monkeypatch.setenv("ELISA_AGENT_STORE", str(root / "store"))
+    assert [module.manifest.module_id for module in agents.instance_kernel().modules] == ["reader"]
 
 
 def test_blobs_are_kept_by_digest_and_found_again(root: Path, tmp_path: Path) -> None:
