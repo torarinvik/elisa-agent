@@ -501,6 +501,21 @@ def plan_stable(
     return plan_stable_indexed(ProducerIndex(modules), available, goal, fuel)
 
 
+def _witness_prefix(index: ProducerIndex, witness: Plan) -> int:
+    """Smallest prefix containing every provider used by this plan."""
+    positions = {id(index.modules[i]): i + 1 for i in range(index.size - 1, -1, -1)}
+    limit = 0
+    pending = [witness]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, Apply):
+            limit = max(limit, positions[id(node.module)])
+            pending.extend((*node.args, *node.slots))
+        elif isinstance(node, Map):
+            pending.extend((node.source, node.body))
+    return limit
+
+
 def plan_stable_indexed(
     index: ProducerIndex,
     available: Sequence[TypeId],
@@ -510,9 +525,9 @@ def plan_stable_indexed(
 ) -> Plan | None:
     """``plan_stable`` by binary search over the prefix length.
 
-    Correct because planning success is monotone in the prefix
-    (``NCA.plan_prefix_mono``): ``O(log n)`` depth-bounded checks, followed by
-    increasing-depth search within the earliest successful prefix.
+    A shallow witness bounds the upper prefix before the planner tests
+    earlier prefixes at full depth. An earlier prefix can still win with a
+    deeper plan because success is monotone in the prefix (``NCA.plan_prefix_mono``).
     A route found earlier on the same index is returned as it is: installing
     modules never changes a route (``NCA.planShallowStable_append``).
     """
@@ -521,8 +536,9 @@ def plan_stable_indexed(
     if found is not None and (found[1] is not None or found[0] == index.size):
         return found[1]
     route = None
-    if _plan(index, index.size, available, goal, fuel, required=required) is not None:
-        low, high = 0, index.size
+    witness = _shallow(index, index.size, available, goal, fuel, required)
+    if witness is not None:
+        low, high = 0, _witness_prefix(index, witness)
         while low < high:
             middle = (low + high) // 2
             if _plan(index, middle, available, goal, fuel, required=required) is None:

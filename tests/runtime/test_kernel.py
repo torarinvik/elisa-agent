@@ -142,6 +142,32 @@ def test_shallow_planner_and_stable_routing() -> None:
     assert plan_stable([need1, make1, from2], avail, "t0") == before
 
 
+def test_stable_planning_bounds_deep_search_by_a_shallow_witness(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nca import planner
+
+    combine = fn("combine", ["intermediate", "note"], "result", lambda x, y: (x, y))
+    prepare = fn("prepare", ["sample"], "intermediate", lambda x: x)
+    shortcut = fn("shortcut", ["sample", "note"], "result", lambda x, y: (x, y))
+    generic = fn("generic", ["wrapped[?x]"], "?x", lambda x: x)
+    registry = Registry()
+    for module in (combine, prepare, shortcut, generic):
+        registry.install(module)
+    original = planner._plan
+    probes = []
+
+    def recorded(index, limit, available, goal, fuel, memo=None, required=frozenset()):
+        if memo is None:
+            probes.append((limit, fuel))
+        return original(index, limit, available, goal, fuel, memo, required)
+
+    monkeypatch.setattr(planner, "_plan", recorded)
+    route = plan_stable_indexed(
+        registry.index, ("sample", "note"), "result", fuel=8, required=frozenset({0, 1})
+    )
+    assert route == Apply(combine, (Apply(prepare, (Given("sample"),)), Given("note")))
+    assert (4, 8) not in probes
+
+
 def test_map_applies_elementwise_composition() -> None:
     registry = Registry()
     registry.install(fn("split", [TEXT], "seq[text.v1]", lambda s: s.split(",")))
