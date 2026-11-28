@@ -3,6 +3,8 @@ name = "nca"
 version = "0.1.0"
 description = "Experimental Neural Computer Agent: independently trained modules composed by a cognitive microkernel"
 requires-python = ">=3.11"
+license = "0BSD"
+license-files = ["LICENSE"]
 dependencies = ["numpy>=1.24", "torch>=2.4"]
 
 [project.optional-dependencies]
