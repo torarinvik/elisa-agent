@@ -1,6 +1,6 @@
 [project]
 name = "nca"
-version = "0.1.0"
+version = "0.1.1"
 description = "Experimental Neural Computer Agent: independently trained modules composed by a cognitive microkernel"
 requires-python = ">=3.11"
 license = "0BSD"
