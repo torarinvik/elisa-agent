@@ -116,3 +116,35 @@ def test_a_local_index_may_name_code_by_local_path() -> None:
     catalog.validate(local, local=True)
     assert catalog.source_url(record()["blobs"][1]["sources"][0]) == (
         "https://huggingface.co/someone/model/resolve/" + "b" * 40 + "/large.bin")
+
+
+def test_a_package_installed_from_a_working_checkout_is_never_replaced(
+        root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    installs: list[str] = []
+    monkeypatch.setattr(catalog, "_install_code", lambda git, commit: installs.append(commit))
+    monkeypatch.setattr(catalog, "_editable", lambda distribution: distribution == "reader")
+    assert agents.main(["add", "reader"]) == 1
+    assert "working checkout" in capsys.readouterr().err
+    assert not installs and not (root / "blobs").exists()
+
+
+def test_editable_installs_are_read_from_their_direct_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Installed:
+        def __init__(self, direct: str | None) -> None:
+            self.direct = direct
+
+        def read_text(self, name: str) -> str | None:
+            return self.direct
+
+    kinds = {"checkout": Installed('{"url": "file:///x", "dir_info": {"editable": true}}'),
+             "built": Installed('{"url": "https://x", "vcs_info": {"vcs": "git"}}'),
+             "indexed": Installed(None)}
+
+    def distribution(name: str) -> Installed:
+        if name not in kinds:
+            raise metadata.PackageNotFoundError(name)
+        return kinds[name]
+
+    monkeypatch.setattr(metadata, "distribution", distribution)
+    assert [catalog._editable(name) for name in ("checkout", "built", "indexed", "absent")] == [
+        True, False, False, False]

@@ -8,8 +8,9 @@ digests are the identity; locations only say where to fetch.
 
 ``add`` updates a local copy of the index in the agent home, installs the
 code at the pinned commit into the running environment and admits every
-required blob, refusing bytes that do not match the record. The index
-location is ``$ELISA_AGENT_INDEX``, else the public index. A local index may
+required blob, refusing bytes that do not match the record. It refuses a
+package that is installed editable, so a working checkout is never replaced
+by its published version. The index location is ``$ELISA_AGENT_INDEX``, else the public index. A local index may
 name code by local path, for development; a remote one must name ``https``
 locations.
 
@@ -28,6 +29,8 @@ import re
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from importlib import metadata
@@ -160,7 +163,30 @@ def find(index: Path, name: str, version: str | None, *, local: bool) -> dict[st
 
 
 def _open(url: str) -> BinaryIO:
-    return urllib.request.urlopen(url, timeout=60)  # noqa: S310 - https only, see source_url
+    """Open ``url``, following redirects and waiting out a busy server.
+
+    Archives answer a burst of requests with 429 or a 5xx status and say how
+    long to wait; three more attempts are made, each after at most a minute.
+    """
+    request = urllib.request.Request(url, headers={"User-Agent": "elisa-agent"})
+    for attempt in range(4):
+        try:
+            return urllib.request.urlopen(request, timeout=60)  # noqa: S310 - https only
+        except urllib.error.HTTPError as error:
+            if attempt == 3 or error.code not in (429, 500, 502, 503, 504):
+                raise
+            stated = error.headers.get("Retry-After", "")
+            time.sleep(min(int(stated), 60) if stated.isdecimal() else 2 ** (attempt + 1))
+    raise AssertionError("unreachable")
+
+
+def _editable(distribution: str) -> bool:
+    """Whether ``distribution`` is installed from a working checkout."""
+    try:
+        direct = metadata.distribution(distribution).read_text("direct_url.json")
+    except metadata.PackageNotFoundError:
+        return False
+    return bool(direct) and json.loads(direct).get("dir_info", {}).get("editable") is True
 
 
 def fetch_blob(blob: dict[str, Any]) -> str:
@@ -222,6 +248,10 @@ def add(root: Path, name: str, version: str | None = None,
     if unknown := sorted(set(wanted) - optional):
         raise ValueError(f"{name} {record['version']} has no optional blob named "
                          + ", ".join(unknown))
+    if _editable(name):
+        raise ValueError(f"{name} is installed here from a working checkout (editable); adding "
+                         "the published version would replace that work. Use another "
+                         "environment, or uninstall it first")
     _install_code(record["code"]["git"], record["code"]["commit"])
     importlib.invalidate_caches()
     contributed = {entry.name for entry in metadata.entry_points(group=GROUP)}
