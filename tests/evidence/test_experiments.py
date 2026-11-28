@@ -42,7 +42,7 @@ def test_a_rule_never_met_leaves_none_or_is_not_told() -> None:
     assert splitting(RULES, []) is None
 
 
-def test_expected_gain_prices_the_test_once_and_ignores_impossible_observations():
+def test_expected_gain_prices_the_test_once_and_ignores_impossible_observations() -> None:
     from nca.evidence.experiments import expected_test_gain
 
     prior = (.25, .25, .5)
@@ -52,7 +52,7 @@ def test_expected_gain_prices_the_test_once_and_ignores_impossible_observations(
     assert expected_test_gain(prior, outcomes, max, 0, .25) == -.25
 
 
-def test_expected_gain_rejects_mismatched_observation_spaces():
+def test_expected_gain_rejects_mismatched_observation_spaces() -> None:
     import pytest
     from nca.evidence.experiments import expected_test_gain
 

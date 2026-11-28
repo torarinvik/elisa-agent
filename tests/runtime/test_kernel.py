@@ -155,7 +155,8 @@ def test_stable_planning_bounds_deep_search_by_a_shallow_witness(monkeypatch: py
     original = planner._plan
     probes = []
 
-    def recorded(index, limit, available, goal, fuel, memo=None, required=frozenset()):
+    def recorded(index: Any, limit: Any, available: Any, goal: Any, fuel: Any,
+                 memo: Any = None, required: Any = frozenset()) -> Any:
         if memo is None:
             probes.append((limit, fuel))
         return original(index, limit, available, goal, fuel, memo, required)
