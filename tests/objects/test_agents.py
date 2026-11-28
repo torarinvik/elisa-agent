@@ -1,5 +1,6 @@
 """Named agents: locks, the shared store and spawned instances."""
 
+import hashlib
 import json
 import sys
 from importlib import metadata
@@ -93,3 +94,20 @@ def test_spawn_gives_each_instance_its_own_state(root: Path, tmp_path: Path) -> 
     assert agents.main(["spawn", "worker", "--", sys.executable, "-c", "raise SystemExit(3)"]) == 3
     assert agents.main(["spawn", "missing", "--", sys.executable]) == 1
     assert agents.main(["spawn", "worker"]) == 1
+
+
+def test_blobs_are_kept_by_digest_and_found_again(root: Path, tmp_path: Path) -> None:
+    weights = tmp_path / "weights.bin"
+    weights.write_bytes(b"weights" * 1000)
+    digest = "sha256:" + hashlib.sha256(weights.read_bytes()).hexdigest()
+    with pytest.raises(LookupError, match="admit_blob"):
+        agents.blob(digest)
+    assert agents.admit_blob(weights) == digest
+    assert agents.admit_blob(weights) == digest
+    kept = agents.blob(digest)
+    assert kept == root / "blobs" / "sha256" / digest.removeprefix("sha256:")
+    assert kept.read_bytes() == weights.read_bytes()
+    assert agents.blob(digest.removeprefix("sha256:")) == kept
+    assert [path.name for path in kept.parent.iterdir()] == [kept.name]
+    with pytest.raises(ValueError, match="not a SHA-256 digest"):
+        agents.blob("sha256:../escape")

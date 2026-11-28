@@ -8,8 +8,14 @@ once. The home is ``$ELISA_AGENT_HOME``, else ``$ELISAPKG_HOME/agent``, else
 ``~/.elisapkg/agent``::
 
     store/                   every agent's objects, one file per digest
+    blobs/sha256/DIGEST      large files such as weights, one per digest
     agents/NAME/agent.lock   what the agent consists of
     agents/NAME/instances/   one directory of state per spawned instance
+
+Weights too large to ship inside a distribution are blobs: raw files kept
+beside the store under their SHA-256. An expert names the digest in its
+stored object, so the object's reference changes whenever the weights do, and
+asks ``blob`` for the file when it loads.
 
 A lock is checked against the running environment before an agent is
 installed from it or spawned: each package must be contributed at the locked
@@ -20,9 +26,11 @@ the packages a lock names is the environment's job.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -37,6 +45,7 @@ from nca.packages import GROUP, discover
 LOCK_VERSION = 1
 CORE = "nca"
 _NAME = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
+_DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
@@ -75,6 +84,52 @@ def home() -> Path:
     if elisapkg := os.environ.get("ELISAPKG_HOME"):
         return Path(elisapkg) / "agent"
     return Path.home() / ".elisapkg" / "agent"
+
+
+def _blob_path(sha256: str) -> Path:
+    digest = sha256.removeprefix("sha256:")
+    if not _DIGEST.fullmatch(digest):
+        raise ValueError(f"{sha256!r} is not a SHA-256 digest of 64 lowercase hexadecimal digits")
+    return home() / "blobs" / "sha256" / digest
+
+
+def blob(sha256: str) -> Path:
+    """The local file of the admitted blob with digest ``sha256``.
+
+    The digest was verified when the blob was admitted and is not recomputed
+    here, so loading a large file does not read it twice.
+    """
+    path = _blob_path(sha256)
+    if not path.is_file():
+        raise LookupError(f"blob sha256:{path.name} is not in {path.parent}; "
+                          "admit the file with nca.agents.admit_blob")
+    return path
+
+
+def admit_blob(source: Path) -> str:
+    """Copy the file ``source`` into the blob directory and return its
+    digest as ``sha256:…``. Admitting equal contents again changes nothing."""
+    hashing = hashlib.sha256()
+    with source.open("rb") as stream:
+        while chunk := stream.read(1 << 20):
+            hashing.update(chunk)
+    path = _blob_path(hashing.hexdigest())
+    if not path.is_file():
+        _private(path.parent)
+        staged = path.with_name(f".{path.name}.{os.getpid()}")
+        try:
+            shutil.copyfile(source, staged)
+            copied = hashlib.sha256()
+            with staged.open("rb") as stream:
+                while chunk := stream.read(1 << 20):
+                    copied.update(chunk)
+            if copied.digest() != hashing.digest():
+                raise OSError(f"{source} changed while it was admitted")
+            staged.chmod(0o400)
+            staged.replace(path)
+        finally:
+            staged.unlink(missing_ok=True)
+    return f"sha256:{path.name}"
 
 
 def core_version() -> str:
