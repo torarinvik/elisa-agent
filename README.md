@@ -115,6 +115,18 @@ Measurements, including negative results, are in the dated research diary.
     uv sync
     uv run pytest
 
+Named agents are kept under `~/.elisapkg/agent` and managed with `elisa-agent`:
+
+    uv run elisa-agent packages              # expert packages installed here
+    uv run elisa-agent create demo           # lock them as the agent "demo"
+    uv run elisa-agent export demo           # print the lock to share
+    uv run elisa-agent install a.lock --name copy
+    uv run elisa-agent spawn demo -- python host.py
+
+An agent is a lock of package versions and object references. `install` and
+`spawn` refuse a lock the environment does not match. `spawn` runs a host
+program with a fresh state directory named by `ELISA_AGENT_STATE`.
+
 The proofs build with `cd lean && lake exe cache get && lake build`. Expert
 packages are separate repositories that register themselves through the
 `nca.packages` entry-point group; the core does not depend on any of them.
